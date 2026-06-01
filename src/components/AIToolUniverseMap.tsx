@@ -673,7 +673,13 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cursor, video, skills..."
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && queryResultTools[0]) {
+                  event.preventDefault();
+                  focusTool(queryResultTools[0]);
+                }
+              }}
+              placeholder="Cursor, video, skills... ↵ to focus"
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-fuchsia-300/40 focus:ring-2 focus:ring-fuchsia-300/10"
             />
             {normalizedQuery && (

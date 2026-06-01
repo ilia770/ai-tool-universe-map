@@ -52,10 +52,12 @@ Schema:
 
 ## [C2] Mobile right panel bottom sheet
 - status: done
+- commit: 493264f
 - notes: right aside on mobile = sticky bottom-0 max-h-60vh overflow-y-auto rounded-top + drag handle visual. On lg reverts to original static left-bordered column. No fixed positioning (preserves grid flow), no JS state — pure CSS.
 
 ## [C3] Search camera focus
-- status: pending
+- status: done
+- notes: Enter in search input → focusTool(queryResultTools[0]); reuses existing camera-focus pipeline. Placeholder updated to "↵ to focus".
 
 ## [D1] Tool data to JSON
 - status: pending
