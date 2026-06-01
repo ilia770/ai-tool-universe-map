@@ -19,8 +19,8 @@ export function CameraController({ targetKey, targetPosition, viewMode }: Camera
     lastTargetKeyRef.current = targetKey;
 
     const [x, y, z] = targetPosition;
-    const cameraY = y + (viewMode === 'overview' ? 6.3 : viewMode === 'pocket' ? 5.25 : 3.5);
-    const cameraZ = z + (viewMode === 'overview' ? 19.5 : viewMode === 'pocket' ? 16.4 : 11.2);
+    const cameraY = y + (viewMode === 'overview' ? 6.3 : viewMode === 'pocket' ? 6.8 : 5.0);
+    const cameraZ = z + (viewMode === 'overview' ? 19.5 : viewMode === 'pocket' ? 19.0 : 15.5);
 
     void controlsRef.current.setLookAt(
       x, cameraY, cameraZ,
@@ -33,8 +33,8 @@ export function CameraController({ targetKey, targetPosition, viewMode }: Camera
     <CameraControls
       ref={controlsRef}
       makeDefault
-      minDistance={5.5}
-      maxDistance={42}
+      minDistance={7.5}
+      maxDistance={46}
       smoothTime={0.55}
       draggingSmoothTime={0.08}
       dollyToCursor

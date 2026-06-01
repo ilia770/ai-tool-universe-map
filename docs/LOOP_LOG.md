@@ -16,7 +16,8 @@ Schema:
 ---
 
 ## [A1] Camera over-zoom
-- status: pending
+- status: done
+- notes: cameraY/Z offsets pushed (node 3.5/11.2 → 5.0/15.5; pocket 5.25/16.4 → 6.8/19.0). minDistance 5.5 → 7.5, maxDistance 42 → 46.
 
 ## [A2] Right-panel empty
 - status: pending
