@@ -81,4 +81,15 @@ Schema:
 
 ## [E2] Lighthouse Core Web Vitals
 - status: done
+- commit: 923ac82
 - notes: Lighthouse on prod URL: Perf 49 / A11y 96 / BP 100 / SEO 92. LCP 3.5s, FCP 3.0s, CLS 0, TBT 10.4s, SI 7.8s. Findings + follow-ups (frameloop demand, geometry reuse, deferred scene boot) saved to docs/perf.md.
+
+## [F1] frameloop demand + invalidate
+- status: done
+- notes: pivoted from `frameloop="demand"` (would break ambient anims that need continuous frames). Instead lazy-mount StarField + GalaxyDust via requestIdleCallback (timeout 600ms, setTimeout fallback 220ms). Main scene paints first; cosmos slides in ~one frame later. Lighthouse re-run after deploy will confirm TBT drop.
+
+## [F2] Shared BufferGeometry for ToolNodes
+- status: pending
+
+## [F3] Near-camera category glow cue
+- status: pending

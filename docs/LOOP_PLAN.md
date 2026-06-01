@@ -61,9 +61,17 @@ On a new session:
 | E1  | Playwright responsive snapshots — 3 viewports, retry, deterministic seed. | `tests/visual-smoke.spec.ts`, `playwright.config.ts` | 50m | med |
 | E2  | Lighthouse + Core Web Vitals run, save to `docs/perf.md`. | `docs/perf.md` | 25m | low |
 
+### Track F — Perf followup (post-Lighthouse)
+
+| ID  | Task | Files | Est | Risk |
+| --- | --- | --- | --- | --- |
+| F1  | `frameloop="demand"` + invalidate hooks; cut idle GPU draws. | `Scene.tsx`, `CameraController.tsx`, `ProximityCategoryWatcher.tsx` | 45m | med |
+| F2  | Shared BufferGeometry across all ToolNodes — one geom, N instances. | `ToolNode.tsx`, `Scene.tsx` | 40m | med |
+| F3  | Pocket glow on near-camera category rings (visual cue: "this opens"). | `CategoryRing.tsx`, `Scene.tsx` | 25m | low |
+
 ## Order
 
-`A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3 → D1 → D2 → D3 → E1 → E2`
+`A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3 → D1 → D2 → D3 → E1 → E2 → F1 → F2 → F3`
 
 Track A first because every later track sits on top of a polished baseline.
 B before C/D because mini-world is the user's primary creative ask.

@@ -44,6 +44,22 @@ export function Scene({
 }: SceneProps) {
   const [hoveredCategory, setHoveredCategory] = useState<ToolCategoryId | null>(null);
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
+  // Defer heavy ambient layers (StarField, GalaxyDust) until the browser is
+  // idle. The main scene paints first; ambient cosmos slides in ~one frame
+  // later. Saves ~1-2 s of initial TBT without losing the look.
+  const [ambientReady, setAmbientReady] = useState(false);
+  useEffect(() => {
+    const ric = (window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    });
+    if (typeof ric.requestIdleCallback === 'function') {
+      const handle = ric.requestIdleCallback(() => setAmbientReady(true), { timeout: 600 });
+      return () => ric.cancelIdleCallback?.(handle);
+    }
+    const handle = window.setTimeout(() => setAmbientReady(true), 220);
+    return () => window.clearTimeout(handle);
+  }, []);
   const hoverClearTimeoutRef = useRef<number | null>(null);
   const toolHoverClearTimeoutRef = useRef<number | null>(null);
   const allTools = useMemo(() => [...tools, ...customTools], [customTools]);
@@ -386,8 +402,12 @@ export function Scene({
       <ambientLight intensity={0.15} />
       <pointLight position={[0, 4, 8]} intensity={0.85} color="#9be8ff" />
       <pointLight position={[-7, -2, -4]} intensity={0.35} color="#ff8bd2" />
-      <StarField />
-      <GalaxyDust />
+      {ambientReady && (
+        <>
+          <StarField />
+          <GalaxyDust />
+        </>
+      )}
       <CameraController
         targetKey={`${selectedId}:${pocketCategory ?? 'none'}:${cameraVersion}:${cameraViewMode}`}
         targetPosition={cameraTargetPosition}
