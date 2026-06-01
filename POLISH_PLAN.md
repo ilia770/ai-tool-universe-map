@@ -18,6 +18,10 @@
 
 - Persist custom tools in localStorage.
 - Add a reset action for custom tools.
+- Validate JSON import/export for custom tools.
+- Trap focus inside the full-screen dialog and expose visible focus states.
+- Add Logo.dev-backed service logos with a local SVG fallback.
+- Keep hover and camera behavior calm: panel changes on click, group focus changes by dock/category.
 - Improve right-panel workflow context and link copy.
 - Keep the project standalone and portable.
 

@@ -1,13 +1,19 @@
 import { useMemo } from 'react';
 import { QuadraticBezierLine } from '@react-three/drei';
-import type { ToolCategoryId, UniverseLink } from '../../data/ai-tool-universe';
+import type { ToolCategoryId, UniverseLink, WorkflowStageId } from '../../data/ai-tool-universe';
+
+type RelationLens = 'direct' | 'adjacent' | 'stage' | 'category';
 
 interface ConnectionLinesProps {
   links: UniverseLink[];
   positionById: Map<string, [number, number, number]>;
   relationDepthById: Map<string, number>;
+  lensRelevantIds: Set<string>;
   toolCategoryById: Map<string, ToolCategoryId>;
+  toolStageById: Map<string, WorkflowStageId>;
   focusedCategory: ToolCategoryId | null;
+  pocketCategory: ToolCategoryId | null;
+  relationLens: RelationLens;
   selectedId: string;
 }
 
@@ -15,8 +21,12 @@ export function ConnectionLines({
   links,
   positionById,
   relationDepthById,
+  lensRelevantIds,
   toolCategoryById,
+  toolStageById,
   focusedCategory,
+  pocketCategory,
+  relationLens,
   selectedId,
 }: ConnectionLinesProps) {
   const lineData = useMemo(() =>
@@ -28,30 +38,63 @@ export function ConnectionLines({
       const sourceDepth = relationDepthById.get(link.source) ?? 99;
       const targetDepth = relationDepthById.get(link.target) ?? 99;
       const relationDepth = Math.min(sourceDepth, targetDepth);
+      const bothInLens = lensRelevantIds.has(link.source) && lensRelevantIds.has(link.target);
+      const sameStage = toolStageById.get(link.source) === toolStageById.get(link.target);
+      const sameCategory = toolCategoryById.get(link.source) === toolCategoryById.get(link.target);
+      const sourceCategory = toolCategoryById.get(link.source);
+      const targetCategory = toolCategoryById.get(link.target);
+      const bothInPocket = Boolean(pocketCategory) && sourceCategory === pocketCategory && targetCategory === pocketCategory;
+      const touchesPocket = Boolean(pocketCategory) && (sourceCategory === pocketCategory || targetCategory === pocketCategory);
       const inFocusedCategory = focusedCategory
         ? toolCategoryById.get(link.source) === focusedCategory || toolCategoryById.get(link.target) === focusedCategory
         : true;
-      return [{ link, start, end, isSelected, relationDepth, inFocusedCategory }];
+      return [{ link, start, end, isSelected, relationDepth, inFocusedCategory, bothInLens, bothInPocket, touchesPocket, sameStage, sameCategory }];
     }),
-    [focusedCategory, links, positionById, relationDepthById, selectedId, toolCategoryById],
+    [
+      focusedCategory,
+      lensRelevantIds,
+      links,
+      pocketCategory,
+      positionById,
+      relationDepthById,
+      selectedId,
+      toolCategoryById,
+      toolStageById,
+    ],
   );
 
   return (
     <>
-      {lineData.map(({ link, start, end, isSelected, relationDepth, inFocusedCategory }) => {
+      {lineData.map(({ link, start, end, isSelected, relationDepth, inFocusedCategory, bothInLens, bothInPocket, touchesPocket, sameStage, sameCategory }) => {
         const isFounderMode = selectedId === 'founder-os';
         const isPrimary = link.strength === 'primary';
-        const opacity = isSelected
-          ? 0.82
-          : relationDepth === 1
-            ? 0.38
-            : relationDepth === 2
-              ? 0.16
-              : isFounderMode && isPrimary
-                ? 0.18
-                : 0.025;
-        const lineWidth = isSelected ? 2.25 : relationDepth === 1 ? 1.25 : isPrimary ? 0.8 : 0.32;
-        const focusMultiplier = inFocusedCategory ? 1 : 0.18;
+        const isLensLine = relationLens === 'stage'
+          ? bothInLens && sameStage
+          : relationLens === 'category'
+            ? bothInLens && sameCategory
+            : bothInLens;
+        const opacity = (() => {
+          if (isSelected) return bothInPocket ? 0.76 : 0.58;
+          if (bothInPocket && isLensLine) return 0.32;
+          if (bothInPocket) return 0.18;
+          if (touchesPocket && isLensLine) return 0.14;
+          if (isLensLine && relationLens === 'adjacent' && relationDepth <= 2) return 0.18;
+          if (isLensLine && (relationLens === 'stage' || relationLens === 'category')) return 0.14;
+          if (relationDepth === 1) return 0.22;
+          if (relationDepth === 2) return 0.075;
+          if (isFounderMode && isPrimary) return 0.12;
+          return 0.012;
+        })();
+        const lineWidth = (() => {
+          if (isSelected) return bothInPocket ? 2.2 : 1.65;
+          if (bothInPocket && isLensLine) return 1.24;
+          if (bothInPocket) return 0.92;
+          if (isLensLine) return 0.78;
+          if (relationDepth === 1) return 0.86;
+          if (isPrimary) return 0.62;
+          return 0.24;
+        })();
+        const focusMultiplier = inFocusedCategory || touchesPocket ? 1 : 0.08;
 
         return (
           <QuadraticBezierLine
