@@ -42,13 +42,17 @@ Schema:
 
 ## [B3] Pocket exit affordance
 - status: done
+- commit: 8060d71
 - notes: layered Escape (pocket first, dialog second). ProximityCategoryWatcher extended w/ onExit + exitDistance=22; once activeCategory open and camera distance to its anchor > 22, auto-exits via onSelectCategory('all'). Enter 11 < exit 22 gives hysteresis.
 
 ## [C1] Connection-line clarity
-- status: pending
+- status: done
+- commit: fe48935 (rolled into B2)
+- notes: bothInPocket opacity 0.18→0.32 (0.5 in lens), width 0.92→1.18 (1.6 in lens), selected 2.2→2.6. Non-pocket already at 0.012 × 0.08 focusMultiplier — effectively invisible. No further dimming needed.
 
 ## [C2] Mobile right panel bottom sheet
-- status: pending
+- status: done
+- notes: right aside on mobile = sticky bottom-0 max-h-60vh overflow-y-auto rounded-top + drag handle visual. On lg reverts to original static left-bordered column. No fixed positioning (preserves grid flow), no JS state — pure CSS.
 
 ## [C3] Search camera focus
 - status: pending

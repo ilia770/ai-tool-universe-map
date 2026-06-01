@@ -997,7 +997,8 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           </div>
         </section>
 
-        <aside className="order-3 border-t border-white/10 bg-black/30 p-4 backdrop-blur-2xl lg:overflow-y-auto lg:border-t-0 lg:border-l">
+        <aside className="order-3 sticky bottom-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-white/15 bg-black/70 p-4 shadow-[0_-22px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:static lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-l lg:bg-black/30 lg:shadow-none">
+          <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-white/25 lg:hidden" aria-hidden="true" />
           <article
             data-tool-id={selectedTool.id}
             className="tool-detail-card rounded-xl border border-white/12 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
