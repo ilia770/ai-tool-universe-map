@@ -76,7 +76,9 @@ Schema:
 
 ## [E1] Playwright responsive snapshots
 - status: done
+- commit: 2271a2d
 - notes: playwright.config: added tablet-chromium project (834×1112), `retries: process.env.CI ? 2 : 1`, `reducedMotion: 'reduce'` global use. Existing visual-smoke spec auto-runs across all 3 projects now. Real `toHaveScreenshot()` baselines deferred — WebGL canvas is sensitive to driver/timing; needs a seeded animation pass first to be stable. Did not run playwright here — concurrent session already running it.
 
 ## [E2] Lighthouse Core Web Vitals
-- status: pending
+- status: done
+- notes: Lighthouse on prod URL: Perf 49 / A11y 96 / BP 100 / SEO 92. LCP 3.5s, FCP 3.0s, CLS 0, TBT 10.4s, SI 7.8s. Findings + follow-ups (frameloop demand, geometry reuse, deferred scene boot) saved to docs/perf.md.
