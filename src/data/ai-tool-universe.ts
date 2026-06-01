@@ -20,6 +20,7 @@ export interface AITool {
   orbit: 0 | 1 | 2 | 3;
   angle: number;
   url?: string;
+  logoDomain?: string;
   relationIds: string[];
   classification?: {
     confidence: number;
@@ -119,8 +120,8 @@ export const categories: ToolCategory[] = [
     name: 'AI Operating Core',
     shortName: 'Core',
     description: 'Founder OS, orchestration, model choice, review loops, and the operating workflow.',
-    color: '#ffffff',
-    glow: 'rgba(255, 255, 255, 0.24)',
+    color: '#d8faff',
+    glow: 'rgba(103, 232, 249, 0.18)',
     angle: -178,
   },
 ];

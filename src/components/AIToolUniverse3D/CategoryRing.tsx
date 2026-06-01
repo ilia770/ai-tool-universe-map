@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Html } from '@react-three/drei';
+import { Billboard, Html, Sparkles } from '@react-three/drei';
 import type { Mesh } from 'three';
 import * as THREE from 'three';
 import type { ToolCategory } from '../../data/ai-tool-universe';
@@ -10,43 +10,44 @@ interface CategoryRingProps {
   position: [number, number, number];
   active: boolean;
   hovered: boolean;
+  pocketActive: boolean;
+  labelVisible: boolean;
   onSelect: (id: ToolCategory['id']) => void;
   onHover: (id: ToolCategory['id'] | null) => void;
 }
 
-export function CategoryRing({ category, position, active, hovered, onSelect, onHover }: CategoryRingProps) {
+export function CategoryRing({ category, position, active, hovered, pocketActive, labelVisible, onSelect, onHover }: CategoryRingProps) {
   const haloRef = useRef<Mesh>(null);
-  const ringRef = useRef<Mesh>(null);
+  const cloudRef = useRef<Mesh>(null);
   const coreRef = useRef<Mesh>(null);
-  const opacity = active ? 1.0 : 0.2;
+  const opacity = labelVisible ? (active ? 1.0 : 0.2) : 0;
 
   useFrame(() => {
-    const ringTargetScale = hovered ? 1.09 : 1;
-    const coreTargetScale = hovered ? 1.16 : 1;
-    const haloTargetOpacity = hovered ? 0.08 : 0.012;
-    const ringTargetOpacity = opacity * (hovered ? 0.78 : 0.5);
-    const emissiveTarget = hovered ? 1.45 : active ? 1.0 : 0.3;
+    const cloudTargetScale = pocketActive ? 1.24 : hovered ? 1.06 : active ? 0.96 : 0.86;
+    const coreTargetScale = pocketActive ? 1.18 : hovered ? 1.1 : 1;
+    const haloTargetOpacity = pocketActive ? 0.032 : hovered ? 0.026 : active ? 0.008 : 0.002;
+    const cloudTargetOpacity = opacity * (pocketActive ? 0.065 : hovered ? 0.04 : active ? 0.018 : 0.006);
+    const emissiveTarget = pocketActive ? 1.22 : hovered ? 1.05 : active ? 0.72 : 0.22;
 
     if (haloRef.current) {
       const material = haloRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity += (haloTargetOpacity - material.opacity) * 0.12;
+      material.opacity += (haloTargetOpacity - material.opacity) * 0.055;
     }
 
-    if (ringRef.current) {
-      ringRef.current.scale.x += (ringTargetScale - ringRef.current.scale.x) * 0.1;
-      ringRef.current.scale.y += (ringTargetScale - ringRef.current.scale.y) * 0.1;
-      ringRef.current.scale.z += (ringTargetScale - ringRef.current.scale.z) * 0.1;
-      const material = ringRef.current.material as THREE.MeshStandardMaterial;
-      material.opacity += (ringTargetOpacity - material.opacity) * 0.1;
-      material.emissiveIntensity += ((hovered ? 0.85 : 0.4) - material.emissiveIntensity) * 0.1;
+    if (cloudRef.current) {
+      cloudRef.current.scale.x += (cloudTargetScale - cloudRef.current.scale.x) * 0.06;
+      cloudRef.current.scale.y += (cloudTargetScale - cloudRef.current.scale.y) * 0.06;
+      cloudRef.current.scale.z += (cloudTargetScale - cloudRef.current.scale.z) * 0.06;
+      const material = cloudRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity += (cloudTargetOpacity - material.opacity) * 0.06;
     }
 
     if (coreRef.current) {
-      coreRef.current.scale.x += (coreTargetScale - coreRef.current.scale.x) * 0.1;
-      coreRef.current.scale.y += (coreTargetScale - coreRef.current.scale.y) * 0.1;
-      coreRef.current.scale.z += (coreTargetScale - coreRef.current.scale.z) * 0.1;
+      coreRef.current.scale.x += (coreTargetScale - coreRef.current.scale.x) * 0.06;
+      coreRef.current.scale.y += (coreTargetScale - coreRef.current.scale.y) * 0.06;
+      coreRef.current.scale.z += (coreTargetScale - coreRef.current.scale.z) * 0.06;
       const material = coreRef.current.material as THREE.MeshStandardMaterial;
-      material.emissiveIntensity += (emissiveTarget - material.emissiveIntensity) * 0.1;
+      material.emissiveIntensity += (emissiveTarget - material.emissiveIntensity) * 0.055;
     }
   });
 
@@ -63,31 +64,52 @@ export function CategoryRing({ category, position, active, hovered, onSelect, on
         onHover(null);
       }}
     >
-      <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[2.55, 48]} />
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[3.2, 64]} />
         <meshBasicMaterial
           color={category.color}
           transparent
-          opacity={0.012}
+          opacity={0}
           depthWrite={false}
+          side={THREE.DoubleSide}
         />
       </mesh>
-      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[2.0, 0.014, 8, 64]} />
-        <meshStandardMaterial
+      <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[2.85, 64]} />
+        <meshBasicMaterial
           color={category.color}
-          emissive={category.color}
-          emissiveIntensity={0.4}
           transparent
-          opacity={opacity * 0.5}
+          opacity={0.004}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <Sparkles
+        count={pocketActive ? 58 : hovered ? 42 : 24}
+        scale={pocketActive ? [4.2, 1.24, 3.1] : [3.0, 1.0, 2.2]}
+        size={pocketActive ? 2.45 : hovered ? 2.2 : 1.25}
+        speed={0.18}
+        color={category.color}
+      />
+      <mesh ref={cloudRef} scale={[1.45, 0.22, 0.85]}>
+        <sphereGeometry args={[0.9, 32, 16]} />
+        <meshBasicMaterial
+          color={category.color}
+          transparent
+          opacity={0.025}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
         />
       </mesh>
       <mesh ref={coreRef}>
-        <sphereGeometry args={[0.45, 24, 24]} />
+        <icosahedronGeometry args={[0.34, 2]} />
         <meshStandardMaterial
           color={category.color}
           emissive={category.color}
-          emissiveIntensity={active ? 1.0 : 0.3}
+          emissiveIntensity={active ? 0.72 : 0.22}
+          metalness={0.25}
+          roughness={0.45}
         />
       </mesh>
       <Billboard>
@@ -95,9 +117,9 @@ export function CategoryRing({ category, position, active, hovered, onSelect, on
           <div
             className="universe-label universe-label-category"
             style={{
-              color: active ? category.color : 'rgba(210,220,240,0.58)',
-              borderColor: active ? `${category.color}66` : 'rgba(255,255,255,0.12)',
-              boxShadow: active
+              color: active || pocketActive ? category.color : 'rgba(210,220,240,0.58)',
+              borderColor: active || pocketActive ? `${category.color}66` : 'rgba(255,255,255,0.12)',
+              boxShadow: active || pocketActive
                 ? `0 0 18px ${category.glow}, inset 0 1px 0 rgba(255,255,255,0.14)`
                 : 'inset 0 1px 0 rgba(255,255,255,0.08)',
               opacity,

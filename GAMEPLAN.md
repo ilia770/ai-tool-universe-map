@@ -31,6 +31,9 @@ Review these items before shipping:
 - Are mobile panels scrollable and usable?
 - Are colors premium rather than generic neon?
 - Can users close the map with Escape and a button?
+- Can custom tools be exported before clearing browser storage?
+- Does JSON import reject malformed files without breaking the session?
+- Are Logo.dev logos loaded from a publishable key only, with SVG fallbacks when unavailable?
 
 ## AI Agent Review
 
@@ -41,3 +44,5 @@ Ask a second agent to review:
 - Performance on low-end laptops.
 - Accessibility of buttons, dialog semantics, and focus behavior.
 - Whether data structure is ready for backend persistence.
+- Whether localStorage custom tools should move to an authenticated backend.
+- Whether the current procedural 3D scene should later be replaced with a GLB/Blender asset.
