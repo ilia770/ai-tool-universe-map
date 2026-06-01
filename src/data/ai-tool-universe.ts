@@ -44,6 +44,11 @@ export interface UniverseLink {
   target: string;
   strength: LinkStrength;
   label: string;
+  /**
+   * Optional 0-1 confidence in this relation. Undefined for hand-curated
+   * links; set by a future API-backed classifier when provenance matters.
+   */
+  confidence?: number;
 }
 
 export interface WorkflowStage {

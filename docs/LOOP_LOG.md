@@ -66,10 +66,12 @@ Schema:
 
 ## [D2] Vite manualChunks split
 - status: done
+- commit: d0a57b5
 - notes: rollup manualChunks: `three/` → three-core (723kB / 184kB gz), `@react-three/* + postprocessing + camera-controls` → three-r3f (425kB / 130kB gz). Initial main chunk shrank 246kB → 57kB (76kB gz → 17kB gz). Total payload similar but parallelizable + cacheable separately on prod.
 
 ## [D3] Relation confidence field
-- status: pending
+- status: done
+- notes: added optional `confidence?: number` to UniverseLink. linkConfidenceByPeer useMemo derives a `Map<peerToolId, confidence>` for selectedTool. Relationship-lens pills now render a fuchsia "%n%" badge when confidence is set. Backfilling existing handcurated links deferred to future API classifier — no badges shown today but wiring is live.
 
 ## [E1] Playwright responsive snapshots
 - status: pending

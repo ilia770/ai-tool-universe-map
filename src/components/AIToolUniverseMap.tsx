@@ -19,6 +19,7 @@ import {
   type WorkflowStageId,
   categories,
   workflowStages,
+  workflowLinks,
   categoryById,
   tools,
 } from '../data/ai-tool-universe';
@@ -321,6 +322,15 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       .slice(0, 8),
     [directRelationIds, nodeById],
   );
+  const linkConfidenceByPeer = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const link of workflowLinks) {
+      if (link.confidence === undefined) continue;
+      if (link.source === selectedTool.id) map.set(link.target, link.confidence);
+      else if (link.target === selectedTool.id) map.set(link.source, link.confidence);
+    }
+    return map;
+  }, [selectedTool.id]);
   const adjacentConnectedTools = useMemo(() => {
     const adjacentIds = new Set<string>();
     directConnectedTools.forEach((tool) => {
@@ -1131,17 +1141,25 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {lensTools.length > 0 ? (
-                  lensTools.slice(0, 7).map((tool) => (
-                    <button
-                      key={tool.id}
-                      type="button"
-                      onClick={() => focusTool(tool)}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-text-secondary transition hover:bg-white/10 hover:text-white"
-                    >
-                      <ToolLogo tool={tool} size={20} />
-                      {tool.name}
-                    </button>
-                  ))
+                  lensTools.slice(0, 7).map((tool) => {
+                    const confidence = linkConfidenceByPeer.get(tool.id);
+                    return (
+                      <button
+                        key={tool.id}
+                        type="button"
+                        onClick={() => focusTool(tool)}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-text-secondary transition hover:bg-white/10 hover:text-white"
+                      >
+                        <ToolLogo tool={tool} size={20} />
+                        {tool.name}
+                        {confidence !== undefined && (
+                          <span className="rounded-full bg-fuchsia-200/15 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-100/90">
+                            {Math.round(confidence * 100)}%
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
                 ) : (
                   <span className="text-sm text-text-muted">No visible tools in this lens yet.</span>
                 )}
