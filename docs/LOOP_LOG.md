@@ -27,10 +27,12 @@ Schema:
 
 ## [A3] DOM overlay overlap
 - status: done
+- commit: 69dc2c4
 - notes: section now flex-col on mobile; canvas wrapped in flex-1 div (min-h 440); lens flows below it (relative). On lg reverts to absolute pinned at bottom. Eliminates lens covering canvas / overlapping right panel on small viewports.
 
 ## [B1] Zoom-distance trigger for pocket
-- status: pending
+- status: done
+- notes: new ProximityCategoryWatcher polls camera distance ~6Hz; when nearest non-core category anchor is within 11 units AND activeCategory='all', auto-calls onSelectCategory. 1.4s cooldown prevents flicker. Auto-exit deferred to B3.
 
 ## [B2] Pocket breathing room layout
 - status: pending

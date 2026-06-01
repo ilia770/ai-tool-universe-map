@@ -11,6 +11,7 @@ import { ToolNode } from './ToolNode';
 import { ConnectionLines } from './ConnectionLines';
 import { CameraController } from './CameraController';
 import { PocketWorldShell } from './PocketWorldShell';
+import { ProximityCategoryWatcher } from './ProximityCategoryWatcher';
 import { categoryPosition, pocketToolPosition, toolPosition } from './layout';
 
 type RelationLens = 'direct' | 'adjacent' | 'stage' | 'category';
@@ -112,6 +113,13 @@ export function Scene({
   const pocketCenterPosition = useMemo<[number, number, number] | null>(
     () => (pocketCategoryMeta ? categoryPosition(pocketCategoryMeta.angle) : null),
     [pocketCategoryMeta],
+  );
+  const categoryAnchors = useMemo(
+    () =>
+      categories
+        .filter((c) => c.id !== 'core')
+        .map((c) => ({ id: c.id, position: categoryPosition(c.angle) as [number, number, number] })),
+    [],
   );
   const pocketSlotById = useMemo(() => {
     const map = new Map<string, number>();
@@ -384,6 +392,13 @@ export function Scene({
         targetKey={`${selectedId}:${pocketCategory ?? 'none'}:${cameraVersion}:${cameraViewMode}`}
         targetPosition={cameraTargetPosition}
         viewMode={cameraViewMode}
+      />
+      <ProximityCategoryWatcher
+        anchors={categoryAnchors}
+        activeCategory={activeCategory}
+        enterDistance={11}
+        cooldownMs={1400}
+        onEnter={onSelectCategory}
       />
 
       <Html fullscreen zIndexRange={[90, 70]} style={{ pointerEvents: 'none' }}>
