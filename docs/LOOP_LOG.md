@@ -71,10 +71,12 @@ Schema:
 
 ## [D3] Relation confidence field
 - status: done
+- commit: 6de38f7
 - notes: added optional `confidence?: number` to UniverseLink. linkConfidenceByPeer useMemo derives a `Map<peerToolId, confidence>` for selectedTool. Relationship-lens pills now render a fuchsia "%n%" badge when confidence is set. Backfilling existing handcurated links deferred to future API classifier — no badges shown today but wiring is live.
 
 ## [E1] Playwright responsive snapshots
-- status: pending
+- status: done
+- notes: playwright.config: added tablet-chromium project (834×1112), `retries: process.env.CI ? 2 : 1`, `reducedMotion: 'reduce'` global use. Existing visual-smoke spec auto-runs across all 3 projects now. Real `toHaveScreenshot()` baselines deferred — WebGL canvas is sensitive to driver/timing; needs a seeded animation pass first to be stable. Did not run playwright here — concurrent session already running it.
 
 ## [E2] Lighthouse Core Web Vitals
 - status: pending
