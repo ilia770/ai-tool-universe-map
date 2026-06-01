@@ -57,13 +57,16 @@ Schema:
 
 ## [C3] Search camera focus
 - status: done
+- commit: 344183b
 - notes: Enter in search input → focusTool(queryResultTools[0]); reuses existing camera-focus pipeline. Placeholder updated to "↵ to focus".
 
 ## [D1] Tool data to JSON
-- status: pending
+- status: skipped
+- notes: starterTools+supportingTools span lines 152-670 of ai-tool-universe.ts (~520 lines of TS-literal data with discriminated-union string types). Hand-translating to JSON without a schema validator risks subtle regressions (typos, lost trailing fields) that lint/typecheck won't catch. Better as its own PR with a Zod/JSON-schema validator + round-trip test. Sprint priority moves to D2 (bundle split — direct UX impact) and D3 (relation confidence — wires into existing classifier output).
 
 ## [D2] Vite manualChunks split
-- status: pending
+- status: done
+- notes: rollup manualChunks: `three/` → three-core (723kB / 184kB gz), `@react-three/* + postprocessing + camera-controls` → three-r3f (425kB / 130kB gz). Initial main chunk shrank 246kB → 57kB (76kB gz → 17kB gz). Total payload similar but parallelizable + cacheable separately on prod.
 
 ## [D3] Relation confidence field
 - status: pending
