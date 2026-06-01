@@ -813,27 +813,29 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           </p>
         </aside>
 
-        <section className="order-1 relative min-h-[680px] overflow-hidden sm:min-h-[620px] md:min-h-[640px] lg:order-2 lg:h-[calc(100dvh-4rem)] lg:min-h-0">
-          <Suspense fallback={
-            <div className="absolute inset-0 flex items-center justify-center bg-[#020008]">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-300" />
-            </div>
-          }>
-            <AIToolUniverse3D
-              selectedId={selectedId}
-              onSelectId={selectToolId}
-              activeCategory={activeCategory}
-              activeStage={activeStage}
-              query={query}
-              customTools={customTools}
-              relationLens={relationLens}
-              mapClarity={mapClarity}
-              cameraVersion={cameraVersion}
-              onSelectCategory={focusCategory}
-            />
-          </Suspense>
+        <section className="order-1 relative flex flex-col min-h-[680px] overflow-hidden sm:min-h-[620px] md:min-h-[640px] lg:order-2 lg:h-[calc(100dvh-4rem)] lg:min-h-0">
+          <div className="relative flex-1 min-h-[440px] lg:min-h-0">
+            <Suspense fallback={
+              <div className="absolute inset-0 flex items-center justify-center bg-[#020008]">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-300" />
+              </div>
+            }>
+              <AIToolUniverse3D
+                selectedId={selectedId}
+                onSelectId={selectToolId}
+                activeCategory={activeCategory}
+                activeStage={activeStage}
+                query={query}
+                customTools={customTools}
+                relationLens={relationLens}
+                mapClarity={mapClarity}
+                cameraVersion={cameraVersion}
+                onSelectCategory={focusCategory}
+              />
+            </Suspense>
+          </div>
 
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 md:inset-x-5 md:bottom-4">
+          <div className="relative z-20 mt-2 px-3 pb-3 lg:pointer-events-none lg:absolute lg:inset-x-5 lg:bottom-4 lg:mt-0 lg:px-0 lg:pb-0">
             <div className="pointer-events-auto mx-auto max-w-5xl rounded-2xl border border-white/15 bg-[#050814]/76 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_22px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">

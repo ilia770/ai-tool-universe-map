@@ -22,10 +22,12 @@ Schema:
 
 ## [A2] Right-panel empty
 - status: done
+- commit: 2ef900f
 - notes: removed `key={selectedTool.id}` from tool-detail `<article>`. Animation now plays once on initial mount, content swaps in place. No more interrupted-mid-fade empty state.
 
 ## [A3] DOM overlay overlap
-- status: pending
+- status: done
+- notes: section now flex-col on mobile; canvas wrapped in flex-1 div (min-h 440); lens flows below it (relative). On lg reverts to absolute pinned at bottom. Eliminates lens covering canvas / overlapping right panel on small viewports.
 
 ## [B1] Zoom-distance trigger for pocket
 - status: pending
