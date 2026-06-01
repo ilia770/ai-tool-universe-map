@@ -187,6 +187,16 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Layered exit: pocket world first, full dialog second.
+        if (activeCategory !== 'all' || activeStage !== 'all') {
+          event.preventDefault();
+          setActiveCategory('all');
+          setActiveStage('all');
+          setRelationLens('direct');
+          setMapClarity('focus');
+          setCameraVersion((version) => version + 1);
+          return;
+        }
         onClose();
         return;
       }
@@ -229,7 +239,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       document.removeEventListener('keydown', handleKeyDown);
       previousActiveElement?.focus({ preventScroll: true });
     };
-  }, [onClose]);
+  }, [activeCategory, activeStage, onClose]);
 
   useEffect(() => {
     window.localStorage.setItem(CUSTOM_TOOLS_STORAGE_KEY, JSON.stringify(customTools));

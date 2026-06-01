@@ -37,10 +37,12 @@ Schema:
 
 ## [B2] Pocket breathing room layout
 - status: done
+- commit: fe48935
 - notes: POCKET_ORBIT_RADII [2.05/3.36/4.82] → [2.9/4.6/6.4], POCKET_WORLD_RADIUS 5.32 → 7.0. pocketToolPosition switched from fan/lane layout to Fibonacci-sphere (golden-angle) distribution blended 22% with tool's own angle. ConnectionLines: bothInPocket opacity 0.18→0.32 (0.5 in lens), lineWidth 0.92→1.18 (1.6 in lens); selected-pocket line opacity 0.76→0.86 lineWidth 2.2→2.6. Intra-pocket relations now read clearly.
 
 ## [B3] Pocket exit affordance
-- status: pending
+- status: done
+- notes: layered Escape (pocket first, dialog second). ProximityCategoryWatcher extended w/ onExit + exitDistance=22; once activeCategory open and camera distance to its anchor > 22, auto-exits via onSelectCategory('all'). Enter 11 < exit 22 gives hysteresis.
 
 ## [C1] Connection-line clarity
 - status: pending

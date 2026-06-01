@@ -397,8 +397,10 @@ export function Scene({
         anchors={categoryAnchors}
         activeCategory={activeCategory}
         enterDistance={11}
+        exitDistance={22}
         cooldownMs={1400}
         onEnter={onSelectCategory}
+        onExit={() => onSelectCategory('all')}
       />
 
       <Html fullscreen zIndexRange={[90, 70]} style={{ pointerEvents: 'none' }}>

@@ -12,9 +12,12 @@ interface ProximityCategoryWatcherProps {
   activeCategory: ToolCategoryId | 'all';
   /** Distance below which the nearest anchor triggers pocket entry. */
   enterDistance: number;
-  /** Minimum delay between auto-enters in ms, prevents flicker. */
+  /** Distance above which the active pocket auto-exits. Must be > enterDistance. */
+  exitDistance: number;
+  /** Minimum delay between auto-enter/exit in ms, prevents flicker. */
   cooldownMs: number;
   onEnter: (id: ToolCategoryId) => void;
+  onExit: () => void;
 }
 
 /**
@@ -28,8 +31,10 @@ export function ProximityCategoryWatcher({
   anchors,
   activeCategory,
   enterDistance,
+  exitDistance,
   cooldownMs,
   onEnter,
+  onExit,
 }: ProximityCategoryWatcherProps) {
   const lastTriggerRef = useRef(0);
   const lastTickRef = useRef(0);
@@ -38,10 +43,24 @@ export function ProximityCategoryWatcher({
     const nowMs = clock.elapsedTime * 1000;
     if (nowMs - lastTickRef.current < 160) return;
     lastTickRef.current = nowMs;
-
-    if (activeCategory !== 'all') return;
     if (nowMs - lastTriggerRef.current < cooldownMs) return;
 
+    // Auto-exit: a pocket is open, but camera pulled back past exitDistance.
+    if (activeCategory !== 'all') {
+      const activeAnchor = anchors.find((a) => a.id === activeCategory);
+      if (!activeAnchor) return;
+      const dx = camera.position.x - activeAnchor.position[0];
+      const dy = camera.position.y - activeAnchor.position[1];
+      const dz = camera.position.z - activeAnchor.position[2];
+      const distSq = dx * dx + dy * dy + dz * dz;
+      if (distSq > exitDistance * exitDistance) {
+        lastTriggerRef.current = nowMs;
+        onExit();
+      }
+      return;
+    }
+
+    // Auto-enter: no pocket open, find nearest anchor under enterDistance.
     const enterDistSq = enterDistance * enterDistance;
     let nearestId: ToolCategoryId | null = null;
     let nearestDistSq = enterDistSq;
