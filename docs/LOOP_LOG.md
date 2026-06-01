@@ -17,10 +17,12 @@ Schema:
 
 ## [A1] Camera over-zoom
 - status: done
+- commit: add70d5
 - notes: cameraY/Z offsets pushed (node 3.5/11.2 → 5.0/15.5; pocket 5.25/16.4 → 6.8/19.0). minDistance 5.5 → 7.5, maxDistance 42 → 46.
 
 ## [A2] Right-panel empty
-- status: pending
+- status: done
+- notes: removed `key={selectedTool.id}` from tool-detail `<article>`. Animation now plays once on initial mount, content swaps in place. No more interrupted-mid-fade empty state.
 
 ## [A3] DOM overlay overlap
 - status: pending

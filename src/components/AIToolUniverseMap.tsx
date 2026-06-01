@@ -987,7 +987,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
         <aside className="order-3 border-t border-white/10 bg-black/30 p-4 backdrop-blur-2xl lg:overflow-y-auto lg:border-t-0 lg:border-l">
           <article
-            key={selectedTool.id}
+            data-tool-id={selectedTool.id}
             className="tool-detail-card rounded-xl border border-white/12 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
           >
             <div className="flex items-start gap-3">
