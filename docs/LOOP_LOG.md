@@ -1,0 +1,58 @@
+# Loop Log
+
+Append-only. One entry per task attempt. Newest at bottom.
+
+Schema:
+
+```
+## [ID] Title
+- status: pending | in_progress | done | skipped | reverted
+- started: ISO-8601 (added when in_progress)
+- finished: ISO-8601 (added when done/skipped/reverted)
+- commit: short-sha (added when done)
+- notes: free text, especially for skip/revert reasons
+```
+
+---
+
+## [A1] Camera over-zoom
+- status: pending
+
+## [A2] Right-panel empty
+- status: pending
+
+## [A3] DOM overlay overlap
+- status: pending
+
+## [B1] Zoom-distance trigger for pocket
+- status: pending
+
+## [B2] Pocket breathing room layout
+- status: pending
+
+## [B3] Pocket exit affordance
+- status: pending
+
+## [C1] Connection-line clarity
+- status: pending
+
+## [C2] Mobile right panel bottom sheet
+- status: pending
+
+## [C3] Search camera focus
+- status: pending
+
+## [D1] Tool data to JSON
+- status: pending
+
+## [D2] Vite manualChunks split
+- status: pending
+
+## [D3] Relation confidence field
+- status: pending
+
+## [E1] Playwright responsive snapshots
+- status: pending
+
+## [E2] Lighthouse Core Web Vitals
+- status: pending
