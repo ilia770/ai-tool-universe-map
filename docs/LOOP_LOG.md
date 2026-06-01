@@ -32,10 +32,12 @@ Schema:
 
 ## [B1] Zoom-distance trigger for pocket
 - status: done
+- commit: 5311eae
 - notes: new ProximityCategoryWatcher polls camera distance ~6Hz; when nearest non-core category anchor is within 11 units AND activeCategory='all', auto-calls onSelectCategory. 1.4s cooldown prevents flicker. Auto-exit deferred to B3.
 
 ## [B2] Pocket breathing room layout
-- status: pending
+- status: done
+- notes: POCKET_ORBIT_RADII [2.05/3.36/4.82] → [2.9/4.6/6.4], POCKET_WORLD_RADIUS 5.32 → 7.0. pocketToolPosition switched from fan/lane layout to Fibonacci-sphere (golden-angle) distribution blended 22% with tool's own angle. ConnectionLines: bothInPocket opacity 0.18→0.32 (0.5 in lens), lineWidth 0.92→1.18 (1.6 in lens); selected-pocket line opacity 0.76→0.86 lineWidth 2.2→2.6. Intra-pocket relations now read clearly.
 
 ## [B3] Pocket exit affordance
 - status: pending

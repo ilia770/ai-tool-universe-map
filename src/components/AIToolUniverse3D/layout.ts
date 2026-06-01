@@ -1,9 +1,10 @@
 const CATEGORY_RADIUS_X = 4.55;
 const CATEGORY_RADIUS_Z = 3.45;
 const ORBIT_RADII = [0, 0.96, 1.48, 1.98] as const;
-const POCKET_ORBIT_RADII = [0, 2.05, 3.36, 4.82] as const;
+const POCKET_ORBIT_RADII = [0, 2.9, 4.6, 6.4] as const;
 
-export const POCKET_WORLD_RADIUS = 5.32;
+export const POCKET_WORLD_RADIUS = 7.0;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 export function categoryPosition(angle: number): [number, number, number] {
   const rad = (angle * Math.PI) / 180;
@@ -44,16 +45,21 @@ export function pocketToolPosition(
 
   const [catX, catY, catZ] = categoryPosition(categoryAngle);
   const safeSlotCount = Math.max(slotCount, 1);
-  const localRad = ((angle - categoryAngle) * Math.PI) / 180;
-  const slotRad = ((slotIndex + 0.5) / safeSlotCount) * Math.PI * 2 - Math.PI / 2;
-  const fanRad = slotRad + localRad * 0.24 + orbit * 0.18;
-  const radius = POCKET_ORBIT_RADII[orbit] + (slotIndex % 2) * 0.2;
-  const verticalLane = (slotIndex % 3) - 1;
-  const verticalLift = Math.sin(fanRad * 1.12) * 0.42 + verticalLane * 0.48 + (orbit - 2) * 0.08;
 
+  // Fibonacci-sphere distribution: even surface coverage, no stacking lanes.
+  // y in [-1, 1], xz radius derived from y, phi advances by golden angle so
+  // neighbouring slots never collide.
+  const y = 1 - (slotIndex + 0.5) * (2 / safeSlotCount);
+  const yRadius = Math.sqrt(Math.max(0, 1 - y * y));
+  const localRad = ((angle - categoryAngle) * Math.PI) / 180;
+  // Blend golden-angle spiral with the tool's own angle so stage/relation
+  // groupings remain visually clustered instead of fully randomised.
+  const phi = slotIndex * GOLDEN_ANGLE + localRad * 0.22;
+
+  const radius = POCKET_ORBIT_RADII[orbit];
   return [
-    catX + Math.cos(fanRad) * radius * 1.08,
-    catY + verticalLift,
-    catZ + Math.sin(fanRad) * radius * 0.84,
+    catX + Math.cos(phi) * yRadius * radius,
+    catY + y * radius * 0.62,
+    catZ + Math.sin(phi) * yRadius * radius,
   ];
 }

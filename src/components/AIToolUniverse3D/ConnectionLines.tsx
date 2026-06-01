@@ -74,9 +74,9 @@ export function ConnectionLines({
             ? bothInLens && sameCategory
             : bothInLens;
         const opacity = (() => {
-          if (isSelected) return bothInPocket ? 0.76 : 0.58;
-          if (bothInPocket && isLensLine) return 0.32;
-          if (bothInPocket) return 0.18;
+          if (isSelected) return bothInPocket ? 0.86 : 0.58;
+          if (bothInPocket && isLensLine) return 0.5;
+          if (bothInPocket) return 0.32;
           if (touchesPocket && isLensLine) return 0.14;
           if (isLensLine && relationLens === 'adjacent' && relationDepth <= 2) return 0.18;
           if (isLensLine && (relationLens === 'stage' || relationLens === 'category')) return 0.14;
@@ -86,9 +86,9 @@ export function ConnectionLines({
           return 0.012;
         })();
         const lineWidth = (() => {
-          if (isSelected) return bothInPocket ? 2.2 : 1.65;
-          if (bothInPocket && isLensLine) return 1.24;
-          if (bothInPocket) return 0.92;
+          if (isSelected) return bothInPocket ? 2.6 : 1.65;
+          if (bothInPocket && isLensLine) return 1.6;
+          if (bothInPocket) return 1.18;
           if (isLensLine) return 0.78;
           if (relationDepth === 1) return 0.86;
           if (isPrimary) return 0.62;
