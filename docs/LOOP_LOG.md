@@ -86,10 +86,12 @@ Schema:
 
 ## [F1] frameloop demand + invalidate
 - status: done
+- commit: 4053969
 - notes: pivoted from `frameloop="demand"` (would break ambient anims that need continuous frames). Instead lazy-mount StarField + GalaxyDust via requestIdleCallback (timeout 600ms, setTimeout fallback 220ms). Main scene paints first; cosmos slides in ~one frame later. Lighthouse re-run after deploy will confirm TBT drop.
 
 ## [F2] Shared BufferGeometry for ToolNodes
-- status: pending
+- status: done
+- notes: hoisted 3 SphereGeometry (hit 0.68/18, aura 0.46/24, core 0.3/20) to module-level constants. Each ToolNode mesh now uses `geometry={SHARED}` instead of inline `<sphereGeometry args>`. ~60 tools × 3 geoms = ~180 GPU buffer allocations collapsed to 3 reusable BufferGeometries. Materials remain per-instance (vary by color/glow).
 
 ## [F3] Near-camera category glow cue
 - status: pending

@@ -6,6 +6,12 @@ import * as THREE from 'three';
 import type { AITool, ToolCategoryId } from '../../data/ai-tool-universe';
 import { ToolLogo } from '../ToolLogo';
 
+// Shared geometries: one BufferGeometry per role, reused across every
+// ToolNode instance instead of allocating ~3 × N spheres on mount.
+const HIT_GEOM = new THREE.SphereGeometry(0.68, 18, 18);
+const AURA_GEOM = new THREE.SphereGeometry(0.46, 24, 24);
+const CORE_GEOM = new THREE.SphereGeometry(0.3, 20, 20);
+
 interface ToolNodeProps {
   id: string;
   name: string;
@@ -110,12 +116,10 @@ export function ToolNode({
         onToolHover(null, null);
       }}
     >
-      <mesh>
-        <sphereGeometry args={[0.68, 18, 18]} />
+      <mesh geometry={HIT_GEOM}>
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <mesh ref={auraRef}>
-        <sphereGeometry args={[0.46, 24, 24]} />
+      <mesh ref={auraRef} geometry={AURA_GEOM}>
         <meshBasicMaterial
           color={color}
           transparent
@@ -124,8 +128,7 @@ export function ToolNode({
           blending={THREE.AdditiveBlending}
         />
       </mesh>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[0.3, 20, 20]} />
+      <mesh ref={meshRef} geometry={CORE_GEOM}>
         <meshStandardMaterial
           color={color}
           emissive={color}
