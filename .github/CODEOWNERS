@@ -1,0 +1,18 @@
+# Default owner for everything.
+* @ilia770
+
+# Shared agent rules — coordinate before changes.
+/.agent/ @ilia770
+/AGENTS.md @ilia770
+/CLAUDE.md @ilia770
+
+# 3D scene + layout math: high-blast-radius visual code.
+/src/components/AIToolUniverse3D/ @ilia770
+
+# Data source of truth.
+/src/data/ @ilia770
+
+# CI + release plumbing.
+/.github/ @ilia770
+/CHANGELOG.md @ilia770
+/vercel.json @ilia770

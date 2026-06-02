@@ -1,0 +1,44 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      three-stack:
+        patterns:
+          - 'three'
+          - '@react-three/*'
+          - 'camera-controls'
+          - 'postprocessing'
+      react-stack:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react*'
+      tooling:
+        patterns:
+          - 'vite'
+          - '@vitejs/*'
+          - 'vitest'
+          - 'eslint*'
+          - 'typescript'
+          - 'tailwindcss'
+          - '@tailwindcss/*'
+      playwright:
+        patterns:
+          - '@playwright/*'
+          - 'playwright'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - ci
