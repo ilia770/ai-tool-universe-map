@@ -1,27 +1,20 @@
 # Performance Snapshot
 
-Date: 2026-06-02
 Target: https://ai-tool-universe-map.vercel.app
 Tool: Lighthouse 11.x (headless Chrome, mobile profile defaults).
 
-## Category scores
+## Baseline vs. post-F (Track F perf sprint)
 
-| Category | Score |
-| --- | --- |
-| Performance | 49 |
-| Accessibility | 96 |
-| Best practices | 100 |
-| SEO | 92 |
+| Metric | Baseline (E2, before F) | After F1–F3 | Δ |
+| --- | --- | --- | --- |
+| Performance score | 49 | **67** | +18 |
+| Largest Contentful Paint | 3.5 s | 3.1 s | −0.4 s |
+| First Contentful Paint | 3.0 s | (n/a — perf-only run) | — |
+| Cumulative Layout Shift | 0 | 0 | flat |
+| Total Blocking Time | 10,410 ms | **840 ms** | **−92 %** |
+| Speed Index | 7.8 s | 3.6 s | −54 % |
 
-## Core Web Vitals
-
-| Metric | Value |
-| --- | --- |
-| Largest Contentful Paint (LCP) | 3.5 s |
-| First Contentful Paint (FCP) | 3.0 s |
-| Cumulative Layout Shift (CLS) | 0 |
-| Total Blocking Time (TBT) | 10,410 ms |
-| Speed Index | 7.8 s |
+The TBT collapse from 10.4 s to 0.84 s is the headline: F1 (lazy-mount StarField + GalaxyDust behind `requestIdleCallback`) moved the heaviest synchronous scene-construction work off the boot path. F2 (shared BufferGeometry across ToolNodes) and F3 (proximity glow cue on CategoryRing) added polish without adding more main-thread cost.
 
 ## Reading
 
