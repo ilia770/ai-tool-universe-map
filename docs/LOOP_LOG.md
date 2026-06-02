@@ -101,4 +101,14 @@ Schema:
 
 ## [K1] Lens-bar discoverability hint for auto-pocket
 - status: done
-- notes: tiny cyan-tinted hint line below Universe lens meta. Shows "Scroll-zoom into a ring to open its pocket world" in overview, "Esc or zoom out to leave the pocket" once inside one. Closes the discoverability gap left by B1 (auto-enter had no visual instruction). CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.
+- commit: c09b77c
+- notes:
+
+## [L1] Lens panel slim down
+- status: done
+- commit: a7e0305
+- notes: dropped relation-lens 2×4 + clarity 1×3 grids (duplicates), added F/C/A keyboard hotkeys for clarity. Tightened category chips + stage cards (px-3 py-2 → px-2.5 py-1 / rounded-md). Lens ~45% shorter on mobile.
+
+## [L2] Hover stability — centralize state in Scene
+- status: done
+- notes: ToolNode no longer keeps a local `hovered` useState. Receives `hovered: boolean` prop derived from Scene's `hoveredToolId === id`. Eliminates flicker when pointer crosses pixel-close nodes (Fibonacci pocket layout). Scene's hover-out debounce bumped 180ms → 320ms. tiny cyan-tinted hint line below Universe lens meta. Shows "Scroll-zoom into a ring to open its pocket world" in overview, "Esc or zoom out to leave the pocket" once inside one. Closes the discoverability gap left by B1 (auto-enter had no visual instruction). CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.

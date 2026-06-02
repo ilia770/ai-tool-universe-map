@@ -95,7 +95,7 @@ export function Scene({
     toolHoverClearTimeoutRef.current = window.setTimeout(() => {
       setHoveredToolId(null);
       toolHoverClearTimeoutRef.current = null;
-    }, 180);
+    }, 320);
   }, []);
 
   useEffect(() => () => {
@@ -494,6 +494,7 @@ export function Scene({
             color={cat.color}
             glow={cat.glow}
             selected={tool.id === selectedId}
+            hovered={tool.id === hoveredToolId}
             relationDepth={relationDepth}
             labelVisible={shouldShowToolLabel(tool, relationDepth, inLens)}
             dimmed={shouldDimTool(tool, relationDepth, inLens)}
