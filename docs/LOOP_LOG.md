@@ -91,7 +91,9 @@ Schema:
 
 ## [F2] Shared BufferGeometry for ToolNodes
 - status: done
+- commit: 8baff1e
 - notes: hoisted 3 SphereGeometry (hit 0.68/18, aura 0.46/24, core 0.3/20) to module-level constants. Each ToolNode mesh now uses `geometry={SHARED}` instead of inline `<sphereGeometry args>`. ~60 tools × 3 geoms = ~180 GPU buffer allocations collapsed to 3 reusable BufferGeometries. Materials remain per-instance (vary by color/glow).
 
 ## [F3] Near-camera category glow cue
-- status: pending
+- status: done
+- notes: CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.

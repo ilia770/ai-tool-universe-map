@@ -22,12 +22,23 @@ export function CategoryRing({ category, position, active, hovered, pocketActive
   const coreRef = useRef<Mesh>(null);
   const opacity = labelVisible ? (active ? 1.0 : 0.2) : 0;
 
-  useFrame(() => {
+  useFrame(({ camera }) => {
+    // Proximity cue: as the camera approaches the ring's anchor, lift
+    // the core's emissive a little so the user *sees* which pocket is
+    // about to open under the auto-enter threshold from B1 (dist 11).
+    const dx = camera.position.x - position[0];
+    const dy = camera.position.y - position[1];
+    const dz = camera.position.z - position[2];
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    // 0 when far (≥18), 1 when at/under the auto-enter ring (~9).
+    const proximityFactor = Math.max(0, Math.min(1, (18 - dist) / 9));
+
     const cloudTargetScale = pocketActive ? 1.24 : hovered ? 1.06 : active ? 0.96 : 0.86;
     const coreTargetScale = pocketActive ? 1.18 : hovered ? 1.1 : 1;
     const haloTargetOpacity = pocketActive ? 0.032 : hovered ? 0.026 : active ? 0.008 : 0.002;
     const cloudTargetOpacity = opacity * (pocketActive ? 0.065 : hovered ? 0.04 : active ? 0.018 : 0.006);
-    const emissiveTarget = pocketActive ? 1.22 : hovered ? 1.05 : active ? 0.72 : 0.22;
+    const baseEmissive = pocketActive ? 1.22 : hovered ? 1.05 : active ? 0.72 : 0.22;
+    const emissiveTarget = baseEmissive + proximityFactor * 0.55;
 
     if (haloRef.current) {
       const material = haloRef.current.material as THREE.MeshBasicMaterial;
