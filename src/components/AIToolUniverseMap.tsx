@@ -88,28 +88,6 @@ const relationLensOptions: Array<{
   },
 ];
 
-const mapClarityOptions: Array<{
-  id: MapClarityMode;
-  label: string;
-  description: string;
-}> = [
-  {
-    id: 'focus',
-    label: 'Focus map',
-    description: 'Quiet view. Shows the selected service, hover target, and first-order relationships.',
-  },
-  {
-    id: 'context',
-    label: 'Context map',
-    description: 'Balanced view. Keeps the active cluster readable without turning the whole galaxy into labels.',
-  },
-  {
-    id: 'atlas',
-    label: 'Atlas map',
-    description: 'Wide view. Useful for scanning the full ecosystem when you want more visible labels.',
-  },
-];
-
 const stageIds = new Set<WorkflowStageId>(orderedStages);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -200,6 +178,16 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
         }
         onClose();
         return;
+      }
+
+      // Clarity hotkeys: F=focus, C=context, A=atlas. Only when no input is focused.
+      const target = event.target as HTMLElement | null;
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      if (!isTyping && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const lower = event.key.toLowerCase();
+        if (lower === 'f') { event.preventDefault(); setMapClarity('focus'); return; }
+        if (lower === 'c') { event.preventDefault(); setMapClarity('context'); return; }
+        if (lower === 'a') { event.preventDefault(); setMapClarity('atlas'); return; }
       }
 
       if (event.key !== 'Tab') return;
@@ -898,7 +886,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 <button
                   type="button"
                   onClick={showAllGroups}
-                  className={`shrink-0 rounded-full border px-3 py-2 text-xs transition ${
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs transition ${
                     activeCategory === 'all'
                       ? 'border-white/30 bg-white/15 text-white'
                       : 'border-white/10 bg-white/[0.04] text-text-secondary hover:bg-white/10'
@@ -914,7 +902,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                       key={category.id}
                       type="button"
                       onClick={() => focusCategory(category.id)}
-                      className={`flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${
+                      className={`flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition ${
                         isActive
                           ? 'border-white/30 bg-white/15 text-white'
                           : 'border-white/10 bg-white/[0.04] text-text-secondary hover:bg-white/10'
@@ -931,65 +919,16 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 })}
               </div>
 
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5 md:grid-cols-4">
-                {relationLensOptions.map((option) => {
-                  const isActive = relationLens === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setRelationLens(option.id)}
-                      className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
-                        isActive
-                          ? 'border-fuchsia-200/35 bg-fuchsia-200/14 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-                          : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
-                      }`}
-                      title={option.description}
-                    >
-                      <span className="block text-[10px] font-semibold text-fuchsia-100/70">
-                        {relationLensCounts.get(option.id) ?? 0} linked
-                      </span>
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                {mapClarityOptions.map((option) => {
-                  const isActive = mapClarity === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setMapClarity(option.id)}
-                      className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
-                        isActive
-                          ? 'border-emerald-200/35 bg-emerald-200/14 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-                          : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
-                      }`}
-                      title={option.description}
-                    >
-                      <span className="block text-[10px] font-semibold text-emerald-100/70">
-                        Clarity
-                      </span>
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5 md:grid-cols-6">
+              <div className="mt-1.5 grid grid-cols-3 gap-1 md:grid-cols-6">
                 <button
                   type="button"
                   onClick={() => setActiveStage('all')}
-                  className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                  className={`rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition ${
                     activeStage === 'all'
                       ? 'border-cyan-200/35 bg-cyan-200/15 text-white'
                       : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06]'
                   }`}
                 >
-                  <span className="block text-[10px] uppercase text-cyan-100/70">Lens</span>
                   All stages
                 </button>
                 {orderedStages.map((stage, index) => {
@@ -1000,15 +939,13 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                       key={stage}
                       type="button"
                       onClick={() => setActiveStage(stage)}
-                      className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                      className={`rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition ${
                         isActive
                           ? 'border-cyan-200/35 bg-cyan-200/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
                           : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
                       }`}
                     >
-                      <span className="block text-[10px] font-semibold text-cyan-100/70">
-                        {index + 1} · {count}
-                      </span>
+                      <span className="mr-1 text-[10px] text-cyan-100/70">{index + 1}·{count}</span>
                       {stageDockLabels[stage]}
                     </button>
                   );
