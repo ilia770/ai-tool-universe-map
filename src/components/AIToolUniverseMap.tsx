@@ -871,6 +871,11 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                   <p className="text-xs text-text-muted">
                     {pocketWorldLabel ? `Pocket world · ${pocketWorldLabel}` : focusLabel} · {stageLabel} · {visibleTools.length}/{allTools.length} visible
                   </p>
+                  <p className="mt-0.5 text-[11px] text-cyan-200/55">
+                    {pocketWorldLabel
+                      ? 'Esc or zoom out to leave the pocket'
+                      : 'Scroll-zoom into a ring to open its pocket world'}
+                  </p>
                 </div>
                 <button
                   type="button"

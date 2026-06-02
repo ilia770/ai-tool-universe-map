@@ -96,4 +96,9 @@ Schema:
 
 ## [F3] Near-camera category glow cue
 - status: done
-- notes: CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.
+- commit: a0dcf46
+- notes:
+
+## [K1] Lens-bar discoverability hint for auto-pocket
+- status: done
+- notes: tiny cyan-tinted hint line below Universe lens meta. Shows "Scroll-zoom into a ring to open its pocket world" in overview, "Esc or zoom out to leave the pocket" once inside one. Closes the discoverability gap left by B1 (auto-enter had no visual instruction). CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.
