@@ -34,3 +34,6 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Bundle size budget
+        run: node scripts/check-bundle-size.mjs
