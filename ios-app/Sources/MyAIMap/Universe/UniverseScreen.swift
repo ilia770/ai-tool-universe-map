@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct UniverseScreen: View {
     @State private var selectedCategory: ToolCategoryId = .core
@@ -21,7 +22,7 @@ struct UniverseScreen: View {
 
     var body: some View {
         ZStack {
-            UniverseView(selectedCategory: selectedCategory)
+            UniverseView(selectedCategory: selectedCategory, selectedToolId: selectedTool.id)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -78,6 +79,7 @@ struct UniverseScreen: View {
             HStack(spacing: 8) {
                 ForEach(UniverseSeed.categories) { category in
                     Button {
+                        Haptics.selection()
                         selectedCategory = category.id
                     } label: {
                         HStack(spacing: 7) {
@@ -143,6 +145,7 @@ struct UniverseScreen: View {
                 HStack(spacing: 8) {
                     ForEach(visibleTools) { tool in
                         Button {
+                            Haptics.lightTap()
                             selectedToolId = tool.id
                         } label: {
                             VStack(alignment: .leading, spacing: 5) {
@@ -199,4 +202,14 @@ struct UniverseScreen: View {
 
 #Preview {
     UniverseScreen()
+}
+
+private enum Haptics {
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    static func lightTap() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
 }

@@ -9,6 +9,7 @@ import RealityKit
 /// prototype already demonstrates the core product behavior.
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
+    let selectedToolId: String
 
     var body: some View {
         RealityView { content in
@@ -34,6 +35,7 @@ struct UniverseView: View {
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
+                    let isSelectedTool = tool.id == selectedToolId
                     let position = isPocket
                         ? UniverseLayout.pocketToolPosition(
                             angleDegrees: tool.angle,
@@ -51,7 +53,8 @@ struct UniverseView: View {
                         tool: tool,
                         category: category,
                         position: position,
-                        selected: isPocket
+                        selected: isSelectedTool,
+                        pocketed: isPocket
                     ))
                 }
             }
@@ -108,13 +111,19 @@ struct UniverseView: View {
         tool: Tool?,
         category: ToolCategory,
         position: SIMD3<Float>,
-        selected: Bool
+        selected: Bool,
+        pocketed: Bool = false
     ) -> ModelEntity {
         let orbitRadius = Float(tool?.orbit.rawValue ?? 0)
-        let radius: Float = selected ? 0.34 + orbitRadius * 0.045 : 0.24 + orbitRadius * 0.025
+        let radius: Float = selected
+            ? 0.46 + orbitRadius * 0.055
+            : pocketed
+                ? 0.32 + orbitRadius * 0.04
+                : 0.24 + orbitRadius * 0.025
+        let alpha: CGFloat = selected ? 1.0 : pocketed ? 0.88 : 0.64
         let node = ModelEntity(
             mesh: .generateSphere(radius: radius),
-            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(selected ? 0.96 : 0.74), isMetallic: false)]
+            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(alpha), isMetallic: false)]
         )
         node.position = position
         return node
@@ -122,5 +131,5 @@ struct UniverseView: View {
 }
 
 #Preview {
-    UniverseView(selectedCategory: .design)
+    UniverseView(selectedCategory: .design, selectedToolId: "figma")
 }
