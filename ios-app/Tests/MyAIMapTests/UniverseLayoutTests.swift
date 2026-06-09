@@ -59,4 +59,18 @@ struct UniverseLayoutTests {
             }
         }
     }
+
+    @Test func seedDataHasFounderAndCategoryTools() {
+        #expect(UniverseSeed.tools.contains { $0.id == "founder-os" })
+        #expect(UniverseSeed.tools(in: .coding).count >= 3)
+        #expect(UniverseSeed.tools(in: .design).count >= 2)
+        #expect(UniverseSeed.tools(in: .core).count >= 2)
+    }
+
+    @Test func everySeedToolCategoryExists() {
+        let categoryIds = Set(UniverseSeed.categories.map(\.id))
+        for tool in UniverseSeed.tools {
+            #expect(categoryIds.contains(tool.category), "\(tool.name) points at a missing category")
+        }
+    }
 }

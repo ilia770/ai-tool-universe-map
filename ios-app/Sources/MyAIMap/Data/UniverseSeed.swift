@@ -7,67 +7,90 @@ enum UniverseSeed {
     static let categories: [ToolCategory] = [
         ToolCategory(
             id: .coding,
-            name: "Coding",
+            name: "Coding & Agentic Dev",
             shortName: "Coding",
-            description: "AI-assisted coding agents and IDE integrations.",
-            color: "#5d59ff", glow: "#9b8aff",
-            angle: 0
+            description: "Editors, coding agents, review systems, app builders, and agentic implementation loops.",
+            color: "#6EE7FF", glow: "#9BE8FF",
+            angle: -132
         ),
         ToolCategory(
             id: .design,
-            name: "Design",
+            name: "Design & Product UI",
             shortName: "Design",
-            description: "Generative + assistive tooling for visual work.",
-            color: "#ec4899", glow: "#f592c7",
-            angle: 45
+            description: "Interface design, product mockups, design-to-code, prototyping, and visual product systems.",
+            color: "#FF8BD2", glow: "#F592C7",
+            angle: -82
         ),
         ToolCategory(
             id: .research,
-            name: "Research",
+            name: "Research & Data Intake",
             shortName: "Research",
-            description: "Context gathering and source synthesis.",
-            color: "#14b8a6", glow: "#8be7d8",
-            angle: 90
+            description: "Research capture, source extraction, web intake, APIs, datasets, and browsing bridges.",
+            color: "#7FFFD4", glow: "#8BE7D8",
+            angle: -30
         ),
         ToolCategory(
             id: .media,
-            name: "Media",
+            name: "Media & Creative Production",
             shortName: "Media",
-            description: "Generative image, video, and audio work.",
-            color: "#f97316", glow: "#fdba74",
-            angle: 135
+            description: "Video, generative media, motion, Remotion pipelines, and creative production systems.",
+            color: "#FFD166", glow: "#FDBA74",
+            angle: 22
         ),
         ToolCategory(
             id: .distribution,
-            name: "Distribution",
+            name: "Distribution & Social Ops",
             shortName: "Social",
-            description: "Publish, schedule, and amplify content.",
-            color: "#22d3ee", glow: "#a5f3fc",
-            angle: 180
+            description: "Publishing, scheduling, social operations, channel packaging, and launch amplification.",
+            color: "#9BFF8A", glow: "#D9F99D",
+            angle: 74
         ),
         ToolCategory(
             id: .infrastructure,
-            name: "Infrastructure",
+            name: "Infrastructure & Runtime",
             shortName: "Runtime",
-            description: "Hosting, deploy targets, and runtime glue.",
-            color: "#a3e635", glow: "#d9f99d",
-            angle: 225
+            description: "Deployment, containers, terminals, runtime shells, desktop wrappers, and production rails.",
+            color: "#A78BFA", glow: "#C4B5FD",
+            angle: 126
         ),
         ToolCategory(
             id: .knowledge,
-            name: "Knowledge",
+            name: "Knowledge & Skills",
             shortName: "Skills",
-            description: "Personal knowledge + skill stores.",
-            color: "#facc15", glow: "#fde68a",
-            angle: 270
+            description: "Agent skill libraries, workflow packs, local knowledge systems, and repeatable capabilities.",
+            color: "#F0ABFC", glow: "#F5D0FE",
+            angle: 178
         ),
         ToolCategory(
             id: .core,
-            name: "Founder OS",
+            name: "AI Operating Core",
             shortName: "Core",
             description: "The central orchestration node every other category orbits.",
-            color: "#ffffff", glow: "#ffffff",
-            angle: 315
+            color: "#D8FAFF", glow: "#FFFFFF",
+            angle: -178
         ),
     ]
+
+    static let tools: [Tool] = [
+        Tool(id: "founder-os", name: "Founder OS", category: .core, summary: "The central operating layer: research, planning, execution, approval, and AI review.", stage: .planning, orbit: .core, angle: 0, url: nil, logoDomain: nil, relationIds: ["codex", "claude-code", "cursor", "figma"], classification: nil),
+        Tool(id: "codex", name: "Codex", category: .coding, summary: "Implementation agent for repo work, refactors, testing, and end-to-end engineering tasks.", stage: .execution, orbit: .inner, angle: -142, url: nil, logoDomain: nil, relationIds: ["claude-code", "vercel"], classification: nil),
+        Tool(id: "claude-code", name: "Claude Code", category: .coding, summary: "Agentic development partner for codebase investigation, implementation, and review loops.", stage: .execution, orbit: .inner, angle: -128, url: nil, logoDomain: nil, relationIds: ["agent-skills"], classification: nil),
+        Tool(id: "cursor", name: "Cursor", category: .coding, summary: "AI-first IDE for fast code edits, project navigation, and pair-programming flow.", stage: .execution, orbit: .middle, angle: -118, url: URL(string: "https://cursor.com/"), logoDomain: "cursor.com", relationIds: ["vscode", "warp"], classification: nil),
+        Tool(id: "figma", name: "Figma / Make", category: .design, summary: "Primary collaborative design canvas and product UI ideation space.", stage: .planning, orbit: .inner, angle: -82, url: nil, logoDomain: "figma.com", relationIds: ["paper-design", "framer"], classification: nil),
+        Tool(id: "dessn", name: "Dessn.ai", category: .design, summary: "Design intelligence and product interface inspiration for sharper UI direction.", stage: .research, orbit: .middle, angle: -70, url: URL(string: "https://www.dessn.ai/"), logoDomain: "dessn.ai", relationIds: ["figma"], classification: nil),
+        Tool(id: "supadata", name: "Supadata", category: .research, summary: "Data intake and extraction layer for turning external sources into usable context.", stage: .research, orbit: .inner, angle: -28, url: URL(string: "https://supadata.ai/"), logoDomain: "supadata.ai", relationIds: ["api-mega-list"], classification: nil),
+        Tool(id: "remotion", name: "Remotion", category: .media, summary: "React-powered video generation for programmable launch and product media.", stage: .execution, orbit: .inner, angle: 20, url: URL(string: "https://www.remotion.dev/"), logoDomain: "remotion.dev", relationIds: ["genmedia"], classification: nil),
+        Tool(id: "buffer", name: "Buffer", category: .distribution, summary: "Distribution scheduler for shipping content across social channels.", stage: .approval, orbit: .inner, angle: 74, url: URL(string: "https://buffer.com/"), logoDomain: "buffer.com", relationIds: ["distribution-loop"], classification: nil),
+        Tool(id: "vercel", name: "Vercel", category: .infrastructure, summary: "Deployment and preview infrastructure for shipping web apps quickly.", stage: .approval, orbit: .inner, angle: 126, url: nil, logoDomain: "vercel.com", relationIds: ["docker"], classification: nil),
+        Tool(id: "agent-skills", name: "Agent Skills", category: .knowledge, summary: "Reusable task skills for agents, including public packs and personal knowledge systems.", stage: .planning, orbit: .inner, angle: 178, url: URL(string: "https://github.com/addyosmani/agent-skills"), logoDomain: "github.com", relationIds: ["claude-code"], classification: nil),
+        Tool(id: "openswarm", name: "OpenSwarm", category: .core, summary: "Multi-agent coordination layer for routing work across specialized workers.", stage: .execution, orbit: .middle, angle: -190, url: nil, logoDomain: nil, relationIds: ["founder-os"], classification: nil),
+    ]
+
+    static func category(_ id: ToolCategoryId) -> ToolCategory {
+        categories.first { $0.id == id } ?? categories[0]
+    }
+
+    static func tools(in category: ToolCategoryId) -> [Tool] {
+        tools.filter { $0.category == category }
+    }
 }

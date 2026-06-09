@@ -2,14 +2,12 @@ import SwiftUI
 
 /// App entry point.
 ///
-/// Phase 0: a single window with the `UniverseView` placeholder scene.
-/// Later phases will swap this for a `NavigationStack` + bottom sheet
-/// per the iPhone overlay patterns in `docs/DESIGN_REFS.md`.
+/// Phase 1: a native product shell around the RealityKit universe scene.
 @main
 struct MyAIMapApp: App {
     var body: some Scene {
         WindowGroup {
-            UniverseView()
+            UniverseScreen()
                 .preferredColorScheme(.dark)
                 .ignoresSafeArea()
         }

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 /// Swift mirror of the web app's `ToolCategoryId` discriminated union.
 /// Kept exhaustive so the compiler enforces parity with the data file
@@ -53,5 +54,14 @@ struct ColorHex: Codable, Sendable, ExpressibleByStringLiteral {
         let g = Double((value >> 8) & 0xff) / 255
         let b = Double(value & 0xff) / 255
         return Color(red: r, green: g, blue: b)
+    }
+
+    var uiColor: UIColor {
+        let hex = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return .white }
+        let r = CGFloat((value >> 16) & 0xff) / 255
+        let g = CGFloat((value >> 8) & 0xff) / 255
+        let b = CGFloat(value & 0xff) / 255
+        return UIColor(red: r, green: g, blue: b, alpha: 1)
     }
 }
