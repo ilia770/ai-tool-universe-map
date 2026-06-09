@@ -205,10 +205,12 @@ struct UniverseScreen: View {
 }
 
 private enum Haptics {
+    @MainActor
     static func selection() {
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
+    @MainActor
     static func lightTap() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
