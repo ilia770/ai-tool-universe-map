@@ -23,16 +23,32 @@ iOS app:
   per-view-mode focus offsets) + pinch-to-zoom dolly. 22 new Swift
   Testing tests committed. Plan with execution log:
   `docs/superpowers/plans/2026-06-10-ios-phase2-state-and-camera.md`.
+- Phase 2 slice 2 merged (PR #38, 2026-06-10): `ProximityCategorySystem`
+  — RealityKit port of the web `ProximityCategoryWatcher`. Pure
+  `ProximityWatcherCore` state machine (enter 11 / exit 22 hysteresis,
+  160 ms tick throttle, 1.4 s cooldown, exit arming at 22×0.96) +
+  `UniverseStateComponent` ECS shell + view wiring. Pinch-zoom toward a
+  category anchor auto-opens its pocket; pulling away auto-closes it.
+  10 new tests. Plan with execution log:
+  `docs/superpowers/plans/2026-06-10-ios-phase2-proximity-system.md`.
 - Build + `build-for-testing` succeed locally with Xcode 26.5 (use
   simulator **id**, not name — name matching is flaky:
   `-destination 'platform=iOS Simulator,id=<simctl id>'`).
-- `xcodebuild test` still blocked: test runner hangs before
-  establishing connection (CoreSimulator environment issue; the app
-  itself boots and renders). Committed tests will run once the runner
-  unblocks or on a real device.
-- Next iOS slices per `docs/PHASE_2_PLAN.md`: ProximityCategorySystem
-  (ECS, hysteresis 11/22) → PocketShellEntity + PocketTransition →
-  SearchDock → Sheets → haptics wiring. Owner: Claude Code.
+- **Test runner UNBLOCKED (2026-06-10):** `xcodebuild test` works again
+  (CoreSimulator migration finished). Full suite green on main:
+  43/43 tests in 6 suites, runs in seconds. The runner immediately
+  caught one fragile pre-existing test
+  (`BrandTokensTests.reducedMotionReplacesAnimation` compared SwiftUI's
+  internal animation description string) — fixed in PR #38 by comparing
+  `Animation` values via `Equatable`. `xcodebuild test` is now the
+  verify gate for iOS changes.
+- Known follow-up for the gestures slice: if auto-enter fires
+  mid-pinch, the accumulated gesture magnification can jump the camera
+  deep into the new pocket on the next `onChanged` (clamped at 7.5, no
+  event loop) — fix alongside drag/orbit gestures.
+- Next iOS slices per `docs/PHASE_2_PLAN.md`: PocketShellEntity +
+  PocketTransition → SearchDock → Sheets → haptics wiring.
+  Owner: Claude Code.
 - Repo wart fixed (PR #35): `.github/PULL_REQUEST_TEMPLATE.md` is the
   canonical PR template and the lowercase duplicate was removed from Git.
 
