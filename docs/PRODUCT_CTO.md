@@ -38,7 +38,7 @@ Secondary user: an AI agent working inside the repository who needs a clear sour
 Web app:
 - React + Vite + TypeScript.
 - React Three Fiber / Three.js 3D universe.
-- AI tool data in `src/data/ai-tool-universe.ts`.
+- AI tool data in `src/data/ai-tool-universe.seed.json`, exported through the typed facade in `src/data/ai-tool-universe.ts`.
 - Classification in `src/lib/classify-ai-tool.ts`.
 - Logo helpers in `src/lib/tool-logos.ts`.
 - Main app shell in `src/components/AIToolUniverseMap.tsx`.
@@ -63,7 +63,7 @@ Done enough for iteration:
 Next:
 - Stabilize hover/focus states.
 - Add deterministic visual test mode.
-- Move tool data toward JSON/schema-backed storage.
+- Define the next storage step after the JSON seed: DB/API schema, provenance, and sync path.
 - Improve relation modeling: confidence, reason, workflow stage, source.
 - Add better category-world transitions and camera affordances.
 
@@ -101,4 +101,3 @@ Before release, the product must pass:
 - visual smoke review on desktop and mobile
 - interaction review for hover, click, search, category focus, and details panel
 - release checklist in `docs/RELEASE_REVIEW.md`
-
