@@ -3,12 +3,11 @@
 Native iOS port of the [AI Tool Universe Map](https://ai-tool-universe-map.vercel.app)
 to SwiftUI + RealityKit.
 
-This directory holds the **Phase 0 scaffold** per `docs/IOS_STRATEGY.md`:
-the project builds and launches on a Simulator or device with a
-placeholder RealityKit scene (Founder OS core + 8 category anchors on
-one ring). Phase 1 ports the real data + Fibonacci-sphere pocket
-layout; Phase 2 wires interactions; Phase 3+ adds bloom, force-directed
-layout, App Store metadata, and TestFlight release.
+This directory holds the native iOS app per `docs/IOS_STRATEGY.md`.
+Phase 0 created the SwiftUI + RealityKit scaffold; Phase 1 starts the
+usable product shell: branded `My AI Map` chrome, category controls,
+a glass bottom sheet, curated real tool data, and a RealityKit universe
+that opens the selected category as a roomier pocket world.
 
 ## Prerequisites
 
@@ -88,11 +87,25 @@ ios-app/
 - **AppIcon-1024.png** — placeholder. Drop a 1024×1024 PNG into
   `Sources/MyAIMap/Resources/Assets.xcassets/AppIcon.appiconset/`
   before TestFlight upload.
-- **Real `tools` array** — Phase 1 ports `src/data/ai-tool-universe.ts`.
-- **`PocketWorldShell`, `CategoryRing`, `ToolNode`** entities — Phase 1.
+- **Full `tools` array** — Phase 1 currently ships a curated seed slice
+  for dogfooding; the full web array still needs to be ported/generated.
+- **Full `PocketWorldShell`, `CategoryRing`, `ToolNode` ECS parity** —
+  the current RealityKit scene has native category anchors and tool
+  nodes, but not the full web visual grammar yet.
 - **`ProximityCategoryWatcher`** ECS system — Phase 2.
 - **Bloom / Bezier edges / force-directed layout** — Phase 3.
 - **App Store metadata + privacy nutrition labels** — Phase 4.
+
+## Phase 1 verification note
+
+This repo can run a Swift parser sanity check without full Xcode:
+
+```bash
+xcrun swiftc -parse $(find Sources/MyAIMap -name '*.swift' | sort)
+```
+
+Simulator builds require full Xcode selected with `xcode-select`, not
+just Command Line Tools.
 
 ## Coding convention
 

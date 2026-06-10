@@ -1,81 +1,135 @@
 import SwiftUI
 import RealityKit
 
-/// Phase 0 placeholder scene.
+/// Native RealityKit universe scene.
 ///
-/// Renders the central `Founder OS` core entity as a glowing sphere and a
-/// handful of category anchor placeholders on a single ring, so the
-/// project builds + launches end-to-end before Phase 1 ports the real
-/// data + Fibonacci-sphere pocket layout.
-///
-/// Layout math here intentionally mirrors the web app's
-/// `src/components/AIToolUniverse3D/layout.ts` so the eventual port
-/// stays predictable.
+/// Phase 1 keeps the render path intentionally compact: one central core,
+/// category anchors, and a curated first slice of real tools. Selecting a
+/// category from SwiftUI opens it as a roomier "pocket world" so the iOS
+/// prototype already demonstrates the core product behavior.
 struct UniverseView: View {
+    let selectedCategory: ToolCategoryId
+    let selectedToolId: String
+
     var body: some View {
         RealityView { content in
-            // Root pivot — every later entity is a child of this so we can
-            // animate the whole universe with a single transform.
             let universe = Entity()
             content.add(universe)
 
-            // Camera anchor — Phase 0 fixed camera; Phase 2 swaps for a
-            // PerspectiveCamera + ProximityCategoryWatcher port.
             let camera = PerspectiveCamera()
-            camera.position = SIMD3<Float>(0, 5.4, 20.5)
-            camera.look(at: .zero, from: camera.position, relativeTo: nil)
+            camera.position = cameraPosition(for: selectedCategory)
+            camera.look(at: lookAtPosition(for: selectedCategory), from: camera.position, relativeTo: nil)
             universe.addChild(camera)
 
-            // Founder OS core node.
-            universe.addChild(Self.makeCore())
+            universe.addChild(Self.makeToolNode(
+                tool: UniverseSeed.tools.first { $0.id == "founder-os" },
+                category: UniverseSeed.category(.core),
+                position: .zero,
+                selected: selectedCategory == .core
+            ))
 
-            // Category anchors at the web app's `CATEGORY_RADIUS_X` / `Z`.
-            for anchor in Self.placeholderAnchors() {
-                universe.addChild(anchor)
+            for category in UniverseSeed.categories where category.id != .core {
+                let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
+                universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
+
+                let categoryTools = UniverseSeed.tools(in: category.id)
+                for (index, tool) in categoryTools.enumerated() {
+                    let isPocket = category.id == selectedCategory
+                    let isSelectedTool = tool.id == selectedToolId
+                    let position = isPocket
+                        ? UniverseLayout.pocketToolPosition(
+                            angleDegrees: tool.angle,
+                            orbit: tool.orbit,
+                            categoryAngleDegrees: category.angle,
+                            slotIndex: index,
+                            slotCount: max(categoryTools.count, 1)
+                        )
+                        : UniverseLayout.toolPosition(
+                            angleDegrees: tool.angle,
+                            orbit: tool.orbit,
+                            categoryAngleDegrees: category.angle
+                        )
+                    universe.addChild(Self.makeToolNode(
+                        tool: tool,
+                        category: category,
+                        position: position,
+                        selected: isSelectedTool,
+                        pocketed: isPocket
+                    ))
+                }
             }
 
-            // Soft ambient lighting so the unlit placeholder spheres read
-            // on a near-black background without going full silhouette.
-            let ambient = DirectionalLight()
-            ambient.light.intensity = 800
-            ambient.position = SIMD3<Float>(0, 6, 12)
-            universe.addChild(ambient)
+            let key = DirectionalLight()
+            key.light.intensity = 1_200
+            key.position = SIMD3<Float>(-4, 7, 10)
+            universe.addChild(key)
+
+            let fill = DirectionalLight()
+            fill.light.intensity = 420
+            fill.position = SIMD3<Float>(6, -2, 8)
+            universe.addChild(fill)
         }
-        .background(Color.black)
-    }
-
-    private static let categoryRadiusX: Float = 4.55
-    private static let categoryRadiusZ: Float = 3.45
-
-    /// The eight non-core category anchors at evenly spaced angles,
-    /// matching the web app's `categoryPosition(angle)` math.
-    private static func placeholderAnchors() -> [Entity] {
-        let categoryAngles: [Float] = [0, 45, 90, 135, 180, 225, 270, 315]
-        return categoryAngles.map { angleDegrees in
-            let radians = angleDegrees * .pi / 180
-            let entity = ModelEntity(
-                mesh: .generateSphere(radius: 0.55),
-                materials: [SimpleMaterial(color: .systemTeal, isMetallic: false)]
+        .id(selectedCategory)
+        .background(
+            RadialGradient(
+                colors: [
+                    UniverseSeed.category(selectedCategory).color.swiftUIColor.opacity(0.18),
+                    Color(red: 0.01, green: 0.015, blue: 0.035),
+                    .black
+                ],
+                center: .center,
+                startRadius: 80,
+                endRadius: 560
             )
-            entity.position = SIMD3<Float>(
-                cos(radians) * categoryRadiusX,
-                sin(radians * 1.7) * 1.35,
-                sin(radians) * categoryRadiusZ
-            )
-            return entity
-        }
-    }
-
-    /// Founder OS core — the central node every category ring orbits.
-    private static func makeCore() -> ModelEntity {
-        let core = ModelEntity(
-            mesh: .generateSphere(radius: 0.45),
-            materials: [SimpleMaterial(color: .white, isMetallic: false)]
         )
-        return core
+    }
+
+    private func lookAtPosition(for category: ToolCategoryId) -> SIMD3<Float> {
+        guard category != .core else { return .zero }
+        return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
+    }
+
+    private func cameraPosition(for category: ToolCategoryId) -> SIMD3<Float> {
+        let target = lookAtPosition(for: category)
+        if category == .core {
+            return SIMD3<Float>(0, 5.4, 20.5)
+        }
+        return SIMD3<Float>(target.x, target.y + 5.2, target.z + 15.4)
+    }
+
+    private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {
+        let radius: Float = selected ? 0.74 : 0.48
+        let anchor = ModelEntity(
+            mesh: .generateSphere(radius: radius),
+            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(selected ? 0.92 : 0.62), isMetallic: false)]
+        )
+        anchor.position = position
+        return anchor
+    }
+
+    private static func makeToolNode(
+        tool: Tool?,
+        category: ToolCategory,
+        position: SIMD3<Float>,
+        selected: Bool,
+        pocketed: Bool = false
+    ) -> ModelEntity {
+        let orbitRadius = Float(tool?.orbit.rawValue ?? 0)
+        let radius: Float = selected
+            ? 0.46 + orbitRadius * 0.055
+            : pocketed
+                ? 0.32 + orbitRadius * 0.04
+                : 0.24 + orbitRadius * 0.025
+        let alpha: CGFloat = selected ? 1.0 : pocketed ? 0.88 : 0.64
+        let node = ModelEntity(
+            mesh: .generateSphere(radius: radius),
+            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(alpha), isMetallic: false)]
+        )
+        node.position = position
+        return node
     }
 }
 
 #Preview {
-    UniverseView()
+    UniverseView(selectedCategory: .design, selectedToolId: "figma")
 }
