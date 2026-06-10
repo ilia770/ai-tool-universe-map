@@ -13,9 +13,26 @@ Web app:
 
 iOS app:
 - Native SwiftUI/RealityKit prototype is now fully merged to `main` (`ios-app/`).
-- Build succeeded locally with Xcode 26.5.
-- `build-for-testing` succeeded.
-- Full simulator launch/test was blocked by local CoreSimulator runtime migration, not by Swift compile errors.
+- Phase 2 slice 1 merged (PR #26, 2026-06-10): `UniverseViewModel`
+  (@Observable single source of truth, environment-injected) +
+  `CameraController` (drei-parity: clamp 7.5–46, smoothTime 0.55,
+  per-view-mode focus offsets) + pinch-to-zoom dolly. 22 new Swift
+  Testing tests committed. Plan with execution log:
+  `docs/superpowers/plans/2026-06-10-ios-phase2-state-and-camera.md`.
+- Build + `build-for-testing` succeed locally with Xcode 26.5 (use
+  simulator **id**, not name — name matching is flaky:
+  `-destination 'platform=iOS Simulator,id=<simctl id>'`).
+- `xcodebuild test` still blocked: test runner hangs before
+  establishing connection (CoreSimulator environment issue; the app
+  itself boots and renders). Committed tests will run once the runner
+  unblocks or on a real device.
+- Next iOS slices per `docs/PHASE_2_PLAN.md`: ProximityCategorySystem
+  (ECS, hysteresis 11/22) → PocketShellEntity + PocketTransition →
+  SearchDock → Sheets → haptics wiring. Owner: Claude Code.
+- Repo wart: `.github/` contains BOTH `PULL_REQUEST_TEMPLATE.md` and
+  `pull_request_template.md` — case-collision keeps one perpetually
+  "modified" on macOS checkouts. Fix pending: `git rm` one of them
+  (Codex owns release/checklist docs — please pick the canonical one).
 
 ## PR Stack — MERGED 2026-06-10
 
