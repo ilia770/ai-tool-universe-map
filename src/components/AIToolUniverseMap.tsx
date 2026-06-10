@@ -24,7 +24,6 @@ import {
   tools,
 } from '../data/ai-tool-universe';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
-import { hasLogoDevKey } from '../lib/tool-logos';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
 
@@ -506,11 +505,12 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     const relationIds = Array.from(new Set(classification.relationIds)).filter((relationId) =>
       nodeById.has(relationId),
     );
+    const stageName = workflowStages[classification.stage].name.toLowerCase();
     const customTool: AITool = {
       id,
       name: displayName,
       category,
-      summary: `Rule-based intake placed this in ${categoryMeta.name}. ${classification.reason}`,
+      summary: `Added from your intake. It looks closest to ${categoryMeta.name}, with ${stageName} as the main workflow moment.`,
       stage: classification.stage,
       orbit: 3,
       angle: categoryMeta.angle + 10 + siblingCount * 7,
@@ -633,14 +633,14 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       </header>
 
       <main className="relative z-10 grid h-[calc(100dvh-4rem)] grid-cols-1 overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)_340px] lg:overflow-hidden">
-        <aside className="order-2 border-t border-white/10 bg-black/20 p-4 backdrop-blur-xl lg:order-1 lg:overflow-y-auto lg:border-t-0 lg:border-r">
+        <aside className="order-3 border-t border-white/10 bg-black/20 p-4 backdrop-blur-xl lg:order-1 lg:overflow-y-auto lg:border-t-0 lg:border-r">
           <form
             onSubmit={handleAddTool}
             className="rounded-xl border border-white/15 bg-white/[0.07] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
           >
             <label className="mb-2 flex items-center gap-2 text-xs font-medium uppercase text-cyan-100/80">
               <Zap className="h-3.5 w-3.5" />
-              Liquid Glass Intake
+              Add service
             </label>
             <div className="flex gap-2">
               <input
@@ -662,7 +662,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               </button>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-text-secondary">
-              Rule-based draft classifier. Later it can become an AI classifier with persisted relations.
+              Paste a name or URL and the map will suggest where it belongs.
             </p>
             {intakeMessage && (
               <p className="mt-2 text-xs leading-5 text-cyan-50/80" role="status">
@@ -680,18 +680,19 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                   </span>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-text-secondary">
-                  Stage: {workflowStages[intakePreview.stage].name}
+                  Suggested stage: {workflowStages[intakePreview.stage].name}
                   {intakePreview.matchedKeywords.length > 0 && (
                     <> · Signals: {intakePreview.matchedKeywords.join(', ')}</>
                   )}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5 text-[11px] text-text-muted">
                   <Link2 className="h-3 w-3" />
+                  Connects near{' '}
                   {intakePreview.relationIds
                     .map((relationId) => nodeById.get(relationId)?.name)
                     .filter(Boolean)
                     .slice(0, 3)
-                    .join(' + ')}
+                    .join(' + ') || 'Founder OS'}
                 </div>
               </div>
             )}
@@ -751,7 +752,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                     })
                   ) : (
                     <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-3 text-xs leading-5 text-text-muted">
-                      No matching tools in this universe. Paste it into intake to classify it.
+                      No matching tools in this universe. Paste it into Add service to place it.
                     </div>
                   )}
                 </div>
@@ -841,7 +842,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-text-muted transition hover:bg-white/10 hover:text-white"
           >
             <Upload className="h-3.5 w-3.5" />
-            Import custom tools JSON
+            Import saved tools
           </button>
           {importStatus && (
             <p
@@ -857,9 +858,6 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               {importStatus.message}
             </p>
           )}
-          <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-xs leading-5 text-text-muted">
-            Logos use Logo.dev when `VITE_LOGO_DEV_PUBLISHABLE_KEY` is set. Current mode: {hasLogoDevKey ? 'Logo.dev CDN' : 'local SVG fallback'}.
-          </p>
         </aside>
 
         <section className="order-1 relative flex flex-col min-h-[680px] overflow-hidden sm:min-h-[620px] md:min-h-[640px] lg:order-2 lg:h-[calc(100dvh-4rem)] lg:min-h-0">
@@ -901,7 +899,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                     Universe lens
                   </p>
                   <p className="text-xs text-text-muted">
-                    {pocketWorldLabel ? `Pocket world · ${pocketWorldLabel}` : focusLabel} · {stageLabel} · {visibleTools.length}/{allTools.length} visible
+                    {pocketWorldLabel ? `Pocket world · ${pocketWorldLabel}` : focusLabel} · {stageLabel} · {visibleTools.length} tools in view
                   </p>
                   <p className="mt-0.5 text-[11px] text-cyan-200/55">
                     {pocketWorldLabel
@@ -1000,7 +998,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           </div>
         </section>
 
-        <aside className="order-3 sticky bottom-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-white/15 bg-black/70 p-4 shadow-[0_-22px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:static lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-l lg:bg-black/30 lg:shadow-none">
+        <aside className="order-2 overflow-visible border-y border-white/15 bg-black/45 p-4 shadow-[0_-18px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:order-3 lg:overflow-y-auto lg:border-y-0 lg:border-l lg:bg-black/30 lg:shadow-none">
           <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-white/25 lg:hidden" aria-hidden="true" />
           <article
             data-tool-id={selectedTool.id}
@@ -1049,7 +1047,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 </a>
               ) : (
                 <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-center text-sm text-text-muted">
-                  Local node
+                  No public link
                 </div>
               )}
             </div>

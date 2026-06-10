@@ -67,7 +67,8 @@ export function ProximityCategoryWatcher({
       const dz = camera.position.z - activeAnchor.position[2];
       const distSq = dx * dx + dy * dy + dz * dz;
       const exitDistSq = exitDistance * exitDistance;
-      const armDistSq = exitDistSq * 0.67;
+      const armDistance = exitDistance * 0.96;
+      const armDistSq = armDistance * armDistance;
 
       if (distSq <= armDistSq) {
         exitArmedCategoryRef.current = activeCategory;
