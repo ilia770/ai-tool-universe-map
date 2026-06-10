@@ -39,154 +39,185 @@ struct UniverseScreen: View {
                 categoryRail
                 bottomSheet
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.horizontal, BrandSpacing.l.value)
+            .padding(.top, BrandSpacing.m.value)
+            .padding(.bottom, BrandSpacing.s.value)
         }
-        .background(Color.black)
+        .background(BrandColor.void)
         .preferredColorScheme(.dark)
+        .onAppear {
+            BrandHaptics.prepare(.light)
+        }
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandSpacing.m.value) {
             Image(systemName: "sparkles")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 42, height: 42)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(selectedCategoryModel.color.swiftUIColor.opacity(0.34), lineWidth: 1)
+                .liquidGlass(
+                    in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
+                    tint: selectedCategoryModel.color.swiftUIColor,
+                    strokeStrength: 0.14
                 )
+                .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 Text("My AI Map")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("Research -> Plan -> Build -> Review")
+                    .foregroundStyle(BrandColor.textPrimary)
+                Text("Research → Plan → Build → Review")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(BrandColor.textSecondary)
             }
 
             Spacer()
 
             Text("\(UniverseSeed.tools.count) tools")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.72))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 8)
+                .foregroundStyle(BrandColor.textSecondary)
+                .padding(.horizontal, BrandSpacing.m.value)
+                .padding(.vertical, BrandSpacing.s.value)
                 .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(BrandColor.stroke, lineWidth: 1)
+                )
         }
     }
 
     private var categoryRail: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: BrandSpacing.s.value) {
                 ForEach(UniverseSeed.categories) { category in
-                    Button {
-                        BrandHaptics.fire(.medium)
-                        model.selectCategory(category.id)
-                    } label: {
-                        HStack(spacing: 7) {
-                            Circle()
-                                .fill(category.color.swiftUIColor)
-                                .frame(width: 8, height: 8)
-                            Text(category.shortName)
-                                .font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(category.id == model.selection.activeCategory ? .white : .white.opacity(0.66))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(category.id == model.selection.activeCategory ? category.color.swiftUIColor.opacity(0.64) : .white.opacity(0.12), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    categoryChip(category)
                 }
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, BrandSpacing.s.value)
         }
+        .brandAnimation(BrandMotion.nudge, value: model.selection.activeCategory)
+    }
+
+    private func categoryChip(_ category: ToolCategory) -> some View {
+        let isSelected = category.id == model.selection.activeCategory
+        let accent = category.color.swiftUIColor
+
+        return Button {
+            model.selectCategory(category.id)
+        } label: {
+            HStack(spacing: BrandSpacing.s.value) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 8, height: 8)
+                Text(category.shortName)
+                    .font(BrandTypography.chip)
+            }
+            .foregroundStyle(isSelected ? BrandColor.textPrimary : BrandColor.textSecondary)
+            .padding(.horizontal, BrandSpacing.m.value)
+            .padding(.vertical, BrandSpacing.s.value)
+            .background {
+                ZStack {
+                    Capsule().fill(.ultraThinMaterial)
+                    if isSelected {
+                        Capsule().fill(accent.opacity(0.14))
+                    }
+                }
+            }
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? accent.opacity(0.5) : BrandColor.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressableButtonStyle())
     }
 
     private var bottomSheet: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let accent = selectedCategoryModel.color.swiftUIColor
+
+        return VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
             Capsule()
-                .fill(.white.opacity(0.28))
-                .frame(width: 44, height: 4)
+                .fill(BrandColor.white.opacity(0.28))
+                .frame(width: 36, height: 5)
                 .frame(maxWidth: .infinity)
 
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(selectedCategoryModel.name.uppercased())
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.4)
-                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+            HStack(alignment: .top, spacing: BrandSpacing.m.value) {
+                VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
+                    Text(selectedCategoryModel.name)
+                        .brandEyebrow()
+                        .foregroundStyle(accent)
                     Text(selectedTool.name)
                         .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(BrandColor.textPrimary)
                     Text(selectedTool.summary)
                         .font(.subheadline)
                         .lineSpacing(3)
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(BrandColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: BrandSpacing.s.value)
 
                 Text(stageLabel(selectedTool.stage))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(selectedCategoryModel.color.swiftUIColor, in: Capsule())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, BrandSpacing.m.value)
+                    .padding(.vertical, BrandSpacing.xs.value)
+                    .background(accent.opacity(0.16), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(accent.opacity(0.32), lineWidth: 1)
+                    )
             }
 
             Divider()
-                .overlay(.white.opacity(0.14))
+                .overlay(BrandColor.stroke)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: BrandSpacing.s.value) {
                     ForEach(visibleTools) { tool in
-                        Button {
-                            BrandHaptics.fire(.light)
-                            model.selectTool(tool.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(tool.name)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                Text(stageLabel(tool.stage))
-                                    .font(.caption2)
-                                    .foregroundStyle(.white.opacity(0.55))
-                            }
-                            .frame(width: 132, alignment: .leading)
-                            .padding(10)
-                            .background(
-                                tool.id == model.selection.selectedToolID
-                                    ? selectedCategoryModel.color.swiftUIColor.opacity(0.20)
-                                    : Color.white.opacity(0.055),
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(tool.id == model.selection.selectedToolID ? selectedCategoryModel.color.swiftUIColor.opacity(0.52) : .white.opacity(0.08), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        toolCard(tool)
                     }
                 }
             }
+            .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
+        .padding(BrandSpacing.l.value)
+        .liquidGlass(
+            in: RoundedRectangle(cornerRadius: BrandRadius.sheet.value, style: .continuous),
+            strokeStrength: 0.12
         )
         .shadow(color: .black.opacity(0.42), radius: 28, x: 0, y: 18)
+    }
+
+    private func toolCard(_ tool: Tool) -> some View {
+        let isSelected = tool.id == model.selection.selectedToolID
+        let accent = selectedCategoryModel.color.swiftUIColor
+
+        return Button {
+            model.selectTool(tool.id)
+        } label: {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
+                Text(tool.name)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BrandColor.textPrimary)
+                    .lineLimit(1)
+                Text(stageLabel(tool.stage))
+                    .font(.caption2)
+                    .foregroundStyle(BrandColor.textMuted)
+            }
+            .frame(width: 132, alignment: .leading)
+            .padding(BrandSpacing.m.value)
+            .background(
+                isSelected ? accent.opacity(0.20) : BrandColor.card,
+                in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                    .stroke(isSelected ? accent.opacity(0.5) : BrandColor.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressableButtonStyle())
     }
 
     private func stageLabel(_ stage: WorkflowStageId) -> String {
