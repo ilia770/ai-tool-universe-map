@@ -1,28 +1,23 @@
 import SwiftUI
-import UIKit
 
 struct UniverseScreen: View {
-    @State private var selectedCategory: ToolCategoryId = .core
-    @State private var selectedToolId: String = "founder-os"
+    @Environment(UniverseViewModel.self) private var model
 
     private var selectedCategoryModel: ToolCategory {
-        UniverseSeed.category(selectedCategory)
+        model.selectedCategoryModel
     }
 
     private var visibleTools: [Tool] {
-        let tools = UniverseSeed.tools(in: selectedCategory)
-        return tools.isEmpty ? UniverseSeed.tools.filter { $0.category == .core } : tools
+        model.visibleTools
     }
 
     private var selectedTool: Tool {
-        UniverseSeed.tools.first { $0.id == selectedToolId }
-            ?? visibleTools.first
-            ?? UniverseSeed.tools[0]
+        model.selectedTool
     }
 
     var body: some View {
         ZStack {
-            UniverseView(selectedCategory: selectedCategory, selectedToolId: selectedTool.id)
+            UniverseView(selectedCategory: model.selection.activeCategory, selectedToolId: selectedTool.id)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -37,9 +32,6 @@ struct UniverseScreen: View {
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
-        .onChange(of: selectedCategory) { _, newValue in
-            selectedToolId = UniverseSeed.tools(in: newValue).first?.id ?? "founder-os"
-        }
     }
 
     private var header: some View {
@@ -79,8 +71,8 @@ struct UniverseScreen: View {
             HStack(spacing: 8) {
                 ForEach(UniverseSeed.categories) { category in
                     Button {
-                        Haptics.selection()
-                        selectedCategory = category.id
+                        BrandHaptics.fire(.medium)
+                        model.selectCategory(category.id)
                     } label: {
                         HStack(spacing: 7) {
                             Circle()
@@ -89,13 +81,13 @@ struct UniverseScreen: View {
                             Text(category.shortName)
                                 .font(.caption.weight(.semibold))
                         }
-                        .foregroundStyle(category.id == selectedCategory ? .white : .white.opacity(0.66))
+                        .foregroundStyle(category.id == model.selection.activeCategory ? .white : .white.opacity(0.66))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(
                             Capsule()
-                                .stroke(category.id == selectedCategory ? category.color.swiftUIColor.opacity(0.64) : .white.opacity(0.12), lineWidth: 1)
+                                .stroke(category.id == model.selection.activeCategory ? category.color.swiftUIColor.opacity(0.64) : .white.opacity(0.12), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -145,8 +137,8 @@ struct UniverseScreen: View {
                 HStack(spacing: 8) {
                     ForEach(visibleTools) { tool in
                         Button {
-                            Haptics.lightTap()
-                            selectedToolId = tool.id
+                            BrandHaptics.fire(.light)
+                            model.selectTool(tool.id)
                         } label: {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(tool.name)
@@ -160,14 +152,14 @@ struct UniverseScreen: View {
                             .frame(width: 132, alignment: .leading)
                             .padding(10)
                             .background(
-                                tool.id == selectedToolId
+                                tool.id == model.selection.selectedToolID
                                     ? selectedCategoryModel.color.swiftUIColor.opacity(0.20)
                                     : Color.white.opacity(0.055),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(tool.id == selectedToolId ? selectedCategoryModel.color.swiftUIColor.opacity(0.52) : .white.opacity(0.08), lineWidth: 1)
+                                    .stroke(tool.id == model.selection.selectedToolID ? selectedCategoryModel.color.swiftUIColor.opacity(0.52) : .white.opacity(0.08), lineWidth: 1)
                             )
                         }
                         .buttonStyle(.plain)
@@ -202,16 +194,5 @@ struct UniverseScreen: View {
 
 #Preview {
     UniverseScreen()
-}
-
-private enum Haptics {
-    @MainActor
-    static func selection() {
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    @MainActor
-    static func lightTap() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    }
+        .environment(UniverseViewModel())
 }
