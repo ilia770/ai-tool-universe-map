@@ -60,7 +60,8 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
-npm run smoke:visual   # needs dev server at :5177
+npm run smoke:visual:fast      # desktop smoke, needs dev server at :5177
+npm run smoke:visual:release   # full desktop/tablet/mobile matrix
 ```
 
 CI mirrors the first four locally on every PR and push to `main`
