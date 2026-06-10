@@ -39,8 +39,12 @@ struct BrandTokensTests {
     }
 
     @Test func reducedMotionReplacesAnimation() {
+        // Animation is Equatable; comparing values avoids coupling to
+        // SwiftUI's internal description format, which changes between
+        // SDKs (.linear(duration:) now describes as BezierAnimation).
         let resolved = BrandMotion.resolved(BrandMotion.entry, reduceMotion: true)
-        #expect(String(describing: resolved).contains("linear"))
+        #expect(resolved == .linear(duration: 0.001))
+        #expect(BrandMotion.resolved(BrandMotion.entry, reduceMotion: false) == BrandMotion.entry)
     }
 
     @Test @MainActor func hapticsDisabledIsNoOp() {

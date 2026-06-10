@@ -10,6 +10,7 @@ import RealityKit
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
+    let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
     @State private var cameraController = CameraController()
 
@@ -19,6 +20,10 @@ struct UniverseView: View {
 
     var body: some View {
         RealityView { content in
+            // Idempotent; must run before the scene starts updating.
+            UniverseStateComponent.registerComponent()
+            ProximityCategorySystem.registerSystem()
+
             let universe = Entity()
             content.add(universe)
 
@@ -33,8 +38,10 @@ struct UniverseView: View {
                 selected: selectedCategory == .core
             ))
 
+            var anchors: [ProximityWatcherCore.Anchor] = []
             for category in UniverseSeed.categories where category.id != .core {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
+                anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
                 universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
 
                 let categoryTools = UniverseSeed.tools(in: category.id)
@@ -63,6 +70,13 @@ struct UniverseView: View {
                     ))
                 }
             }
+
+            universe.components.set(UniverseStateComponent(
+                activeCategory: selectedCategory,
+                anchors: anchors,
+                camera: camera,
+                onProximityEvent: onProximityEvent
+            ))
 
             let key = DirectionalLight()
             key.light.intensity = 1_200
@@ -137,5 +151,5 @@ struct UniverseView: View {
 }
 
 #Preview {
-    UniverseView(selectedCategory: .design, selectedToolId: "figma")
+    UniverseView(selectedCategory: .design, selectedToolId: "figma", onProximityEvent: { _ in })
 }
