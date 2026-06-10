@@ -23,6 +23,21 @@ async function classifyTool(page: Page, value: string) {
   await input.press('Enter');
 }
 
+async function wheelOutFromCanvas(page: Page) {
+  const canvasBox = await page.locator('canvas').first().boundingBox({ timeout: 10_000 });
+  expect(canvasBox).not.toBeNull();
+
+  await page.mouse.move(
+    (canvasBox?.x ?? 0) + (canvasBox?.width ?? 0) * 0.5,
+    (canvasBox?.y ?? 0) + (canvasBox?.height ?? 0) * 0.42,
+  );
+
+  for (let step = 0; step < 5; step += 1) {
+    await page.mouse.wheel(0, 1600);
+    await page.waitForTimeout(180);
+  }
+}
+
 test('keeps public UI free of implementation copy', async ({ page }) => {
   await openUniverse(page);
 
@@ -95,6 +110,27 @@ test('category filter opens a pocket world', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'All stages' })).toBeVisible();
 });
 
+test('wheel zoom exits an open pocket world', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'Wheel zoom is a desktop/tablet camera interaction.');
+  test.setTimeout(90_000);
+
+  await openUniverse(page);
+
+  const designChip = page.getByTestId('lens-category-design');
+  await designChip.scrollIntoViewIfNeeded();
+  await designChip.click();
+
+  await expect(page.getByText(/Pocket world\s*·\s*Design/).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.universe-pocket-readout')).toContainText('Design');
+
+  await page.waitForTimeout(1_800);
+  await wheelOutFromCanvas(page);
+
+  await expect(page.locator('.universe-pocket-readout')).toHaveCount(0, { timeout: 12_000 });
+  await expect(page.getByText(/All groups\s*·\s*All workflow stages/).first()).toBeVisible();
+  await expect(page.getByText('Scroll-zoom into a ring to open its pocket world')).toBeVisible();
+});
+
 test('search enter focuses the first matching tool', async ({ page }) => {
   await openUniverse(page);
 
@@ -114,7 +150,9 @@ test('desktop hover makes the focused tool unambiguous', async ({ page }, testIn
   await classifyTool(page, 'https://buffer.com/');
   await page.getByRole('heading', { name: 'Buffer' }).waitFor({ state: 'visible' });
 
-  await page.getByRole('button', { name: 'Inspect Buffer' }).dispatchEvent('mouseover');
+  const bufferNode = page.getByRole('button', { name: 'Inspect Buffer' });
+  await expect(bufferNode).toBeVisible({ timeout: 15_000 });
+  await bufferNode.hover();
 
   await expect(page.locator('.universe-focus-readout')).toContainText('Buffer');
   await expect(page.locator('.universe-focus-readout')).toContainText('connected nodes in focus');

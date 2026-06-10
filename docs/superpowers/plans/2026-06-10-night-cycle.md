@@ -66,6 +66,7 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Gate dimmed-node hover focus.
 - [x] Add shared `validateUniverseData()` and custom tool import schema validation.
 - [x] Simplify the detail panel first viewport with compact map position and collapsible deeper relation sections.
+- [x] Add real pocket exit smoke for wheel zoom back to all-groups view.
 
 ### Verify Before PR
 
@@ -86,7 +87,7 @@ Branch: `codex/night-cycle-ux-polish`
 ### P1
 
 - [x] Make detail panel first viewport simpler: identity, summary, group/stage, primary actions, top connections.
-- [ ] Add real pocket exit smoke: click category -> wheel out -> expect all-groups state.
+- [x] Add real pocket exit smoke: click category -> wheel out -> expect all-groups state.
 - [ ] Add reduced-motion bridge from CSS media query into R3F animation/camera behavior.
 
 ### P2
