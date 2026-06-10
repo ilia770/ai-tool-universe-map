@@ -39,6 +39,20 @@ struct UniverseViewModelTests {
         #expect(model.selectedTool.id == second.id)
     }
 
+    @Test func reselectingActiveCategoryKeepsToolSelection() {
+        // Phase 1 parity: .onChange(of:) only fired on actual change, so
+        // re-tapping the active chip must not reset the chosen tool.
+        let model = UniverseViewModel()
+        model.selectCategory(.design)
+        guard let second = UniverseSeed.tools(in: .design).dropFirst().first else {
+            Issue.record("seed needs >= 2 design tools (UniverseLayoutTests guarantees this)")
+            return
+        }
+        model.selectTool(second.id)
+        model.selectCategory(.design)
+        #expect(model.selection.selectedToolID == second.id)
+    }
+
     @Test func visibleToolsFallBackToCoreWhenCategoryEmpty() {
         // Mirrors Phase 1: empty category shows core tools instead of nothing.
         let model = UniverseViewModel()

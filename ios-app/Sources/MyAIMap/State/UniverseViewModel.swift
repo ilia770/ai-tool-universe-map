@@ -48,6 +48,9 @@ final class UniverseViewModel {
     // MARK: - Intents
 
     func selectCategory(_ id: ToolCategoryId) {
+        // Phase 1 parity: .onChange(of:) was equality-gated, so re-tapping
+        // the active category chip must not reset the tool selection.
+        guard selection.activeCategory != id else { return }
         selection.activeCategory = id
         selection.selectedToolID = UniverseSeed.tools(in: id).first?.id ?? "founder-os"
     }
