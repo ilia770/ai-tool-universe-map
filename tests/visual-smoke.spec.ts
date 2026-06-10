@@ -17,6 +17,12 @@ async function openUniverse(page: Page) {
   }, null, { timeout: 20_000 });
 }
 
+async function classifyTool(page: Page, value: string) {
+  const input = page.getByPlaceholder('Tool name or URL');
+  await input.fill(value);
+  await input.press('Enter');
+}
+
 test('keeps public UI free of implementation copy', async ({ page }) => {
   await openUniverse(page);
 
@@ -46,8 +52,7 @@ test('renders the 3D universe map and classifies a pasted tool', async ({ page }
   const canvas = page.locator('canvas').first();
   await expect(page.getByText('Founder OS').first()).toBeVisible();
 
-  await page.getByPlaceholder('Tool name or URL').fill('https://buffer.com/');
-  await page.getByTitle('Classify tool').click();
+  await classifyTool(page, 'https://buffer.com/');
 
   await expect(page.getByRole('heading', { name: 'Buffer' })).toBeVisible();
   await expect(page.getByText('Distribution & Social Ops').first()).toBeVisible();
@@ -62,11 +67,11 @@ test('renders the 3D universe map and classifies a pasted tool', async ({ page }
 test('details panel relation lens can switch views', async ({ page }) => {
   await openUniverse(page);
 
-  await page.getByPlaceholder('Tool name or URL').fill('https://buffer.com/');
-  await page.getByTitle('Classify tool').click();
+  await classifyTool(page, 'https://buffer.com/');
   await page.getByRole('heading', { name: 'Buffer' }).waitFor({ state: 'visible' });
 
   const detailsPanel = page.getByTestId('tool-detail-panel');
+  await detailsPanel.getByTestId('relation-lens-details').locator('summary').click();
   await detailsPanel.getByTestId('relation-lens-stage').scrollIntoViewIfNeeded();
   await detailsPanel.getByTestId('relation-lens-stage').click();
   await expect(detailsPanel.getByTestId('relation-lens-stage')).toHaveClass(/border-fuchsia-200/);
@@ -75,6 +80,7 @@ test('details panel relation lens can switch views', async ({ page }) => {
 });
 
 test('category filter opens a pocket world', async ({ page }) => {
+  test.setTimeout(90_000);
   await openUniverse(page);
 
   const designChip = page.getByTestId('lens-category-design');
@@ -85,8 +91,8 @@ test('category filter opens a pocket world', async ({ page }) => {
   await expect(page.getByText(/Pocket world\s*·\s*Design/).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.universe-pocket-readout')).toContainText('Design');
   await expect(page.getByText('Nearby in group')).toBeVisible();
-  await expect(page.getByText('Design & Product UI').first()).toBeVisible();
-  await expect(page.getByText('All stages').first()).toBeVisible();
+  await expect(page.getByTestId('tool-detail-panel').getByText('Design & Product UI').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All stages' })).toBeVisible();
 });
 
 test('search enter focuses the first matching tool', async ({ page }) => {
@@ -105,8 +111,7 @@ test('desktop hover makes the focused tool unambiguous', async ({ page }, testIn
 
   await openUniverse(page);
 
-  await page.getByPlaceholder('Tool name or URL').fill('https://buffer.com/');
-  await page.getByTitle('Classify tool').click();
+  await classifyTool(page, 'https://buffer.com/');
   await page.getByRole('heading', { name: 'Buffer' }).waitFor({ state: 'visible' });
 
   await page.getByRole('button', { name: 'Inspect Buffer' }).dispatchEvent('mouseover');

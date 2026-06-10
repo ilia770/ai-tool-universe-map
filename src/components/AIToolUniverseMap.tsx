@@ -1033,53 +1033,37 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <p className="mt-2 text-sm leading-6 text-text-secondary">{selectedTool.summary}</p>
             </section>
 
-            <section className="mt-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
-              <div className="flex items-start gap-2">
-                <span
-                  className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_18px_currentColor]"
-                  style={{ backgroundColor: selectedCategory.color, color: selectedCategory.color }}
-                  aria-hidden="true"
-                />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Group
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-white">{selectedCategory.name}</p>
-                  <p className="mt-1 text-xs leading-5 text-text-muted">{selectedCategory.description}</p>
+            <section className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.045] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/75">
+                Map position
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <div className="rounded-lg border border-white/10 bg-black/18 p-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_18px_currentColor]"
+                      style={{ backgroundColor: selectedCategory.color, color: selectedCategory.color }}
+                      aria-hidden="true"
+                    />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+                      Group
+                    </p>
+                  </div>
+                  <p className="mt-1.5 text-sm font-semibold text-white">{selectedCategory.name}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/18 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+                      Workflow
+                    </p>
+                    <span className="text-[11px] text-text-muted">
+                      {selectedStageIndex + 1}/{orderedStages.length}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm font-semibold text-white">{workflowStages[selectedTool.stage].name}</p>
                 </div>
               </div>
-            </section>
-
-            <section className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.045] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/75">
-                  Workflow
-                </p>
-                <span className="text-[11px] text-text-muted">
-                  {selectedStageIndex + 1}/{orderedStages.length}
-                </span>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-cyan-50/80">{stageActions[selectedTool.stage]}</p>
-              <div className="mt-3 grid grid-cols-5 gap-1" aria-label="Workflow stage path">
-                {orderedStages.map((stage, index) => {
-                  const isCurrent = selectedTool.stage === stage;
-                  return (
-                    <div
-                      key={stage}
-                      aria-current={isCurrent ? 'step' : undefined}
-                      title={workflowStages[stage].description}
-                      className={`min-h-11 rounded-md border px-1.5 py-1.5 text-left transition ${
-                        isCurrent
-                          ? 'border-cyan-200/40 bg-cyan-200/15 text-white'
-                          : 'border-white/10 bg-black/20 text-text-muted'
-                      }`}
-                    >
-                      <span className="block text-[10px] font-semibold text-cyan-100/70">{index + 1}</span>
-                      <span className="mt-0.5 block truncate text-[11px]">{stageDockLabels[stage]}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <p className="mt-2 text-xs leading-5 text-cyan-50/72">{stageActions[selectedTool.stage]}</p>
             </section>
 
             <section
@@ -1124,69 +1108,74 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-4 gap-1.5 border-t border-white/10 pt-3">
-                {relationLensOptions.map((option) => {
-                  const isActive = relationLens === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      data-testid={`relation-lens-${option.id}`}
-                      onClick={() => setRelationLens(option.id)}
-                      title={option.description}
-                      className={`rounded-lg border px-2 py-2 text-left text-[11px] transition ${
-                        isActive
-                          ? 'border-fuchsia-200/35 bg-fuchsia-200/14 text-white'
-                          : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
-                      }`}
-                    >
-                      <span className="block text-[10px] text-fuchsia-100/70">
-                        {relationLensCounts.get(option.id) ?? 0}
-                      </span>
-                      {option.shortLabel}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {lensTools.length > 0 ? (
-                  lensTools.slice(0, 7).map((tool) => {
-                    const confidence = linkMetaByPeer.get(tool.id)?.confidence;
+              <details className="mt-3 border-t border-white/10 pt-3" data-testid="relation-lens-details">
+                <summary className="cursor-pointer list-none rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-text-secondary transition hover:bg-white/[0.06] hover:text-white">
+                  Explore relation lens
+                </summary>
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                  {relationLensOptions.map((option) => {
+                    const isActive = relationLens === option.id;
                     return (
                       <button
-                        key={tool.id}
+                        key={option.id}
                         type="button"
-                        onClick={() => focusTool(tool)}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-text-secondary transition hover:bg-white/10 hover:text-white"
+                        data-testid={`relation-lens-${option.id}`}
+                        onClick={() => setRelationLens(option.id)}
+                        title={option.description}
+                        className={`rounded-lg border px-2 py-2 text-left text-[11px] transition ${
+                          isActive
+                            ? 'border-fuchsia-200/35 bg-fuchsia-200/14 text-white'
+                            : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
+                        }`}
                       >
-                        <ToolLogo tool={tool} size={20} />
-                        {tool.name}
-                        {confidence !== undefined && (
-                          <span className="rounded-full bg-fuchsia-200/15 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-100/90">
-                            {Math.round(confidence * 100)}%
-                          </span>
-                        )}
+                        <span className="block text-[10px] text-fuchsia-100/70">
+                          {relationLensCounts.get(option.id) ?? 0}
+                        </span>
+                        {option.shortLabel}
                       </button>
                     );
-                  })
-                ) : (
-                  <span className="text-sm text-text-muted">No visible tools in this lens yet.</span>
-                )}
-              </div>
+                  })}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {lensTools.length > 0 ? (
+                    lensTools.slice(0, 7).map((tool) => {
+                      const confidence = linkMetaByPeer.get(tool.id)?.confidence;
+                      return (
+                        <button
+                          key={tool.id}
+                          type="button"
+                          onClick={() => focusTool(tool)}
+                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-text-secondary transition hover:bg-white/10 hover:text-white"
+                        >
+                          <ToolLogo tool={tool} size={20} />
+                          {tool.name}
+                          {confidence !== undefined && (
+                            <span className="rounded-full bg-fuchsia-200/15 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-100/90">
+                              {Math.round(confidence * 100)}%
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <span className="text-sm text-text-muted">No visible tools in this lens yet.</span>
+                  )}
+                </div>
+              </details>
             </section>
 
-            <section className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
+            <details className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+                <span>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Nearby in group
                   </p>
                   <p className="mt-1 text-sm font-semibold text-white">{activeClusterCategory.name}</p>
-                </div>
+                </span>
                 <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-text-muted">
                   {clusterTools.length} tools
                 </span>
-              </div>
+              </summary>
               <div className="mt-3 grid gap-1.5">
                 {clusterTools.slice(0, 6).map((tool) => {
                   const isActive = tool.id === selectedTool.id;
@@ -1212,7 +1201,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                   );
                 })}
               </div>
-            </section>
+            </details>
 
           </article>
         </aside>
