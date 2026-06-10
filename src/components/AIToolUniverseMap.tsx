@@ -21,8 +21,10 @@ import {
   workflowStages,
   workflowLinks,
   categoryById,
+  toolById,
   tools,
 } from '../data/ai-tool-universe';
+import { filterValidCustomTools, getToolArrayPayload } from '../data/universe-schema';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
@@ -88,11 +90,6 @@ const relationLensOptions: Array<{
   },
 ];
 
-const stageIds = new Set<WorkflowStageId>(orderedStages);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
 const getNormalizedHost = (value: string | undefined) => {
   if (!value) return null;
 
@@ -104,28 +101,6 @@ const getNormalizedHost = (value: string | undefined) => {
   }
 };
 
-const isValidToolPayload = (value: unknown): value is AITool => {
-  if (!isRecord(value)) return false;
-  const category = value.category;
-  const stage = value.stage;
-  const orbit = value.orbit;
-
-  return typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && typeof value.summary === 'string'
-    && typeof category === 'string'
-    && categoryById.has(category as ToolCategoryId)
-    && typeof stage === 'string'
-    && stageIds.has(stage as WorkflowStageId)
-    && typeof orbit === 'number'
-    && [0, 1, 2, 3].includes(orbit)
-    && typeof value.angle === 'number'
-    && value.id !== 'founder-os'
-    && (!('logoDomain' in value) || typeof value.logoDomain === 'string')
-    && Array.isArray(value.relationIds)
-    && value.relationIds.every((id) => typeof id === 'string');
-};
-
 const readStoredCustomTools = (): AITool[] => {
   if (typeof window === 'undefined') return [];
 
@@ -133,7 +108,7 @@ const readStoredCustomTools = (): AITool[] => {
     const raw = window.localStorage.getItem(CUSTOM_TOOLS_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isValidToolPayload) : [];
+    return filterValidCustomTools(parsed);
   } catch {
     return [];
   }
@@ -554,17 +529,16 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const importedTools = Array.isArray(parsed)
-        ? parsed
-        : isRecord(parsed)
-          ? parsed.tools
-          : null;
+      const importedTools = getToolArrayPayload(parsed);
       if (!Array.isArray(importedTools)) {
         setImportStatus({ tone: 'error', message: 'JSON must be an array of tools or an object with a tools array.' });
         return;
       }
 
-      const validTools = importedTools.filter(isValidToolPayload);
+      const validTools = filterValidCustomTools(importedTools, new Set([
+        ...toolById.keys(),
+        ...customTools.map((tool) => tool.id),
+      ]));
       if (validTools.length === 0) {
         setImportStatus({ tone: 'error', message: 'No valid custom tools were found in this JSON file.' });
         return;
