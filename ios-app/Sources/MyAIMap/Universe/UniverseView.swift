@@ -13,6 +13,7 @@ struct UniverseView: View {
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
     @State private var cameraController = CameraController()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var viewMode: ViewMode {
         selectedCategory == .core ? .overview : .pocket
@@ -43,6 +44,9 @@ struct UniverseView: View {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
                 anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
                 universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
+                if category.id == selectedCategory {
+                    universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
+                }
 
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
@@ -146,6 +150,10 @@ struct UniverseView: View {
             materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(alpha), isMetallic: false)]
         )
         node.position = position
+        if pocketed {
+            // PHASE_2_PLAN step 5: pocket entities scale up by 1.18×.
+            node.scale = SIMD3<Float>(repeating: PocketShellGeometry.pocketNodeScale)
+        }
         return node
     }
 }
