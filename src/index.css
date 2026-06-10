@@ -107,7 +107,12 @@ button {
   transition:
     opacity 520ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 520ms cubic-bezier(0.16, 1, 0.3, 1);
+    filter 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    max-width 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    font-size 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .universe-label-category {
@@ -191,7 +196,11 @@ button {
   transition:
     opacity 440ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 440ms cubic-bezier(0.16, 1, 0.3, 1);
+    filter 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 440ms cubic-bezier(0.16, 1, 0.3, 1);
   filter: saturate(0.8) blur(0.5px);
 }
 
@@ -227,7 +236,14 @@ button {
 
 .universe-label-logo {
   display: inline-flex;
+  flex: 0 0 auto;
   margin-right: 1px;
+}
+
+.universe-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .universe-label-founder {
