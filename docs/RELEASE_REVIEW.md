@@ -64,23 +64,51 @@ screenshots/<scope>-<viewport>-<state>.png
 
 ## Required iOS Checks
 
-For simulator:
+For simulator sanity:
 
 ```bash
 cd ios-app
 xcodegen generate
-cd ..
-xcodebuild -project ios-app/MyAIMap.xcodeproj -scheme MyAIMap -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.3.1' -derivedDataPath ios-app/build build
-xcodebuild -project ios-app/MyAIMap.xcodeproj -scheme MyAIMap -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.3.1' -derivedDataPath ios-app/build build-for-testing
+open MyAIMap.xcodeproj
 ```
 
+Then in Xcode 26.5:
+
+- Select the `My AI Map` scheme.
+- Select an available iPhone simulator.
+- Run the app.
+- Confirm dark launch, visible 3D universe, category switching, selected-tool
+  bottom sheet, and no major overlap.
+
 For device/TestFlight:
+
 - Apple Developer account active.
-- Team id configured.
+- Team ID known and selected on the `MyAIMap` target.
 - Bundle id: `com.iliaturilia.myaimap`.
 - App display name: `My AI Map`.
-- Archive succeeds in Xcode.
-- TestFlight upload succeeds.
+- SKU in App Store Connect: `myaimap-ios`.
+- Signing works on a real device before Archive.
+- Xcode Product -> Archive succeeds with a non-simulator destination.
+- Distribute App -> App Store Connect -> Upload succeeds.
+- App Store Connect processing completes.
+- Internal tester receives and installs the build through TestFlight.
+
+Required iOS screenshots/evidence:
+
+- Overview with 3D universe visible.
+- Focused category pocket world.
+- Selected tool bottom sheet.
+- Any permission prompts or onboarding if added.
+- App Store screenshots for every device class App Store Connect requires at
+  submission time.
+
+Known iOS release risks:
+
+- Developer account, Team ID, certificates, profiles, bundle registration, and
+  TestFlight tester access are external Apple account state.
+- The project currently targets iPhone and iPad, so public App Store submission
+  may require iPad review coverage and screenshots.
+- Personal TestFlight readiness is not the same as public App Store polish.
 
 ## Release PR Requirements
 
@@ -105,4 +133,3 @@ Do not release when:
 - Mobile view is unusable.
 - App crashes on launch.
 - Data relations point to missing ids.
-
