@@ -17,7 +17,20 @@ struct UniverseScreen: View {
 
     var body: some View {
         ZStack {
-            UniverseView(selectedCategory: model.selection.activeCategory, selectedToolId: selectedTool.id)
+            UniverseView(
+                selectedCategory: model.selection.activeCategory,
+                selectedToolId: selectedTool.id,
+                onProximityEvent: { event in
+                    // Web parity (Scene.tsx:420-421): onEnter selects the
+                    // category, onExit returns to the overview ('all' ↔ .core).
+                    switch event {
+                    case .enter(let id):
+                        model.selectCategory(id)
+                    case .exit:
+                        model.selectCategory(.core)
+                    }
+                }
+            )
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
