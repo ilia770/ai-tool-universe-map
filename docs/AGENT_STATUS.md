@@ -13,7 +13,7 @@ Web app:
 - Night-cycle polish through PR #32 is merged: non-focus nodes now use one compact logo+label bubble so hover/focus labels overlap less.
 - Safe dependency patch queue is merged: #9 `actions/checkout@6`, #10 `actions/setup-node@6`, #15 `globals@17.6.0`, #17 `typescript-eslint@8.61.0`, #11 React stack patch.
 - Latest local verification after #11: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run size:check`, and `npm run smoke:visual:fast` passed. GitHub CI for #11 on `main` also passed.
-- Data migration follow-up is in progress on `codex/data-json-seed`: production universe data moves from TypeScript literals to `src/data/ai-tool-universe.seed.json`, while `src/data/ai-tool-universe.ts` remains the typed facade.
+- Data migration follow-up is merged (PR #34): production universe data lives in `src/data/ai-tool-universe.seed.json`, while `src/data/ai-tool-universe.ts` remains the typed facade.
 
 iOS app:
 - Native SwiftUI/RealityKit prototype is now fully merged to `main` (`ios-app/`).
@@ -33,10 +33,9 @@ iOS app:
 - Next iOS slices per `docs/PHASE_2_PLAN.md`: ProximityCategorySystem
   (ECS, hysteresis 11/22) → PocketShellEntity + PocketTransition →
   SearchDock → Sheets → haptics wiring. Owner: Claude Code.
-- Repo wart: `.github/` contains BOTH `PULL_REQUEST_TEMPLATE.md` and
-  `pull_request_template.md` — case-collision keeps one perpetually
-  "modified" on macOS checkouts. Fix pending: `git rm` one of them
-  (Codex owns release/checklist docs — please pick the canonical one).
+- Repo wart fixed in progress on `codex/fix-pr-template-case-collision`:
+  `.github/PULL_REQUEST_TEMPLATE.md` is the canonical PR template and the
+  lowercase duplicate is being removed from the Git index.
 
 ## PR Stack — MERGED 2026-06-10
 
@@ -68,7 +67,7 @@ Still open:
 | --- | --- | --- | --- |
 | iOS simulator launch | CoreSimulator hung during runtime/data migration after iOS 26.5 simulator install | `xcodebuild test` reached simulator launch, then `NSMachErrorDomain -308`; `simctl bootstatus` waited on BackBoard/Data Migration | Retry after Xcode finishes runtime cache/migration, or run on real iPhone with Apple signing |
 | TestFlight | Apple Developer team id not configured | TestFlight requires signed archive | Add team id to `ios-app/project.yml` after enrollment |
-| Web data model | Data is moving to JSON seed, but not yet database-backed | `src/data/ai-tool-universe.seed.json` becomes the source fixture; `src/data/ai-tool-universe.ts` keeps typed exports | After JSON seed lands, define the eventual DB/API schema and sync path |
+| Web data model | Data is JSON-backed but not yet database-backed | `src/data/ai-tool-universe.seed.json` is the source fixture; `src/data/ai-tool-universe.ts` keeps typed exports | Define the eventual DB/API schema and sync path |
 | Tooling migration | ESLint 10 + TypeScript 6 grouped update is open but risky | PR #12 touches `@vitejs/plugin-react`, `eslint`, `eslint-plugin-react-refresh`, `typescript`, `vite`, and `vitest`; PR #14 is unstable | Create a dedicated migration branch, update config/docs/tests together, and run the full release matrix |
 
 ## Where To Fix Next
