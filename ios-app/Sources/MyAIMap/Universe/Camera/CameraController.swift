@@ -75,6 +75,9 @@ final class CameraController {
     func attach(_ camera: PerspectiveCamera, mode: ViewMode, target: SIMD3<Float>) {
         self.camera = camera
         self.target = target
+        // A cancelled gesture never fires .onEnded; never carry a stale
+        // pinch base into a freshly adopted scene.
+        pinchBaseDistance = nil
         let eye = Self.focusEye(for: mode, target: target)
         camera.position = eye
         camera.orientation = Self.lookRotation(eye: eye, target: target)
