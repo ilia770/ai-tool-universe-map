@@ -13,7 +13,6 @@ struct MyAIMapApp: App {
             UniverseScreen()
                 .environment(model)
                 .preferredColorScheme(.dark)
-                .ignoresSafeArea()
         }
     }
 }

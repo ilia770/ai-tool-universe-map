@@ -1,152 +1,246 @@
 import SwiftUI
-import RealityKit
+import simd
 
-/// Native RealityKit universe scene.
+/// Native universe scene for the iOS TestFlight track.
 ///
-/// Phase 1 keeps the render path intentionally compact: one central core,
-/// category anchors, and a curated first slice of real tools. Selecting a
-/// category from SwiftUI opens it as a roomier "pocket world" so the iOS
-/// prototype already demonstrates the core product behavior.
+/// This version intentionally uses plain SwiftUI primitives (`Circle`,
+/// `Path`, `Text`) instead of Canvas/RealityKit so the first TestFlight
+/// build is visually reliable on Simulator and device. The projection
+/// still uses the same 3D layout vectors as the web map.
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
-    @State private var cameraController = CameraController()
+    @State private var zoom: CGFloat = 1
+    @State private var baseZoom: CGFloat = 1
 
-    private var viewMode: ViewMode {
-        selectedCategory == .core ? .overview : .pocket
+    private var selectedCategoryModel: ToolCategory {
+        UniverseSeed.category(selectedCategory)
     }
 
     var body: some View {
-        RealityView { content in
-            // Idempotent; must run before the scene starts updating.
-            UniverseStateComponent.registerComponent()
-            ProximityCategorySystem.registerSystem()
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-            let universe = Entity()
-            content.add(universe)
+            GeometryReader { proxy in
+                let size = proxy.size
+                ZStack {
+                    RadialGradient(
+                        colors: [
+                            selectedCategoryModel.color.swiftUIColor.opacity(0.24),
+                            Color(red: 0.015, green: 0.025, blue: 0.06),
+                            .black
+                        ],
+                        center: .center,
+                        startRadius: 40,
+                        endRadius: 680
+                    )
+                    .ignoresSafeArea()
 
-            let camera = PerspectiveCamera()
-            universe.addChild(camera)
-            cameraController.attach(camera, mode: viewMode, target: lookAtPosition(for: selectedCategory))
-
-            universe.addChild(Self.makeToolNode(
-                tool: UniverseSeed.tools.first { $0.id == "founder-os" },
-                category: UniverseSeed.category(.core),
-                position: .zero,
-                selected: selectedCategory == .core
-            ))
-
-            var anchors: [ProximityWatcherCore.Anchor] = []
-            for category in UniverseSeed.categories where category.id != .core {
-                let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
-                anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
-                universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
-
-                let categoryTools = UniverseSeed.tools(in: category.id)
-                for (index, tool) in categoryTools.enumerated() {
-                    let isPocket = category.id == selectedCategory
-                    let isSelectedTool = tool.id == selectedToolId
-                    let position = isPocket
-                        ? UniverseLayout.pocketToolPosition(
-                            angleDegrees: tool.angle,
-                            orbit: tool.orbit,
-                            categoryAngleDegrees: category.angle,
-                            slotIndex: index,
-                            slotCount: max(categoryTools.count, 1)
-                        )
-                        : UniverseLayout.toolPosition(
-                            angleDegrees: tool.angle,
-                            orbit: tool.orbit,
-                            categoryAngleDegrees: category.angle
-                        )
-                    universe.addChild(Self.makeToolNode(
-                        tool: tool,
-                        category: category,
-                        position: position,
-                        selected: isSelectedTool,
-                        pocketed: isPocket
-                    ))
+                    starfield(in: size)
+                    connections(in: size)
+                    nodes(in: size)
+                    categoryHitTargets(in: size)
                 }
+                .frame(width: size.width, height: size.height)
             }
-
-            universe.components.set(UniverseStateComponent(
-                activeCategory: selectedCategory,
-                anchors: anchors,
-                camera: camera,
-                onProximityEvent: onProximityEvent
-            ))
-
-            let key = DirectionalLight()
-            key.light.intensity = 1_200
-            key.position = SIMD3<Float>(-4, 7, 10)
-            universe.addChild(key)
-
-            let fill = DirectionalLight()
-            fill.light.intensity = 420
-            fill.position = SIMD3<Float>(6, -2, 8)
-            universe.addChild(fill)
         }
-        .id(selectedCategory)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
         .gesture(
             MagnifyGesture()
                 .onChanged { value in
-                    cameraController.pinchChanged(magnification: Float(value.magnification))
+                    zoom = min(max(baseZoom * value.magnification, 0.72), 1.72)
                 }
                 .onEnded { _ in
-                    cameraController.pinchEnded()
+                    baseZoom = zoom
                 }
         )
-        .background(
-            RadialGradient(
-                colors: [
-                    UniverseSeed.category(selectedCategory).color.swiftUIColor.opacity(0.18),
-                    Color(red: 0.01, green: 0.015, blue: 0.035),
-                    .black
-                ],
-                center: .center,
-                startRadius: 80,
-                endRadius: 560
+    }
+
+    private func starfield(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(0..<110, id: \.self) { index in
+                let point = starPosition(index, in: size)
+                let radius: CGFloat = index.isMultiple(of: 13) ? 2.1 : 1.15
+                Circle()
+                    .fill(.white.opacity(index.isMultiple(of: 7) ? 0.70 : 0.38))
+                    .frame(width: radius, height: radius)
+                    .position(point)
+            }
+        }
+    }
+
+    private func connections(in size: CGSize) -> some View {
+        ZStack {
+            let corePoint = project(.zero, in: size)
+            ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
+                let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
+                let categoryPoint = project(center, in: size)
+                connectionLine(from: corePoint, to: categoryPoint, color: category.color.swiftUIColor, opacity: 0.30)
+
+                let tools = UniverseSeed.tools(in: category.id)
+                ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
+                    let isPocket = category.id == selectedCategory
+                    let position = toolPosition(tool, category: category, index: index, count: tools.count, pocketed: isPocket)
+                    connectionLine(
+                        from: categoryPoint,
+                        to: project(position, in: size),
+                        color: category.color.swiftUIColor,
+                        opacity: isPocket ? 0.36 : 0.13
+                    )
+                }
+            }
+        }
+    }
+
+    private func nodes(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
+                let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
+                let categoryPoint = project(center, in: size)
+                let categorySelected = category.id == selectedCategory
+
+                let tools = UniverseSeed.tools(in: category.id)
+                ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
+                    let isPocket = category.id == selectedCategory
+                    let position = toolPosition(tool, category: category, index: index, count: tools.count, pocketed: isPocket)
+                    let selected = tool.id == selectedToolId
+                    node(
+                        color: category.color.swiftUIColor,
+                        radius: selected ? 15 : isPocket ? 10 : 7,
+                        selected: selected
+                    )
+                    .position(project(position, in: size))
+                }
+
+                node(
+                    color: category.color.swiftUIColor,
+                    radius: categorySelected ? 24 : 16,
+                    selected: categorySelected
+                )
+                .position(categoryPoint)
+
+                let labelPoint = categoryLabelPoint(categoryPoint, category: category.id, selected: categorySelected)
+                Text(category.shortName)
+                    .font(categorySelected ? .caption.weight(.bold) : .caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(categorySelected ? 0.96 : 0.72))
+                    .position(labelPoint)
+            }
+
+            let corePoint = project(.zero, in: size)
+            node(
+                color: UniverseSeed.category(.core).color.swiftUIColor,
+                radius: selectedCategory == .core ? 30 : 23,
+                selected: selectedCategory == .core
             )
+            .position(corePoint)
+
+            Text("Founder OS")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white.opacity(0.96))
+                .position(x: corePoint.x, y: corePoint.y + 42)
+        }
+    }
+
+    private func categoryHitTargets(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
+                let point = project(UniverseLayout.categoryPosition(angleDegrees: category.angle), in: size)
+                Button {
+                    onProximityEvent(.enter(category.id))
+                } label: {
+                    Circle()
+                        .fill(.white.opacity(0.001))
+                        .frame(width: category.id == selectedCategory ? 90 : 66, height: category.id == selectedCategory ? 90 : 66)
+                }
+                .buttonStyle(.plain)
+                .position(point)
+            }
+        }
+    }
+
+    private func connectionLine(from start: CGPoint, to end: CGPoint, color: Color, opacity: Double) -> some View {
+        Path { path in
+            path.move(to: start)
+            let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 16)
+            path.addQuadCurve(to: end, control: mid)
+        }
+        .stroke(color.opacity(opacity), style: StrokeStyle(lineWidth: 1.1, lineCap: .round, lineJoin: .round))
+    }
+
+    private func node(color: Color, radius: CGFloat, selected: Bool) -> some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(selected ? 0.30 : 0.14))
+                .frame(width: radius * 4.5, height: radius * 4.5)
+                .blur(radius: radius * 0.7)
+            Circle()
+                .fill(color.opacity(selected ? 0.96 : 0.78))
+                .frame(width: radius * 2, height: radius * 2)
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(selected ? 0.78 : 0.32), lineWidth: selected ? 1.4 : 0.8)
+                )
+        }
+        .compositingGroup()
+    }
+
+    private func toolPosition(_ tool: Tool, category: ToolCategory, index: Int, count: Int, pocketed: Bool) -> SIMD3<Float> {
+        if pocketed {
+            return UniverseLayout.pocketToolPosition(
+                angleDegrees: tool.angle,
+                orbit: tool.orbit,
+                categoryAngleDegrees: category.angle,
+                slotIndex: index,
+                slotCount: max(count, 1)
+            )
+        }
+        return UniverseLayout.toolPosition(
+            angleDegrees: tool.angle,
+            orbit: tool.orbit,
+            categoryAngleDegrees: category.angle
         )
     }
 
-    private func lookAtPosition(for category: ToolCategoryId) -> SIMD3<Float> {
-        guard category != .core else { return .zero }
-        return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
+    private func project(_ position: SIMD3<Float>, in size: CGSize) -> CGPoint {
+        let minSide = max(min(size.width, size.height), 1)
+        let scale = minSide / 14.4 * zoom
+        let depth = 1 / (1 + CGFloat(position.z) * 0.035)
+        let x = size.width / 2 + CGFloat(position.x) * scale * depth
+        let y = size.height * 0.42 + CGFloat(position.z) * scale * 0.22 - CGFloat(position.y) * scale * 0.74
+        return CGPoint(x: x, y: y)
     }
 
-    private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {
-        let radius: Float = selected ? 0.74 : 0.48
-        let anchor = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(selected ? 0.92 : 0.62), isMetallic: false)]
-        )
-        anchor.position = position
-        return anchor
+    private func starPosition(_ index: Int, in size: CGSize) -> CGPoint {
+        let seed = Double(index)
+        let x = abs((sin(seed * 12.9898) * 43758.5453).truncatingRemainder(dividingBy: 1))
+        let y = abs((sin(seed * 78.233) * 24634.6345).truncatingRemainder(dividingBy: 1))
+        return CGPoint(x: x * size.width, y: y * size.height)
     }
 
-    private static func makeToolNode(
-        tool: Tool?,
-        category: ToolCategory,
-        position: SIMD3<Float>,
-        selected: Bool,
-        pocketed: Bool = false
-    ) -> ModelEntity {
-        let orbitRadius = Float(tool?.orbit.rawValue ?? 0)
-        let radius: Float = selected
-            ? 0.46 + orbitRadius * 0.055
-            : pocketed
-                ? 0.32 + orbitRadius * 0.04
-                : 0.24 + orbitRadius * 0.025
-        let alpha: CGFloat = selected ? 1.0 : pocketed ? 0.88 : 0.64
-        let node = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(alpha), isMetallic: false)]
-        )
-        node.position = position
-        return node
+    private func categoryLabelPoint(_ point: CGPoint, category: ToolCategoryId, selected: Bool) -> CGPoint {
+        let selectedBoost: CGFloat = selected ? 8 : 0
+        let offset: CGSize = switch category {
+        case .coding:
+            CGSize(width: -54 - selectedBoost, height: -32)
+        case .design:
+            CGSize(width: 58 + selectedBoost, height: -30 - selectedBoost)
+        case .research:
+            CGSize(width: 40 + selectedBoost, height: 38 + selectedBoost)
+        case .media:
+            CGSize(width: 48 + selectedBoost, height: -8)
+        case .distribution:
+            CGSize(width: 62 + selectedBoost, height: 32 + selectedBoost)
+        case .infrastructure:
+            CGSize(width: -50 - selectedBoost, height: 48 + selectedBoost)
+        case .knowledge:
+            CGSize(width: -24 - selectedBoost, height: 18)
+        case .core:
+            CGSize(width: 0, height: 42)
+        }
+        return CGPoint(x: point.x + offset.width, y: point.y + offset.height)
     }
 }
 
