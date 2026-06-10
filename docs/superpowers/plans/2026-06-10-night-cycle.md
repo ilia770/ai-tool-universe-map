@@ -68,6 +68,7 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Simplify the detail panel first viewport with compact map position and collapsible deeper relation sections.
 - [x] Add real pocket exit smoke for wheel zoom back to all-groups view.
 - [x] Add reduced-motion bridge from CSS media query into R3F camera and ambient motion.
+- [x] Split Playwright scripts into fast desktop smoke and full release matrix.
 
 ### Verify Before PR
 
@@ -95,7 +96,7 @@ Branch: `codex/night-cycle-ux-polish`
 
 - [ ] Add screen-space label collision culling or merge non-focus logo+label into one bubble.
 - [x] Add schema-backed `validateUniverseData()` and use it for custom imports.
-- [ ] Split Playwright scripts into fast desktop smoke and full release matrix.
+- [x] Split Playwright scripts into fast desktop smoke and full release matrix.
 
 ### Claude Code Ownership Candidates
 
