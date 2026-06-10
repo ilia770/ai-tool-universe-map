@@ -11,15 +11,20 @@ struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
 
+    @State private var cameraController = CameraController()
+
+    private var viewMode: ViewMode {
+        selectedCategory == .core ? .overview : .pocket
+    }
+
     var body: some View {
         RealityView { content in
             let universe = Entity()
             content.add(universe)
 
             let camera = PerspectiveCamera()
-            camera.position = cameraPosition(for: selectedCategory)
-            camera.look(at: lookAtPosition(for: selectedCategory), from: camera.position, relativeTo: nil)
             universe.addChild(camera)
+            cameraController.attach(camera, mode: viewMode, target: lookAtPosition(for: selectedCategory))
 
             universe.addChild(Self.makeToolNode(
                 tool: UniverseSeed.tools.first { $0.id == "founder-os" },
@@ -70,6 +75,15 @@ struct UniverseView: View {
             universe.addChild(fill)
         }
         .id(selectedCategory)
+        .gesture(
+            MagnifyGesture()
+                .onChanged { value in
+                    cameraController.pinchChanged(magnification: Float(value.magnification))
+                }
+                .onEnded { _ in
+                    cameraController.pinchEnded()
+                }
+        )
         .background(
             RadialGradient(
                 colors: [
@@ -87,14 +101,6 @@ struct UniverseView: View {
     private func lookAtPosition(for category: ToolCategoryId) -> SIMD3<Float> {
         guard category != .core else { return .zero }
         return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
-    }
-
-    private func cameraPosition(for category: ToolCategoryId) -> SIMD3<Float> {
-        let target = lookAtPosition(for: category)
-        if category == .core {
-            return SIMD3<Float>(0, 5.4, 20.5)
-        }
-        return SIMD3<Float>(target.x, target.y + 5.2, target.z + 15.4)
     }
 
     private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {

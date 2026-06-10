@@ -104,6 +104,9 @@ final class CameraController {
         let currentDistance = simd_length(offset)
         if pinchBaseDistance == nil {
             pinchBaseDistance = currentDistance
+            // A focus move may still be animating; direct position writes
+            // must win once the user pinches.
+            camera.stopAllAnimations()
         }
         guard let base = pinchBaseDistance, currentDistance > 1e-6 else { return }
         let direction = offset / currentDistance
