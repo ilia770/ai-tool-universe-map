@@ -42,6 +42,7 @@ Merge order: #2 -> #3 -> #4 -> #5 -> #6.
 | Area | Done | Validation | Next Action |
 | --- | --- | --- | --- |
 | Intake relation intelligence | `classifyToolDetailed` now returns explainable relation suggestions while preserving backward-compatible `relationIds` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | Next UI pass can render suggestion labels/reasons/confidence in the Liquid Glass preview and selected-tool details |
+| Intake relation UI | Liquid Glass preview and custom-tool side panel now render suggestion labels, reasons, sources, and confidence | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, Playwright sanity | Next pass can polish visual hierarchy after human review |
 
 ## Where To Fix Next
 

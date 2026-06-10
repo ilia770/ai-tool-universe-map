@@ -26,6 +26,13 @@ export interface AITool {
     confidence: number;
     matchedKeywords: string[];
     reason: string;
+    relationSuggestions?: {
+      id: string;
+      label: string;
+      reason: string;
+      confidence: number;
+      source: 'category-anchor' | 'direct-match' | 'fallback-review' | 'workflow-anchor';
+    }[];
   };
 }
 

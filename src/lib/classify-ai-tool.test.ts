@@ -68,5 +68,6 @@ describe('tool input helpers', () => {
   it('creates stable slugs and display names', () => {
     expect(makeSlug('https://www.supadata.ai/')).toBe('supadata-ai');
     expect(getDisplayName('https://wisprflow.ai/')).toBe('Wispr Flow');
+    expect(getDisplayName('LaunchPulse social scheduler')).toBe('LaunchPulse Social Scheduler');
   });
 });

@@ -56,6 +56,13 @@ const stageActions: Record<WorkflowStageId, string> = {
   review: 'Use it to critique, test, and improve the work after execution.',
 };
 
+const relationSourceLabels: Record<string, string> = {
+  'category-anchor': 'category fit',
+  'direct-match': 'direct match',
+  'fallback-review': 'manual review',
+  'workflow-anchor': 'workflow fit',
+};
+
 const relationLensOptions: Array<{
   id: RelationLens;
   label: string;
@@ -295,6 +302,26 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     () => (toolInput.trim() ? classifyToolDetailed(toolInput) : null),
     [toolInput],
   );
+  const intakeRelationPreview = useMemo(
+    () => (intakePreview?.relationSuggestions ?? [])
+      .map((suggestion) => ({
+        ...suggestion,
+        tool: nodeById.get(suggestion.id),
+        displayName: nodeById.get(suggestion.id)?.name ?? suggestion.label,
+      }))
+      .slice(0, 3),
+    [intakePreview, nodeById],
+  );
+  const selectedClassificationRelations = useMemo(
+    () => (selectedTool.classification?.relationSuggestions ?? [])
+      .map((suggestion) => ({
+        ...suggestion,
+        tool: nodeById.get(suggestion.id),
+        displayName: nodeById.get(suggestion.id)?.name ?? suggestion.label,
+      }))
+      .slice(0, 3),
+    [nodeById, selectedTool.classification],
+  );
   const directRelationIds = useMemo(() => {
     const ids = new Set<string>(selectedTool.relationIds);
     allTools.forEach((tool) => {
@@ -486,6 +513,15 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
         confidence: classification.confidence,
         matchedKeywords: classification.matchedKeywords,
         reason: classification.reason,
+        relationSuggestions: classification.relationSuggestions
+          .filter((suggestion) => nodeById.has(suggestion.id))
+          .map((suggestion) => ({
+            id: suggestion.id,
+            label: suggestion.label,
+            reason: suggestion.reason,
+            confidence: suggestion.confidence,
+            source: suggestion.source,
+          })),
       },
     };
 
@@ -651,14 +687,35 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                     <> · Signals: {intakePreview.matchedKeywords.join(', ')}</>
                   )}
                 </p>
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-text-muted">
-                  <Link2 className="h-3 w-3" />
-                  {intakePreview.relationIds
-                    .map((relationId) => nodeById.get(relationId)?.name)
-                    .filter(Boolean)
-                    .slice(0, 3)
-                    .join(' + ')}
-                </div>
+                {intakeRelationPreview.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-cyan-100/70">
+                      <Link2 className="h-3 w-3" />
+                      Suggested links
+                    </div>
+                    {intakeRelationPreview.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        disabled={!suggestion.tool}
+                        onClick={() => suggestion.tool && focusTool(suggestion.tool)}
+                        className="group w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-left transition hover:border-cyan-200/25 hover:bg-cyan-200/[0.07] disabled:cursor-default disabled:hover:border-white/10 disabled:hover:bg-black/20"
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-xs font-semibold text-cyan-50">
+                            {suggestion.displayName}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-cyan-50/80">
+                            {Math.round(suggestion.confidence * 100)}%
+                          </span>
+                        </span>
+                        <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-text-muted">
+                          {relationSourceLabels[suggestion.source]} · {suggestion.reason}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </form>
@@ -1015,6 +1072,51 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <p className="mt-2 text-sm leading-6 text-text-secondary">{selectedTool.summary}</p>
             </section>
 
+            {selectedTool.classification && (
+              <section className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.04] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/75">
+                      Intake readout
+                    </p>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      {selectedTool.classification.matchedKeywords.length > 0
+                        ? `Signals: ${selectedTool.classification.matchedKeywords.join(', ')}`
+                        : 'Needs manual review'}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-cyan-200/12 px-2 py-1 text-xs font-semibold text-cyan-100">
+                    {Math.round(selectedTool.classification.confidence * 100)}%
+                  </span>
+                </div>
+                {selectedClassificationRelations.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {selectedClassificationRelations.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        disabled={!suggestion.tool}
+                        onClick={() => suggestion.tool && focusTool(suggestion.tool)}
+                        className="w-full rounded-lg border border-white/10 bg-white/[0.035] px-2.5 py-2 text-left transition hover:border-cyan-200/25 hover:bg-cyan-200/[0.07] disabled:cursor-default disabled:hover:border-white/10 disabled:hover:bg-white/[0.035]"
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-xs font-semibold text-white">
+                            {suggestion.displayName}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-cyan-50/80">
+                            {Math.round(suggestion.confidence * 100)}%
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-4 text-text-muted">
+                          {relationSourceLabels[suggestion.source]} · {suggestion.reason}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
             <section className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.045] p-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/75">
@@ -1174,16 +1276,6 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               </div>
             </section>
 
-            {selectedTool.classification && (
-              <section className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-text-muted">Classifier confidence</span>
-                  <span className="font-semibold text-cyan-100">
-                    {Math.round(selectedTool.classification.confidence * 100)}%
-                  </span>
-                </div>
-              </section>
-            )}
           </article>
         </aside>
       </main>

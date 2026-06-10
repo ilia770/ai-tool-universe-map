@@ -194,6 +194,12 @@ export const makeSlug = (value: string) =>
 
 export const getDisplayName = (value: string): string => {
   const trimmed = value.trim();
+  const looksLikeUrlOrDomain = /^https?:\/\//i.test(trimmed) || (!/\s/.test(trimmed) && trimmed.includes('.'));
+  if (!looksLikeUrlOrDomain) {
+    const normalized = trimmed.toLowerCase();
+    return displayNameOverrides[normalized] ?? titleCase(trimmed);
+  }
+
   try {
     const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
     const hostName = url.hostname.replace(/^www\./, '').split('.')[0] || trimmed;
