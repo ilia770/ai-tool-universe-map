@@ -60,14 +60,17 @@ final class UniverseViewModel {
         selection.hoveredToolID = id
     }
 
-    /// Enter-to-focus parity with the web build ([C3]): selects the
-    /// first search match and jumps to its category. Returns whether a
-    /// match was focused.
+    /// Enter-to-focus parity with the web build ([C3], `focusTool` in
+    /// AIToolUniverseMap.tsx): selects the first search match, jumps to
+    /// its category, snaps clarity to focus, and clears the query.
+    /// Returns whether a match was focused.
     @discardableResult
     func focusFirstSearchMatch() -> Bool {
         guard let match = searchResults.first else { return false }
         selectCategory(match.category)
         selection.selectedToolID = match.id
+        clarityMode = .focus
+        searchQuery = ""
         return true
     }
 }
