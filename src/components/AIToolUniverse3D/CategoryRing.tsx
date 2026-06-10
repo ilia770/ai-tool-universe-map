@@ -12,11 +12,12 @@ interface CategoryRingProps {
   hovered: boolean;
   pocketActive: boolean;
   labelVisible: boolean;
+  reducedMotion: boolean;
   onSelect: (id: ToolCategory['id']) => void;
   onHover: (id: ToolCategory['id'] | null) => void;
 }
 
-export function CategoryRing({ category, position, active, hovered, pocketActive, labelVisible, onSelect, onHover }: CategoryRingProps) {
+export function CategoryRing({ category, position, active, hovered, pocketActive, labelVisible, reducedMotion, onSelect, onHover }: CategoryRingProps) {
   const haloRef = useRef<Mesh>(null);
   const cloudRef = useRef<Mesh>(null);
   const coreRef = useRef<Mesh>(null);
@@ -42,23 +43,37 @@ export function CategoryRing({ category, position, active, hovered, pocketActive
 
     if (haloRef.current) {
       const material = haloRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity += (haloTargetOpacity - material.opacity) * 0.055;
+      material.opacity = reducedMotion
+        ? haloTargetOpacity
+        : material.opacity + (haloTargetOpacity - material.opacity) * 0.055;
     }
 
     if (cloudRef.current) {
-      cloudRef.current.scale.x += (cloudTargetScale - cloudRef.current.scale.x) * 0.06;
-      cloudRef.current.scale.y += (cloudTargetScale - cloudRef.current.scale.y) * 0.06;
-      cloudRef.current.scale.z += (cloudTargetScale - cloudRef.current.scale.z) * 0.06;
+      if (reducedMotion) {
+        cloudRef.current.scale.setScalar(cloudTargetScale);
+      } else {
+        cloudRef.current.scale.x += (cloudTargetScale - cloudRef.current.scale.x) * 0.06;
+        cloudRef.current.scale.y += (cloudTargetScale - cloudRef.current.scale.y) * 0.06;
+        cloudRef.current.scale.z += (cloudTargetScale - cloudRef.current.scale.z) * 0.06;
+      }
       const material = cloudRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity += (cloudTargetOpacity - material.opacity) * 0.06;
+      material.opacity = reducedMotion
+        ? cloudTargetOpacity
+        : material.opacity + (cloudTargetOpacity - material.opacity) * 0.06;
     }
 
     if (coreRef.current) {
-      coreRef.current.scale.x += (coreTargetScale - coreRef.current.scale.x) * 0.06;
-      coreRef.current.scale.y += (coreTargetScale - coreRef.current.scale.y) * 0.06;
-      coreRef.current.scale.z += (coreTargetScale - coreRef.current.scale.z) * 0.06;
+      if (reducedMotion) {
+        coreRef.current.scale.setScalar(coreTargetScale);
+      } else {
+        coreRef.current.scale.x += (coreTargetScale - coreRef.current.scale.x) * 0.06;
+        coreRef.current.scale.y += (coreTargetScale - coreRef.current.scale.y) * 0.06;
+        coreRef.current.scale.z += (coreTargetScale - coreRef.current.scale.z) * 0.06;
+      }
       const material = coreRef.current.material as THREE.MeshStandardMaterial;
-      material.emissiveIntensity += (emissiveTarget - material.emissiveIntensity) * 0.055;
+      material.emissiveIntensity = reducedMotion
+        ? emissiveTarget
+        : material.emissiveIntensity + (emissiveTarget - material.emissiveIntensity) * 0.055;
     }
   });
 
@@ -100,7 +115,7 @@ export function CategoryRing({ category, position, active, hovered, pocketActive
         count={pocketActive ? 58 : hovered ? 42 : 24}
         scale={pocketActive ? [4.2, 1.24, 3.1] : [3.0, 1.0, 2.2]}
         size={pocketActive ? 2.45 : hovered ? 2.2 : 1.25}
-        speed={0.18}
+        speed={reducedMotion ? 0 : 0.18}
         color={category.color}
       />
       <mesh ref={cloudRef} scale={[1.45, 0.22, 0.85]}>

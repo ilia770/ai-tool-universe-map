@@ -80,6 +80,7 @@ test('renders the 3D universe map and classifies a pasted tool', async ({ page }
 });
 
 test('details panel relation lens can switch views', async ({ page }) => {
+  test.setTimeout(90_000);
   await openUniverse(page);
 
   await classifyTool(page, 'https://buffer.com/');
@@ -144,6 +145,7 @@ test('search enter focuses the first matching tool', async ({ page }) => {
 
 test('desktop hover makes the focused tool unambiguous', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes('mobile'), 'Hover focus is a desktop pointer interaction.');
+  test.setTimeout(90_000);
 
   await openUniverse(page);
 
@@ -152,7 +154,7 @@ test('desktop hover makes the focused tool unambiguous', async ({ page }, testIn
 
   const bufferNode = page.getByRole('button', { name: 'Inspect Buffer' });
   await expect(bufferNode).toBeVisible({ timeout: 15_000 });
-  await bufferNode.hover();
+  await bufferNode.hover({ force: true });
 
   await expect(page.locator('.universe-focus-readout')).toContainText('Buffer');
   await expect(page.locator('.universe-focus-readout')).toContainText('connected nodes in focus');

@@ -26,6 +26,7 @@ import {
 } from '../data/ai-tool-universe';
 import { filterValidCustomTools, getToolArrayPayload } from '../data/universe-schema';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
+import { usePrefersReducedMotion } from '../lib/use-prefers-reduced-motion';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
 
@@ -126,6 +127,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
   const [toolInput, setToolInput] = useState('');
   const [customTools, setCustomTools] = useState<AITool[]>(readStoredCustomTools);
   const [cameraVersion, setCameraVersion] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<{
     tone: 'success' | 'error' | 'neutral';
@@ -859,6 +861,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                   relationLens={relationLens}
                   mapClarity={mapClarity}
                   cameraVersion={cameraVersion}
+                  reducedMotion={prefersReducedMotion}
                   onSelectCategory={focusCategory}
                 />
               </Suspense>

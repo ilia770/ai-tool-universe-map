@@ -67,6 +67,7 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Add shared `validateUniverseData()` and custom tool import schema validation.
 - [x] Simplify the detail panel first viewport with compact map position and collapsible deeper relation sections.
 - [x] Add real pocket exit smoke for wheel zoom back to all-groups view.
+- [x] Add reduced-motion bridge from CSS media query into R3F camera and ambient motion.
 
 ### Verify Before PR
 
@@ -88,7 +89,7 @@ Branch: `codex/night-cycle-ux-polish`
 
 - [x] Make detail panel first viewport simpler: identity, summary, group/stage, primary actions, top connections.
 - [x] Add real pocket exit smoke: click category -> wheel out -> expect all-groups state.
-- [ ] Add reduced-motion bridge from CSS media query into R3F animation/camera behavior.
+- [x] Add reduced-motion bridge from CSS media query into R3F animation/camera behavior.
 
 ### P2
 

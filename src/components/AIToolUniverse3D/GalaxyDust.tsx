@@ -12,7 +12,7 @@ function createRandom(seed: number) {
   };
 }
 
-export function GalaxyDust() {
+export function GalaxyDust({ reducedMotion }: { reducedMotion: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
   const { positions, colors } = useMemo(() => {
     const count = 2200;
@@ -43,7 +43,7 @@ export function GalaxyDust() {
   }, []);
 
   useFrame((_, delta) => {
-    if (!groupRef.current) return;
+    if (!groupRef.current || reducedMotion) return;
     groupRef.current.rotation.y += delta * 0.018;
   });
 

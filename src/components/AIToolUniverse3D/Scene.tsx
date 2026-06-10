@@ -27,6 +27,7 @@ interface SceneProps {
   relationLens: RelationLens;
   mapClarity: MapClarityMode;
   cameraVersion: number;
+  reducedMotion: boolean;
   onSelectCategory: (category: ToolCategoryId | 'all') => void;
 }
 
@@ -40,6 +41,7 @@ export function Scene({
   relationLens,
   mapClarity,
   cameraVersion,
+  reducedMotion,
   onSelectCategory,
 }: SceneProps) {
   const [hoveredCategory, setHoveredCategory] = useState<ToolCategoryId | null>(null);
@@ -402,14 +404,15 @@ export function Scene({
       <pointLight position={[-7, -2, -4]} intensity={0.35} color="#ff8bd2" />
       {ambientReady && (
         <>
-          <StarField />
-          <GalaxyDust />
+          <StarField reducedMotion={reducedMotion} />
+          <GalaxyDust reducedMotion={reducedMotion} />
         </>
       )}
       <CameraController
         targetKey={`${selectedId}:${pocketCategory ?? 'none'}:${cameraVersion}:${cameraViewMode}`}
         targetPosition={cameraTargetPosition}
         viewMode={cameraViewMode}
+        reducedMotion={reducedMotion}
       />
       <ProximityCategoryWatcher
         anchors={categoryAnchors}
@@ -437,6 +440,7 @@ export function Scene({
       <FounderOSNode
         selected={selectedId === 'founder-os'}
         onSelect={() => onSelectId('founder-os')}
+        reducedMotion={reducedMotion}
       />
 
       {pocketCategoryMeta && pocketCenterPosition && (
@@ -444,6 +448,7 @@ export function Scene({
           category={pocketCategoryMeta}
           position={pocketCenterPosition}
           toolCount={pocketToolCount}
+          reducedMotion={reducedMotion}
         />
       )}
 
@@ -468,6 +473,7 @@ export function Scene({
               hovered={hoveredCategory === cat.id}
               pocketActive={pocketCategory === cat.id}
               labelVisible={labelVisible}
+              reducedMotion={reducedMotion}
               onSelect={onSelectCategory}
               onHover={handleCategoryHover}
             />
@@ -498,6 +504,7 @@ export function Scene({
             dimmed={dimmed}
             interactive={!dimmed || tool.id === selectedId || tool.id === activeFocusId}
             pocketed={pocketCategory === tool.category}
+            reducedMotion={reducedMotion}
             onSelect={onSelectId}
             onToolHover={handleToolHover}
           />
