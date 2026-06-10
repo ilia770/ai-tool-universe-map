@@ -64,6 +64,7 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Cap R3F DPR and remove `preserveDrawingBuffer`.
 - [x] Raise pocket exit arm threshold for manually opened pockets.
 - [x] Gate dimmed-node hover focus.
+- [x] Add shared `validateUniverseData()` and custom tool import schema validation.
 
 ### Verify Before PR
 
@@ -90,7 +91,7 @@ Branch: `codex/night-cycle-ux-polish`
 ### P2
 
 - [ ] Add screen-space label collision culling or merge non-focus logo+label into one bubble.
-- [ ] Add schema-backed `validateUniverseData()` and use it for custom imports.
+- [x] Add schema-backed `validateUniverseData()` and use it for custom imports.
 - [ ] Split Playwright scripts into fast desktop smoke and full release matrix.
 
 ### Claude Code Ownership Candidates
