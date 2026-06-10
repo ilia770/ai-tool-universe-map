@@ -33,9 +33,8 @@ iOS app:
 - Next iOS slices per `docs/PHASE_2_PLAN.md`: ProximityCategorySystem
   (ECS, hysteresis 11/22) → PocketShellEntity + PocketTransition →
   SearchDock → Sheets → haptics wiring. Owner: Claude Code.
-- Repo wart fixed in progress on `codex/fix-pr-template-case-collision`:
-  `.github/PULL_REQUEST_TEMPLATE.md` is the canonical PR template and the
-  lowercase duplicate is being removed from the Git index.
+- Repo wart fixed (PR #35): `.github/PULL_REQUEST_TEMPLATE.md` is the
+  canonical PR template and the lowercase duplicate was removed from Git.
 
 ## PR Stack — MERGED 2026-06-10
 
@@ -51,6 +50,10 @@ The full handoff stack is flat. Everything below landed on `main` via squash mer
 | #8 | `feat/ios-theme-and-effects` | UI theme + Liquid Glass + haptics + effects | merged |
 | #2 | `track-L-lens-slim-and-hover-stability` | L1 lens slim + L2 hover stability | merged |
 | #13 | `codex/agent-product-ops-plan` | agent product operating system docs | merged |
+| #32 | `codex/merge-nonfocus-label-bubbles` | compact non-focus logo+label bubbles | merged |
+| #33 | `codex/night-cycle-status-refresh` | night-cycle handoff/status refresh | merged |
+| #34 | `codex/data-json-seed` | universe data JSON seed + typed facade | merged |
+| #35 | `codex/fix-pr-template-case-collision` | remove duplicate lowercase PR template | merged |
 
 Notes from the merge session:
 - #4 was auto-closed by GitHub when its base branch was deleted; recreated verbatim as #16 and merged. GitHub does not retarget stacked PRs reliably after squash+delete — merge first, retarget dependents, then delete the branch.
