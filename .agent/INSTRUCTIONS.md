@@ -41,6 +41,17 @@ edit this file, not the symlinks.
 
 ## Project Context
 
+### Canonical docs
+
+- Product authority: `docs/PRODUCT_CTO.md`.
+- App structure: `docs/APP_STRUCTURE.md`.
+- Agent collaboration and file ownership: `docs/AGENT_OPERATING_MODEL.md`.
+- Current handoff status: `docs/AGENT_STATUS.md`.
+- Release checklist and stop-ship rules: `docs/RELEASE_REVIEW.md`.
+- UI/UX direction and visual QA rubric: `docs/design/README.md`.
+- Superpowers implementation plans: `docs/superpowers/plans/`.
+- Historical web polish sprint: `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
+
 ### Stack
 
 - **Language:** TypeScript (strict).
@@ -117,6 +128,17 @@ Run the full chain before committing risky changes:
 8. Mobile right-panel uses `sticky bottom-0` + `max-h-[60vh]`;
    desktop reverts to a static left-bordered column. Keep the `lg:`
    override pattern intact.
+
+### Product invariants
+
+- The product is My AI Map: a premium cosmic AI tool universe for
+  founders/operators.
+- The map should explain what each tool is, what category it belongs to,
+  why it matters, and what it connects to.
+- Visual polish must serve orientation and readability.
+- UI changes require desktop and mobile review before release.
+- Do not release if the 3D canvas is blank, major text overlaps, tool
+  details disappear, or category focus traps the user.
 
 ### Keyboard shortcuts
 
