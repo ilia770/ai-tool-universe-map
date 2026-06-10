@@ -390,8 +390,9 @@ export function Scene({
     <>
     <Canvas
       camera={{ position: [0, 5.4, 20.5], fov: 58 }}
+      dpr={[1, 1.5]}
       frameloop="always"
-      gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, toneMapping: 0 }}
+      gl={{ alpha: true, antialias: true, toneMapping: 0 }}
       style={{ background: 'transparent', width: '100%', height: '100%' }}
       onCreated={handleCanvasCreated}
     >
@@ -480,6 +481,7 @@ export function Scene({
         if (!pos || !cat) return null;
         const relationDepth = relationDepthById.get(tool.id);
         const inLens = lensRelevantIds.has(tool.id);
+        const dimmed = shouldDimTool(tool, relationDepth, inLens);
         return (
           <ToolNode
             key={tool.id}
@@ -493,7 +495,8 @@ export function Scene({
             activeFocus={tool.id === activeFocusId}
             relationDepth={relationDepth}
             labelVisible={shouldShowToolLabel(tool, relationDepth, inLens)}
-            dimmed={shouldDimTool(tool, relationDepth, inLens)}
+            dimmed={dimmed}
+            interactive={!dimmed || tool.id === selectedId || tool.id === activeFocusId}
             pocketed={pocketCategory === tool.category}
             onSelect={onSelectId}
             onToolHover={handleToolHover}

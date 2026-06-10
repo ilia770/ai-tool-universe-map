@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+const internalCopyPattern = /rule-based|persisted relations|VITE_|Logo\.dev|local SVG fallback|Import custom tools JSON|Local node|Liquid Glass Intake/i;
+
 async function openUniverse(page: Page) {
   await page.addInitScript(() => window.localStorage.clear());
   await page.goto('/');
@@ -14,6 +16,29 @@ async function openUniverse(page: Page) {
     return box.width > 300 && box.height > 300;
   }, null, { timeout: 20_000 });
 }
+
+test('keeps public UI free of implementation copy', async ({ page }) => {
+  await openUniverse(page);
+
+  await expect(page.locator('body')).not.toContainText(internalCopyPattern);
+  await expect(page.getByText('Add service')).toBeVisible();
+});
+
+test('mobile and tablet expose the selected-service panel', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('desktop'), 'Mobile/tablet layout regression only.');
+
+  await openUniverse(page);
+
+  const panel = page.getByTestId('tool-detail-panel');
+  await expect(panel.getByRole('heading', { name: 'Founder OS' })).toBeVisible();
+
+  const box = await panel.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(box?.height ?? 0).toBeGreaterThan(220);
+  expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(viewport?.height ?? 0);
+});
 
 test('renders the 3D universe map and classifies a pasted tool', async ({ page }) => {
   await openUniverse(page);

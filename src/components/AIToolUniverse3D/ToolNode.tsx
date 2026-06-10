@@ -24,6 +24,7 @@ interface ToolNodeProps {
   relationDepth?: number;
   labelVisible: boolean;
   dimmed: boolean;
+  interactive: boolean;
   pocketed: boolean;
   onSelect: (id: string) => void;
   onToolHover: (id: string | null) => void;
@@ -41,6 +42,7 @@ function ToolNodeImpl({
   relationDepth,
   labelVisible,
   dimmed,
+  interactive,
   pocketed,
   onSelect,
   onToolHover,
@@ -117,17 +119,21 @@ function ToolNodeImpl({
     <group
       ref={groupRef}
       position={initialPosition}
-      onClick={() => onSelect(id)}
+      onClick={() => {
+        if (interactive) onSelect(id);
+      }}
       onPointerOver={(event) => {
+        if (!interactive) return;
         event.stopPropagation();
         onToolHover(id);
       }}
       onPointerOut={(event) => {
+        if (!interactive) return;
         event.stopPropagation();
         onToolHover(null);
       }}
     >
-      <mesh geometry={HIT_GEOM}>
+      <mesh geometry={HIT_GEOM} visible={interactive}>
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       <mesh ref={auraRef} geometry={AURA_GEOM}>
