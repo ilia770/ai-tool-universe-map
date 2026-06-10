@@ -78,14 +78,22 @@ struct UniverseView: View {
                 onProximityEvent: onProximityEvent
             ))
 
+            // PBR needs more light than SimpleMaterial did. Key is a soft
+            // neutral from upper-left; fill is dimmer and slightly cool so
+            // shadowed hemispheres read as depth, not dead black. Both are
+            // aimed at the origin — DirectionalLight direction comes from
+            // orientation, not position.
             let key = DirectionalLight()
-            key.light.intensity = 1_200
+            key.light.intensity = 2_600
             key.position = SIMD3<Float>(-4, 7, 10)
+            key.look(at: .zero, from: key.position, relativeTo: nil)
             universe.addChild(key)
 
             let fill = DirectionalLight()
-            fill.light.intensity = 420
+            fill.light.intensity = 750
+            fill.light.color = UIColor(red: 0.74, green: 0.80, blue: 1.0, alpha: 1)
             fill.position = SIMD3<Float>(6, -2, 8)
+            fill.look(at: .zero, from: fill.position, relativeTo: nil)
             universe.addChild(fill)
         }
         .id(selectedCategory)
@@ -117,16 +125,30 @@ struct UniverseView: View {
         return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
     }
 
+    /// Frosted translucent category sphere: matte PBR glass tinted by the
+    /// category hue, with a faint emissive lift so the shell reads as a
+    /// lit volume instead of a flat colored ball.
     private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {
         let radius: Float = selected ? 0.74 : 0.48
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: darkened(category.color.uiColor, by: 0.45))
+        material.roughness = .init(floatLiteral: 0.6)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.blending = .transparent(opacity: .init(floatLiteral: selected ? 0.9 : 0.5))
+        material.emissiveColor = .init(color: category.color.uiColor)
+        material.emissiveIntensity = selected ? 0.65 : 0.28
         let anchor = ModelEntity(
             mesh: .generateSphere(radius: radius),
-            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(selected ? 0.92 : 0.62), isMetallic: false)]
+            materials: [material]
         )
         anchor.position = position
         return anchor
     }
 
+    /// Soft matte orb: category color mixed well toward black for the base,
+    /// with a gentle category-hued emissive carrying the selection hierarchy
+    /// (selected > pocketed > overview-distant). The previous alpha-based
+    /// hierarchy maps onto base darkening + emissive level here.
     private static func makeToolNode(
         tool: Tool?,
         category: ToolCategory,
@@ -140,13 +162,41 @@ struct UniverseView: View {
             : pocketed
                 ? 0.32 + orbitRadius * 0.04
                 : 0.24 + orbitRadius * 0.025
-        let alpha: CGFloat = selected ? 1.0 : pocketed ? 0.88 : 0.64
+        let isCore = category.id == .core
+        var material = PhysicallyBasedMaterial()
+        let darken: CGFloat = selected ? 0.6 : pocketed ? 0.68 : 0.75
+        material.baseColor = .init(tint: darkened(category.color.uiColor, by: darken))
+        material.roughness = .init(floatLiteral: isCore ? 0.35 : 0.5)
+        material.metallic = .init(floatLiteral: isCore ? 0.1 : 0.05)
+        material.emissiveColor = .init(color: category.color.uiColor)
+        // Founder core is the hero node — keep it noticeably lit even when
+        // the camera is browsing another category.
+        material.emissiveIntensity = isCore
+            ? (selected ? 2.0 : 0.8)
+            : (selected ? 1.5 : pocketed ? 0.5 : 0.18)
+        if selected {
+            // Thin glossy shell over the matte base — "lit from within",
+            // not a lampshade.
+            material.clearcoat = .init(floatLiteral: 0.6)
+            material.clearcoatRoughness = .init(floatLiteral: 0.2)
+        }
         let node = ModelEntity(
             mesh: .generateSphere(radius: radius),
-            materials: [SimpleMaterial(color: category.color.uiColor.withAlphaComponent(alpha), isMetallic: false)]
+            materials: [material]
         )
         node.position = position
         return node
+    }
+
+    /// Mixes a color toward black by `fraction` (0 = unchanged, 1 = black).
+    private static func darkened(_ color: UIColor, by fraction: CGFloat) -> UIColor {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let keep = 1 - fraction
+        return UIColor(red: red * keep, green: green * keep, blue: blue * keep, alpha: 1)
     }
 }
 
