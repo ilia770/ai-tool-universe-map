@@ -23,7 +23,10 @@ extension View {
 @MainActor
 private final class MotionSource: ObservableObject {
     @Published var offset: CGSize = .zero
-    private let manager = CMMotionManager()
+    // nonisolated(unsafe): deinit is nonisolated under Swift 6 and must
+    // call stopDeviceMotionUpdates(); CMMotionManager tolerates that
+    // call from any thread. `isolated deinit` needs iOS 18.4+, target is 18.0.
+    nonisolated(unsafe) private let manager = CMMotionManager()
 
     init() {
         guard manager.isDeviceMotionAvailable else { return }
