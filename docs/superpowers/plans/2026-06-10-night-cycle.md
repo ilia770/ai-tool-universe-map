@@ -65,15 +65,16 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Raise pocket exit arm threshold for manually opened pockets.
 - [x] Gate dimmed-node hover focus.
 - [x] Add shared `validateUniverseData()` and custom tool import schema validation.
+- [x] Simplify the detail panel first viewport with compact map position and collapsible deeper relation sections.
 
 ### Verify Before PR
 
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] `npm run size:check`
-- [ ] `npm run smoke:visual`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm test`
+- [x] `npm run build`
+- [x] `npm run size:check`
+- [x] `npm run smoke:visual`
 
 ## Next Task Pool
 
@@ -84,7 +85,7 @@ Branch: `codex/night-cycle-ux-polish`
 
 ### P1
 
-- [ ] Make detail panel first viewport simpler: identity, summary, group/stage, primary actions, top connections.
+- [x] Make detail panel first viewport simpler: identity, summary, group/stage, primary actions, top connections.
 - [ ] Add real pocket exit smoke: click category -> wheel out -> expect all-groups state.
 - [ ] Add reduced-motion bridge from CSS media query into R3F animation/camera behavior.
 
