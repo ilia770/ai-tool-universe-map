@@ -37,6 +37,12 @@ Merge order: #2 -> #3 -> #4 -> #5 -> #6.
 | TestFlight | Apple Developer team id not configured | TestFlight requires signed archive | Add team id to `ios-app/project.yml` after enrollment |
 | Web data model | Tool data still TypeScript literal | `docs/LOOP_LOG.md` D1 skipped JSON migration as risky without schema | Create schema-backed JSON migration PR |
 
+## Recent Agent Work
+
+| Area | Done | Validation | Next Action |
+| --- | --- | --- | --- |
+| Intake relation intelligence | `classifyToolDetailed` now returns explainable relation suggestions while preserving backward-compatible `relationIds` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | Next UI pass can render suggestion labels/reasons/confidence in the Liquid Glass preview and selected-tool details |
+
 ## Where To Fix Next
 
 | Goal | Primary Files |
@@ -60,4 +66,3 @@ sed -n '1,220p' docs/AGENT_STATUS.md
 ```
 
 Then choose the relevant plan or PR and continue.
-
