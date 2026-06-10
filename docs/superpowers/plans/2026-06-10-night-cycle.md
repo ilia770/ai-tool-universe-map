@@ -14,8 +14,8 @@ Code or Codex to resume.
 ## Current Merge Stack
 
 1. Merge PR #22 first: `codex/3d-focus-polish-main` -> `main`.
-2. Recheck and merge safe Dependabot PRs one at a time: #9, #10, #15, #17, #12, #11.
-3. Hold PR #14 until ESLint 10 is a deliberate migration.
+2. Recheck and merge safe Dependabot PRs one at a time: #9, #10, #15, #17, #11.
+3. Hold PR #12 and PR #14 until ESLint 10 / TypeScript 6 tooling migration is planned deliberately.
 4. Retarget/close stale stacked PRs #18 and #19 after #22 lands.
 
 ## Subagent Findings
@@ -23,7 +23,8 @@ Code or Codex to resume.
 ### PR / CI Health
 
 - PR #22 is clean, mergeable, and green in CI + Vercel.
-- Dependabot PRs #9, #10, #15, #17, #12, #11 are green but should be merged one at a time.
+- Dependabot PRs #9, #10, #15, #17, #11 are green and safe patch updates when merged one at a time.
+- PR #12 is not a routine safe patch: it groups major updates to ESLint 10 and TypeScript 6 with Vite/Vitest/plugin bumps.
 - PR #14 fails because `@eslint/js@10` expects ESLint 10.
 - PRs #18 and #19 are stale stack branches, not release-ready for `main`.
 
@@ -70,6 +71,8 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Add reduced-motion bridge from CSS media query into R3F camera and ambient motion.
 - [x] Split Playwright scripts into fast desktop smoke and full release matrix.
 - [x] Merge non-focus logo and label into one compact bubble to reduce visual overlap.
+- [x] Merge safe dependency patch queue: #9, #10, #15, #17, #11.
+- [x] Reclassify #12 as a held tooling migration because it includes ESLint 10 and TypeScript 6 major updates.
 
 ### Verify Before PR
 
@@ -79,6 +82,16 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] `npm run build`
 - [x] `npm run size:check`
 - [x] `npm run smoke:visual`
+- [x] After #11 merge: `npm ci`
+- [x] After #11 merge: `npm run smoke:visual:fast`
+- [x] After #11 merge: GitHub CI on `main` for #11
+
+## Current Open PRs
+
+| PR | Status | Decision |
+| --- | --- | --- |
+| #12 | open / unstable | Hold. Treat as a dedicated ESLint 10 + TypeScript 6 + Vite/Vitest tooling migration. |
+| #14 | open / unstable | Hold. Merge only as part of the same ESLint 10 migration or close after #12 supersedes it. |
 
 ## Next Task Pool
 

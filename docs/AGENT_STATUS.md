@@ -10,6 +10,9 @@ Web app:
 - Production URL: `https://ai-tool-universe-map.vercel.app`.
 - Main experience: interactive AI tool universe map with 3D scene, categories, tool details, search, logos, and pocket-world interactions.
 - Active visual polish history is documented in `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
+- Night-cycle polish through PR #32 is merged: non-focus nodes now use one compact logo+label bubble so hover/focus labels overlap less.
+- Safe dependency patch queue is merged: #9 `actions/checkout@6`, #10 `actions/setup-node@6`, #15 `globals@17.6.0`, #17 `typescript-eslint@8.61.0`, #11 React stack patch.
+- Latest local verification after #11: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run size:check`, and `npm run smoke:visual:fast` passed. GitHub CI for #11 on `main` also passed.
 
 iOS app:
 - Native SwiftUI/RealityKit prototype is now fully merged to `main` (`ios-app/`).
@@ -55,8 +58,8 @@ Notes from the merge session:
 - CI (`Verify: typecheck • lint • unit • build`) passed on every merged PR.
 
 Still open:
-- #18 `codex/intake-relation-intelligence` — Codex WIP (explainable intake relation suggestions). Do not merge without Codex.
-- Dependabot PRs #9 #10 #11 #12 #14 #15 #17 — need owner decision.
+- #12 `dependabot/npm_and_yarn/tooling-6e3cb1f384` — hold for a deliberate tooling migration. It includes major updates to ESLint 10 and TypeScript 6 plus Vite/Vitest/plugin bumps; do not merge as a routine dependency patch.
+- #14 `dependabot/npm_and_yarn/eslint/js-10.0.1` — hold with #12. It is unstable because `@eslint/js@10` expects an ESLint 10 migration.
 
 ## Current Blockers
 
@@ -65,6 +68,7 @@ Still open:
 | iOS simulator launch | CoreSimulator hung during runtime/data migration after iOS 26.5 simulator install | `xcodebuild test` reached simulator launch, then `NSMachErrorDomain -308`; `simctl bootstatus` waited on BackBoard/Data Migration | Retry after Xcode finishes runtime cache/migration, or run on real iPhone with Apple signing |
 | TestFlight | Apple Developer team id not configured | TestFlight requires signed archive | Add team id to `ios-app/project.yml` after enrollment |
 | Web data model | Tool data still TypeScript literal | `docs/LOOP_LOG.md` D1 skipped JSON migration as risky without schema | Create schema-backed JSON migration PR |
+| Tooling migration | ESLint 10 + TypeScript 6 grouped update is open but risky | PR #12 touches `@vitejs/plugin-react`, `eslint`, `eslint-plugin-react-refresh`, `typescript`, `vite`, and `vitest`; PR #14 is unstable | Create a dedicated migration branch, update config/docs/tests together, and run the full release matrix |
 
 ## Where To Fix Next
 
@@ -90,4 +94,3 @@ sed -n '1,220p' docs/AGENT_STATUS.md
 ```
 
 Then choose the relevant plan or PR and continue.
-
