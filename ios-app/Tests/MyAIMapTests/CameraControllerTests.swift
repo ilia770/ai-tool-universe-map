@@ -14,6 +14,31 @@ struct CameraControllerTests {
         #expect(CameraController.clampedDistance(60) == 46)
     }
 
+    @Test func orbitPitchClampPreventsCameraFlip() {
+        #expect(CameraController.clampedOrbitPitch(-2) == CameraController.minOrbitPitch)
+        #expect(CameraController.clampedOrbitPitch(0.2) == 0.2)
+        #expect(CameraController.clampedOrbitPitch(2) == CameraController.maxOrbitPitch)
+    }
+
+    @Test func orbitYawRotatesAroundVerticalAxis() {
+        let adjusted = CameraController.orbitAdjusted(
+            SIMD3<Float>(0, 0, 1),
+            yaw: .pi / 2,
+            pitch: 0
+        )
+
+        #expect(abs(adjusted.x + 1) < 0.001)
+        #expect(abs(adjusted.y) < 0.001)
+        #expect(abs(adjusted.z) < 0.001)
+    }
+
+    @Test func orbitAdjustmentPreservesDistanceFromOrigin() {
+        let point = SIMD3<Float>(2, 3, -4)
+        let adjusted = CameraController.orbitAdjusted(point, yaw: 0.8, pitch: -0.3)
+
+        #expect(abs(simd_length(point) - simd_length(adjusted)) < 0.001)
+    }
+
     @Test func focusOffsetsMatchWebPerViewMode() {
         // Web CameraController.tsx: overview y+6.3 z+19.5,
         // pocket y+6.8 z+19.0, node y+5.0 z+15.5.
