@@ -12,22 +12,34 @@ Web app:
 - Active visual polish history is documented in `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
 
 iOS app:
-- Native SwiftUI/RealityKit prototype exists in the iOS PR stack.
+- Native SwiftUI/RealityKit prototype is now fully merged to `main` (`ios-app/`).
 - Build succeeded locally with Xcode 26.5.
 - `build-for-testing` succeeded.
 - Full simulator launch/test was blocked by local CoreSimulator runtime migration, not by Swift compile errors.
 
-## PR Stack Known From Latest Handoff
+## PR Stack — MERGED 2026-06-10
 
-| PR | Branch | Purpose |
-| --- | --- | --- |
-| #2 | `track-L-lens-slim-and-hover-stability` | L1 lens slim + L2 hover stability |
-| #3 | `chore/cto-cleanup` | docs canon + CI + changelog + budget guardrail |
-| #4 | `feat/ios-strategy` | iOS strategy + design refs + Apple skills |
-| #5 | `feat/ios-phase0-scaffold` | SwiftUI + RealityKit scaffold |
-| #6 | `feat/ios-phase1-product-shell` | Native product shell + test host config |
+The full handoff stack is flat. Everything below landed on `main` via squash merges (branches deleted on origin):
 
-Merge order: #2 -> #3 -> #4 -> #5 -> #6.
+| PR | Branch | Purpose | Status |
+| --- | --- | --- | --- |
+| #3 | `chore/cto-cleanup` | docs canon + CI + changelog + budget guardrail | merged |
+| #16 (re-opened #4) | `feat/ios-strategy` | iOS strategy + design refs + Apple skills | merged |
+| #5 | `feat/ios-phase0-scaffold` | SwiftUI + RealityKit scaffold | merged |
+| #6 | `feat/ios-phase1-product-shell` | Native product shell + test host config | merged |
+| #7 | `feat/ios-design-and-phase2-plan` | design tokens + iPhone patterns + Phase 2 plan | merged |
+| #8 | `feat/ios-theme-and-effects` | UI theme + Liquid Glass + haptics + effects | merged |
+| #2 | `track-L-lens-slim-and-hover-stability` | L1 lens slim + L2 hover stability | merged |
+| #13 | `codex/agent-product-ops-plan` | agent product operating system docs | merged |
+
+Notes from the merge session:
+- #4 was auto-closed by GitHub when its base branch was deleted; recreated verbatim as #16 and merged. GitHub does not retarget stacked PRs reliably after squash+delete — merge first, retarget dependents, then delete the branch.
+- #6 and #13 needed merge commits to resolve squash-induced add/add conflicts; conflict resolutions kept branch-side content (verified byte-identical for `ios-app/**`), plus a union merge of `.agent/INSTRUCTIONS.md` (technical canon from main + canonical-docs pointers and product invariants from #13).
+- CI (`Verify: typecheck • lint • unit • build`) passed on every merged PR.
+
+Still open:
+- #18 `codex/intake-relation-intelligence` — Codex WIP (explainable intake relation suggestions). Do not merge without Codex.
+- Dependabot PRs #9 #10 #11 #12 #14 #15 #17 — need owner decision.
 
 ## Current Blockers
 
@@ -41,6 +53,7 @@ Merge order: #2 -> #3 -> #4 -> #5 -> #6.
 
 | Goal | Primary Files |
 | --- | --- |
+| iOS Phase 2 (state + camera + gestures) | `docs/PHASE_2_PLAN.md`, `ios-app/Sources/MyAIMap/**` (Claude Code, branch `feat/ios-phase2-state-and-camera`) |
 | Improve web hover/focus | `src/components/AIToolUniverse3D/Scene.tsx`, `ToolNode.tsx`, `ConnectionLines.tsx`, `src/index.css` |
 | Improve category mini-worlds | `src/components/AIToolUniverse3D/layout.ts`, `Scene.tsx`, `CameraController.tsx` |
 | Simplify side panel | `src/components/AIToolUniverseMap.tsx`, `src/index.css` |
