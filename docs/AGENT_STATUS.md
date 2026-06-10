@@ -13,6 +13,7 @@ Web app:
 - Night-cycle polish through PR #32 is merged: non-focus nodes now use one compact logo+label bubble so hover/focus labels overlap less.
 - Safe dependency patch queue is merged: #9 `actions/checkout@6`, #10 `actions/setup-node@6`, #15 `globals@17.6.0`, #17 `typescript-eslint@8.61.0`, #11 React stack patch.
 - Latest local verification after #11: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run size:check`, and `npm run smoke:visual:fast` passed. GitHub CI for #11 on `main` also passed.
+- Data migration follow-up is in progress on `codex/data-json-seed`: production universe data moves from TypeScript literals to `src/data/ai-tool-universe.seed.json`, while `src/data/ai-tool-universe.ts` remains the typed facade.
 
 iOS app:
 - Native SwiftUI/RealityKit prototype is now fully merged to `main` (`ios-app/`).
@@ -67,7 +68,7 @@ Still open:
 | --- | --- | --- | --- |
 | iOS simulator launch | CoreSimulator hung during runtime/data migration after iOS 26.5 simulator install | `xcodebuild test` reached simulator launch, then `NSMachErrorDomain -308`; `simctl bootstatus` waited on BackBoard/Data Migration | Retry after Xcode finishes runtime cache/migration, or run on real iPhone with Apple signing |
 | TestFlight | Apple Developer team id not configured | TestFlight requires signed archive | Add team id to `ios-app/project.yml` after enrollment |
-| Web data model | Tool data still TypeScript literal | `docs/LOOP_LOG.md` D1 skipped JSON migration as risky without schema | Create schema-backed JSON migration PR |
+| Web data model | Data is moving to JSON seed, but not yet database-backed | `src/data/ai-tool-universe.seed.json` becomes the source fixture; `src/data/ai-tool-universe.ts` keeps typed exports | After JSON seed lands, define the eventual DB/API schema and sync path |
 | Tooling migration | ESLint 10 + TypeScript 6 grouped update is open but risky | PR #12 touches `@vitejs/plugin-react`, `eslint`, `eslint-plugin-react-refresh`, `typescript`, `vite`, and `vitest`; PR #14 is unstable | Create a dedicated migration branch, update config/docs/tests together, and run the full release matrix |
 
 ## Where To Fix Next
