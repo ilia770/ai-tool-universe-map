@@ -21,6 +21,7 @@ interface ToolNodeProps {
   color: string;
   glow: string;
   selected: boolean;
+  hovered: boolean;
   relationDepth?: number;
   labelVisible: boolean;
   dimmed: boolean;
@@ -38,6 +39,7 @@ export function ToolNode({
   color,
   glow,
   selected,
+  hovered,
   relationDepth,
   labelVisible,
   dimmed,
@@ -50,7 +52,6 @@ export function ToolNode({
   const auraRef = useRef<Mesh>(null);
   const targetPositionRef = useRef(new THREE.Vector3(...position));
   const [initialPosition] = useState<[number, number, number]>(() => [...position]);
-  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     targetPositionRef.current.set(position[0], position[1], position[2]);
@@ -107,12 +108,10 @@ export function ToolNode({
       onClick={() => onSelect(id)}
       onPointerOver={(event) => {
         event.stopPropagation();
-        setHovered(true);
         onToolHover(id, category);
       }}
       onPointerOut={(event) => {
         event.stopPropagation();
-        setHovered(false);
         onToolHover(null, null);
       }}
     >
@@ -149,14 +148,8 @@ export function ToolNode({
             aria-label={`Inspect ${name}`}
             className={`universe-node-logo-badge ${showLogoBadge ? 'is-visible' : ''} ${labelIsFocus ? 'is-focus' : ''} ${pocketed ? 'is-pocket' : ''}`}
             onClick={() => onSelect(id)}
-            onMouseEnter={() => {
-              setHovered(true);
-              onToolHover(id, category);
-            }}
-            onMouseLeave={() => {
-              setHovered(false);
-              onToolHover(null, null);
-            }}
+            onMouseEnter={() => onToolHover(id, category)}
+            onMouseLeave={() => onToolHover(null, null)}
             style={{
               '--node-logo-color': color,
               '--node-logo-glow': glow,
@@ -177,14 +170,8 @@ export function ToolNode({
             aria-hidden={!showLabel}
             className={`universe-label universe-label-tool ${showLabel ? 'is-visible' : ''} ${labelIsFocus ? 'is-focus' : ''} ${labelIsRelated ? 'is-related' : ''} ${pocketed ? 'is-pocket' : ''}`}
             onClick={() => onSelect(id)}
-            onMouseEnter={() => {
-              setHovered(true);
-              onToolHover(id, category);
-            }}
-            onMouseLeave={() => {
-              setHovered(false);
-              onToolHover(null, null);
-            }}
+            onMouseEnter={() => onToolHover(id, category)}
+            onMouseLeave={() => onToolHover(null, null)}
             style={labelStyle}
           >
             {showLabel && (
