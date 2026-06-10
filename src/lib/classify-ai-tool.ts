@@ -7,6 +7,13 @@ interface ClassifierRule {
   anchors: string[];
 }
 
+interface DomainRule {
+  category: ToolCategoryId;
+  stage: WorkflowStageId;
+  anchors: string[];
+  keyword: string;
+}
+
 export interface ClassificationResult {
   category: ToolCategoryId;
   stage: WorkflowStageId;
@@ -31,9 +38,15 @@ const classifierRules: ClassifierRule[] = [
       'cursor',
       'dev',
       'github',
+      'github copilot',
       'ide',
+      'lovable',
+      'replit',
       'repo',
+      'stackblitz',
+      'v0',
       'vscode',
+      'windsurf',
       'zed',
     ],
     anchors: ['founder-os', 'codex', 'claude-code', 'cursor'],
@@ -41,40 +54,240 @@ const classifierRules: ClassifierRule[] = [
   {
     category: 'design',
     stage: 'planning',
-    keywords: ['design', 'dessn', 'figma', 'framer', 'interface', 'layout', 'mockup', 'paper', 'product', 'prototype', 'ui', 'ux'],
+    keywords: [
+      'canva',
+      'design',
+      'dessn',
+      'figma',
+      'framer',
+      'interface',
+      'layout',
+      'mockup',
+      'paper',
+      'product',
+      'prototype',
+      'uizard',
+      'ui',
+      'ux',
+      'wireframe',
+    ],
     anchors: ['founder-os', 'figma', 'framer', 'paper-design'],
   },
   {
     category: 'research',
     stage: 'research',
-    keywords: ['api', 'browse', 'crawl', 'data', 'deer-flow', 'intake', 'kimi', 'read', 'readwise', 'research', 'scrape', 'source', 'supadata', 'web'],
+    keywords: [
+      'api',
+      'browse',
+      'crawl',
+      'data',
+      'dataset',
+      'deer-flow',
+      'exa',
+      'firecrawl',
+      'intake',
+      'jina',
+      'kimi',
+      'notebooklm',
+      'perplexity',
+      'read',
+      'readwise',
+      'research',
+      'scrape',
+      'search',
+      'source',
+      'supadata',
+      'tavily',
+      'web',
+      'webbridge',
+    ],
     anchors: ['founder-os', 'supadata', 'readwise', 'api-mega-list'],
   },
   {
     category: 'media',
     stage: 'execution',
-    keywords: ['adobe', 'affinity', 'blender', 'creative', 'genmedia', 'heygen', 'higgsfield', 'image', 'media', 'motion', 'remotion', 'render', 'video'],
+    keywords: [
+      'adobe',
+      'affinity',
+      'audio',
+      'avatar',
+      'blender',
+      'creative',
+      'elevenlabs',
+      'genmedia',
+      'heygen',
+      'higgsfield',
+      'image',
+      'kling',
+      'luma',
+      'media',
+      'midjourney',
+      'motion',
+      'pika',
+      'remotion',
+      'runway',
+      'sora',
+      'stable diffusion',
+      'video',
+      'voice',
+    ],
     anchors: ['founder-os', 'remotion', 'hyperframes', 'genmedia'],
   },
   {
     category: 'distribution',
     stage: 'approval',
-    keywords: ['buffer', 'campaign', 'distribution', 'launch', 'linkedin', 'omnisocials', 'post', 'publish', 'social', 'twitter', 'x.com'],
+    keywords: [
+      'beehiiv',
+      'buffer',
+      'campaign',
+      'distribution',
+      'hootsuite',
+      'hubspot',
+      'launch',
+      'linkedin',
+      'mailchimp',
+      'newsletter',
+      'omnisocials',
+      'post',
+      'publish',
+      'social',
+      'sproutsocial',
+      'twitter',
+      'x.com',
+    ],
     anchors: ['founder-os', 'buffer', 'omnisocials', 'approval-gate'],
   },
   {
     category: 'infrastructure',
     stage: 'execution',
-    keywords: ['cloud', 'deploy', 'docker', 'runtime', 'server', 'tauri', 'terminal', 'vercel', 'warp', 'xterm'],
+    keywords: [
+      'auth',
+      'aws',
+      'cloud',
+      'cloudflare',
+      'database',
+      'db',
+      'deploy',
+      'docker',
+      'edge',
+      'firebase',
+      'fly.io',
+      'mcp',
+      'netlify',
+      'postgres',
+      'railway',
+      'render',
+      'runtime',
+      'server',
+      'storage',
+      'supabase',
+      'tauri',
+      'terminal',
+      'vercel',
+      'warp',
+      'worker',
+      'xterm',
+    ],
     anchors: ['founder-os', 'vercel', 'docker', 'warp'],
   },
   {
     category: 'knowledge',
     stage: 'review',
-    keywords: ['knowledge', 'memory', 'note', 'obsidian', 'prompt', 'skill', 'skills', 'workflow pack'],
+    keywords: [
+      'docs',
+      'knowledge',
+      'knowledge base',
+      'logseq',
+      'memory',
+      'mem',
+      'note',
+      'notion',
+      'obsidian',
+      'prompt',
+      'skill',
+      'skills',
+      'tana',
+      'wiki',
+      'workflow pack',
+    ],
     anchors: ['founder-os', 'agent-skills', 'designer-skills', 'mattpocock-skills'],
   },
 ];
+
+const domainRules: Record<string, DomainRule> = {
+  'base44.com': {
+    category: 'coding',
+    stage: 'execution',
+    anchors: ['founder-os', 'lovable', 'vercel'],
+    keyword: 'base44.com',
+  },
+  'bolt.new': {
+    category: 'coding',
+    stage: 'execution',
+    anchors: ['founder-os', 'lovable', 'vercel'],
+    keyword: 'bolt.new',
+  },
+  'canva.com': {
+    category: 'design',
+    stage: 'planning',
+    anchors: ['founder-os', 'figma', 'framer'],
+    keyword: 'canva.com',
+  },
+  'elevenlabs.io': {
+    category: 'media',
+    stage: 'execution',
+    anchors: ['founder-os', 'remotion', 'hyperframes'],
+    keyword: 'elevenlabs.io',
+  },
+  'exa.ai': {
+    category: 'research',
+    stage: 'research',
+    anchors: ['founder-os', 'supadata', 'api-mega-list'],
+    keyword: 'exa.ai',
+  },
+  'firecrawl.dev': {
+    category: 'research',
+    stage: 'research',
+    anchors: ['founder-os', 'supadata', 'api-mega-list'],
+    keyword: 'firecrawl.dev',
+  },
+  'netlify.com': {
+    category: 'infrastructure',
+    stage: 'execution',
+    anchors: ['founder-os', 'vercel', 'docker'],
+    keyword: 'netlify.com',
+  },
+  'notion.so': {
+    category: 'knowledge',
+    stage: 'review',
+    anchors: ['founder-os', 'agent-skills', 'obsidian-skills'],
+    keyword: 'notion.so',
+  },
+  'perplexity.ai': {
+    category: 'research',
+    stage: 'research',
+    anchors: ['founder-os', 'supadata', 'readwise'],
+    keyword: 'perplexity.ai',
+  },
+  'runwayml.com': {
+    category: 'media',
+    stage: 'execution',
+    anchors: ['founder-os', 'remotion', 'genmedia'],
+    keyword: 'runwayml.com',
+  },
+  'render.com': {
+    category: 'infrastructure',
+    stage: 'execution',
+    anchors: ['founder-os', 'vercel', 'docker'],
+    keyword: 'render.com',
+  },
+  'supabase.com': {
+    category: 'infrastructure',
+    stage: 'execution',
+    anchors: ['founder-os', 'vercel', 'docker'],
+    keyword: 'supabase.com',
+  },
+};
 
 const fallbackResult: ClassificationResult = {
   category: 'core',
@@ -134,7 +347,19 @@ export const getDisplayName = (value: string): string => {
 };
 
 export const classifyToolDetailed = (value: string): ClassificationResult => {
-  const normalized = value.toLowerCase();
+  const normalized = getSearchableInput(value);
+  const domainMatch = getDomainRule(value);
+  if (domainMatch) {
+    return {
+      category: domainMatch.category,
+      stage: domainMatch.stage,
+      confidence: 0.88,
+      matchedKeywords: [domainMatch.keyword],
+      relationIds: domainMatch.anchors,
+      reason: `Matched "${domainMatch.keyword}" and placed it into the closest workflow orbit.`,
+    };
+  }
+
   const ranked = classifierRules
     .map((rule) => {
       const matchedKeywords = rule.keywords.filter((keyword) => normalized.includes(keyword));
@@ -162,6 +387,41 @@ export const classifyToolDetailed = (value: string): ClassificationResult => {
 };
 
 export const classifyTool = (value: string): ToolCategoryId => classifyToolDetailed(value).category;
+
+const getSearchableInput = (value: string) => {
+  const trimmed = value.trim();
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    return [
+      trimmed,
+      url.hostname.replace(/^www\./, ''),
+      url.hostname.replace(/^www\./, '').replace(/[.-]/g, ' '),
+      url.pathname.replace(/[/-]/g, ' '),
+    ].join(' ').toLowerCase();
+  } catch {
+    return trimmed.toLowerCase();
+  }
+};
+
+const getDomainRule = (value: string) => {
+  const trimmed = value.trim();
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+    if (hostname === 'github.com' && /\bskills?\b/.test(url.pathname.replace(/[/-]/g, ' ').toLowerCase())) {
+      return {
+        category: 'knowledge',
+        stage: 'planning',
+        anchors: ['founder-os', 'agent-skills', 'mattpocock-skills'],
+        keyword: 'skills',
+      } satisfies DomainRule;
+    }
+
+    return domainRules[hostname];
+  } catch {
+    return undefined;
+  }
+};
 
 const titleCase = (value: string) =>
   value
