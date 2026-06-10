@@ -83,8 +83,10 @@ secret key.
 
 ## Where to edit
 
-- `src/data/ai-tool-universe.ts` — categories, tools, workflow stages,
-  graph relations (single source of truth).
+- `src/data/ai-tool-universe.seed.json` — source fixture for categories,
+  tools, workflow stages, and graph relations.
+- `src/data/ai-tool-universe.ts` — typed facade that exports the seed data,
+  lookup maps, and shared data model types.
 - `src/lib/classify-ai-tool.ts` — rule-based classifier.
 - `src/components/AIToolUniverseMap.tsx` — overlay layout, side panels,
   intake, search, filters, keyboard handlers.

@@ -19,7 +19,8 @@ This file explains the product architecture at a level useful for Codex, Claude 
 | `docs/LOOP_PLAN.md` | Web Delivery | Historical web polish sprint plan. |
 | `docs/LOOP_LOG.md` | Web Delivery | Historical sprint execution log. |
 | `screenshots/` | QA/UI | Reference screenshots and visual review artifacts. |
-| `src/data/ai-tool-universe.ts` | Data/Product | Categories, tools, relation data, workflow metadata. |
+| `src/data/ai-tool-universe.seed.json` | Data/Product | Source fixture for categories, tools, relation data, workflow metadata. |
+| `src/data/ai-tool-universe.ts` | Data/Product | Typed facade, model types, and lookup maps over the JSON seed. |
 | `src/lib/classify-ai-tool.ts` | Data/Product | Rule-based classification for pasted tools/URLs. |
 | `src/lib/tool-logos.ts` | UI/Data | Logo URL resolution and logo-related helpers. |
 | `src/components/AIToolUniverseMap.tsx` | App Shell | Main web UI: side panel, controls, filters, search, selected tool state. |
@@ -53,7 +54,7 @@ This file explains the product architecture at a level useful for Codex, Claude 
 
 ## Data Model Responsibilities
 
-`src/data/ai-tool-universe.ts` is currently the canonical web data source. It should eventually split into:
+`src/data/ai-tool-universe.seed.json` is currently the canonical web data fixture, exported through `src/data/ai-tool-universe.ts`. It should eventually split into:
 
 | Future File | Purpose |
 | --- | --- |
@@ -62,7 +63,7 @@ This file explains the product architecture at a level useful for Codex, Claude 
 | `src/data/relations.json` | Tool-to-tool and tool-to-workflow relationships with confidence/reason. |
 | `src/data/schema.ts` | Runtime validation and TypeScript types. |
 
-Until that migration happens, do not hand-edit large data sections casually. Add tests when changing category ids, tool ids, relation fields, or classifier behavior.
+Until the DB/API migration happens, do not hand-edit large data sections casually. Add tests when changing category ids, tool ids, relation fields, or classifier behavior.
 
 ## UI Composition Rules
 

@@ -101,8 +101,10 @@ Run the full chain before committing risky changes:
     primitives.
   - `layout.ts` — pure math for category / tool / pocket positions
     (Fibonacci-sphere distribution inside pockets).
-- `src/data/ai-tool-universe.ts` — categories, tools, links, workflow
-  stages. Single source of truth for the universe data.
+- `src/data/ai-tool-universe.seed.json` — source fixture for categories,
+  tools, links, and workflow stages.
+- `src/data/ai-tool-universe.ts` — typed facade over the JSON seed plus
+  model types and lookup maps.
 - `src/lib/classify-ai-tool.ts` — rule-based classifier used by the
   Liquid Glass intake field.
 - `src/lib/tool-logos.ts` + `src/components/ToolLogo.tsx` — Logo.dev

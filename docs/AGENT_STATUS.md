@@ -12,7 +12,7 @@ Web app:
 - Active visual polish history is documented in `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
 - Night-cycle polish through PR #32 is merged: non-focus nodes now use one compact logo+label bubble so hover/focus labels overlap less.
 - Safe dependency patch queue is merged: #9 `actions/checkout@6`, #10 `actions/setup-node@6`, #15 `globals@17.6.0`, #17 `typescript-eslint@8.61.0`, #11 React stack patch.
-- Latest local verification after #11: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run size:check`, and `npm run smoke:visual:fast` passed. GitHub CI for #11 on `main` also passed.
+- Latest release-path verification after #34/#35/#36: GitHub CI on `main` passed. Run the full local release gate again immediately before production deploy.
 - Data migration follow-up is merged (PR #34): production universe data lives in `src/data/ai-tool-universe.seed.json`, while `src/data/ai-tool-universe.ts` remains the typed facade.
 
 iOS app:
@@ -83,7 +83,7 @@ Still open:
 | Simplify side panel | `src/components/AIToolUniverseMap.tsx`, `src/index.css` |
 | Improve logos | `src/lib/tool-logos.ts`, `src/components/ToolLogo.tsx` |
 | Improve classifier | `src/lib/classify-ai-tool.ts`, `src/lib/classify-ai-tool.test.ts` |
-| Move data to JSON/schema | `src/data/ai-tool-universe.ts`, new `src/data/*.json`, new `src/data/schema.ts` |
+| Move data beyond JSON seed | `src/data/ai-tool-universe.seed.json`, `src/data/ai-tool-universe.ts`, `src/data/universe-schema.ts` |
 | Continue iOS | `ios-app/project.yml`, `ios-app/Sources/MyAIMap/**`, `ios-app/Tests/MyAIMapTests/**` |
 
 ## Minimum Next-Agent Startup
