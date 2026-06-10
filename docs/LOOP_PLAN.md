@@ -50,7 +50,7 @@ On a new session:
 
 | ID  | Task | Files | Est | Risk |
 | --- | --- | --- | --- | --- |
-| D1  | Tool data → JSON (`src/data/tools.json` + loader + types + test). | `src/data/**` | 50m | med |
+| D1  | Tool data → JSON (`src/data/ai-tool-universe.seed.json` + typed facade + test). | `src/data/**` | done | med |
 | D2  | Vite `manualChunks`: split `three`/`drei` to shrink 979 kB chunk. | `vite.config.ts` | 40m | med |
 | D3  | Relation confidence field + UI badge. | `src/data/ai-tool-universe.ts`, `src/lib/classify-ai-tool.ts`, `AIToolUniverseMap.tsx` | 30m | low |
 

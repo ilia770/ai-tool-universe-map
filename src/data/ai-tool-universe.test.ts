@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import universeSeed from './ai-tool-universe.seed.json';
 import {
   categories,
   categoryById,
@@ -12,6 +13,14 @@ const allowedOrbits = new Set([0, 1, 2, 3]);
 const allowedStrengths = new Set(['primary', 'secondary']);
 
 describe('ai tool universe data', () => {
+  it('loads the production universe from the JSON seed', () => {
+    expect(universeSeed.version).toBe(1);
+    expect(universeSeed.tools[0]?.id).toBe('founder-os');
+    expect(universeSeed.categories).toHaveLength(categories.length);
+    expect(universeSeed.tools).toHaveLength(tools.length);
+    expect(universeSeed.workflowLinks).toHaveLength(workflowLinks.length);
+  });
+
   it('keeps founder-os as the central first node', () => {
     expect(tools[0]).toMatchObject({
       id: 'founder-os',

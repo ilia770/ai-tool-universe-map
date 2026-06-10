@@ -112,3 +112,7 @@ Schema:
 ## [L2] Hover stability — centralize state in Scene
 - status: done
 - notes: ToolNode no longer keeps a local `hovered` useState. Receives `hovered: boolean` prop derived from Scene's `hoveredToolId === id`. Eliminates flicker when pointer crosses pixel-close nodes (Fibonacci pocket layout). Scene's hover-out debounce bumped 180ms → 320ms. tiny cyan-tinted hint line below Universe lens meta. Shows "Scroll-zoom into a ring to open its pocket world" in overview, "Esc or zoom out to leave the pocket" once inside one. Closes the discoverability gap left by B1 (auto-enter had no visual instruction). CategoryRing useFrame now reads camera.position, computes proximityFactor = clamp((18-dist)/9, 0, 1) per frame. emissiveTarget gets +0.55 × proximityFactor — ring core lights up smoothly as camera dollies in, peaking right under B1's auto-enter threshold (dist 11) so user sees which pocket is about to reveal.
+
+## [D1R] Tool data to JSON seed
+- status: done
+- notes: retried after `validateUniverseData()` landed. Moved production categories, tools, workflow stages, and workflow links into `src/data/ai-tool-universe.seed.json`. `src/data/ai-tool-universe.ts` is now a typed facade that preserves the existing exports and lookup maps. Added a regression test proving the app loads the JSON seed and still keeps Founder OS as the first central node.
