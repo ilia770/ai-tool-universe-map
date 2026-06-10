@@ -110,6 +110,12 @@ struct ProximityWatcherCoreTests {
         let nearDesignFarFromCoding = SIMD3<Float>(15, 0, 0)
         #expect(core.tick(now: 1.2, cameraPosition: nearDesignFarFromCoding, activeCategory: .coding, anchors: anchors) == nil)
         #expect(core.tick(now: 1.4, cameraPosition: nearDesignFarFromCoding, activeCategory: .coding, anchors: anchors) == nil)
+        // User switches back to design, camera now 30 from design
+        // (> 22). Without the category-change reset the stale .design
+        // arming from tick 1.0 would still match and emit a spurious
+        // .exit — the reset must have cleared it.
+        let farFromDesign = SIMD3<Float>(40, 0, 0)
+        #expect(core.tick(now: 1.6, cameraPosition: farFromDesign, activeCategory: .design, anchors: anchors) == nil)
     }
 
     @Test func missingAnchorForActiveCategoryIsIgnored() {

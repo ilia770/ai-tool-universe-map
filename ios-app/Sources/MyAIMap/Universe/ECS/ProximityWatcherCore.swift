@@ -12,7 +12,7 @@ import simd
 /// reached the pocket region (`exitDistance * armFactor`), so a manual
 /// category tap doesn't immediately close while the camera is still
 /// travelling from the overview.
-struct ProximityWatcherCore {
+struct ProximityWatcherCore: Sendable {
 
     struct Anchor: Equatable, Sendable {
         let id: ToolCategoryId
