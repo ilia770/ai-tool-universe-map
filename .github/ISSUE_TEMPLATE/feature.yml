@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a new capability or a meaningful change to an existing one.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for capability changes worth discussing before code lands.
+        For quick polish or one-line copy edits, just open a PR.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What's painful today and for whom.
+      placeholder: e.g. New users don't realise zoom opens a pocket world.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: One or more ways to address it. Trade-offs welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: success
+    attributes:
+      label: How we'd know it worked
+      description: Observable signal, metric, or qualitative test.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+      description: Things this issue is explicitly NOT trying to cover.
