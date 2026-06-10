@@ -14,6 +14,8 @@ final class CameraController {
     // smoothTime={0.55}>.
     nonisolated static let minDistance: Float = 7.5
     nonisolated static let maxDistance: Float = 46
+    nonisolated static let minOrbitPitch: Float = -0.55
+    nonisolated static let maxOrbitPitch: Float = 0.55
     static let smoothTime: TimeInterval = 0.55
 
     private(set) weak var camera: PerspectiveCamera?
@@ -30,6 +32,35 @@ final class CameraController {
 
     nonisolated static func clampedDistance(_ distance: Float) -> Float {
         min(max(distance, minDistance), maxDistance)
+    }
+
+    /// Clamp drag-orbit pitch so the map can feel 3D without flipping
+    /// upside down. The same pure math powers the SwiftUI preview map
+    /// and can later feed the RealityKit camera rig.
+    nonisolated static func clampedOrbitPitch(_ pitch: Float) -> Float {
+        min(max(pitch, minOrbitPitch), maxOrbitPitch)
+    }
+
+    /// Applies a lightweight orbit transform to a world point: yaw around
+    /// Y, then pitch around X. This keeps hit targets, labels, and node
+    /// projection aligned while the user drags the universe.
+    nonisolated static func orbitAdjusted(_ position: SIMD3<Float>, yaw: Float, pitch: Float) -> SIMD3<Float> {
+        let clampedPitch = clampedOrbitPitch(pitch)
+        let yawCos = cos(yaw)
+        let yawSin = sin(yaw)
+        let yawed = SIMD3<Float>(
+            position.x * yawCos - position.z * yawSin,
+            position.y,
+            position.x * yawSin + position.z * yawCos
+        )
+
+        let pitchCos = cos(clampedPitch)
+        let pitchSin = sin(clampedPitch)
+        return SIMD3<Float>(
+            yawed.x,
+            yawed.y * pitchCos - yawed.z * pitchSin,
+            yawed.y * pitchSin + yawed.z * pitchCos
+        )
     }
 
     /// Eye position for a framing mode. Offsets match the web

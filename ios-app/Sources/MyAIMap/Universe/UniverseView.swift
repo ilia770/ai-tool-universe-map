@@ -17,6 +17,10 @@ struct UniverseView: View {
     @State private var ambientPulse = false
     @State private var zoom: CGFloat = 1
     @State private var baseZoom: CGFloat = 1
+    @State private var orbitYaw: CGFloat = 0
+    @State private var baseOrbitYaw: CGFloat = 0
+    @State private var orbitPitch: CGFloat = 0
+    @State private var baseOrbitPitch: CGFloat = 0
 
     private var selectedCategoryModel: ToolCategory {
         UniverseSeed.category(selectedCategory)
@@ -64,6 +68,21 @@ struct UniverseView: View {
                     baseZoom = zoom
                 }
         )
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 8)
+                .onChanged { value in
+                    orbitYaw = baseOrbitYaw + value.translation.width * 0.006
+                    let nextPitch = Float(baseOrbitPitch + value.translation.height * 0.004)
+                    orbitPitch = CGFloat(CameraController.clampedOrbitPitch(nextPitch))
+                }
+                .onEnded { _ in
+                    baseOrbitYaw = orbitYaw
+                    baseOrbitPitch = orbitPitch
+                }
+        )
+        .onTapGesture(count: 2) {
+            resetCameraPose()
+        }
         .brandAnimation(BrandMotion.flow, value: selectedCategory)
         .brandAnimation(BrandMotion.flow, value: selectedToolId)
     }
@@ -244,12 +263,29 @@ struct UniverseView: View {
     }
 
     private func project(_ position: SIMD3<Float>, in size: CGSize) -> CGPoint {
+        let adjusted = CameraController.orbitAdjusted(
+            position,
+            yaw: Float(orbitYaw),
+            pitch: Float(orbitPitch)
+        )
         let minSide = max(min(size.width, size.height), 1)
         let scale = minSide / 14.4 * zoom
-        let depth = 1 / (1 + CGFloat(position.z) * 0.035)
-        let x = size.width / 2 + CGFloat(position.x) * scale * depth
-        let y = size.height * 0.42 + CGFloat(position.z) * scale * 0.22 - CGFloat(position.y) * scale * 0.74
+        let depth = 1 / (1 + CGFloat(adjusted.z) * 0.035)
+        let x = size.width / 2 + CGFloat(adjusted.x) * scale * depth
+        let y = size.height * 0.42 + CGFloat(adjusted.z) * scale * 0.22 - CGFloat(adjusted.y) * scale * 0.74
         return CGPoint(x: x, y: y)
+    }
+
+    private func resetCameraPose() {
+        BrandHaptics.fire(.light)
+        withAnimation(BrandMotion.resolved(BrandMotion.flow, reduceMotion: reduceMotion)) {
+            zoom = 1
+            baseZoom = 1
+            orbitYaw = 0
+            baseOrbitYaw = 0
+            orbitPitch = 0
+            baseOrbitPitch = 0
+        }
     }
 
     private func starPosition(_ index: Int, in size: CGSize) -> CGPoint {
