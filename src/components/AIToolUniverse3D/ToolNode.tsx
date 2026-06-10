@@ -103,7 +103,7 @@ function ToolNodeImpl({
   const showLabel = selected || activeFocus || labelVisible;
   const labelIsFocus = activeFocus;
   const labelIsRelated = !labelIsFocus && relationDepth === 1;
-  const showLogoBadge = selected || activeFocus || (labelVisible && !dimmed && (pocketed || relationDepth === 1));
+  const showLogoBadge = labelIsFocus;
   const labelLane = ((Math.abs(Math.round(tool.angle / 8)) + tool.orbit) % 5) - 2;
   const labelLaneSpacing = pocketed ? 19 : 12;
   const labelStyle = {

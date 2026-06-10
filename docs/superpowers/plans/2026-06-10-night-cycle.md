@@ -69,6 +69,7 @@ Branch: `codex/night-cycle-ux-polish`
 - [x] Add real pocket exit smoke for wheel zoom back to all-groups view.
 - [x] Add reduced-motion bridge from CSS media query into R3F camera and ambient motion.
 - [x] Split Playwright scripts into fast desktop smoke and full release matrix.
+- [x] Merge non-focus logo and label into one compact bubble to reduce visual overlap.
 
 ### Verify Before PR
 
@@ -94,7 +95,7 @@ Branch: `codex/night-cycle-ux-polish`
 
 ### P2
 
-- [ ] Add screen-space label collision culling or merge non-focus logo+label into one bubble.
+- [x] Add screen-space label collision culling or merge non-focus logo+label into one bubble.
 - [x] Add schema-backed `validateUniverseData()` and use it for custom imports.
 - [x] Split Playwright scripts into fast desktop smoke and full release matrix.
 
