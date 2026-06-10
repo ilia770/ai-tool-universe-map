@@ -10,15 +10,34 @@ interface PocketWorldShellProps {
   category: ToolCategory;
   position: [number, number, number];
   toolCount: number;
+  reducedMotion: boolean;
 }
 
-export function PocketWorldShell({ category, position, toolCount }: PocketWorldShellProps) {
+export function PocketWorldShell({ category, position, toolCount, reducedMotion }: PocketWorldShellProps) {
   const groupRef = useRef<Group>(null);
   const shellRef = useRef<Mesh>(null);
   const outerRingRef = useRef<Mesh>(null);
   const innerRingRef = useRef<Mesh>(null);
 
   useFrame((state) => {
+    if (reducedMotion) {
+      if (groupRef.current) {
+        groupRef.current.rotation.y = 0;
+      }
+      if (shellRef.current) {
+        const material = shellRef.current.material as THREE.MeshBasicMaterial;
+        material.opacity = 0.052;
+        shellRef.current.scale.set(1.18, 0.18, 0.74);
+      }
+      if (outerRingRef.current) {
+        outerRingRef.current.rotation.z = 0;
+      }
+      if (innerRingRef.current) {
+        innerRingRef.current.rotation.z = 0;
+      }
+      return;
+    }
+
     const elapsed = state.clock.elapsedTime;
 
     if (groupRef.current) {
@@ -77,7 +96,7 @@ export function PocketWorldShell({ category, position, toolCount }: PocketWorldS
         count={54}
         scale={[POCKET_WORLD_RADIUS * 2.18, 2.8, POCKET_WORLD_RADIUS * 1.36]}
         size={1.65}
-        speed={0.16}
+        speed={reducedMotion ? 0 : 0.16}
         color={category.color}
       />
       <Billboard position={[0, 3.05, 0]}>

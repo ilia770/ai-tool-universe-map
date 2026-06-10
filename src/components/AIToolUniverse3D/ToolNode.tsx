@@ -26,6 +26,7 @@ interface ToolNodeProps {
   dimmed: boolean;
   interactive: boolean;
   pocketed: boolean;
+  reducedMotion: boolean;
   onSelect: (id: string) => void;
   onToolHover: (id: string | null) => void;
 }
@@ -44,6 +45,7 @@ function ToolNodeImpl({
   dimmed,
   interactive,
   pocketed,
+  reducedMotion,
   onSelect,
   onToolHover,
 }: ToolNodeProps) {
@@ -60,7 +62,7 @@ function ToolNodeImpl({
   useFrame(() => {
     if (groupRef.current) {
       const positionEase = pocketed || selected ? 0.07 : 0.052;
-      if (groupRef.current.position.distanceToSquared(targetPositionRef.current) < 0.0004) {
+      if (reducedMotion || groupRef.current.position.distanceToSquared(targetPositionRef.current) < 0.0004) {
         groupRef.current.position.copy(targetPositionRef.current);
       } else {
         groupRef.current.position.lerp(targetPositionRef.current, positionEase);
@@ -70,17 +72,17 @@ function ToolNodeImpl({
     if (!meshRef.current) return;
     const targetScale = activeFocus ? 1.34 : selected ? 1.16 : relationDepth === 1 ? 1.12 : relationDepth === 2 ? 1.03 : 0.9;
     const currentScale = meshRef.current.scale.x;
-    const next = Math.abs(targetScale - currentScale) < 0.002
+    const next = reducedMotion || Math.abs(targetScale - currentScale) < 0.002
       ? targetScale
       : currentScale + (targetScale - currentScale) * 0.055;
     meshRef.current.scale.setScalar(next);
     const mat = meshRef.current.material as THREE.MeshStandardMaterial;
     const targetEmissive = activeFocus ? 1.1 : selected ? 0.62 : relationDepth === 1 ? 0.55 : relationDepth === 2 ? 0.28 : 0.16;
-    mat.emissiveIntensity = Math.abs(targetEmissive - mat.emissiveIntensity) < 0.002
+    mat.emissiveIntensity = reducedMotion || Math.abs(targetEmissive - mat.emissiveIntensity) < 0.002
       ? targetEmissive
       : mat.emissiveIntensity + (targetEmissive - mat.emissiveIntensity) * 0.055;
     const targetOpacity = dimmed ? 0.12 : relationDepth === 2 ? 0.5 : 0.94;
-    mat.opacity = Math.abs(targetOpacity - mat.opacity) < 0.002
+    mat.opacity = reducedMotion || Math.abs(targetOpacity - mat.opacity) < 0.002
       ? targetOpacity
       : mat.opacity + (targetOpacity - mat.opacity) * 0.06;
 
@@ -88,11 +90,11 @@ function ToolNodeImpl({
       const auraMaterial = auraRef.current.material as THREE.MeshBasicMaterial;
       const auraTargetOpacity = activeFocus ? 0.28 : selected ? 0.14 : relationDepth === 1 && !dimmed ? 0.08 : 0;
       const auraTargetScale = activeFocus ? 1.32 : selected ? 1.12 : relationDepth === 1 ? 1.04 : 0.86;
-      const nextAuraScale = Math.abs(auraTargetScale - auraRef.current.scale.x) < 0.002
+      const nextAuraScale = reducedMotion || Math.abs(auraTargetScale - auraRef.current.scale.x) < 0.002
         ? auraTargetScale
         : auraRef.current.scale.x + (auraTargetScale - auraRef.current.scale.x) * 0.07;
       auraRef.current.scale.setScalar(nextAuraScale);
-      auraMaterial.opacity = Math.abs(auraTargetOpacity - auraMaterial.opacity) < 0.002
+      auraMaterial.opacity = reducedMotion || Math.abs(auraTargetOpacity - auraMaterial.opacity) < 0.002
         ? auraTargetOpacity
         : auraMaterial.opacity + (auraTargetOpacity - auraMaterial.opacity) * 0.08;
     }

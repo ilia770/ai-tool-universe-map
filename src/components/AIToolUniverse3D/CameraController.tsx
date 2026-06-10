@@ -7,9 +7,10 @@ interface CameraControllerProps {
   targetKey: string;
   targetPosition: [number, number, number];
   viewMode: 'overview' | 'pocket' | 'node';
+  reducedMotion: boolean;
 }
 
-export function CameraController({ targetKey, targetPosition, viewMode }: CameraControllerProps) {
+export function CameraController({ targetKey, targetPosition, viewMode, reducedMotion }: CameraControllerProps) {
   // CameraControls instance type comes from camera-controls (indirect dep of drei)
   const controlsRef = useRef<React.ElementRef<typeof CameraControls>>(null);
   const lastTargetKeyRef = useRef<string | null>(null);
@@ -25,9 +26,9 @@ export function CameraController({ targetKey, targetPosition, viewMode }: Camera
     void controlsRef.current.setLookAt(
       x, cameraY, cameraZ,
       x, y, z,
-      true,
+      !reducedMotion,
     );
-  }, [targetKey, targetPosition, viewMode]);
+  }, [reducedMotion, targetKey, targetPosition, viewMode]);
 
   return (
     <CameraControls
@@ -35,8 +36,8 @@ export function CameraController({ targetKey, targetPosition, viewMode }: Camera
       makeDefault
       minDistance={7.5}
       maxDistance={46}
-      smoothTime={0.55}
-      draggingSmoothTime={0.08}
+      smoothTime={reducedMotion ? 0.04 : 0.55}
+      draggingSmoothTime={reducedMotion ? 0.02 : 0.08}
       dollyToCursor
       mouseButtons={{
         left: ACTION.ROTATE,

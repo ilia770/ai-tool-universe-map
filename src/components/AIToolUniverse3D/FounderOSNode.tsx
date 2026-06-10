@@ -7,22 +7,27 @@ import * as THREE from 'three';
 interface FounderOSNodeProps {
   selected: boolean;
   onSelect: () => void;
+  reducedMotion: boolean;
 }
 
-export function FounderOSNode({ selected, onSelect }: FounderOSNodeProps) {
+export function FounderOSNode({ selected, onSelect, reducedMotion }: FounderOSNodeProps) {
   const meshRef = useRef<Mesh>(null);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    meshRef.current.rotation.y += delta * 0.3;
+    if (!reducedMotion) {
+      meshRef.current.rotation.y += delta * 0.3;
+    }
     const target = selected ? 2.0 : 0.8;
     const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity += (target - mat.emissiveIntensity) * 0.05;
+    mat.emissiveIntensity = reducedMotion
+      ? target
+      : mat.emissiveIntensity + (target - mat.emissiveIntensity) * 0.05;
   });
 
   return (
     <group onClick={onSelect}>
-      <Sparkles count={40} scale={3} size={2} speed={0.4} color="#67e8f9" />
+      <Sparkles count={40} scale={3} size={2} speed={reducedMotion ? 0 : 0.4} color="#67e8f9" />
       <mesh ref={meshRef}>
         <sphereGeometry args={[0.8, 32, 32]} />
         <meshStandardMaterial

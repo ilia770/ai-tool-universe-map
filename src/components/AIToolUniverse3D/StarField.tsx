@@ -10,6 +10,7 @@ interface StarLayerProps {
   opacity: number;
   seed: number;
   drift: number;
+  reducedMotion: boolean;
 }
 
 function createRandom(seed: number) {
@@ -41,7 +42,7 @@ function createStarTexture() {
   return texture;
 }
 
-function StarLayer({ count, radius, depth, size, opacity, seed, drift }: StarLayerProps) {
+function StarLayer({ count, radius, depth, size, opacity, seed, drift, reducedMotion }: StarLayerProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const starTexture = useMemo(() => createStarTexture(), []);
   const { positions, colors } = useMemo(() => {
@@ -75,7 +76,7 @@ function StarLayer({ count, radius, depth, size, opacity, seed, drift }: StarLay
   }, [count, depth, radius, seed]);
 
   useFrame((_, delta) => {
-    if (!pointsRef.current) return;
+    if (!pointsRef.current || reducedMotion) return;
     pointsRef.current.rotation.y += delta * drift;
     pointsRef.current.rotation.x += delta * drift * 0.18;
   });
@@ -101,12 +102,12 @@ function StarLayer({ count, radius, depth, size, opacity, seed, drift }: StarLay
   );
 }
 
-export function StarField() {
+export function StarField({ reducedMotion }: { reducedMotion: boolean }) {
   return (
     <group>
-      <StarLayer count={1800} radius={42} depth={18} size={0.18} opacity={0.92} seed={11} drift={0.012} />
-      <StarLayer count={4200} radius={96} depth={46} size={0.13} opacity={0.66} seed={29} drift={0.004} />
-      <StarLayer count={900} radius={28} depth={10} size={0.24} opacity={0.54} seed={47} drift={-0.008} />
+      <StarLayer count={1800} radius={42} depth={18} size={0.18} opacity={0.92} seed={11} drift={0.012} reducedMotion={reducedMotion} />
+      <StarLayer count={4200} radius={96} depth={46} size={0.13} opacity={0.66} seed={29} drift={0.004} reducedMotion={reducedMotion} />
+      <StarLayer count={900} radius={28} depth={10} size={0.24} opacity={0.54} seed={47} drift={-0.008} reducedMotion={reducedMotion} />
     </group>
   );
 }
