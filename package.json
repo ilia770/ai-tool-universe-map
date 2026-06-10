@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4177",
     "smoke:visual": "playwright test",
+    "size:check": "node scripts/check-bundle-size.mjs",
     "test": "vitest run src"
   },
   "dependencies": {

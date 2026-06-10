@@ -49,18 +49,6 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-@keyframes universe-drift {
-  0% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-  50% {
-    transform: translate3d(-1.5%, 1%, 0) rotate(0.35deg);
-  }
-  100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-}
-
 @keyframes star-shift {
   from {
     background-position:
@@ -83,10 +71,6 @@ button {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
-}
-
-.ai-universe-drift {
-  animation: universe-drift 18s ease-in-out infinite;
 }
 
 .ai-universe-stars {
@@ -349,7 +333,6 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .ai-universe-stars,
-  .ai-universe-drift,
   .tool-detail-card {
     animation: none;
   }

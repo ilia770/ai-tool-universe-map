@@ -1,19 +1,39 @@
 # AI Tool Universe Map
 
-Standalone interactive 3D map for an AI-founder operating system. GitNexus is only a visual reference; this folder is an independent React/Vite implementation that can be moved into any app.
+Interactive 3D map of the AI-founder operating system. Built as a
+standalone React + Vite app so it can drop into any host application.
 
-## What It Includes
+Production: <https://ai-tool-universe-map.vercel.app>
 
-- Central `Founder OS` node.
-- Orbit-style tool groups for coding, design, research, media, distribution, infrastructure, knowledge, and core orchestration.
-- Clickable 3D nodes with a side panel explaining category, workflow role, source URL, and connected tools.
-- Search and category filtering.
-- Liquid Glass intake field for pasting a tool name or URL.
-- Rule-based v1 classifier in `src/lib/classify-ai-tool.ts`.
-- Custom tools persisted in localStorage with validated JSON import/export.
-- Dialog focus trap, Escape close, and visible keyboard focus states.
-- Logo.dev-ready service logos via `VITE_LOGO_DEV_PUBLISHABLE_KEY`, with local SVG monogram fallback.
-- Data-first structure in `src/data/ai-tool-universe.ts`, ready to move to JSON, API, or database later.
+## What it includes
+
+- Central `Founder OS` core node with category orbits for coding, design,
+  research, media, distribution, infrastructure, knowledge, and core
+  orchestration.
+- Clickable 3D nodes with a side panel explaining category, workflow
+  role, source URL, and connected tools.
+- Auto-revealing **pocket worlds**: dolly the camera toward a category
+  ring and its sub-universe opens with the Fibonacci-sphere layout.
+- Multi-mode relation lens: direct, adjacent orbit, same stage, same
+  group.
+- Liquid Glass intake field that classifies a pasted tool name or URL
+  via `src/lib/classify-ai-tool.ts`.
+- Search, category filtering, custom tools persisted in `localStorage`
+  with validated JSON import/export.
+- Logo.dev-ready service logos via `VITE_LOGO_DEV_PUBLISHABLE_KEY`,
+  with a local SVG monogram fallback.
+- Dialog focus trap and visible keyboard focus states.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Esc` | Layered exit: pocket world first, full dialog second. |
+| `F` / `C` / `A` | Map clarity: focus / context / atlas. |
+| `Enter` (in search) | Focus the first match. |
+
+Clarity hotkeys are suppressed when an input is focused or a modifier
+key is held.
 
 ## Run
 
@@ -22,61 +42,69 @@ npm install
 npm run dev
 ```
 
-The dev server defaults to [http://127.0.0.1:5177](http://127.0.0.1:5177).
+Dev server defaults to <http://127.0.0.1:5177>.
 
-To enable Logo.dev logos, copy `.env.example` to `.env.local` and set only the publishable key:
+To enable Logo.dev logos, copy `.env.example` to `.env.local` and set
+only the publishable key:
 
 ```bash
 VITE_LOGO_DEV_PUBLISHABLE_KEY=pk_your_publishable_key
 ```
 
-Do not put a Logo.dev secret key in the frontend.
+Never put a Logo.dev secret key in the frontend.
 
-## Validate
+## Verify
 
 ```bash
-npm run lint
 npm run typecheck
+npm run lint
 npm test
-npm run smoke:visual
 npm run build
+npm run smoke:visual   # needs dev server at :5177
 ```
 
-`npm run smoke:visual` expects the dev server to be running at `http://127.0.0.1:5177`.
-The latest desktop screenshot is saved at `screenshots/ai-tool-universe-desktop.png`.
+CI mirrors the first four locally on every PR and push to `main`
+(see `.github/workflows/ci.yml`).
 
 ## Deploy
 
-Production is live at [https://ai-tool-universe-map.vercel.app](https://ai-tool-universe-map.vercel.app).
-
-The Vercel project is linked locally through `.vercel/`, which is intentionally ignored by git. Redeploy the current state with:
+Production is on Vercel. The Vercel project is linked locally through
+`.vercel/`, which is gitignored. Redeploy the current state with:
 
 ```bash
 npx vercel deploy --prod
 ```
 
-Vercel uses `vercel.json` to run `npm run build` and serve `dist`. If enabling Logo.dev on Vercel, set only `VITE_LOGO_DEV_PUBLISHABLE_KEY` as a project environment variable. Never expose or commit the Logo.dev secret key.
+`vercel.json` runs `npm run build` and serves `dist`. If enabling
+Logo.dev on Vercel, set only `VITE_LOGO_DEV_PUBLISHABLE_KEY` as a
+project environment variable. Never expose or commit a Logo.dev
+secret key.
 
-## Where To Edit
+## Where to edit
 
-- `src/data/ai-tool-universe.ts`: categories, tools, workflow stages, and graph relations.
-- `src/lib/classify-ai-tool.ts`: rule-based classification.
-- `src/components/AIToolUniverseMap.tsx`: overlay layout, side panels, intake, search, filters.
-- `src/components/AIToolUniverse3D/*`: React Three Fiber scene, camera, stars, nodes, rings, and lines.
-- `src/components/ToolLogo.tsx` and `src/lib/tool-logos.ts`: Logo.dev URL generation and SVG fallback logos.
-- `screenshots/`: desktop and hover-state visual references.
+- `src/data/ai-tool-universe.ts` — categories, tools, workflow stages,
+  graph relations (single source of truth).
+- `src/lib/classify-ai-tool.ts` — rule-based classifier.
+- `src/components/AIToolUniverseMap.tsx` — overlay layout, side panels,
+  intake, search, filters, keyboard handlers.
+- `src/components/AIToolUniverse3D/*` — R3F scene (Canvas, camera,
+  pocket worlds, rings, nodes, lines, ambient cosmos).
+- `src/components/ToolLogo.tsx` + `src/lib/tool-logos.ts` — Logo.dev
+  URL generation and SVG monogram fallback.
+- `screenshots/` — desktop and hover-state visual references.
 
-## Current Remaining Work
+## Architecture notes & agent collaboration
 
-- Replace the rule-based classifier with an API-backed classifier when the backend is ready.
-- Move custom tools from localStorage into authenticated storage.
-- Add manual relation editing and relation confidence.
-- Add more Playwright snapshots for search-empty and imported-tool states.
+This repo is shared between Claude Code and Codex. Both agents follow
+the rules in `.agent/INSTRUCTIONS.md` (the root `AGENTS.md` and
+`CLAUDE.md` are symlinks to it). Key invariants — `frameloop="always"`,
+lazy 3D chunk, no secret Logo.dev key in the bundle — are listed in
+that file.
 
-## Model Recommendation
+Operational sprint tracking lives in `docs/LOOP_PLAN.md` and
+`docs/LOOP_LOG.md`. The latest Lighthouse snapshot is in
+`docs/perf.md`.
 
-For continuing implementation, use Codex or Claude Code with a strong coding model. For this specific feature, the best workflow is:
+## Release history
 
-1. Codex or Claude Code for component implementation, tests, and integration.
-2. A stronger reasoning model for architecture review if you connect this to a real database or AI classifier.
-3. A visual design pass in browser screenshots before merging.
+See [`CHANGELOG.md`](./CHANGELOG.md).

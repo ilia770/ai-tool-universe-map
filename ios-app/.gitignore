@@ -1,0 +1,26 @@
+# XcodeGen output — text-defined project, regenerate with `xcodegen generate`.
+MyAIMap.xcodeproj
+MyAIMap.xcworkspace
+
+# Xcode build artefacts
+build/
+DerivedData/
+*.xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcscheme
+!ios-app/MyAIMap.xcodeproj/xcshareddata/xcschemes/*.xcscheme
+
+# CocoaPods / SwiftPM caches (not used yet but cheap to ignore)
+Pods/
+.swiftpm/
+Package.resolved.local
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# macOS
+.DS_Store

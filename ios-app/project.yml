@@ -1,0 +1,67 @@
+# XcodeGen project definition. Run `xcodegen generate` to produce
+# `MyAIMap.xcodeproj` (gitignored). Install xcodegen via Homebrew:
+#   brew install xcodegen
+name: MyAIMap
+options:
+  bundleIdPrefix: com.iliaturilia
+  developmentLanguage: en
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+    GENERATE_INFOPLIST_FILE: "YES"
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+    INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+
+targets:
+  MyAIMap:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Sources/MyAIMap
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap
+        PRODUCT_NAME: "My AI Map"
+        PRODUCT_MODULE_NAME: MyAIMap
+        INFOPLIST_KEY_CFBundleDisplayName: "My AI Map"
+        INFOPLIST_KEY_UIRequiredDeviceCapabilities: "arm64 metal"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies: []
+
+  MyAIMapTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Tests/MyAIMapTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/My AI Map.app/My AI Map"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: MyAIMap
+
+schemes:
+  MyAIMap:
+    build:
+      targets:
+        MyAIMap: all
+        MyAIMapTests: [test]
+    test:
+      targets:
+        - MyAIMapTests

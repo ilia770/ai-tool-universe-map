@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Production app
+    url: https://ai-tool-universe-map.vercel.app
+    about: Reproduce against the latest deployed build before filing.
+  - name: Agent collaboration rules
+    url: https://github.com/ilia770/ai-tool-universe-map/blob/main/.agent/INSTRUCTIONS.md
+    about: Read this before opening a PR if you are an AI agent.
