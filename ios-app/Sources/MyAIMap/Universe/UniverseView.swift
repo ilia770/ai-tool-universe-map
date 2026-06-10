@@ -10,8 +10,11 @@ import simd
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
+    let onToolSelect: @MainActor (String) -> Void
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var ambientPulse = false
     @State private var zoom: CGFloat = 1
     @State private var baseZoom: CGFloat = 1
 
@@ -48,6 +51,10 @@ struct UniverseView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+        .onAppear {
+            guard !reduceMotion else { return }
+            ambientPulse = true
+        }
         .gesture(
             MagnifyGesture()
                 .onChanged { value in
@@ -57,6 +64,8 @@ struct UniverseView: View {
                     baseZoom = zoom
                 }
         )
+        .brandAnimation(BrandMotion.flow, value: selectedCategory)
+        .brandAnimation(BrandMotion.flow, value: selectedToolId)
     }
 
     private func starfield(in size: CGSize) -> some View {
@@ -110,7 +119,8 @@ struct UniverseView: View {
                     node(
                         color: category.color.swiftUIColor,
                         radius: selected ? 15 : isPocket ? 10 : 7,
-                        selected: selected
+                        selected: selected,
+                        pulse: selected && ambientPulse
                     )
                     .position(project(position, in: size))
                 }
@@ -118,7 +128,8 @@ struct UniverseView: View {
                 node(
                     color: category.color.swiftUIColor,
                     radius: categorySelected ? 24 : 16,
-                    selected: categorySelected
+                    selected: categorySelected,
+                    pulse: categorySelected && ambientPulse
                 )
                 .position(categoryPoint)
 
@@ -133,7 +144,8 @@ struct UniverseView: View {
             node(
                 color: UniverseSeed.category(.core).color.swiftUIColor,
                 radius: selectedCategory == .core ? 30 : 23,
-                selected: selectedCategory == .core
+                selected: selectedCategory == .core,
+                pulse: selectedCategory == .core && ambientPulse
             )
             .position(corePoint)
 
@@ -155,8 +167,28 @@ struct UniverseView: View {
                         .fill(.white.opacity(0.001))
                         .frame(width: category.id == selectedCategory ? 90 : 66, height: category.id == selectedCategory ? 90 : 66)
                 }
+                .accessibilityLabel("Open \(category.name)")
                 .buttonStyle(.plain)
                 .position(point)
+            }
+
+            ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
+                let tools = UniverseSeed.tools(in: category.id)
+                ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
+                    let isPocket = category.id == selectedCategory
+                    let position = toolPosition(tool, category: category, index: index, count: tools.count, pocketed: isPocket)
+                    let point = project(position, in: size)
+                    Button {
+                        onToolSelect(tool.id)
+                    } label: {
+                        Circle()
+                            .fill(.white.opacity(0.001))
+                            .frame(width: isPocket ? 52 : 38, height: isPocket ? 52 : 38)
+                    }
+                    .accessibilityLabel("Select \(tool.name)")
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.82, haptic: nil, pressedOpacity: 1))
+                    .position(point)
+                }
             }
         }
     }
@@ -170,11 +202,17 @@ struct UniverseView: View {
         .stroke(color.opacity(opacity), style: StrokeStyle(lineWidth: 1.1, lineCap: .round, lineJoin: .round))
     }
 
-    private func node(color: Color, radius: CGFloat, selected: Bool) -> some View {
+    private func node(color: Color, radius: CGFloat, selected: Bool, pulse: Bool) -> some View {
         ZStack {
+            if selected {
+                Circle()
+                    .stroke(color.opacity(pulse ? 0.10 : 0.28), lineWidth: 1.2)
+                    .frame(width: radius * (pulse ? 6.8 : 4.8), height: radius * (pulse ? 6.8 : 4.8))
+                    .blur(radius: radius * 0.16)
+            }
             Circle()
                 .fill(color.opacity(selected ? 0.30 : 0.14))
-                .frame(width: radius * 4.5, height: radius * 4.5)
+                .frame(width: radius * (pulse ? 5.2 : 4.5), height: radius * (pulse ? 5.2 : 4.5))
                 .blur(radius: radius * 0.7)
             Circle()
                 .fill(color.opacity(selected ? 0.96 : 0.78))
@@ -185,6 +223,7 @@ struct UniverseView: View {
                 )
         }
         .compositingGroup()
+        .brandAnimation(BrandMotion.breath, value: pulse)
     }
 
     private func toolPosition(_ tool: Tool, category: ToolCategory, index: Int, count: Int, pocketed: Bool) -> SIMD3<Float> {
@@ -245,5 +284,10 @@ struct UniverseView: View {
 }
 
 #Preview {
-    UniverseView(selectedCategory: .design, selectedToolId: "figma", onProximityEvent: { _ in })
+    UniverseView(
+        selectedCategory: .design,
+        selectedToolId: "figma",
+        onToolSelect: { _ in },
+        onProximityEvent: { _ in }
+    )
 }
