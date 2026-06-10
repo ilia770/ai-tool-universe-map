@@ -13,8 +13,8 @@ import { CameraController } from './CameraController';
 import { PocketWorldShell } from './PocketWorldShell';
 import { ProximityCategoryWatcher } from './ProximityCategoryWatcher';
 import { categoryPosition, pocketToolPosition, toolPosition } from './layout';
+import { buildLensRelevantIds, buildRelationDepthMap, type RelationLens } from './relations';
 
-type RelationLens = 'direct' | 'adjacent' | 'stage' | 'category';
 type MapClarityMode = 'focus' | 'context' | 'atlas';
 
 interface SceneProps {
@@ -44,6 +44,7 @@ export function Scene({
 }: SceneProps) {
   const [hoveredCategory, setHoveredCategory] = useState<ToolCategoryId | null>(null);
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
+  const [contextLost, setContextLost] = useState(false);
   // Defer heavy ambient layers (StarField, GalaxyDust) until the browser is
   // idle. The main scene paints first; ambient cosmos slides in ~one frame
   // later. Saves ~1-2 s of initial TBT without losing the look.
@@ -62,7 +63,30 @@ export function Scene({
   }, []);
   const hoverClearTimeoutRef = useRef<number | null>(null);
   const toolHoverClearTimeoutRef = useRef<number | null>(null);
+  const toolHoverRafRef = useRef<number | null>(null);
+  const contextListenerCleanupRef = useRef<(() => void) | null>(null);
   const allTools = useMemo(() => [...tools, ...customTools], [customTools]);
+
+  const handleCanvasCreated = useCallback(({ gl }: { gl: { domElement: HTMLCanvasElement } }) => {
+    const canvas = gl.domElement;
+    contextListenerCleanupRef.current?.();
+
+    // preventDefault on contextlost is required for the browser to fire a
+    // matching contextrestored. Without this overlay the canvas would just go
+    // black on a GPU reset with no signal to the user.
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setContextLost(true);
+    };
+    const handleContextRestored = () => setContextLost(false);
+
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+    contextListenerCleanupRef.current = () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+    };
+  }, []);
 
   const handleCategoryHover = useCallback((category: ToolCategoryId | null) => {
     if (hoverClearTimeoutRef.current !== null) {
@@ -82,20 +106,39 @@ export function Scene({
   }, []);
 
   const handleToolHover = useCallback((id: string | null) => {
+    if (id === null) {
+      // Hover-out: cancel any pending hover-in, then debounce the clear so a
+      // brief gap while crossing between two adjacent nodes doesn't flicker
+      // focus off.
+      if (toolHoverRafRef.current !== null) {
+        window.cancelAnimationFrame(toolHoverRafRef.current);
+        toolHoverRafRef.current = null;
+      }
+      if (toolHoverClearTimeoutRef.current !== null) {
+        window.clearTimeout(toolHoverClearTimeoutRef.current);
+      }
+      toolHoverClearTimeoutRef.current = window.setTimeout(() => {
+        setHoveredToolId(null);
+        toolHoverClearTimeoutRef.current = null;
+      }, 320);
+      return;
+    }
+
+    // Hover-in: coalesce to one commit per frame. A fast pointer sweep fires a
+    // pointerover per node crossed; without this, each one would invalidate the
+    // relation/lens/label memos. Collapsing to the last node in the frame means
+    // only the node the pointer settles on triggers the heavy recompute.
     if (toolHoverClearTimeoutRef.current !== null) {
       window.clearTimeout(toolHoverClearTimeoutRef.current);
       toolHoverClearTimeoutRef.current = null;
     }
-
-    if (id) {
-      setHoveredToolId(id);
-      return;
+    if (toolHoverRafRef.current !== null) {
+      window.cancelAnimationFrame(toolHoverRafRef.current);
     }
-
-    toolHoverClearTimeoutRef.current = window.setTimeout(() => {
-      setHoveredToolId(null);
-      toolHoverClearTimeoutRef.current = null;
-    }, 320);
+    toolHoverRafRef.current = window.requestAnimationFrame(() => {
+      toolHoverRafRef.current = null;
+      setHoveredToolId(id);
+    });
   }, []);
 
   useEffect(() => () => {
@@ -105,19 +148,25 @@ export function Scene({
     if (toolHoverClearTimeoutRef.current !== null) {
       window.clearTimeout(toolHoverClearTimeoutRef.current);
     }
+    if (toolHoverRafRef.current !== null) {
+      window.cancelAnimationFrame(toolHoverRafRef.current);
+    }
+    contextListenerCleanupRef.current?.();
+    contextListenerCleanupRef.current = null;
   }, []);
 
   const selectedTool = allTools.find((t) => t.id === selectedId);
   const activeFocusId = hoveredToolId ?? selectedId;
   const activeFocusTool = allTools.find((t) => t.id === activeFocusId);
+  const activeFocusCategory = activeFocusTool?.category ?? null;
   const isToolFocusMode = Boolean(hoveredToolId);
-  const lensCategory = relationLens === 'category' && selectedTool && selectedTool.category !== 'core'
-    ? selectedTool.category
+  const lensCategory = relationLens === 'category' && activeFocusCategory && activeFocusCategory !== 'core'
+    ? activeFocusCategory
     : null;
   const selectedToolCategory = selectedTool && selectedTool.category !== 'core'
     ? selectedTool.category
     : null;
-  const focusedCategory = hoveredCategory ?? (activeCategory !== 'all' ? activeCategory : lensCategory);
+  const focusedCategory: ToolCategoryId | null = hoveredCategory ?? (activeCategory !== 'all' ? activeCategory : lensCategory);
   const pocketCategory = activeCategory !== 'all' && activeCategory !== 'core'
     ? activeCategory
     : selectedToolCategory;
@@ -172,56 +221,15 @@ export function Scene({
     () => new Map(allTools.map((tool) => [tool.id, tool.stage])),
     [allTools],
   );
-  const relationDepthById = useMemo(() => {
-    const map = new Map<string, number>();
-    const activeTool = allTools.find((tool) => tool.id === activeFocusId);
-    if (!activeTool) return map;
-    map.set(activeTool.id, 0);
+  const relationDepthById = useMemo(
+    () => buildRelationDepthMap(activeFocusId, allTools),
+    [activeFocusId, allTools],
+  );
 
-    const directIds = new Set<string>(activeTool.relationIds);
-    allTools.forEach((tool) => {
-      if (tool.relationIds.includes(activeTool.id)) directIds.add(tool.id);
-    });
-
-    directIds.forEach((id) => map.set(id, 1));
-    directIds.forEach((id) => {
-      const directTool = allTools.find((tool) => tool.id === id);
-      directTool?.relationIds.forEach((nextId) => {
-        if (!map.has(nextId)) map.set(nextId, 2);
-      });
-    });
-
-    return map;
-  }, [activeFocusId, allTools]);
-
-  const lensRelevantIds = useMemo(() => {
-    const ids = new Set<string>();
-    const activeTool = allTools.find((tool) => tool.id === activeFocusId);
-    if (!activeTool) return ids;
-
-    ids.add(activeTool.id);
-
-    if (relationLens === 'stage') {
-      allTools.forEach((tool) => {
-        if (tool.stage === activeTool.stage) ids.add(tool.id);
-      });
-      return ids;
-    }
-
-    if (relationLens === 'category') {
-      allTools.forEach((tool) => {
-        if (tool.category === activeTool.category) ids.add(tool.id);
-      });
-      return ids;
-    }
-
-    const maxDepth = relationLens === 'adjacent' ? 2 : 1;
-    relationDepthById.forEach((depth, id) => {
-      if (depth <= maxDepth) ids.add(id);
-    });
-
-    return ids;
-  }, [activeFocusId, allTools, relationDepthById, relationLens]);
+  const lensRelevantIds = useMemo(
+    () => buildLensRelevantIds(activeFocusId, allTools, relationLens, relationDepthById),
+    [activeFocusId, allTools, relationDepthById, relationLens],
+  );
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleIds = useMemo(() => new Set(
@@ -248,7 +256,7 @@ export function Scene({
 
     return map;
   }, [allTools]);
-  const labelBudgetIds = useMemo(() => {
+  const labelBudgetIds = (() => {
     const baseBudget = isToolFocusMode
       ? 9
       : mapClarity === 'focus'
@@ -287,21 +295,7 @@ export function Scene({
       .sort((a, b) => b.score - a.score || a.orbit - b.orbit || a.name.localeCompare(b.name));
 
     return new Set(scored.slice(0, budget).map((item) => item.id));
-  }, [
-    activeCategory,
-    allTools,
-    focusedCategory,
-    hoveredToolId,
-    isToolFocusMode,
-    lensRelevantIds,
-    mapClarity,
-    normalizedQuery,
-    pocketCategory,
-    relationDegreeById,
-    relationDepthById,
-    selectedId,
-    visibleIds,
-  ]);
+  })();
 
   const cameraTargetPosition = useMemo<[number, number, number]>(() => {
     if (selectedId === 'founder-os') return [0, 0, 0];
@@ -328,7 +322,8 @@ export function Scene({
       : null;
 
   const shouldShowToolLabel = useCallback((tool: AITool, relationDepth: number | undefined, inLens: boolean) => {
-    if (tool.id === selectedId || tool.id === hoveredToolId) return true;
+    if (tool.id === hoveredToolId) return true;
+    if (!isToolFocusMode && tool.id === selectedId) return true;
     if (!labelBudgetIds.has(tool.id)) return false;
 
     if (pocketCategory && tool.category === pocketCategory) {
@@ -362,7 +357,7 @@ export function Scene({
     if (pocketCategory && tool.category !== pocketCategory && !inLens) return true;
 
     if (isToolFocusMode) {
-      return (relationDepth ?? 99) > 1 && tool.id !== selectedId;
+      return (relationDepth ?? 99) > 1 && tool.id !== activeFocusId;
     }
 
     if (mapClarity === 'focus') {
@@ -375,7 +370,7 @@ export function Scene({
     }
 
     return Boolean(focusedCategory) && activeCategory !== 'all' && tool.category !== focusedCategory;
-  }, [activeCategory, focusedCategory, isToolFocusMode, mapClarity, pocketCategory, selectedId, visibleIds]);
+  }, [activeCategory, activeFocusId, focusedCategory, isToolFocusMode, mapClarity, pocketCategory, selectedId, visibleIds]);
 
   const allLinks = useMemo(() => {
     const wlKeys = new Set(
@@ -392,11 +387,13 @@ export function Scene({
   }, [allTools]);
 
   return (
+    <>
     <Canvas
       camera={{ position: [0, 5.4, 20.5], fov: 58 }}
       frameloop="always"
       gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, toneMapping: 0 }}
       style={{ background: 'transparent', width: '100%', height: '100%' }}
+      onCreated={handleCanvasCreated}
     >
       <fog attach="fog" args={['#020008', 18, 46]} />
       <ambientLight intensity={0.15} />
@@ -489,12 +486,11 @@ export function Scene({
             id={tool.id}
             name={tool.name}
             tool={tool}
-            category={tool.category}
             position={pos}
             color={cat.color}
             glow={cat.glow}
             selected={tool.id === selectedId}
-            hovered={tool.id === hoveredToolId}
+            activeFocus={tool.id === activeFocusId}
             relationDepth={relationDepth}
             labelVisible={shouldShowToolLabel(tool, relationDepth, inLens)}
             dimmed={shouldDimTool(tool, relationDepth, inLens)}
@@ -518,5 +514,26 @@ export function Scene({
         selectedId={activeFocusId}
       />
     </Canvas>
+    {contextLost && (
+      <div
+        role="status"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: '0 24px',
+          background: 'rgba(2, 0, 8, 0.82)',
+          color: 'rgba(255, 255, 255, 0.85)',
+          font: '600 13px system-ui, sans-serif',
+          pointerEvents: 'none',
+        }}
+      >
+        Rendering paused — the graphics context was lost. Restoring when the GPU is ready…
+      </div>
+    )}
+    </>
   );
 }

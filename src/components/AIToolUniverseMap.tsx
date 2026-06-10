@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Brain,
   Check,
@@ -25,6 +25,7 @@ import {
 } from '../data/ai-tool-universe';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
 import { hasLogoDevKey } from '../lib/tool-logos';
+import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
 
 const AIToolUniverse3D = lazy(() =>
@@ -157,6 +158,18 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     message: string;
   } | null>(null);
 
+  // The focus trap below must mount once. Filter state it reads is funnelled
+  // through refs so changing category/stage does not re-run the effect, which
+  // would otherwise yank keyboard focus back to the dialog on every click.
+  const activeCategoryRef = useRef(activeCategory);
+  const activeStageRef = useRef(activeStage);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    activeCategoryRef.current = activeCategory;
+    activeStageRef.current = activeStage;
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const previousActiveElement = document.activeElement instanceof HTMLElement
@@ -167,7 +180,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         // Layered exit: pocket world first, full dialog second.
-        if (activeCategory !== 'all' || activeStage !== 'all') {
+        if (activeCategoryRef.current !== 'all' || activeStageRef.current !== 'all') {
           event.preventDefault();
           setActiveCategory('all');
           setActiveStage('all');
@@ -176,7 +189,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           setCameraVersion((version) => version + 1);
           return;
         }
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -228,10 +241,16 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       document.removeEventListener('keydown', handleKeyDown);
       previousActiveElement?.focus({ preventScroll: true });
     };
-  }, [activeCategory, activeStage, onClose]);
+  }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(CUSTOM_TOOLS_STORAGE_KEY, JSON.stringify(customTools));
+    try {
+      window.localStorage.setItem(CUSTOM_TOOLS_STORAGE_KEY, JSON.stringify(customTools));
+    } catch (error) {
+      // Private mode / quota exceeded: persistence is best-effort, so keep the
+      // session usable instead of letting the throw bubble out of the effect.
+      console.warn('Could not persist custom tools to localStorage', error);
+    }
   }, [customTools]);
 
   const allTools = useMemo(() => [...tools, ...customTools], [customTools]);
@@ -310,15 +329,37 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       .slice(0, 8),
     [directRelationIds, nodeById],
   );
-  const linkConfidenceByPeer = useMemo(() => {
-    const map = new Map<string, number>();
+  const linkMetaByPeer = useMemo(() => {
+    const map = new Map<string, {
+      confidence?: number;
+      label: string;
+      strength: 'primary' | 'secondary';
+    }>();
     for (const link of workflowLinks) {
-      if (link.confidence === undefined) continue;
-      if (link.source === selectedTool.id) map.set(link.target, link.confidence);
-      else if (link.target === selectedTool.id) map.set(link.source, link.confidence);
+      if (link.source === selectedTool.id) {
+        map.set(link.target, { confidence: link.confidence, label: link.label, strength: link.strength });
+      } else if (link.target === selectedTool.id) {
+        map.set(link.source, { confidence: link.confidence, label: link.label, strength: link.strength });
+      }
     }
     return map;
   }, [selectedTool.id]);
+  const connectedBecauseTools = useMemo(() =>
+    directConnectedTools.slice(0, 4).map((tool) => {
+      const meta = linkMetaByPeer.get(tool.id);
+      const outward = selectedTool.relationIds.includes(tool.id);
+      return {
+        tool,
+        confidence: meta?.confidence,
+        reason: meta
+          ? `${meta.label}${meta.strength === 'primary' ? ' in the core workflow.' : ' in a supporting workflow.'}`
+          : outward
+            ? 'Listed as a related workflow companion for this service.'
+            : `${tool.name} points back to this service as part of its workflow.`,
+      };
+    }),
+    [directConnectedTools, linkMetaByPeer, selectedTool],
+  );
   const adjacentConnectedTools = useMemo(() => {
     const adjacentIds = new Set<string>();
     directConnectedTools.forEach((tool) => {
@@ -377,14 +418,6 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       }),
     [activeClusterCategoryId, allTools, selectedTool.id],
   );
-  const clusterStageCounts = useMemo(
-    () => new Map(orderedStages.map((stage) => [
-      stage,
-      clusterTools.filter((tool) => tool.stage === stage).length,
-    ])),
-    [clusterTools],
-  );
-
   const focusTool = (tool: AITool) => {
     setSelectedId(tool.id);
     setActiveCategory(tool.category);
@@ -395,10 +428,11 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     setCameraVersion((version) => version + 1);
   };
 
-  const selectToolId = (id: string) => {
+  // Stable so memoized ToolNode instances don't re-render on every parent change.
+  const selectToolId = useCallback((id: string) => {
     setSelectedId(id);
     setCameraVersion((version) => version + 1);
-  };
+  }, []);
 
   const recenterSelectedTool = () => {
     setCameraVersion((version) => version + 1);
@@ -745,6 +779,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               return (
                 <button
                   key={category.id}
+                  data-testid={`category-filter-${category.id}`}
                   onClick={() => focusCategory(category.id)}
                   className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
                     activeCategory === category.id
@@ -829,24 +864,33 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
         <section className="order-1 relative flex flex-col min-h-[680px] overflow-hidden sm:min-h-[620px] md:min-h-[640px] lg:order-2 lg:h-[calc(100dvh-4rem)] lg:min-h-0">
           <div className="relative flex-1 min-h-[440px] lg:min-h-0">
-            <Suspense fallback={
-              <div className="absolute inset-0 flex items-center justify-center bg-[#020008]">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-300" />
+            <WebGLErrorBoundary fallback={
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#020008] px-6 text-center">
+                <p className="text-sm font-semibold text-white/90">3D view unavailable</p>
+                <p className="max-w-xs text-xs text-white/55">
+                  This browser or device could not start WebGL. The tool list in the side panel still works.
+                </p>
               </div>
             }>
-              <AIToolUniverse3D
-                selectedId={selectedId}
-                onSelectId={selectToolId}
-                activeCategory={activeCategory}
-                activeStage={activeStage}
-                query={query}
-                customTools={customTools}
-                relationLens={relationLens}
-                mapClarity={mapClarity}
-                cameraVersion={cameraVersion}
-                onSelectCategory={focusCategory}
-              />
-            </Suspense>
+              <Suspense fallback={
+                <div className="absolute inset-0 flex items-center justify-center bg-[#020008]">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-300" />
+                </div>
+              }>
+                <AIToolUniverse3D
+                  selectedId={selectedId}
+                  onSelectId={selectToolId}
+                  activeCategory={activeCategory}
+                  activeStage={activeStage}
+                  query={query}
+                  customTools={customTools}
+                  relationLens={relationLens}
+                  mapClarity={mapClarity}
+                  cameraVersion={cameraVersion}
+                  onSelectCategory={focusCategory}
+                />
+              </Suspense>
+            </WebGLErrorBoundary>
           </div>
 
           <div className="relative z-20 mt-2 px-3 pb-3 lg:pointer-events-none lg:absolute lg:inset-x-5 lg:bottom-4 lg:mt-0 lg:px-0 lg:pb-0">
@@ -901,6 +945,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                     <button
                       key={category.id}
                       type="button"
+                      data-testid={`lens-category-${category.id}`}
                       onClick={() => focusCategory(category.id)}
                       className={`flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition ${
                         isActive
@@ -959,6 +1004,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-white/25 lg:hidden" aria-hidden="true" />
           <article
             data-tool-id={selectedTool.id}
+            data-testid="tool-detail-panel"
             className="tool-detail-card rounded-xl border border-white/12 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
           >
             <div className="flex items-start gap-3">
@@ -1015,6 +1061,23 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <p className="mt-2 text-sm leading-6 text-text-secondary">{selectedTool.summary}</p>
             </section>
 
+            <section className="mt-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
+              <div className="flex items-start gap-2">
+                <span
+                  className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_18px_currentColor]"
+                  style={{ backgroundColor: selectedCategory.color, color: selectedCategory.color }}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+                    Group
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white">{selectedCategory.name}</p>
+                  <p className="mt-1 text-xs leading-5 text-text-muted">{selectedCategory.description}</p>
+                </div>
+              </div>
+            </section>
+
             <section className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.045] p-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/75">
@@ -1025,49 +1088,81 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 </span>
               </div>
               <p className="mt-2 text-sm leading-6 text-cyan-50/80">{stageActions[selectedTool.stage]}</p>
-              <div className="mt-3 grid grid-cols-5 gap-1">
+              <div className="mt-3 grid grid-cols-5 gap-1" aria-label="Workflow stage path">
                 {orderedStages.map((stage, index) => {
                   const isCurrent = selectedTool.stage === stage;
                   return (
-                    <button
+                    <div
                       key={stage}
-                      type="button"
                       aria-current={isCurrent ? 'step' : undefined}
-                      onClick={() => setActiveStage(stage)}
                       title={workflowStages[stage].description}
                       className={`min-h-11 rounded-md border px-1.5 py-1.5 text-left transition ${
                         isCurrent
                           ? 'border-cyan-200/40 bg-cyan-200/15 text-white'
-                          : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
+                          : 'border-white/10 bg-black/20 text-text-muted'
                       }`}
                     >
                       <span className="block text-[10px] font-semibold text-cyan-100/70">{index + 1}</span>
                       <span className="mt-0.5 block truncate text-[11px]">{stageDockLabels[stage]}</span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             </section>
 
-            <section className="mt-3 rounded-lg border border-fuchsia-200/15 bg-fuchsia-200/[0.055] p-3">
+            <section
+              data-testid="connected-because"
+              className="mt-3 rounded-lg border border-fuchsia-200/15 bg-fuchsia-200/[0.055] p-3"
+            >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fuchsia-100/75">
-                  Relationship lens
+                  Connected because
                 </p>
                 <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-fuchsia-50/85">
-                  {relationLensCounts.get(relationLens) ?? 0}
+                  {directConnectedTools.length}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-1.5">
+              <div className="mt-3 grid gap-1.5">
+                {connectedBecauseTools.length > 0 ? (
+                  connectedBecauseTools.map(({ tool, confidence, reason }) => (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => focusTool(tool)}
+                      className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-left transition hover:border-fuchsia-200/25 hover:bg-fuchsia-200/[0.07]"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="inline-flex min-w-0 items-center gap-2 text-xs font-semibold text-white">
+                          <ToolLogo tool={tool} size={20} />
+                          <span className="truncate">{tool.name}</span>
+                        </span>
+                        {confidence !== undefined && (
+                          <span className="shrink-0 rounded-full bg-fuchsia-200/15 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-100/90">
+                            {Math.round(confidence * 100)}%
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-4 text-text-muted">
+                        {reason}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-sm text-text-muted">No direct relation has been mapped yet.</span>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-4 gap-1.5 border-t border-white/10 pt-3">
                 {relationLensOptions.map((option) => {
                   const isActive = relationLens === option.id;
                   return (
                     <button
                       key={option.id}
                       type="button"
+                      data-testid={`relation-lens-${option.id}`}
                       onClick={() => setRelationLens(option.id)}
                       title={option.description}
-                      className={`rounded-lg border px-2 py-2 text-left text-xs transition ${
+                      className={`rounded-lg border px-2 py-2 text-left text-[11px] transition ${
                         isActive
                           ? 'border-fuchsia-200/35 bg-fuchsia-200/14 text-white'
                           : 'border-white/10 bg-black/20 text-text-muted hover:bg-white/[0.06] hover:text-text-secondary'
@@ -1084,7 +1179,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <div className="mt-3 flex flex-wrap gap-2">
                 {lensTools.length > 0 ? (
                   lensTools.slice(0, 7).map((tool) => {
-                    const confidence = linkConfidenceByPeer.get(tool.id);
+                    const confidence = linkMetaByPeer.get(tool.id)?.confidence;
                     return (
                       <button
                         key={tool.id}
@@ -1112,40 +1207,13 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Cluster inspector
+                    Nearby in group
                   </p>
                   <p className="mt-1 text-sm font-semibold text-white">{activeClusterCategory.name}</p>
                 </div>
                 <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-text-muted">
                   {clusterTools.length} tools
                 </span>
-              </div>
-              <div className="mt-3 grid grid-cols-5 gap-1">
-                {orderedStages.map((stage, index) => {
-                  const count = clusterStageCounts.get(stage) ?? 0;
-                  const isActive = activeStage === stage;
-                  return (
-                    <button
-                      key={stage}
-                      type="button"
-                      onClick={() => {
-                        setActiveCategory(activeClusterCategory.id);
-                        setActiveStage(stage);
-                        setRelationLens('stage');
-                        setMapClarity('context');
-                      }}
-                      className={`min-h-10 rounded-md border px-1.5 py-1.5 text-left transition ${
-                        isActive
-                          ? 'border-cyan-200/35 bg-cyan-200/15 text-white'
-                          : 'border-white/10 bg-white/[0.035] text-text-muted hover:bg-white/[0.07] hover:text-text-secondary'
-                      }`}
-                      title={workflowStages[stage].name}
-                    >
-                      <span className="block text-[10px] font-semibold text-cyan-100/70">{index + 1}</span>
-                      <span className="mt-0.5 block text-[11px]">{count}</span>
-                    </button>
-                  );
-                })}
               </div>
               <div className="mt-3 grid gap-1.5">
                 {clusterTools.slice(0, 6).map((tool) => {
@@ -1174,16 +1242,6 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               </div>
             </section>
 
-            {selectedTool.classification && (
-              <section className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-text-muted">Classifier confidence</span>
-                  <span className="font-semibold text-cyan-100">
-                    {Math.round(selectedTool.classification.confidence * 100)}%
-                  </span>
-                </div>
-              </section>
-            )}
           </article>
         </aside>
       </main>

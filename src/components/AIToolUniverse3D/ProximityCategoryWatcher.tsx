@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ToolCategoryId } from '../../data/ai-tool-universe';
 
 interface Anchor {
@@ -24,8 +24,9 @@ interface ProximityCategoryWatcherProps {
  * Polls camera distance every ~160ms (~6 Hz). When the user dollies the
  * camera below `enterDistance` of a category anchor while the map is in
  * the all-groups view, auto-selects that category so its PocketWorldShell
- * opens. No effect once a category is already active — auto-exit lives
- * in a sibling watcher (track B3).
+ * opens. Once a pocket is open, auto-exit is armed only after the camera
+ * reaches the pocket region, so manual clicks do not immediately close while
+ * the camera is still travelling from the overview.
  */
 export function ProximityCategoryWatcher({
   anchors,
@@ -38,6 +39,18 @@ export function ProximityCategoryWatcher({
 }: ProximityCategoryWatcherProps) {
   const lastTriggerRef = useRef(0);
   const lastTickRef = useRef(0);
+  const exitArmedCategoryRef = useRef<ToolCategoryId | null>(null);
+
+  useEffect(() => {
+    if (activeCategory === 'all') {
+      exitArmedCategoryRef.current = null;
+      return;
+    }
+
+    if (exitArmedCategoryRef.current !== activeCategory) {
+      exitArmedCategoryRef.current = null;
+    }
+  }, [activeCategory]);
 
   useFrame(({ camera, clock }) => {
     const nowMs = clock.elapsedTime * 1000;
@@ -53,8 +66,16 @@ export function ProximityCategoryWatcher({
       const dy = camera.position.y - activeAnchor.position[1];
       const dz = camera.position.z - activeAnchor.position[2];
       const distSq = dx * dx + dy * dy + dz * dz;
-      if (distSq > exitDistance * exitDistance) {
+      const exitDistSq = exitDistance * exitDistance;
+      const armDistSq = exitDistSq * 0.67;
+
+      if (distSq <= armDistSq) {
+        exitArmedCategoryRef.current = activeCategory;
+      }
+
+      if (exitArmedCategoryRef.current === activeCategory && distSq > exitDistSq) {
         lastTriggerRef.current = nowMs;
+        exitArmedCategoryRef.current = null;
         onExit();
       }
       return;
