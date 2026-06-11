@@ -1,6 +1,6 @@
 # Claude Code Backlog — 50 Tasks
 
-Last updated: 2026-06-11. Owner: Claude Code.
+Last updated: 2026-06-11 (tasks 1–6 merged in #47/#48; 39 audited — see docs/UNIVERSE_CONSTANTS.md). Owner: Claude Code.
 
 Living backlog executed in parallel with Codex. Every task stays inside
 Claude's ownership lanes (`ios-app/**`, `src/components/AIToolUniverse3D/**`,
@@ -21,19 +21,19 @@ Rules of engagement:
 
 ## Phase A — finish Phase 2 (`docs/PHASE_2_PLAN.md` steps 6–8)
 
-1. `[ ]` **SearchDock core** — pure `SearchCore` matcher (prefix + substring
+1. `[x]` **SearchDock core** — pure `SearchCore` matcher (prefix + substring
    + category-name match, ranked, Foundation-only) + Swift Testing suite.
-2. `[ ]` **SearchDock UI** — `UI/Search/SearchDock.swift`: liquid-glass top
+2. `[x]` **SearchDock UI** — `UI/Search/SearchDock.swift`: liquid-glass top
    dock, debounced query field, ranked result rows, keyboard avoidance,
    reduce-motion variants.
-3. `[ ]` **SearchDock wiring** — view-model `searchQuery` / `focusTool` glue:
+3. `[x]` **SearchDock wiring** — view-model `searchQuery` / `focusTool` glue:
    Enter focuses first match, tapping a row opens the tool's category pocket
    and selects it; haptic on commit.
-4. `[ ]` **RootSheet with 3 detents** — `UI/Sheets/RootSheet.swift` replacing
+4. `[x]` **RootSheet with 3 detents** — `UI/Sheets/RootSheet.swift` replacing
    the inline bottom sheet; `.fraction` detents, grabber, glass material.
-5. `[ ]` **ToolDetailSection** — full tool card inside the sheet: what it is,
+5. `[x]` **ToolDetailSection** — full tool card inside the sheet: what it is,
    why it matters, stage badge, links; parity with web right panel content.
-6. `[ ]` **CategoryRail extraction** — move the chip rail into
+6. `[x]` **CategoryRail extraction** — move the chip rail into
    `UI/Sheets/CategoryRail.swift` with its own preview + snapshot-friendly
    layout.
 7. `[ ]` **ClarityMenu** — focus / context / atlas mode switcher (web F/C/A
@@ -123,7 +123,7 @@ Rules of engagement:
 
 ## Phase E — web 3D scene (Claude lane: `AIToolUniverse3D/**`)
 
-39. `[ ]` **Pocket-shell web/iOS diff audit** — side-by-side screenshots,
+39. `[x]` **Pocket-shell web/iOS diff audit** — side-by-side screenshots,
     reconcile drift both directions, document canonical constants in one
     table both ports reference.
 40. `[ ]` **Hover-label overlap hardening** — stress-test label collisions at
