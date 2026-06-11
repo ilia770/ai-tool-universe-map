@@ -3,6 +3,7 @@ import SwiftUI
 struct UniverseScreen: View {
     @Environment(UniverseViewModel.self) private var model
     @State private var sheetPresented = false
+    @State private var sheetDetent: PresentationDetent = .height(118)
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -56,10 +57,15 @@ struct UniverseScreen: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $sheetPresented) {
             RootSheet()
-                .presentationDetents([.height(118), .fraction(0.42), .large])
+                .presentationDetents([.height(118), .fraction(0.42), .large], selection: $sheetDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.42)))
                 .presentationDragIndicator(.visible)
                 .interactiveDismissDisabled(true)
+                .onChange(of: sheetDetent) { _, _ in
+                    // Settling on a detent is a positional commit, like a
+                    // picker tick — lighter than category/pocket events.
+                    BrandHaptics.fire(.light)
+                }
         }
         .onAppear {
             sheetPresented = true

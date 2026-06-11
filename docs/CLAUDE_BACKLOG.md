@@ -1,6 +1,6 @@
 # Claude Code Backlog — 50 Tasks
 
-Last updated: 2026-06-11 (tasks 1–6 merged in #47/#48; 39 audited — see docs/UNIVERSE_CONSTANTS.md). Owner: Claude Code.
+Last updated: 2026-06-11. **Phase A COMPLETE** (1–10: #47 #48 #52 #54); 12 fixed (#53); 39 audited (#49). Owner: Claude Code.
 
 Living backlog executed in parallel with Codex. Every task stays inside
 Claude's ownership lanes (`ios-app/**`, `src/components/AIToolUniverse3D/**`,
@@ -36,14 +36,14 @@ Rules of engagement:
 6. `[x]` **CategoryRail extraction** — move the chip rail into
    `UI/Sheets/CategoryRail.swift` with its own preview + snapshot-friendly
    layout.
-7. `[ ]` **ClarityMenu** — focus / context / atlas mode switcher (web F/C/A
+7. `[x]` **ClarityMenu** — focus / context / atlas mode switcher (web F/C/A
    parity) wired through the view model.
-8. `[ ]` **Pocket readout overlay** — SwiftUI overlay "Pocket world · N tools
+8. `[x]` **Pocket readout overlay** — SwiftUI overlay "Pocket world · N tools
    expanded" when a pocket is open (deferred from slice 3).
-9. `[ ]` **Haptics wiring pass (step 8)** — proximity enter/exit, search
+9. `[x]` **Haptics wiring pass (step 8)** — proximity enter/exit, search
    commit, sheet detent changes, clarity switches; all through `BrandHaptics`,
    no double-fires with `PressableButtonStyle`.
-10. `[ ]` **Phase 2 closeout** — AGENT_STATUS + PHASE_2_PLAN checkboxes,
+10. `[x]` **Phase 2 closeout** — AGENT_STATUS + PHASE_2_PLAN checkboxes,
     deviations log, CHANGELOG entry.
 
 ## Phase B — gestures + camera feel
@@ -51,7 +51,7 @@ Rules of engagement:
 11. `[ ]` **Drag-to-orbit** — `DragGesture` → yaw/pitch on CameraController
     (clamped pitch, inertia), gesture priority after `SpatialTapGesture` per
     the decision log.
-12. `[ ]` **Fix mid-pinch auto-enter jump** — known follow-up: accumulated
+12. `[x]` **Fix mid-pinch auto-enter jump** — known follow-up: accumulated
     magnification re-applies after proximity auto-enter; reset baseline on
     mode change + regression test.
 13. `[ ]` **Dolly-to-cursor** — pinch zooms toward the gesture centroid
