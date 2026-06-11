@@ -39,6 +39,8 @@ struct UniverseScreen: View {
 
             VStack(spacing: 0) {
                 header
+                SearchDock()
+                    .padding(.top, 10)
                 Spacer(minLength: 0)
                 categoryRail
                 bottomSheet
