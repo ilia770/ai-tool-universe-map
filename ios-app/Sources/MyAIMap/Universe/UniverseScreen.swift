@@ -37,7 +37,11 @@ struct UniverseScreen: View {
                 header
                 SearchDock()
                     .padding(.top, 10)
+                PocketReadout()
+                    .padding(.top, 12)
                 Spacer(minLength: 0)
+                ClarityMenu()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 CategoryRail { id in
                     selectCategory(id)
                 }
