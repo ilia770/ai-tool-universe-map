@@ -21,6 +21,7 @@ final class CameraController {
     private(set) weak var camera: PerspectiveCamera?
     private(set) var target: SIMD3<Float> = .zero
     private var pinchBaseDistance: Float?
+    private var pinchBaseMagnification: Float?
 
     /// nonisolated so `@State private var controller = CameraController()`
     /// compiles under Swift 6 strict concurrency (SwiftUI property
@@ -109,6 +110,7 @@ final class CameraController {
         // A cancelled gesture never fires .onEnded; never carry a stale
         // pinch base into a freshly adopted scene.
         pinchBaseDistance = nil
+        pinchBaseMagnification = nil
         let eye = Self.focusEye(for: mode, target: target)
         camera.position = eye
         camera.orientation = Self.lookRotation(eye: eye, target: target)
@@ -138,16 +140,24 @@ final class CameraController {
         let currentDistance = simd_length(offset)
         if pinchBaseDistance == nil {
             pinchBaseDistance = currentDistance
+            // Capture the gesture's magnification at the same instant so
+            // dollying is relative to it. On a fresh gesture this is ~1.0
+            // (unchanged behavior); after a mid-pinch scene rebuild it is
+            // the accumulated value, so the camera doesn't jump.
+            pinchBaseMagnification = magnification
             // A focus move may still be animating; direct position writes
             // must win once the user pinches.
             camera.stopAllAnimations()
         }
-        guard let base = pinchBaseDistance, currentDistance > 1e-6 else { return }
+        guard let base = pinchBaseDistance,
+              let reference = pinchBaseMagnification,
+              currentDistance > 1e-6 else { return }
         let direction = offset / currentDistance
-        camera.position = target + direction * Self.dollyDistance(base: base, magnification: magnification)
+        camera.position = target + direction * Self.dollyDistance(base: base, magnification: magnification / reference)
     }
 
     func pinchEnded() {
         pinchBaseDistance = nil
+        pinchBaseMagnification = nil
     }
 }

@@ -1,3 +1,4 @@
+import RealityKit
 import Testing
 import simd
 @testable import MyAIMap
@@ -85,5 +86,63 @@ struct CameraControllerTests {
         // Guard against divide-by-zero.
         let degenerate = CameraController.dollyDistance(base: 20, magnification: 0)
         #expect(degenerate == 46)
+    }
+
+    // MARK: - Pinch gesture lifecycle (regression: mid-pinch re-attach)
+
+    @Test @MainActor func pinchFromRestDolliesByAbsoluteMagnification() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+        let base = simd_length(camera.position)
+
+        controller.pinchChanged(magnification: 1.0)
+        #expect(abs(simd_length(camera.position) - base) < 0.001)
+
+        controller.pinchChanged(magnification: 2.0)
+        #expect(abs(simd_length(camera.position) - CameraController.clampedDistance(base / 2)) < 0.001)
+    }
+
+    @Test @MainActor func midPinchReattachDoesNotApplyAccumulatedMagnification() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+        controller.pinchChanged(magnification: 1.0)
+        controller.pinchChanged(magnification: 2.5)
+
+        // Proximity auto-enter rebuilds the scene mid-pinch: attach()
+        // runs again while the magnify gesture is still ongoing.
+        let pocketTarget = SIMD3<Float>(4, 0, -2)
+        controller.attach(camera, mode: .pocket, target: pocketTarget)
+        let framing = simd_length(CameraController.focusEye(for: .pocket, target: pocketTarget) - pocketTarget)
+
+        // The next update still reports the accumulated 2.5x; the camera
+        // must stay at the pocket framing distance (no jump to min).
+        controller.pinchChanged(magnification: 2.5)
+        #expect(abs(simd_length(camera.position - pocketTarget) - framing) < 0.001)
+
+        // Further pinching zooms relative to the re-capture point
+        // (effective magnification 3.0 / 2.5 = 1.2).
+        controller.pinchChanged(magnification: 3.0)
+        let expected = CameraController.clampedDistance(framing / (3.0 / 2.5))
+        #expect(abs(simd_length(camera.position - pocketTarget) - expected) < 0.001)
+    }
+
+    @Test @MainActor func pinchEndedResetsMagnificationReference() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+        controller.pinchChanged(magnification: 1.0)
+        controller.pinchChanged(magnification: 2.5)
+        controller.pinchEnded()
+
+        // A fresh gesture starting at ~1.0 behaves exactly like a pinch
+        // from rest: 2.0 halves the new resting distance.
+        let resting = simd_length(camera.position)
+        controller.pinchChanged(magnification: 1.0)
+        #expect(abs(simd_length(camera.position) - resting) < 0.001)
+
+        controller.pinchChanged(magnification: 2.0)
+        #expect(abs(simd_length(camera.position) - CameraController.clampedDistance(resting / 2)) < 0.001)
     }
 }
