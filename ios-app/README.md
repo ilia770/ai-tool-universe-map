@@ -38,14 +38,11 @@ open MyAIMap.xcodeproj
 # In Xcode: select the "My AI Map" scheme and a Simulator, then ⌘R.
 ```
 
-Or from the CLI (no Xcode GUI):
+Or from the CLI without booting a simulator:
 
 ```bash
-xcodebuild \
-  -project MyAIMap.xcodeproj \
-  -scheme MyAIMap \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  build
+cd ..
+npm run ios:verify
 ```
 
 For TestFlight, use Xcode's Archive flow rather than a simulator build:
@@ -61,17 +58,23 @@ known-risk checklist.
 
 ## Tests
 
+Default verification builds the app and test bundle against a generic iOS
+Simulator destination:
+
 ```bash
-xcodebuild \
-  -project MyAIMap.xcodeproj \
-  -scheme MyAIMap \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  test
+npm run ios:verify
 ```
 
-The Phase 0 tests cover the pure layout math
-(`UniverseLayoutTests.swift`) — same parity contract the web app
-relies on (`tests/visual-smoke.spec.ts` in the repo root).
+For full simulator tests, use a concrete simulator id. Device-name matching is
+flaky when multiple iOS runtimes are installed.
+
+```bash
+xcrun simctl list devices available
+npm run ios:verify -- --full-test --device-id <simulator-udid>
+```
+
+The native tests cover pure layout, camera, state, proximity, haptics, and
+pocket-shell geometry. See `docs/ios/RUNBOOK.md` for the current runner flow.
 
 ## File map
 
