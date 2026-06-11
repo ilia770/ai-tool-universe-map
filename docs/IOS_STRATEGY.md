@@ -83,12 +83,11 @@ Reasoning:
 
 - Stand up the Capacitor wrap (`./ios-wrap/`). TestFlight build for
   personal use only. Mark in `CHANGELOG.md` as a throwaway artifact.
-- Create the SwiftUI scaffold (`./ios-app/AIToolUniverse.xcodeproj`),
+- Create the SwiftUI scaffold (`./ios-app/MyAIMap.xcodeproj`),
   empty `RealityView`, App Icon, splash, dark glassy launch screen
   per Apple skills guidance.
 - Apple Developer enrollment if not done; bundle id
-  `com.iliaturilia.aitooluniverse` (placeholder — change to your
-  preferred reverse-DNS).
+  `com.iliaturilia.myaimap`.
 
 ### Phase 1 — Data + scene parity (weeks 2–3)
 
@@ -125,6 +124,29 @@ Reasoning:
   in-app screenshots at every required size.
 - Internal TestFlight, then private testers.
 
+## Current TestFlight path
+
+The active native project lives in `ios-app/` and is generated from
+`ios-app/project.yml`. Current release-facing values:
+
+- App name: `My AI Map`
+- Bundle id: `com.iliaturilia.myaimap`
+- SKU: `myaimap-ios`
+- Minimum iOS: 18.0
+- Target families: iPhone and iPad
+
+Remaining non-code gates for a real personal TestFlight build:
+
+1. Active Apple Developer Program membership.
+2. Apple team selected in Xcode for the `MyAIMap` target.
+3. Bundle id registered/available in App Store Connect.
+4. Successful simulator sanity check.
+5. Successful real-device signing run.
+6. Xcode Archive upload to App Store Connect.
+7. Internal tester added and build installed through TestFlight.
+
+For exact steps, use `ios-app/TESTFLIGHT_CHECKLIST.md`.
+
 ## Skills loaded
 
 `.claude/skills/` now contains 23 skill packs from
@@ -149,7 +171,7 @@ Before I start cutting code:
 
 1. **Approve Path C** as the long-horizon target. Approve Path A as
    the week-1 stopgap (or skip it).
-2. Pick a bundle identifier (default: `com.iliaturilia.aitooluniverse`).
+2. Confirm the bundle identifier remains `com.iliaturilia.myaimap`.
 3. Confirm App Store Connect access / Apple Developer enrollment
    status.
 4. Confirm whether the iOS app should reuse the same brand name

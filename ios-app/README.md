@@ -1,4 +1,4 @@
-# My AI Map — iOS app
+# My AI Map - iOS app
 
 Native iOS port of the [AI Tool Universe Map](https://ai-tool-universe-map.vercel.app)
 to SwiftUI + RealityKit.
@@ -11,15 +11,14 @@ that opens the selected category as a roomier pocket world.
 
 ## Prerequisites
 
-- macOS 14+ with Xcode 16+ (iOS 18 SDK).
+- macOS with full Xcode 26.5 installed and selected.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) for project generation:
 
   ```bash
   brew install xcodegen
   ```
 
-- (Phase 4+) Apple Developer Program membership for TestFlight + App
-  Store submission.
+- Apple Developer Program membership for a real personal TestFlight build.
 
 ## One-time setup
 
@@ -48,6 +47,17 @@ xcodebuild \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   build
 ```
+
+For TestFlight, use Xcode's Archive flow rather than a simulator build:
+
+1. Sign in to Xcode with the Apple Developer account.
+2. Set the `MyAIMap` target Team to the account's team.
+3. Keep Bundle Identifier as `com.iliaturilia.myaimap`.
+4. Create the App Store Connect app with SKU `myaimap-ios`.
+5. Product -> Archive -> Distribute App -> App Store Connect -> Upload.
+
+See `TESTFLIGHT_CHECKLIST.md` for the account, signing, screenshot, and
+known-risk checklist.
 
 ## Tests
 
@@ -84,9 +94,9 @@ ios-app/
 
 ## What's intentionally not here yet
 
-- **AppIcon-1024.png** — placeholder. Drop a 1024×1024 PNG into
-  `Sources/MyAIMap/Resources/Assets.xcassets/AppIcon.appiconset/`
-  before TestFlight upload.
+- **Final App Store metadata** - App Store Connect description, keywords,
+  privacy labels, screenshots, support URL, and review notes still need to be
+  filled in before a public App Store submission.
 - **Full `tools` array** — Phase 1 currently ships a curated seed slice
   for dogfooding; the full web array still needs to be ported/generated.
 - **Full `PocketWorldShell`, `CategoryRing`, `ToolNode` ECS parity** —
@@ -94,7 +104,9 @@ ios-app/
   nodes, but not the full web visual grammar yet.
 - **`ProximityCategoryWatcher`** ECS system — Phase 2.
 - **Bloom / Bezier edges / force-directed layout** — Phase 3.
-- **App Store metadata + privacy nutrition labels** — Phase 4.
+- **Public App Store release polish** - TestFlight can happen first, but public
+  review still needs screenshots, privacy nutrition labels, and a release review
+  pass.
 
 ## Phase 1 verification note
 

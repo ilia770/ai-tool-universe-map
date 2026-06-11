@@ -59,6 +59,18 @@ final class UniverseViewModel {
         selection.selectedToolID = id
     }
 
+    /// Selects a tool from any surface that can name a tool id: node tap,
+    /// search result, or relation row. Returns false when the id is not
+    /// in the seed so callers can skip haptics for stale references.
+    @discardableResult
+    func focusTool(_ id: String) -> Bool {
+        guard let tool = UniverseSeed.tools.first(where: { $0.id == id }) else { return false }
+        selection.activeCategory = tool.category
+        selection.selectedToolID = tool.id
+        clarityMode = .focus
+        return true
+    }
+
     func setHover(_ id: String?) {
         selection.hoveredToolID = id
     }

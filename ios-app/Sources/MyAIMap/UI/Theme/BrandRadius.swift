@@ -9,9 +9,6 @@ enum BrandRadius: CGFloat {
     /// Tool detail card, top of the bottom sheet.
     case card = 18
 
-    /// Floating bottom-sheet container on the Universe screen.
-    case sheet = 26
-
     /// Inline tool-row buttons inside the lens panel.
     case node = 8
 

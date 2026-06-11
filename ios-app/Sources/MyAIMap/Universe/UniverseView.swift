@@ -10,9 +10,11 @@ import RealityKit
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
+    let onToolSelect: @MainActor (String) -> Void
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
     @State private var cameraController = CameraController()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var viewMode: ViewMode {
         selectedCategory == .core ? .overview : .pocket
@@ -43,6 +45,9 @@ struct UniverseView: View {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
                 anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
                 universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
+                if category.id == selectedCategory {
+                    universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
+                }
 
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
@@ -98,6 +103,13 @@ struct UniverseView: View {
         }
         .id(selectedCategory)
         .gesture(
+            SpatialTapGesture()
+                .targetedToAnyEntity()
+                .onEnded { value in
+                    handleTap(on: value.entity)
+                }
+        )
+        .gesture(
             MagnifyGesture()
                 .onChanged { value in
                     cameraController.pinchChanged(magnification: Float(value.magnification))
@@ -120,9 +132,27 @@ struct UniverseView: View {
         )
     }
 
+    /// Tap routing mirrors the interim 2D map (#41): tool nodes select the
+    /// tool, category anchors open their pocket via the same event path the
+    /// proximity system uses, so haptics/state stay in one place upstream.
+    private func handleTap(on entity: Entity) {
+        if entity.name.hasPrefix("tool:") {
+            onToolSelect(String(entity.name.dropFirst("tool:".count)))
+        } else if entity.name.hasPrefix("cat:"),
+                  let categoryId = ToolCategoryId(rawValue: String(entity.name.dropFirst("cat:".count))) {
+            onProximityEvent(.enter(categoryId))
+        }
+    }
+
     private func lookAtPosition(for category: ToolCategoryId) -> SIMD3<Float> {
         guard category != .core else { return .zero }
         return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
+    }
+
+    private static func makeTappable(_ entity: ModelEntity, name: String, radius: Float) {
+        entity.name = name
+        entity.components.set(InputTargetComponent())
+        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: radius)]))
     }
 
     /// Frosted translucent category sphere: matte PBR glass tinted by the
@@ -142,13 +172,11 @@ struct UniverseView: View {
             materials: [material]
         )
         anchor.position = position
+        // Oversized hit shape — anchors are small targets at overview distance.
+        makeTappable(anchor, name: "cat:\(category.id.rawValue)", radius: max(radius * 1.8, 1.1))
         return anchor
     }
 
-    /// Soft matte orb: category color mixed well toward black for the base,
-    /// with a gentle category-hued emissive carrying the selection hierarchy
-    /// (selected > pocketed > overview-distant). The previous alpha-based
-    /// hierarchy maps onto base darkening + emissive level here.
     private static func makeToolNode(
         tool: Tool?,
         category: ToolCategory,
@@ -185,6 +213,13 @@ struct UniverseView: View {
             materials: [material]
         )
         node.position = position
+        if pocketed {
+            // PHASE_2_PLAN step 5: pocket entities scale up by 1.18×.
+            node.scale = SIMD3<Float>(repeating: PocketShellGeometry.pocketNodeScale)
+        }
+        if let tool {
+            makeTappable(node, name: "tool:\(tool.id)", radius: max(radius * 1.6, 0.8))
+        }
         return node
     }
 
@@ -201,5 +236,10 @@ struct UniverseView: View {
 }
 
 #Preview {
-    UniverseView(selectedCategory: .design, selectedToolId: "figma", onProximityEvent: { _ in })
+    UniverseView(
+        selectedCategory: .design,
+        selectedToolId: "figma",
+        onToolSelect: { _ in },
+        onProximityEvent: { _ in }
+    )
 }

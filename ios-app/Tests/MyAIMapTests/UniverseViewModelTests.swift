@@ -39,6 +39,28 @@ struct UniverseViewModelTests {
         #expect(model.selectedTool.id == second.id)
     }
 
+    @Test func focusToolSelectsItsToolAndCategory() {
+        let model = UniverseViewModel()
+        guard let mediaTool = UniverseSeed.tools(in: .media).first else {
+            Issue.record("seed needs a media tool")
+            return
+        }
+
+        let focused = model.focusTool(mediaTool.id)
+
+        #expect(focused)
+        #expect(model.selection.activeCategory == .media)
+        #expect(model.selection.selectedToolID == mediaTool.id)
+        #expect(model.clarityMode == .focus)
+    }
+
+    @Test func focusToolReturnsFalseForUnknownID() {
+        let model = UniverseViewModel()
+        #expect(model.focusTool("missing-tool") == false)
+        #expect(model.selection.activeCategory == .core)
+        #expect(model.selection.selectedToolID == "founder-os")
+    }
+
     @Test func reselectingActiveCategoryKeepsToolSelection() {
         // Phase 1 parity: .onChange(of:) only fired on actual change, so
         // re-tapping the active chip must not reset the chosen tool.
