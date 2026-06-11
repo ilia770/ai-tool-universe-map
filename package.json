@@ -12,6 +12,10 @@
     "smoke:visual": "npm run smoke:visual:release",
     "smoke:visual:fast": "playwright test --project=desktop-chromium",
     "smoke:visual:release": "playwright test",
+    "ios:build": "bash scripts/ios-verify.sh --build-only",
+    "ios:test-build": "bash scripts/ios-verify.sh --test-build-only",
+    "ios:verify": "bash scripts/ios-verify.sh",
+    "release:check": "bash scripts/release-check.sh",
     "size:check": "node scripts/check-bundle-size.mjs",
     "test": "vitest run src"
   },

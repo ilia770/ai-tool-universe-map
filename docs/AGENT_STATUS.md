@@ -4,6 +4,17 @@ Last updated: 2026-06-11
 
 Use this as the fast handoff file before asking Codex or Claude Code to continue.
 
+## Current Execution Board
+
+- Master 50-task roadmap:
+  `docs/superpowers/plans/2026-06-11-50-task-master-roadmap.md`.
+- Night-cycle Now / Next / Later board: `docs/NIGHT_CYCLE_BOARD.md`.
+- Safe web release gate: `npm run release:check`.
+- Safe iOS compile gate: `npm run ios:verify`.
+- iOS runbook: `docs/ios/RUNBOOK.md`.
+- Dependency migration plan for held PRs #12/#14:
+  `docs/DEPENDENCY_MIGRATION.md`.
+
 ## Current Product State
 
 Web app:
@@ -109,13 +120,15 @@ Notes from the merge session:
 Still open:
 - #12 `dependabot/npm_and_yarn/tooling-6e3cb1f384` — hold for a deliberate tooling migration. It includes major updates to ESLint 10 and TypeScript 6 plus Vite/Vitest/plugin bumps; do not merge as a routine dependency patch.
 - #14 `dependabot/npm_and_yarn/eslint/js-10.0.1` — hold with #12. It is unstable because `@eslint/js@10` expects an ESLint 10 migration.
+  Migration plan: `docs/DEPENDENCY_MIGRATION.md`.
 
 ## Current Blockers
 
 | Area | Blocker | Evidence | Next Action |
 | --- | --- | --- | --- |
-| iOS simulator launch | CoreSimulator hung during runtime/data migration after iOS 26.5 simulator install | `xcodebuild test` reached simulator launch, then `NSMachErrorDomain -308`; `simctl bootstatus` waited on BackBoard/Data Migration | Retry after Xcode finishes runtime cache/migration, or run on real iPhone with Apple signing |
+| iOS full simulator tests | Full `xcodebuild test` still depends on a healthy local simulator id and enough disk space | Generic build + `build-for-testing` are covered by `npm run ios:verify`; full tests use `npm run ios:verify -- --full-test --device-id <id>` | Use `docs/ios/RUNBOOK.md`; run full simulator tests foreground only |
 | TestFlight | Apple Developer team id not configured | TestFlight requires signed archive | Add team id to `ios-app/project.yml` after enrollment |
+| Local runner disk pressure | The machine has very low free disk during Xcode/web builds | Agents saw temp/build writes fail when free space dropped; latest local check showed ~1.5 GiB free | Free disk before full simulator tests, Playwright screenshots, or archive builds |
 | Web data model | Data is JSON-backed but not yet database-backed | `src/data/ai-tool-universe.seed.json` is the source fixture; `src/data/ai-tool-universe.ts` keeps typed exports | Define the eventual DB/API schema and sync path |
 | Tooling migration | ESLint 10 + TypeScript 6 grouped update is open but risky | PR #12 touches `@vitejs/plugin-react`, `eslint`, `eslint-plugin-react-refresh`, `typescript`, `vite`, and `vitest`; PR #14 is unstable | Create a dedicated migration branch, update config/docs/tests together, and run the full release matrix |
 
@@ -125,12 +138,14 @@ Still open:
 | --- | --- |
 | iOS Phase 2 (state + camera + gestures) | `docs/PHASE_2_PLAN.md`, `ios-app/Sources/MyAIMap/**` (Claude Code, branch `feat/ios-phase2-state-and-camera`) |
 | Improve web hover/focus | `src/components/AIToolUniverse3D/Scene.tsx`, `ToolNode.tsx`, `ConnectionLines.tsx`, `src/index.css` |
+| Add web label legibility guard | `tests/visual-smoke.spec.ts`, `src/components/AIToolUniverse3D/Scene.tsx`, `ToolNode.tsx`, `src/index.css` |
 | Improve category mini-worlds | `src/components/AIToolUniverse3D/layout.ts`, `Scene.tsx`, `CameraController.tsx` |
 | Simplify side panel | `src/components/AIToolUniverseMap.tsx`, `src/index.css` |
 | Improve logos | `src/lib/tool-logos.ts`, `src/components/ToolLogo.tsx` |
 | Improve classifier | `src/lib/classify-ai-tool.ts`, `src/lib/classify-ai-tool.test.ts` |
 | Move data beyond JSON seed | `src/data/ai-tool-universe.seed.json`, `src/data/ai-tool-universe.ts`, `src/data/universe-schema.ts` |
 | Continue iOS | `ios-app/project.yml`, `ios-app/Sources/MyAIMap/**`, `ios-app/Tests/MyAIMapTests/**` |
+| Execute 50-task roadmap | `docs/superpowers/plans/2026-06-11-50-task-master-roadmap.md`, `docs/NIGHT_CYCLE_BOARD.md` |
 
 ## Minimum Next-Agent Startup
 

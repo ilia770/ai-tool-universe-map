@@ -1,6 +1,6 @@
 # Release Review Checklist
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 Use this before every Vercel production deploy, TestFlight build, or App Store/TestFlight release candidate.
 
@@ -9,18 +9,26 @@ Use this before every Vercel production deploy, TestFlight build, or App Store/T
 Run from repo root:
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run release:check
 ```
 
 Expected:
-- all commands exit 0
+- release check exits 0
 - no TypeScript errors
 - no ESLint errors
 - no failed Vitest tests
 - Vite production build completes
+- bundle size budget passes
+
+The release check expands to:
+
+```bash
+npm run typecheck
+npm run lint
+npm test -- --run
+npm run build
+npm run size:check
+```
 
 ## Required Visual Review
 
@@ -67,18 +75,33 @@ screenshots/<scope>-<viewport>-<state>.png
 For simulator sanity:
 
 ```bash
-cd ios-app
-xcodegen generate
-open MyAIMap.xcodeproj
+npm run ios:verify
 ```
 
-Then in Xcode 26.5:
+`npm run ios:verify` runs a generic iOS Simulator build plus
+`build-for-testing`; it does not boot a simulator. This is the safe default for
+agents and PR sanity checks.
+
+For a manual app run in Xcode 26.5:
+
+```bash
+open ios-app/MyAIMap.xcodeproj
+```
 
 - Select the `My AI Map` scheme.
 - Select an available iPhone simulator.
 - Run the app.
 - Confirm dark launch, visible 3D universe, category switching, selected-tool
   bottom sheet, and no major overlap.
+
+For full simulator tests, use a simulator id rather than a device name:
+
+```bash
+xcrun simctl list devices available
+npm run ios:verify -- --full-test --device-id <simulator-udid>
+```
+
+See `docs/ios/RUNBOOK.md` for simulator recovery and device run details.
 
 For device/TestFlight:
 
