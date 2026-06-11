@@ -14,6 +14,11 @@ const CORE_GEOM = new THREE.SphereGeometry(0.3, 20, 20);
 const LABEL_EXIT_MS = 540;
 const BADGE_EXIT_MS = 460;
 
+function labelLaneForTool(id: string, angle: number, orbit: number) {
+  const hash = [...id].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return ((hash + Math.round(angle / 7) + orbit * 3) % 7) - 3;
+}
+
 interface ToolNodeProps {
   id: string;
   name: string;
@@ -120,19 +125,20 @@ function ToolNodeImpl({
 
   const labelIsFocus = activeFocus;
   const labelIsRelated = !labelIsFocus && relationDepth === 1;
-  const labelLane = ((Math.abs(Math.round(tool.angle / 8)) + tool.orbit) % 5) - 2;
-  const labelLaneSpacing = pocketed ? 19 : 12;
+  const labelLane = labelLaneForTool(id, tool.angle, tool.orbit);
+  const labelLaneSpacing = pocketed ? 22 : 16;
   const labelStyle = {
     '--label-x': labelIsFocus ? '0px' : `${labelLane * labelLaneSpacing}px`,
-    '--label-y': labelIsFocus ? '-46px' : pocketed ? '-39px' : labelIsRelated ? '-34px' : '-26px',
-    '--label-scale': labelIsFocus ? '1.06' : pocketed ? '0.98' : labelIsRelated ? '0.98' : '0.92',
+    '--label-y': labelIsFocus ? '-50px' : pocketed ? '-42px' : labelIsRelated ? '-36px' : '-28px',
+    '--label-scale': labelIsFocus ? '1.06' : pocketed ? '0.95' : labelIsRelated ? '0.94' : '0.88',
     borderColor: `${color}66`,
     boxShadow: labelIsFocus
       ? `0 0 26px ${glow}, 0 10px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.2)`
       : `0 0 14px ${glow}, inset 0 1px 0 rgba(255,255,255,0.14)`,
-    opacity: wantsLabel ? (dimmed ? 0.42 : labelIsFocus ? 1 : 0.86) : 0,
+    opacity: wantsLabel ? (dimmed ? 0.22 : labelIsFocus ? 1 : 0.82) : 0,
   } as CSSProperties;
   const htmlPointerEvents = interactive ? 'auto' : 'none';
+  const labelPointerEvents = labelIsFocus || selected ? htmlPointerEvents : 'none';
   const htmlCursor = interactive ? 'pointer' : 'default';
 
   return (
@@ -178,7 +184,7 @@ function ToolNodeImpl({
         <Html
           center
           distanceFactor={7}
-          zIndexRange={logoBadgeMounted ? (labelIsFocus ? [105, 82] : [72, 42]) : [0, 0]}
+          zIndexRange={logoBadgeMounted ? (labelIsFocus ? [560, 500] : [72, 42]) : [0, 0]}
           style={{ pointerEvents: wantsLogoBadge ? htmlPointerEvents : 'none' }}
         >
           <button
@@ -187,6 +193,8 @@ function ToolNodeImpl({
             aria-hidden={!wantsLogoBadge}
             tabIndex={wantsLogoBadge && interactive ? 0 : -1}
             title={name}
+            data-universe-node-badge={wantsLogoBadge ? id : undefined}
+            data-tool-id={id}
             className={`universe-node-logo-badge ${wantsLogoBadge ? 'is-visible' : ''} ${labelIsFocus ? 'is-focus' : ''} ${pocketed ? 'is-pocket' : ''}`}
             onClick={() => {
               if (interactive) onSelect(id);
@@ -217,12 +225,15 @@ function ToolNodeImpl({
         <Html
           center
           distanceFactor={7.4}
-          zIndexRange={labelMounted ? (labelIsFocus ? [100, 80] : labelIsRelated ? [80, 44] : [46, 20]) : [0, 0]}
-          style={{ pointerEvents: wantsLabel ? htmlPointerEvents : 'none' }}
+          zIndexRange={labelMounted ? (labelIsFocus ? [520, 460] : labelIsRelated ? [120, 70] : [46, 20]) : [0, 0]}
+          style={{ pointerEvents: wantsLabel ? labelPointerEvents : 'none' }}
         >
           <div
             aria-hidden={!wantsLabel}
             title={name}
+            data-universe-node-label={wantsLabel ? id : undefined}
+            data-tool-id={id}
+            data-focus-label={labelIsFocus ? 'true' : undefined}
             className={`universe-label universe-label-tool ${wantsLabel ? 'is-visible' : ''} ${labelIsFocus ? 'is-focus' : ''} ${labelIsRelated ? 'is-related' : ''} ${pocketed ? 'is-pocket' : ''}`}
             onClick={() => {
               if (interactive) onSelect(id);
