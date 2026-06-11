@@ -33,16 +33,12 @@ final class UniverseViewModel {
             ?? UniverseSeed.tools[0]
     }
 
-    /// Case-insensitive name/summary match. Whitespace-only queries
-    /// return nothing so the (future) search dock can treat "no text"
-    /// and "no results" identically.
+    /// Ranked matches via `SearchCore` (name-prefix > name > summary >
+    /// category short-name, capped at `SearchCore.maxResults`).
+    /// Whitespace-only queries return nothing so the search dock can
+    /// treat "no text" and "no results" identically.
     var searchResults: [Tool] {
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return [] }
-        return UniverseSeed.tools.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
-                || $0.summary.localizedCaseInsensitiveContains(query)
-        }
+        SearchCore.results(for: searchQuery, in: UniverseSeed.tools) { UniverseSeed.category($0).shortName }
     }
 
     // MARK: - Intents
