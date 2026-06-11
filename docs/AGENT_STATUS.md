@@ -1,6 +1,6 @@
 # Agent Status Dashboard
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 Use this as the fast handoff file before asking Codex or Claude Code to continue.
 
@@ -42,13 +42,43 @@ iOS app:
   internal animation description string) — fixed in PR #38 by comparing
   `Animation` values via `Equatable`. `xcodebuild test` is now the
   verify gate for iOS changes.
+- **OWNER DECISION (2026-06-11): the iOS render path is RealityKit.**
+  PR #40 temporarily replaced `UniverseView` with a 2D SwiftUI
+  projection for TestFlight reliability; the owner chose to restore the
+  RealityKit scene (merged in PR #42). Do NOT swap `UniverseView` back
+  to the 2D version — if TestFlight stability concerns return, raise
+  them in `docs/AGENT_STATUS.md` / a PR discussion first. Everything
+  else from #40/#41 is preserved: `focusTool(_:)` view-model intent,
+  haptic routing, UniverseScreen liquid-glass polish, and tap selection
+  — taps are implemented natively (`InputTargetComponent` +
+  `CollisionComponent` + `SpatialTapGesture`; tool taps →
+  `onToolSelect`, category-anchor taps → proximity `.enter` path).
+- Phase 2 slice 3 merged (PR #42, 2026-06-11): `PocketShellGeometry`
+  (web-parity constants + procedural torus via `MeshDescriptor` — no
+  torus primitive in RealityKit) + `PocketShellEntity` (translucent
+  ellipsoid shell + two counter-rotating rings, 0.36 s opacity fade,
+  reduce-motion static) + 1.18× pocket node scale. 5 new tests. Plan:
+  `docs/superpowers/plans/2026-06-10-ios-phase2-pocket-shell.md`.
+  Deviations documented in the PR: no shell breathing/yaw sway, one-shot
+  fade instead of per-frame lerp (scene rebuilds via
+  `.id(selectedCategory)`), Sparkles + HTML readout deferred.
+- Design pass merged (PR #43, 2026-06-11): `SimpleMaterial` →
+  `PhysicallyBasedMaterial` on tool nodes / founder core / anchors
+  (darkened base + emissive hierarchy, clearcoat on selection, frosted
+  anchors), key 2600 lm + cool fill 750 lm aimed via `look(at:)`.
+- Simulator note: the iPhone 16 Pro / iOS 18.3.1 device went corrupt
+  (guest daemons crashing, sim shuts down mid-test → "BUILD
+  INTERRUPTED"); erase did not help. Gate now runs on a fresh device
+  "ClaudeGate" (`4E244EB6-52EB-4AD6-B4E4-4C28F2921DEE`, iPhone 16 Pro,
+  iOS 26.5 runtime). Full suite on main: 53/53 in 7 suites. Never
+  background `xcodebuild` (gets killed); if interrupted, split
+  `build-for-testing` → `test-without-building`.
 - Known follow-up for the gestures slice: if auto-enter fires
   mid-pinch, the accumulated gesture magnification can jump the camera
   deep into the new pocket on the next `onChanged` (clamped at 7.5, no
   event loop) — fix alongside drag/orbit gestures.
-- Next iOS slices per `docs/PHASE_2_PLAN.md`: PocketShellEntity +
-  PocketTransition → SearchDock → Sheets → haptics wiring.
-  Owner: Claude Code.
+- Next iOS slices per `docs/PHASE_2_PLAN.md`: SearchDock → Sheets →
+  haptics wiring. Owner: Claude Code.
 - Repo wart fixed (PR #35): `.github/PULL_REQUEST_TEMPLATE.md` is the
   canonical PR template and the lowercase duplicate was removed from Git.
 
