@@ -84,12 +84,18 @@ iOS app:
   iOS 26.5 runtime). Full suite on main: 53/53 in 7 suites. Never
   background `xcodebuild` (gets killed); if interrupted, split
   `build-for-testing` → `test-without-building`.
-- Known follow-up for the gestures slice: if auto-enter fires
-  mid-pinch, the accumulated gesture magnification can jump the camera
-  deep into the new pocket on the next `onChanged` (clamped at 7.5, no
-  event loop) — fix alongside drag/orbit gestures.
-- Next iOS slices per `docs/PHASE_2_PLAN.md`: SearchDock → Sheets →
-  haptics wiring. Owner: Claude Code.
+- **PHASE 2 COMPLETE (2026-06-11).** Steps 6–8 merged: SearchDock
+  (#47 — ranked `SearchCore` + liquid-glass dock + ⌘K/Enter-to-focus),
+  Sheets (#48 — native `RootSheet` with 3 detents + `ToolDetailSection`
+  + `CategoryRail`), ClarityMenu + pocket readout (#52), haptics pass
+  incl. sheet-detent ticks (#54). Mid-pinch auto-enter camera jump
+  FIXED (#53 — pinch re-bases on re-attach; 3 regression tests).
+  65/65 tests in 8 suites. Claude's task backlog + status:
+  `docs/CLAUDE_BACKLOG.md` (Phase A done; next: Phase B gestures,
+  Phase C visual parity).
+- Note for the night board: master-roadmap tasks 3/4/5 (bottom sheet,
+  SearchDock, spatial tap parity) were delivered by Claude in
+  #48/#47/#42 — board updated.
 - Repo wart fixed (PR #35): `.github/PULL_REQUEST_TEMPLATE.md` is the
   canonical PR template and the lowercase duplicate was removed from Git.
 

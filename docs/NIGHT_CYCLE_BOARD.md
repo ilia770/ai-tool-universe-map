@@ -14,13 +14,16 @@ Canonical roadmap:
 | 40 — release review automation | Codex | `codex/50-task-roadmap-and-release-slice` | `scripts/release-check.sh`, `package.json`, `docs/RELEASE_REVIEW.md` | done |
 | 43 — dependency migration plan | Codex | `codex/50-task-roadmap-and-release-slice` | `docs/DEPENDENCY_MIGRATION.md`, `docs/AGENT_STATUS.md` | done |
 | 50 — night-cycle board | Codex | `codex/50-task-roadmap-and-release-slice` | `docs/NIGHT_CYCLE_BOARD.md` | done |
+| 3 — bottom sheet polish | Claude Code | `feat/ios-phase2-sheets` (#48) | `UI/Sheets/RootSheet.swift` + sections | done |
+| 4 — iOS SearchDock | Claude Code | `feat/ios-phase2-searchdock` (#47) | `UI/Search/SearchCore.swift`, `SearchDock.swift` | done |
+| 5 — spatial tap parity | Claude Code | `feat/ios-phase2-pocket-shell` (#42) | `Universe/UniverseView.swift` tap targets | done |
+| 8 — haptic taxonomy pass (iOS detents) | Claude Code | `feat/ios-phase2-haptics-pass` (#54) | `Universe/UniverseScreen.swift` | done |
 
 ## Next
 
 | Task | Recommended Owner | Why |
 | --- | --- | --- |
-| 4 — iOS SearchDock | Claude Code | Continues Phase 2 iOS after PocketShell/RealityKit merge |
-| 6 — Drag-orbit gesture tuning | Claude Code | Touches active iOS camera/gesture code |
+| 6 — Drag-orbit gesture tuning | Claude Code | Next iOS slice; mid-pinch auto-enter jump already fixed (#53) |
 | 16 — Hover focus de-cluttering | Codex or Claude Code | High visible impact on web map readability |
 | 21 — Logo scale and fallback polish | Codex | Data/UI bounded; low conflict with iOS |
 | 26 — Tool schema hardening | Codex | Protects data before adding more tools |
