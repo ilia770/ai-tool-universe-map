@@ -38,6 +38,41 @@ async function wheelOutFromCanvas(page: Page) {
   }
 }
 
+async function visibleLabelRects(page: Page) {
+  return page.locator('[data-universe-node-label].is-visible').evaluateAll((nodes) =>
+    nodes
+      .map((node) => {
+        const element = node as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return {
+          id: element.dataset.toolId ?? '',
+          focus: element.dataset.focusLabel === 'true',
+          opacity: Number.parseFloat(style.opacity || '0'),
+          width: rect.width,
+          height: rect.height,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      })
+      .filter((rect) => rect.opacity > 0.5 && rect.width > 8 && rect.height > 8),
+  );
+}
+
+function overlapRatio(
+  a: Awaited<ReturnType<typeof visibleLabelRects>>[number],
+  b: Awaited<ReturnType<typeof visibleLabelRects>>[number],
+) {
+  const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+  const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  const area = width * height;
+  if (area === 0) return 0;
+  const smallerArea = Math.min(a.width * a.height, b.width * b.height);
+  return smallerArea > 0 ? area / smallerArea : 0;
+}
+
 test('keeps public UI free of implementation copy', async ({ page }) => {
   await openUniverse(page);
 
@@ -158,4 +193,22 @@ test('desktop hover makes the focused tool unambiguous', async ({ page }, testIn
 
   await expect(page.locator('.universe-focus-readout')).toContainText('Buffer');
   await expect(page.locator('.universe-focus-readout')).toContainText('connected nodes in focus');
+
+  await expect(page.locator('[data-universe-node-label].is-focus[title="Buffer"]')).toBeVisible();
+  await page.waitForTimeout(650);
+
+  const rects = await visibleLabelRects(page);
+  const focusRect = rects.find((rect) => rect.focus);
+  expect(focusRect).toBeTruthy();
+  expect(rects.length).toBeLessThanOrEqual(8);
+
+  const nonFocusRects = rects.filter((rect) => !rect.focus);
+  const worstNonFocusOverlap = nonFocusRects.reduce((max, rect, index) => {
+    const overlaps = nonFocusRects.slice(index + 1).map((other) => overlapRatio(rect, other));
+    return Math.max(max, 0, ...overlaps);
+  }, 0);
+  expect(worstNonFocusOverlap).toBeLessThan(0.38);
+
+  const worstFocusOverlap = nonFocusRects.reduce((max, rect) => Math.max(max, overlapRatio(focusRect!, rect)), 0);
+  expect(worstFocusOverlap).toBeLessThan(0.2);
 });
