@@ -3,10 +3,12 @@ import RealityKit
 
 /// Native RealityKit universe scene.
 ///
-/// Phase 1 keeps the render path intentionally compact: one central core,
-/// category anchors, and a curated first slice of real tools. Selecting a
-/// category from SwiftUI opens it as a roomier "pocket world" so the iOS
-/// prototype already demonstrates the core product behavior.
+/// The scene is PERSISTENT (backlog task 16): it is built once in the
+/// RealityView make closure and never torn down. Category / tool
+/// selection changes flow through the update closure, which moves and
+/// restyles the existing entities with animated transforms — so the
+/// proximity system's cooldown state, the ring spins, and the camera
+/// all survive a transition instead of rebuilding from black.
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
@@ -27,24 +29,28 @@ struct UniverseView: View {
             ProximityCategorySystem.registerSystem()
 
             let universe = Entity()
+            universe.name = "universe"
             content.add(universe)
 
             let camera = PerspectiveCamera()
             universe.addChild(camera)
             cameraController.attach(camera, mode: viewMode, target: lookAtPosition(for: selectedCategory))
 
-            universe.addChild(Self.makeToolNode(
+            let core = Self.makeToolNode(
                 tool: UniverseSeed.tools.first { $0.id == "founder-os" },
                 category: UniverseSeed.category(.core),
-                position: .zero,
-                selected: selectedCategory == .core
-            ))
+                position: .zero
+            )
+            Self.styleToolNode(core, category: UniverseSeed.category(.core), selected: selectedCategory == .core, pocketed: false)
+            universe.addChild(core)
 
             var anchors: [ProximityWatcherCore.Anchor] = []
             for category in UniverseSeed.categories where category.id != .core {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
                 anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
-                universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
+                let anchor = Self.makeCategoryAnchor(category: category, position: center)
+                Self.styleAnchor(anchor, category: category, selected: category.id == selectedCategory)
+                universe.addChild(anchor)
                 if category.id == selectedCategory {
                     universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
                 }
@@ -52,32 +58,24 @@ struct UniverseView: View {
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
-                    let isSelectedTool = tool.id == selectedToolId
-                    let position = isPocket
-                        ? UniverseLayout.pocketToolPosition(
-                            angleDegrees: tool.angle,
-                            orbit: tool.orbit,
-                            categoryAngleDegrees: category.angle,
-                            slotIndex: index,
-                            slotCount: max(categoryTools.count, 1)
-                        )
-                        : UniverseLayout.toolPosition(
-                            angleDegrees: tool.angle,
-                            orbit: tool.orbit,
-                            categoryAngleDegrees: category.angle
-                        )
-                    universe.addChild(Self.makeToolNode(
+                    let node = Self.makeToolNode(
                         tool: tool,
                         category: category,
-                        position: position,
-                        selected: isSelectedTool,
+                        position: Self.toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
+                    )
+                    Self.styleToolNode(node, category: category, selected: tool.id == selectedToolId, pocketed: isPocket)
+                    node.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
+                        orbit: tool.orbit.rawValue,
+                        selected: tool.id == selectedToolId,
                         pocketed: isPocket
                     ))
+                    universe.addChild(node)
                 }
             }
 
             universe.components.set(UniverseStateComponent(
                 activeCategory: selectedCategory,
+                activeToolId: selectedToolId,
                 anchors: anchors,
                 camera: camera,
                 onProximityEvent: onProximityEvent
@@ -100,8 +98,46 @@ struct UniverseView: View {
             fill.position = SIMD3<Float>(6, -2, 8)
             fill.look(at: .zero, from: fill.position, relativeTo: nil)
             universe.addChild(fill)
+        } update: { content in
+            guard let universe = content.entities.first(where: { $0.name == "universe" }),
+                  let state = universe.components[UniverseStateComponent.self] else { return }
+            let categoryChanged = state.activeCategory != selectedCategory
+            let toolChanged = state.activeToolId != selectedToolId
+            guard categoryChanged || toolChanged else { return }
+
+            universe.components.set(UniverseStateComponent(
+                activeCategory: selectedCategory,
+                activeToolId: selectedToolId,
+                anchors: state.anchors,
+                camera: state.camera,
+                onProximityEvent: state.onProximityEvent
+            ))
+
+            if categoryChanged {
+                cameraController.retarget(
+                    mode: viewMode,
+                    target: lookAtPosition(for: selectedCategory),
+                    reduceMotion: reduceMotion
+                )
+                universe.findEntity(named: "pocket-shell")?.removeFromParent()
+                if selectedCategory != .core {
+                    let category = UniverseSeed.category(selectedCategory)
+                    universe.addChild(PocketShellEntity.make(
+                        category: category,
+                        position: UniverseLayout.categoryPosition(angleDegrees: category.angle),
+                        reduceMotion: reduceMotion
+                    ))
+                }
+            }
+
+            Self.applyLayout(
+                universe: universe,
+                selectedCategory: selectedCategory,
+                selectedToolId: selectedToolId,
+                animated: categoryChanged,
+                reduceMotion: reduceMotion
+            )
         }
-        .id(selectedCategory)
         .gesture(
             SpatialTapGesture()
                 .targetedToAnyEntity()
@@ -149,47 +185,99 @@ struct UniverseView: View {
         return UniverseLayout.categoryPosition(angleDegrees: UniverseSeed.category(category).angle)
     }
 
+    // MARK: - Persistent-scene layout
+
+    private static func toolPosition(tool: Tool, category: ToolCategory, index: Int, count: Int, pocketed: Bool) -> SIMD3<Float> {
+        pocketed
+            ? UniverseLayout.pocketToolPosition(
+                angleDegrees: tool.angle,
+                orbit: tool.orbit,
+                categoryAngleDegrees: category.angle,
+                slotIndex: index,
+                slotCount: max(count, 1)
+            )
+            : UniverseLayout.toolPosition(
+                angleDegrees: tool.angle,
+                orbit: tool.orbit,
+                categoryAngleDegrees: category.angle
+            )
+    }
+
+    /// Moves and restyles every node for the new selection. Materials snap
+    /// (RealityKit can't tween them); transforms animate via Entity.move.
+    private static func applyLayout(
+        universe: Entity,
+        selectedCategory: ToolCategoryId,
+        selectedToolId: String,
+        animated: Bool,
+        reduceMotion: Bool
+    ) {
+        let duration = reduceMotion
+            ? PocketTransition.reducedDuration
+            : (animated ? PocketTransition.duration : PocketTransition.reducedDuration)
+
+        if let core = universe.findEntity(named: "tool:founder-os") as? ModelEntity {
+            styleToolNode(core, category: UniverseSeed.category(.core), selected: selectedCategory == .core, pocketed: false)
+        }
+
+        for category in UniverseSeed.categories where category.id != .core {
+            let isPocket = category.id == selectedCategory
+            if let anchor = universe.findEntity(named: "cat:\(category.id.rawValue)") as? ModelEntity {
+                styleAnchor(anchor, category: category, selected: isPocket)
+                var transform = anchor.transform
+                transform.scale = SIMD3<Float>(repeating: PocketTransition.anchorScale(selected: isPocket))
+                anchor.move(to: transform, relativeTo: anchor.parent, duration: duration, timingFunction: .easeInOut)
+            }
+
+            let categoryTools = UniverseSeed.tools(in: category.id)
+            for (index, tool) in categoryTools.enumerated() {
+                guard let node = universe.findEntity(named: "tool:\(tool.id)") as? ModelEntity else { continue }
+                let selected = tool.id == selectedToolId
+                styleToolNode(node, category: category, selected: selected, pocketed: isPocket)
+                var transform = node.transform
+                transform.translation = toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
+                transform.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
+                    orbit: tool.orbit.rawValue,
+                    selected: selected,
+                    pocketed: isPocket
+                ))
+                node.move(to: transform, relativeTo: node.parent, duration: duration, timingFunction: .easeInOut)
+            }
+        }
+    }
+
+    // MARK: - Entity construction (base state; style applied separately)
+
     private static func makeTappable(_ entity: ModelEntity, name: String, radius: Float) {
         entity.name = name
         entity.components.set(InputTargetComponent())
         entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: radius)]))
     }
 
-    /// Frosted translucent category sphere: matte PBR glass tinted by the
-    /// category hue, with a faint emissive lift so the shell reads as a
-    /// lit volume instead of a flat colored ball.
-    private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {
-        let radius: Float = selected ? 0.74 : 0.48
-        var material = PhysicallyBasedMaterial()
-        material.baseColor = .init(tint: darkened(category.color.uiColor, by: 0.45))
-        material.roughness = .init(floatLiteral: 0.6)
-        material.metallic = .init(floatLiteral: 0.0)
-        material.blending = .transparent(opacity: .init(floatLiteral: selected ? 0.9 : 0.5))
-        material.emissiveColor = .init(color: category.color.uiColor)
-        material.emissiveIntensity = selected ? 0.65 : 0.28
-        let anchor = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [material]
-        )
+    private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>) -> ModelEntity {
+        let anchor = ModelEntity(mesh: .generateSphere(radius: PocketTransition.baseAnchorRadius))
         anchor.position = position
         // Oversized hit shape — anchors are small targets at overview distance.
-        makeTappable(anchor, name: "cat:\(category.id.rawValue)", radius: max(radius * 1.8, 1.1))
+        makeTappable(anchor, name: "cat:\(category.id.rawValue)", radius: max(PocketTransition.baseAnchorRadius * 1.8, 1.1))
         return anchor
     }
 
-    private static func makeToolNode(
-        tool: Tool?,
-        category: ToolCategory,
-        position: SIMD3<Float>,
-        selected: Bool,
-        pocketed: Bool = false
-    ) -> ModelEntity {
-        let orbitRadius = Float(tool?.orbit.rawValue ?? 0)
-        let radius: Float = selected
-            ? 0.46 + orbitRadius * 0.055
-            : pocketed
-                ? 0.32 + orbitRadius * 0.04
-                : 0.24 + orbitRadius * 0.025
+    private static func makeToolNode(tool: Tool?, category: ToolCategory, position: SIMD3<Float>) -> ModelEntity {
+        let baseRadius = PocketTransition.baseToolRadius(orbit: tool?.orbit.rawValue ?? 0)
+        let node = ModelEntity(mesh: .generateSphere(radius: baseRadius))
+        node.position = position
+        if let tool {
+            makeTappable(node, name: "tool:\(tool.id)", radius: max(baseRadius * 1.6, 0.8))
+        }
+        return node
+    }
+
+    // MARK: - Materials
+
+    /// Soft matte orb: category color mixed well toward black for the base,
+    /// with a gentle category-hued emissive carrying the selection hierarchy
+    /// (selected > pocketed > overview-distant).
+    private static func styleToolNode(_ node: ModelEntity, category: ToolCategory, selected: Bool, pocketed: Bool) {
         let isCore = category.id == .core
         var material = PhysicallyBasedMaterial()
         let darken: CGFloat = selected ? 0.6 : pocketed ? 0.68 : 0.75
@@ -208,19 +296,21 @@ struct UniverseView: View {
             material.clearcoat = .init(floatLiteral: 0.6)
             material.clearcoatRoughness = .init(floatLiteral: 0.2)
         }
-        let node = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [material]
-        )
-        node.position = position
-        if pocketed {
-            // PHASE_2_PLAN step 5: pocket entities scale up by 1.18×.
-            node.scale = SIMD3<Float>(repeating: PocketShellGeometry.pocketNodeScale)
-        }
-        if let tool {
-            makeTappable(node, name: "tool:\(tool.id)", radius: max(radius * 1.6, 0.8))
-        }
-        return node
+        node.model?.materials = [material]
+    }
+
+    /// Frosted translucent category sphere: matte PBR glass tinted by the
+    /// category hue, with a faint emissive lift so the shell reads as a
+    /// lit volume instead of a flat colored ball.
+    private static func styleAnchor(_ anchor: ModelEntity, category: ToolCategory, selected: Bool) {
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: darkened(category.color.uiColor, by: 0.45))
+        material.roughness = .init(floatLiteral: 0.6)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.blending = .transparent(opacity: .init(floatLiteral: selected ? 0.9 : 0.5))
+        material.emissiveColor = .init(color: category.color.uiColor)
+        material.emissiveIntensity = selected ? 0.65 : 0.28
+        anchor.model?.materials = [material]
     }
 
     /// Mixes a color toward black by `fraction` (0 = unchanged, 1 = black).
