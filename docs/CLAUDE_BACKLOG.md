@@ -19,6 +19,11 @@ Rules of engagement:
 - Tasks within a phase are ordered; phases A–C are sequential for iOS,
   phases D–F can interleave any time the simulator / dev server is free.
 
+> **Полное мультиагентное ревью 2026-06-12:** `docs/reviews/2026-06-12-full-project-review.md`
+> (9 ролей, 90 находок, 24 P1, 0 опровергнутых). P1: iPad-шит блокирует карту, iOS-сид 12/49
+> инструментов, анонимные сферы без подписей/связей, тупиковая карточка инструмента,
+> «No public link» у 26 реальных продуктов. Топ-10 действий — в отчёте; выполнять ПЕРЕД Phase C.
+
 ## Phase A — finish Phase 2 (`docs/PHASE_2_PLAN.md` steps 6–8)
 
 1. `[x]` **SearchDock core** — pure `SearchCore` matcher (prefix + substring
