@@ -13,3 +13,4 @@ playwright-report/
 # Smoke-test screenshot artifacts (keep README-referenced ones only)
 screenshots/local-*.png
 screenshots/vercel-*-smoke.png
+ios-app/Info.plist

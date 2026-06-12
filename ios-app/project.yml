@@ -19,7 +19,6 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     GENERATE_INFOPLIST_FILE: "YES"
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "NO"
-    INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
 
@@ -30,6 +29,15 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - Sources/MyAIMap
+    # Xcode merges this generated plist with the INFOPLIST_KEY_* build
+    # settings (GENERATE_INFOPLIST_FILE stays YES). UILaunchScreen is not
+    # expressible as an INFOPLIST_KEY, so it lives here: a black launch
+    # screen (LaunchBackground color set) instead of the default white one.
+    info:
+      path: Info.plist
+      properties:
+        UILaunchScreen:
+          UIColorName: LaunchBackground
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap
