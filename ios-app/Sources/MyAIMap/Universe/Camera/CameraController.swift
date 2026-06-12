@@ -64,14 +64,10 @@ final class CameraController {
         )
     }
 
-    /// Eye position for a framing mode. Offsets match the web
-    /// CameraController exactly (overview / pocket / node).
+    /// Eye position for a framing mode. Delegates to
+    /// `PocketTransition.framing` so the offsets have one source of truth.
     nonisolated static func focusEye(for mode: ViewMode, target: SIMD3<Float>) -> SIMD3<Float> {
-        switch mode {
-        case .overview: return target + SIMD3<Float>(0, 6.3, 19.5)
-        case .pocket: return target + SIMD3<Float>(0, 6.8, 19.0)
-        case .node: return target + SIMD3<Float>(0, 5.0, 15.5)
-        }
+        PocketTransition.framing(mode: mode, target: target)
     }
 
     /// World-up look-at rotation. RealityKit cameras look down -Z, so
@@ -130,6 +126,27 @@ final class CameraController {
         } else {
             camera.transform = transform
         }
+    }
+
+    /// Persistent-scene re-frame (backlog task 16): animate the already
+    /// attached camera to a new mode/target framing instead of snapping.
+    /// Resets the pinch base state under the same contract as `attach` —
+    /// a category change must not carry a stale pinch reference.
+    func retarget(mode: ViewMode, target: SIMD3<Float>, reduceMotion: Bool) {
+        guard let camera else { return }
+        self.target = target
+        pinchBaseDistance = nil
+        pinchBaseMagnification = nil
+        let eye = PocketTransition.framing(mode: mode, target: target)
+        var transform = camera.transform
+        transform.translation = eye
+        transform.rotation = Self.lookRotation(eye: eye, target: target)
+        camera.move(
+            to: transform,
+            relativeTo: camera.parent,
+            duration: reduceMotion ? PocketTransition.reducedDuration : PocketTransition.duration,
+            timingFunction: .easeInOut
+        )
     }
 
     /// Live pinch update. Captures the distance at gesture start, then

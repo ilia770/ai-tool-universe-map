@@ -16,6 +16,9 @@ enum PocketShellEntity {
 
     static func make(category: ToolCategory, position: SIMD3<Float>, reduceMotion: Bool) -> Entity {
         let root = Entity()
+        // Stable name so the persistent scene (UniverseView's update
+        // closure) can find and swap the shell on category change.
+        root.name = "pocket-shell"
         root.position = position
 
         let color = category.color.uiColor
