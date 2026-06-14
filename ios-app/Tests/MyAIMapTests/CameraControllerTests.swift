@@ -1,3 +1,4 @@
+import CoreGraphics
 import RealityKit
 import Testing
 import simd
@@ -144,5 +145,93 @@ struct CameraControllerTests {
 
         controller.pinchChanged(magnification: 2.0)
         #expect(abs(simd_length(camera.position) - CameraController.clampedDistance(resting / 2)) < 0.001)
+    }
+
+    // MARK: - Drag orbit
+
+    @Test @MainActor func orbitChangedRotatesCameraPreservingDistance() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+        let before = simd_length(camera.position - controller.target)
+
+        controller.orbitChanged(translation: CGSize(width: 120, height: 0))
+        let after = simd_length(camera.position - controller.target)
+
+        // Pure rotation: the distance from target is unchanged...
+        #expect(abs(before - after) < 0.001)
+        // ...and the eye actually moved (horizontal drag swept yaw).
+        #expect(simd_length(camera.position - CameraController.focusEye(for: .overview, target: .zero)) > 0.001)
+    }
+
+    @Test @MainActor func orbitPitchClampsUnderLargeVerticalDrag() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+
+        // A huge vertical drag would over-rotate; pitch must clamp so the
+        // camera never flips. The orbited eye must land exactly where a
+        // pure rotation at maxOrbitPitch puts the (un-orbited) base eye —
+        // proving the drag pitch was clamped, not applied raw.
+        controller.orbitChanged(translation: CGSize(width: 0, height: 100_000))
+
+        let baseEye = CameraController.focusEye(for: .overview, target: .zero)
+        let expected = CameraController.orbitAdjusted(
+            baseEye,
+            yaw: 0,
+            pitch: CameraController.maxOrbitPitch
+        )
+        #expect(simd_length(camera.position - expected) < 0.001)
+    }
+
+    @Test @MainActor func orbitEndedKeepsOrbitedPosition() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+
+        controller.orbitChanged(translation: CGSize(width: 120, height: 40))
+        let orbited = camera.position
+        controller.orbitEnded()
+
+        // No snap-back: the camera stays exactly where the drag left it.
+        #expect(simd_length(camera.position - orbited) < 0.001)
+
+        // A second drag continues from the kept orbit (baseline = current),
+        // so zero translation is a no-op rather than a reset to head-on.
+        controller.orbitChanged(translation: .zero)
+        #expect(simd_length(camera.position - orbited) < 0.001)
+    }
+
+    @Test @MainActor func retargetResetsOrbitToHeadOn() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+        controller.orbitChanged(translation: CGSize(width: 200, height: 80))
+        controller.orbitEnded()
+
+        let pocketTarget = SIMD3<Float>(4, 0, -2)
+        controller.retarget(mode: .pocket, target: pocketTarget, reduceMotion: true)
+
+        // After retarget, a zero-translation drag must recompute the eye at
+        // the head-on framing for the new pocket (orbit reset to 0).
+        controller.orbitChanged(translation: .zero)
+        let expected = CameraController.focusEye(for: .pocket, target: pocketTarget)
+        #expect(simd_length(camera.position - expected) < 0.001)
+    }
+
+    @Test @MainActor func orbitComposesWithPinchDolly() {
+        let controller = CameraController()
+        let camera = PerspectiveCamera()
+        controller.attach(camera, mode: .overview, target: .zero)
+
+        // Pinch to dolly in, then orbit: the orbit must preserve the
+        // dollied distance, not snap back to the framing distance.
+        controller.pinchChanged(magnification: 1.0)
+        controller.pinchChanged(magnification: 2.0)
+        controller.pinchEnded()
+        let dollied = simd_length(camera.position - controller.target)
+
+        controller.orbitChanged(translation: CGSize(width: 90, height: 0))
+        #expect(abs(simd_length(camera.position - controller.target) - dollied) < 0.001)
     }
 }
