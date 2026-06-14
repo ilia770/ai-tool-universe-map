@@ -29,8 +29,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Select Xcode 16
-        run: sudo xcode-select -switch /Applications/Xcode_16.app
+      # Use the runner's default Xcode — its iOS simulator SDK has a
+      # matching installed runtime. Pinning a specific Xcode_X.app can
+      # select an SDK (e.g. 18.0) whose runtime isn't on the image, and
+      # actool then fails with "No simulator runtime version available".
 
       - name: Install XcodeGen
         run: brew install xcodegen
