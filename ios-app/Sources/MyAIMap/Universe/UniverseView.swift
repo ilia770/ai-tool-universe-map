@@ -49,6 +49,10 @@ struct UniverseView: View {
             )
             Self.styleToolNode(core, category: UniverseSeed.category(.core), selected: selectedCategory == .core, pocketed: false)
             universe.addChild(core)
+            // Founder core hero halo (backlog 27): a frosted translucent
+            // shell layered around the core so it reads as the scene's hero.
+            // Added once; additive to the core's existing emissive styling.
+            universe.addChild(Self.makeFounderHalo(reduceMotion: reduceMotion))
 
             var anchors: [ProximityWatcherCore.Anchor] = []
             for category in UniverseSeed.categories where category.id != .core {
@@ -58,6 +62,9 @@ struct UniverseView: View {
                 Self.styleAnchor(anchor, category: category, selected: category.id == selectedCategory)
                 universe.addChild(anchor)
                 universe.addChild(Self.makeCategoryLabel(category: category, position: center))
+                // Static orbit ring encircling this category's tools
+                // (backlog 23). Built once here; not in applyLayout.
+                universe.addChild(Self.makeCategoryRing(category: category, position: center))
                 if category.id == selectedCategory {
                     universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
                 }
@@ -82,13 +89,26 @@ struct UniverseView: View {
                         position: Self.toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
                     )
                     let isDimmed = selectedCategory != .core && category.id != selectedCategory
-                    Self.styleToolNode(node, category: category, selected: tool.id == selectedToolId, pocketed: isPocket, dimmed: isDimmed)
-                    node.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
+                    let isSelected = tool.id == selectedToolId
+                    Self.styleToolNode(node, category: category, selected: isSelected, pocketed: isPocket, dimmed: isDimmed)
+                    let baseScale = PocketTransition.toolNodeScale(
                         orbit: tool.orbit.rawValue,
-                        selected: tool.id == selectedToolId,
+                        selected: isSelected,
                         pocketed: isPocket
-                    ))
+                    )
+                    node.scale = SIMD3<Float>(repeating: baseScale)
                     universe.addChild(node)
+                    // Selection pulse on the initially-selected node
+                    // (backlog 24); no-op for the rest. reduceMotion → static.
+                    if isSelected {
+                        Self.applySelectionPulse(
+                            node: node,
+                            selected: true,
+                            reduceMotion: reduceMotion,
+                            baseScale: baseScale,
+                            restTranslation: node.position
+                        )
+                    }
 
                     // Structural graph edge: category anchor → tool. Dimmer
                     // and thinner than core→category (secondary tier).
@@ -124,6 +144,13 @@ struct UniverseView: View {
             // shell far beyond the camera, so the universe sits in stars
             // rather than a flat void. Added once; not tappable, no animation.
             universe.addChild(StarFieldEntity.make())
+
+            // Sparse ambient haze layer (backlog 20): large, very faint
+            // translucent blobs at a mid shell radius — closer than the
+            // stars, outside the node cloud — so the scene reads with cosmic
+            // depth between the near nodes and the far star shell. Added once;
+            // not tappable, no animation.
+            universe.addChild(GalaxyDustEntity.make())
 
             // PBR needs more light than SimpleMaterial did. Key is a soft
             // neutral from upper-left; fill is dimmer and slightly cool so
@@ -320,14 +347,35 @@ struct UniverseView: View {
                 let selected = tool.id == selectedToolId
                 let isDimmed = selectedCategory != .core && category.id != selectedCategory
                 styleToolNode(node, category: category, selected: selected, pocketed: isPocket, dimmed: isDimmed)
-                var transform = node.transform
-                transform.translation = toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
-                transform.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
+                let restTranslation = toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
+                let baseScale = PocketTransition.toolNodeScale(
                     orbit: tool.orbit.rawValue,
                     selected: selected,
                     pocketed: isPocket
-                ))
-                node.move(to: transform, relativeTo: node.parent, duration: duration, timingFunction: .easeInOut)
+                )
+
+                // Selection pulse (backlog 24). The persistent scene reuses
+                // nodes, so this is robust to a node switching in/out of
+                // selection: applySelectionPulse always stopAllAnimations()
+                // first, clearing any stale pulse on a just-deselected node.
+                // For the SELECTED node (and !reduceMotion) the pulse drives
+                // its transform, so we must NOT also run move(to:) on it —
+                // we snap it to its rest transform first, then start the
+                // pulse. Every other node animates to rest via move(to:).
+                if selected && !reduceMotion {
+                    var rest = node.transform
+                    rest.translation = restTranslation
+                    rest.scale = SIMD3<Float>(repeating: baseScale)
+                    node.transform = rest
+                    applySelectionPulse(node: node, selected: true, reduceMotion: reduceMotion, baseScale: baseScale, restTranslation: restTranslation)
+                } else {
+                    // Clears any prior pulse, then animates to rest.
+                    applySelectionPulse(node: node, selected: false, reduceMotion: reduceMotion, baseScale: baseScale, restTranslation: restTranslation)
+                    var transform = node.transform
+                    transform.translation = restTranslation
+                    transform.scale = SIMD3<Float>(repeating: baseScale)
+                    node.move(to: transform, relativeTo: node.parent, duration: duration, timingFunction: .easeInOut)
+                }
             }
         }
         } // UniversePerf.interval("layout.apply")
@@ -364,6 +412,50 @@ struct UniverseView: View {
         link.scale = t.scale
         link.orientation = t.rotation
         return link
+    }
+
+    // MARK: - Category orbit ring (backlog 23, web CategoryRing parity)
+
+    /// Radius of the flat orbit ring encircling a category's tool cloud.
+    /// Web parity: `<circleGeometry args={[3.2, …]}>` — the circle the
+    /// overview tools sit on (orbit radii top out at ~1.98 from the anchor,
+    /// so 3.2 reads as a generous halo around them). Tunable.
+    static let categoryRingRadius: Float = 3.2
+    /// Thin tube so the ring reads as a drawn orbit line, not a donut.
+    static let categoryRingTube: Float = 0.01
+    /// Low opacity (web active ring opacity 0.2) so it whispers depth
+    /// rather than competing with the nodes.
+    static let categoryRingOpacity: Float = 0.18
+
+    /// Builds a flat, thin orbit ring encircling a category's tool cloud —
+    /// a torus (reusing the tested `PocketShellGeometry.torus`) tipped flat
+    /// like the pocket-shell rings. UnlitMaterial in the category colour at
+    /// low opacity. NOT tappable (no InputTargetComponent / collision) so it
+    /// can never steal a tap from a node. Static: positioned once in the
+    /// make closure, never restyled in applyLayout.
+    private static func makeCategoryRing(category: ToolCategory, position: SIMD3<Float>) -> ModelEntity {
+        let torus = PocketShellGeometry.torus(
+            radius: categoryRingRadius,
+            tube: categoryRingTube,
+            radialSegments: 6,
+            tubularSegments: 96
+        )
+        var descriptor = MeshDescriptor(name: "category-ring")
+        descriptor.positions = MeshBuffer(torus.positions)
+        descriptor.normals = MeshBuffer(torus.normals)
+        descriptor.primitives = .triangles(torus.indices)
+        let mesh = (try? MeshResource.generate(from: [descriptor]))
+            ?? .generateSphere(radius: categoryRingTube)
+
+        var material = UnlitMaterial(color: category.color.uiColor)
+        material.blending = .transparent(opacity: .init(floatLiteral: categoryRingOpacity))
+
+        let ring = ModelEntity(mesh: mesh, materials: [material])
+        ring.name = "ring:\(category.id.rawValue)"
+        ring.position = position
+        // Web: rotation={[Math.PI / 2, 0, 0]} — lay the XY torus flat.
+        ring.orientation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        return ring
     }
 
     private static func makeTappable(_ entity: ModelEntity, name: String, radius: Float) {
@@ -427,6 +519,112 @@ struct UniverseView: View {
             makeTappable(node, name: "tool:\(tool.id)", radius: max(baseRadius * 1.6, 0.8))
         }
         return node
+    }
+
+    // MARK: - Founder core hero halo (backlog 27)
+
+    /// Radius of the frosted shell around the founder core. The core node is
+    /// generated at ~0.24 and scaled to ~0.46 when selected; the halo at 1.2
+    /// reads as a soft glow envelope larger than the core itself. Tunable.
+    static let founderHaloRadius: Float = 1.2
+    /// Very low opacity so the halo is a frosted glow, not a solid ball.
+    static let founderHaloOpacity: Float = 0.12
+    /// Slow breathing scale amplitude (±) and half-period for the halo.
+    static let founderHaloBreathScale: Float = 0.06
+    static let founderHaloBreathDuration: TimeInterval = 2.6
+
+    /// Static frosted translucent shell centred at the origin, layered AROUND
+    /// the founder-os core node to make it read as the scene's hero. Built
+    /// once in the make closure; not tappable (no InputTargetComponent /
+    /// collision) so it never steals a tap from the core node inside it, and
+    /// not restyled in applyLayout. With motion allowed it slowly breathes.
+    private static func makeFounderHalo(reduceMotion: Bool) -> ModelEntity {
+        let coreColor = UniverseSeed.category(.core).color.uiColor
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: coreColor)
+        material.roughness = .init(floatLiteral: 0.85)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.blending = .transparent(opacity: .init(floatLiteral: founderHaloOpacity))
+        material.emissiveColor = .init(color: coreColor)
+        material.emissiveIntensity = 0.4
+
+        let halo = ModelEntity(mesh: .generateSphere(radius: founderHaloRadius), materials: [material])
+        halo.name = "founder-halo"
+        halo.position = .zero
+
+        if !reduceMotion {
+            var peak = halo.transform
+            peak.scale = SIMD3<Float>(repeating: 1 + founderHaloBreathScale)
+            let breathe = FromToByAnimation<Transform>(
+                from: halo.transform,
+                to: peak,
+                duration: founderHaloBreathDuration,
+                timing: .easeInOut,
+                bindTarget: .transform,
+                repeatMode: .autoReverse
+            )
+            if let resource = try? AnimationResource.generate(with: breathe) {
+                halo.playAnimation(resource)
+            }
+        }
+        return halo
+    }
+
+    // MARK: - Selection pulse (backlog 24)
+
+    /// Fraction the selected node's scale bobs by — a gentle ±3 % breath so
+    /// the eye is drawn without the node visibly jumping. Tunable.
+    static let selectionPulseScale: Float = 0.03
+    /// Half-period of the pulse: one ease leg from base→peak before the
+    /// autoreverse swings back. ~1.1 s gives a slow, calm breath.
+    static let selectionPulseDuration: TimeInterval = 1.1
+
+    /// Applies (or removes) the selection pulse on a tool node.
+    ///
+    /// The persistent scene reuses node entities across selection changes,
+    /// so this must be robust to a node being re-driven: it always
+    /// `stopAllAnimations()` and resets the node to its base scale first,
+    /// THEN, only when the node is selected AND motion is allowed, plays a
+    /// gentle repeating autoreversing scale bob. With reduce-motion the
+    /// node simply sits at its (already brighter, clearcoated) base scale —
+    /// the material is the highlight, no animation.
+    ///
+    /// `baseScale` is the node's resting uniform scale (PocketTransition
+    /// .toolNodeScale for its current state); the pulse oscillates around it.
+    /// `restTranslation` is the node's final resting position — passed
+    /// explicitly (not read off `node.transform`) because in applyLayout the
+    /// node's `move(to:)` may still be in flight when this runs.
+    private static func applySelectionPulse(
+        node: ModelEntity,
+        selected: Bool,
+        reduceMotion: Bool,
+        baseScale: Float,
+        restTranslation: SIMD3<Float>
+    ) {
+        node.stopAllAnimations()
+        var base = node.transform
+        base.translation = restTranslation
+        base.scale = SIMD3<Float>(repeating: baseScale)
+
+        guard selected, !reduceMotion else {
+            // Unselected (or reduce-motion): leave the node where it is /
+            // let its move settle; just ensure no stale pulse is running.
+            return
+        }
+
+        var peak = base
+        peak.scale = SIMD3<Float>(repeating: baseScale * (1 + selectionPulseScale))
+        let pulse = FromToByAnimation<Transform>(
+            from: base,
+            to: peak,
+            duration: selectionPulseDuration,
+            timing: .easeInOut,
+            bindTarget: .transform,
+            repeatMode: .autoReverse
+        )
+        if let resource = try? AnimationResource.generate(with: pulse) {
+            node.playAnimation(resource)
+        }
     }
 
     // MARK: - Materials

@@ -51,6 +51,11 @@ enum PocketShellEntity {
         inner.orientation = tiltRotation(PocketShellGeometry.innerRingTilt)
         root.addChild(inner)
 
+        // Bright sparkle field filling the pocket volume (web drei
+        // <Sparkles>). Local to the shell root, so it's centred on the
+        // category position and rides the shell's add/remove lifecycle.
+        root.addChild(SparkleFieldEntity.make(color: color, reduceMotion: reduceMotion))
+
         if !reduceMotion {
             fadeIn(root)
             spin(outer, radPerSec: PocketShellGeometry.outerSpinRadPerSec)
