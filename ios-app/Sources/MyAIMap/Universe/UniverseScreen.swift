@@ -90,8 +90,10 @@ struct UniverseScreen: View {
                 PocketReadout()
                     .padding(.top, 12)
                 Spacer(minLength: 0)
-                ClarityMenu()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                // ClarityMenu is hidden until the renderer honors
+                // clarityMode (review NEW-6: a visible control that does
+                // nothing is worse than no control). Re-mount it with the
+                // focus/context/atlas dim-and-fade pass in Phase C.
                 CategoryRail { id in
                     selectCategory(id)
                 }
@@ -120,7 +122,7 @@ struct UniverseScreen: View {
                 Text("My AI Map")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("Research -> Plan -> Build -> Review")
+                Text("Research → Plan → Build → Approve → Review")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.62))
             }

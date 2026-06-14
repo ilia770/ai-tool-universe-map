@@ -1,5 +1,14 @@
 # My AI Map 50-Task Master Roadmap
 
+> **⚠️ ARCHIVED (2026-06-14).** This roadmap and `docs/CLAUDE_BACKLOG.md` had
+> overlapping-but-differently-numbered task lists, which caused duplicate-work
+> risk (review NEW-5). The single live execution board is now
+> **`docs/CLAUDE_BACKLOG.md`** (Claude lane) tracked against `docs/AGENT_STATUS.md`
+> + `docs/NIGHT_CYCLE_BOARD.md` (Codex/shared). This file is kept for its
+> per-task acceptance-criteria detail but is no longer the source of truth for
+> what is done. Do not tick boxes here.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` for independent implementation slices or `superpowers:executing-plans` for a single-branch slice. Steps use checkbox (`- [ ]`) syntax for tracking. Do not edit files owned by another active worker; use a fresh branch or worktree per slice.
 
 **Goal:** Turn My AI Map into a premium, understandable, self-testable web + iOS product with a cosmic 3D universe, native iPhone interactions, clear release gates, and a path to TestFlight.

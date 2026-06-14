@@ -38,6 +38,13 @@ targets:
       properties:
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # Lock the app to dark — the whole experience is a dark cosmic
+        # scene; light-mode users otherwise get light system surfaces
+        # (review NEW-10).
+        UIUserInterfaceStyle: Dark
+        # No non-exempt encryption — skips the export-compliance prompt
+        # on every TestFlight upload (review NEW-10).
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap
