@@ -140,6 +140,16 @@ struct UniverseView: View {
                 reduceMotion: reduceMotion
             )
         }
+        // Double-tap a node to fly-to + select it (backlog 14). Registered
+        // before the single-tap so the count:2 recognizer claims a double
+        // tap; the single SpatialTapGesture still wins for lone taps.
+        .gesture(
+            SpatialTapGesture(count: 2)
+                .targetedToAnyEntity()
+                .onEnded { value in
+                    handleDoubleTap(on: value.entity)
+                }
+        )
         .gesture(
             SpatialTapGesture()
                 .targetedToAnyEntity()
@@ -147,7 +157,21 @@ struct UniverseView: View {
                     handleTap(on: value.entity)
                 }
         )
-        .gesture(
+        // Drag on empty space orbits; pinch dollies. Both run alongside the
+        // targeted tap gestures (which only fire when they hit an entity),
+        // so a tap on a node still selects while a drag/pinch on the
+        // backdrop manipulates the camera. minimumDistance keeps a slow tap
+        // from registering as a 0-distance drag.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 10)
+                .onChanged { value in
+                    cameraController.orbitChanged(translation: value.translation)
+                }
+                .onEnded { _ in
+                    cameraController.orbitEnded()
+                }
+        )
+        .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { value in
                     cameraController.pinchChanged(magnification: Float(value.magnification))
@@ -180,6 +204,19 @@ struct UniverseView: View {
                   let categoryId = ToolCategoryId(rawValue: String(entity.name.dropFirst("cat:".count))) {
             onProximityEvent(.enter(categoryId))
         }
+    }
+
+    /// Double-tap fly-to (backlog 14). On a tool node it selects the tool,
+    /// which routes through `focusTool` upstream → category change →
+    /// `retarget` animates the camera to that pocket framing. On a category
+    /// anchor it opens the pocket via the same event path as single-tap.
+    /// Same routing as `handleTap` today; the distinct fly-to feel comes
+    /// from the camera move a selection already triggers. Empty-space
+    /// double-tap-to-reset is a follow-up (a targeted tap can't observe an
+    /// empty-space hit; wiring it cleanly without stealing single taps is
+    /// deferred so this slice can't regress tap selection).
+    private func handleDoubleTap(on entity: Entity) {
+        handleTap(on: entity)
     }
 
     private func lookAtPosition(for category: ToolCategoryId) -> SIMD3<Float> {
