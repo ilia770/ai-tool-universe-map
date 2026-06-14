@@ -7,6 +7,7 @@ import SwiftUI
 /// animation) now belongs to the presenting sheet.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.openURL) private var openURL
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -18,6 +19,15 @@ struct ToolDetailSection: View {
 
     private var selectedTool: Tool {
         model.selectedTool
+    }
+
+    /// Resolves `selectedTool.relationIds` to existing seed tools, skipping
+    /// any id that doesn't resolve (defensive — the seed is clean, but stale
+    /// references must never crash or render an empty chip).
+    private var relatedTools: [Tool] {
+        selectedTool.relationIds.compactMap { id in
+            UniverseSeed.tools.first { $0.id == id }
+        }
     }
 
     var body: some View {
@@ -91,6 +101,58 @@ struct ToolDetailSection: View {
                     }
                 }
             }
+
+            if !relatedTools.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("CONNECTED TO")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.4)
+                        .foregroundStyle(BrandColor.textMuted)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(relatedTools) { related in
+                                Button {
+                                    focusRelated(related.id)
+                                } label: {
+                                    HStack(spacing: 7) {
+                                        Circle()
+                                            .fill(UniverseSeed.category(related.category).color.swiftUIColor)
+                                            .frame(width: 7, height: 7)
+                                        Text(related.name)
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(1)
+                                    }
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 7)
+                                    .liquidGlass(in: Capsule())
+                                }
+                                .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let url = selectedTool.url {
+                Button {
+                    BrandHaptics.fire(.light)
+                    openURL(url)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption.weight(.semibold))
+                        Text("Open")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .liquidGlass(in: Capsule(), tint: selectedCategoryModel.color.swiftUIColor)
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+            }
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
@@ -119,6 +181,15 @@ struct ToolDetailSection: View {
         BrandHaptics.fire(.light)
         withAnimation(BrandMotion.nudge) {
             model.selectTool(id)
+        }
+    }
+
+    /// Re-selects a related tool: jumps to its category, selects it, and
+    /// snaps clarity to focus via `focusTool`.
+    private func focusRelated(_ id: String) {
+        BrandHaptics.fire(.light)
+        withAnimation(BrandMotion.flow) {
+            _ = model.focusTool(id)
         }
     }
 }
