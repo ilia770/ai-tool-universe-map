@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UniverseScreen: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
 
@@ -14,6 +15,54 @@ struct UniverseScreen: View {
     }
 
     var body: some View {
+        Group {
+            if AdaptiveLayout.isCompact(horizontalSizeClass) {
+                // iPhone: the tool detail lives in a permanent bottom sheet
+                // that sits over the canvas chrome. Unchanged from launch.
+                canvas
+                    .sheet(isPresented: $sheetPresented) {
+                        RootSheet()
+                            .presentationDetents([.height(118), .fraction(0.42), .large], selection: $sheetDetent)
+                            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.42)))
+                            .presentationDragIndicator(.visible)
+                            .interactiveDismissDisabled(true)
+                            .onChange(of: sheetDetent) { _, _ in
+                                // Settling on a detent is a positional commit, like a
+                                // picker tick — lighter than category/pocket events.
+                                BrandHaptics.fire(.light)
+                            }
+                    }
+            } else {
+                // iPad / regular width: a blocking sheet would cover the map,
+                // so the detail becomes an always-visible trailing panel and
+                // the canvas keeps the remaining width fully interactive.
+                HStack(spacing: 0) {
+                    canvas
+                        .frame(maxWidth: .infinity)
+                    RootSheet()
+                        .frame(width: 360)
+                        // `.presentationBackground` is a no-op outside a sheet,
+                        // so reapply the same material + tint here to keep the
+                        // panel's glass consistent with the iPhone sheet.
+                        .background {
+                            ZStack {
+                                Rectangle().fill(.ultraThinMaterial)
+                                selectedCategoryModel.color.swiftUIColor.opacity(0.07)
+                            }
+                            .ignoresSafeArea()
+                        }
+                }
+            }
+        }
+        .background(Color.black)
+        .preferredColorScheme(.dark)
+        .onAppear {
+            sheetPresented = true
+            BrandHaptics.prepare(.light, .medium, .heavy, .success)
+        }
+    }
+
+    private var canvas: some View {
         ZStack {
             UniverseView(
                 selectedCategory: model.selection.activeCategory,
@@ -52,24 +101,6 @@ struct UniverseScreen: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 10)
-        }
-        .background(Color.black)
-        .preferredColorScheme(.dark)
-        .sheet(isPresented: $sheetPresented) {
-            RootSheet()
-                .presentationDetents([.height(118), .fraction(0.42), .large], selection: $sheetDetent)
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.42)))
-                .presentationDragIndicator(.visible)
-                .interactiveDismissDisabled(true)
-                .onChange(of: sheetDetent) { _, _ in
-                    // Settling on a detent is a positional commit, like a
-                    // picker tick — lighter than category/pocket events.
-                    BrandHaptics.fire(.light)
-                }
-        }
-        .onAppear {
-            sheetPresented = true
-            BrandHaptics.prepare(.light, .medium, .heavy, .success)
         }
     }
 
