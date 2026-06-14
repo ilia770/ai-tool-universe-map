@@ -120,6 +120,11 @@ struct UniverseView: View {
                 onProximityEvent: onProximityEvent
             ))
 
+            // Ambient cosmic backdrop (backlog 19): a static star field on a
+            // shell far beyond the camera, so the universe sits in stars
+            // rather than a flat void. Added once; not tappable, no animation.
+            universe.addChild(StarFieldEntity.make())
+
             // PBR needs more light than SimpleMaterial did. Key is a soft
             // neutral from upper-left; fill is dimmer and slightly cool so
             // shadowed hemispheres read as depth, not dead black. Both are
