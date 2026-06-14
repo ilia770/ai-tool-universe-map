@@ -13,18 +13,31 @@ struct PocketReadout: View {
         if model.selection.activeCategory != .core {
             let category = model.selectedCategoryModel
             let toolCount = UniverseSeed.tools(in: model.selection.activeCategory).count
-            VStack(spacing: 3) {
-                Text("POCKET WORLD")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.4)
-                    .foregroundStyle(category.color.swiftUIColor)
-                Text(category.shortName)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("\(toolCount) tools expanded")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
+            Button {
+                BrandHaptics.fireRich(.pocketClose)
+                withAnimation(BrandMotion.flow) {
+                    model.selectCategory(.core)
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(spacing: 3) {
+                        Text("POCKET WORLD")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.4)
+                            .foregroundStyle(category.color.swiftUIColor)
+                        Text(category.shortName)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Text("\(toolCount) tool\(toolCount == 1 ? "" : "s") expanded")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                    }
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .liquidGlass(
