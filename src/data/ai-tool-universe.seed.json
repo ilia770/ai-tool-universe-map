@@ -122,6 +122,7 @@
       "stage": "execution",
       "orbit": 1,
       "angle": -142,
+      "url": "https://openai.com/codex",
       "relationIds": [
         "claude-code",
         "coderabbit",
@@ -136,6 +137,7 @@
       "stage": "execution",
       "orbit": 1,
       "angle": -128,
+      "url": "https://claude.com/claude-code",
       "relationIds": [
         "agent-skills",
         "designer-skills",
@@ -165,7 +167,7 @@
       "stage": "review",
       "orbit": 2,
       "angle": -150,
-      "url": "https://app.coderabbit.ai/login",
+      "url": "https://www.coderabbit.ai/",
       "relationIds": [
         "codex",
         "approval-gate"
@@ -192,6 +194,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": -104,
+      "url": "https://zed.dev",
       "relationIds": [
         "terminal",
         "warp"
@@ -205,6 +208,7 @@
       "stage": "execution",
       "orbit": 2,
       "angle": -94,
+      "url": "https://lovable.dev",
       "relationIds": [
         "bolt",
         "base44",
@@ -219,6 +223,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": -86,
+      "url": "https://bolt.new",
       "relationIds": [
         "lovable",
         "vercel"
@@ -232,6 +237,7 @@
       "stage": "planning",
       "orbit": 1,
       "angle": -82,
+      "url": "https://figma.com",
       "relationIds": [
         "paper-design",
         "framer",
@@ -274,6 +280,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": -58,
+      "url": "https://framer.com",
       "relationIds": [
         "vercel",
         "buffer"
@@ -371,6 +378,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": 52,
+      "url": "https://higgsfield.ai",
       "relationIds": [
         "genmedia"
       ]
@@ -410,6 +418,7 @@
       "stage": "approval",
       "orbit": 1,
       "angle": 126,
+      "url": "https://vercel.com",
       "relationIds": [
         "docker",
         "react-tauri-xterm"
@@ -423,6 +432,7 @@
       "stage": "execution",
       "orbit": 2,
       "angle": 112,
+      "url": "https://docker.com",
       "relationIds": [
         "terminal",
         "warp"
@@ -436,6 +446,7 @@
       "stage": "execution",
       "orbit": 2,
       "angle": 140,
+      "url": "https://warp.dev",
       "relationIds": [
         "terminal",
         "vscode"
@@ -504,7 +515,7 @@
       "stage": "planning",
       "orbit": 3,
       "angle": 190,
-      "url": "https://chorus.com/skills",
+      "url": "https://chorus-ai.dev/",
       "relationIds": [
         "agent-skills"
       ]
@@ -582,6 +593,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": -76,
+      "url": "https://base44.com",
       "relationIds": [
         "lovable"
       ]
@@ -683,6 +695,7 @@
       "stage": "execution",
       "orbit": 3,
       "angle": -116,
+      "url": "https://code.visualstudio.com",
       "relationIds": [
         "cursor",
         "terminal"
@@ -709,6 +722,7 @@
       "stage": "research",
       "orbit": 3,
       "angle": 150,
+      "url": "https://obsidian.md",
       "relationIds": [
         "readwise",
         "agent-skills"
