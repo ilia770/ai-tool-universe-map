@@ -103,6 +103,37 @@ npm run ios:verify -- --full-test --device-id <simulator-udid>
 
 See `docs/ios/RUNBOOK.md` for simulator recovery and device run details.
 
+### Snapshot harness (SwiftUI chrome)
+
+`ios-app/Tests/MyAIMapTests/ChromeSnapshotTests.swift` is a lightweight,
+deterministic snapshot net for the SwiftUI chrome — `SearchDock`,
+`CategoryRail`, `ClarityMenu`, `ToolDetailSection`, and `PocketReadout`.
+It does NOT cover the RealityKit 3D scene, which cannot render
+deterministically headless.
+
+Each view is rasterised with SwiftUI's `ImageRenderer` (scale 2) against
+the app's black backdrop. The harness asserts **structural facts, not
+pixel diffs**:
+
+- The view renders to a non-nil `UIImage` with non-zero size at a
+  representative frame (a nil/zero image means the view failed to build
+  or lay out).
+- The rendered image has some visible (non-backdrop) pixels, sampled on a
+  cheap 8×8 grid — catches views that render fully blank/transparent.
+- State-driven layout: `ToolDetailSection` is rendered both focused on a
+  tool with relations (the "CONNECTED TO" branch) and in the default
+  founder-os / `.core` selection; `PocketReadout` is rendered for a
+  non-core category (populated) and at `.core` (intentionally empty body,
+  asserted as the expected near-empty case).
+
+Deliberately **no** committed reference PNGs: those are brittle across OS
+and font versions and bloat the repo. The harness is a regression net for
+"this chrome view still builds and renders something", not a visual diff.
+
+The test bundle is hosted (`TEST_HOST` / `BUNDLE_LOADER` in
+`project.yml`), so `@MainActor ImageRenderer` has a UIKit/SwiftUI runtime
+in the test process. Runs as part of the normal `MyAIMapTests` suite.
+
 For device/TestFlight:
 
 - Apple Developer account active.
