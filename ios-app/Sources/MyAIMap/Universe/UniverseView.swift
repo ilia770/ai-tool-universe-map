@@ -24,6 +24,12 @@ struct UniverseView: View {
 
     var body: some View {
         RealityView { content in
+            // Perf baseline (backlog 35): bracket the whole one-time scene
+            // build so its cost is visible in Instruments. begin/end rather
+            // than an `interval { }` closure because the make closure builds
+            // in place and returns nothing — bracketing avoids reshaping it.
+            let buildSignpost = UniversePerf.signposter.beginInterval("scene.build")
+            defer { UniversePerf.signposter.endInterval("scene.build", buildSignpost) }
             // Idempotent; must run before the scene starts updating.
             UniverseStateComponent.registerComponent()
             ProximityCategorySystem.registerSystem()
@@ -251,6 +257,10 @@ struct UniverseView: View {
         animated: Bool,
         reduceMotion: Bool
     ) {
+        // Perf baseline (backlog 35): measure the per-transition restyle/move
+        // loop the review flagged (iterates ALL tool nodes, reallocates a
+        // PhysicallyBasedMaterial per node per transition). Pure instrumentation.
+        UniversePerf.interval("layout.apply") {
         let duration = reduceMotion
             ? PocketTransition.reducedDuration
             : (animated ? PocketTransition.duration : PocketTransition.reducedDuration)
@@ -284,6 +294,7 @@ struct UniverseView: View {
                 node.move(to: transform, relativeTo: node.parent, duration: duration, timingFunction: .easeInOut)
             }
         }
+        } // UniversePerf.interval("layout.apply")
     }
 
     // MARK: - Entity construction (base state; style applied separately)
