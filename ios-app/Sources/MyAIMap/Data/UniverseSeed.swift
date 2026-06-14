@@ -1,90 +1,52 @@
 import Foundation
 
-/// Phase 0 seed data: the eight non-core categories. Phase 1 ports the
-/// real `categories` + `tools` arrays from `src/data/ai-tool-universe.ts`
-/// (or the JSON migration if D1 lands first).
-enum UniverseSeed {
-    static let categories: [ToolCategory] = [
-        ToolCategory(
-            id: .coding,
-            name: "Coding & Agentic Dev",
-            shortName: "Coding",
-            description: "Editors, coding agents, review systems, app builders, and agentic implementation loops.",
-            color: "#6EE7FF", glow: "#9BE8FF",
-            angle: -132
-        ),
-        ToolCategory(
-            id: .design,
-            name: "Design & Product UI",
-            shortName: "Design",
-            description: "Interface design, product mockups, design-to-code, prototyping, and visual product systems.",
-            color: "#FF8BD2", glow: "#F592C7",
-            angle: -82
-        ),
-        ToolCategory(
-            id: .research,
-            name: "Research & Data Intake",
-            shortName: "Research",
-            description: "Research capture, source extraction, web intake, APIs, datasets, and browsing bridges.",
-            color: "#7FFFD4", glow: "#8BE7D8",
-            angle: -30
-        ),
-        ToolCategory(
-            id: .media,
-            name: "Media & Creative Production",
-            shortName: "Media",
-            description: "Video, generative media, motion, Remotion pipelines, and creative production systems.",
-            color: "#FFD166", glow: "#FDBA74",
-            angle: 22
-        ),
-        ToolCategory(
-            id: .distribution,
-            name: "Distribution & Social Ops",
-            shortName: "Social",
-            description: "Publishing, scheduling, social operations, channel packaging, and launch amplification.",
-            color: "#9BFF8A", glow: "#D9F99D",
-            angle: 74
-        ),
-        ToolCategory(
-            id: .infrastructure,
-            name: "Infrastructure & Runtime",
-            shortName: "Runtime",
-            description: "Deployment, containers, terminals, runtime shells, desktop wrappers, and production rails.",
-            color: "#A78BFA", glow: "#C4B5FD",
-            angle: 126
-        ),
-        ToolCategory(
-            id: .knowledge,
-            name: "Knowledge & Skills",
-            shortName: "Skills",
-            description: "Agent skill libraries, workflow packs, local knowledge systems, and repeatable capabilities.",
-            color: "#F0ABFC", glow: "#F5D0FE",
-            angle: 178
-        ),
-        ToolCategory(
-            id: .core,
-            name: "AI Operating Core",
-            shortName: "Core",
-            description: "The central orchestration node every other category orbits.",
-            color: "#D8FAFF", glow: "#FFFFFF",
-            angle: -178
-        ),
-    ]
+/// Decodable root mirroring `src/data/ai-tool-universe.seed.json`.
+///
+/// The iOS port no longer hand-maintains the universe data: it decodes the
+/// exact canonical web seed (`ai-tool-universe.seed.json`) bundled into the
+/// app target. This makes drift between the two ports impossible — there is a
+/// single source of truth committed to `src/data/` and copied verbatim into
+/// `Sources/MyAIMap/Resources/`.
+private struct SeedFile: Decodable {
+    let version: Int
+    let categories: [ToolCategory]
+    let tools: [Tool]
+    let workflowLinks: [UniverseLink]
+    // `workflowStages` is an object keyed by stage id in the web JSON; nothing
+    // on iOS consumes it yet, so it is intentionally not decoded.
+}
 
-    static let tools: [Tool] = [
-        Tool(id: "founder-os", name: "Founder OS", category: .core, summary: "The central operating layer: research, planning, execution, approval, and AI review.", stage: .planning, orbit: .core, angle: 0, url: nil, logoDomain: nil, relationIds: ["codex", "claude-code", "cursor", "figma"], classification: nil),
-        Tool(id: "codex", name: "Codex", category: .coding, summary: "Implementation agent for repo work, refactors, testing, and end-to-end engineering tasks.", stage: .execution, orbit: .inner, angle: -142, url: nil, logoDomain: nil, relationIds: ["claude-code", "vercel"], classification: nil),
-        Tool(id: "claude-code", name: "Claude Code", category: .coding, summary: "Agentic development partner for codebase investigation, implementation, and review loops.", stage: .execution, orbit: .inner, angle: -128, url: nil, logoDomain: nil, relationIds: ["agent-skills"], classification: nil),
-        Tool(id: "cursor", name: "Cursor", category: .coding, summary: "AI-first IDE for fast code edits, project navigation, and pair-programming flow.", stage: .execution, orbit: .middle, angle: -118, url: URL(string: "https://cursor.com/"), logoDomain: "cursor.com", relationIds: ["vscode", "warp"], classification: nil),
-        Tool(id: "figma", name: "Figma / Make", category: .design, summary: "Primary collaborative design canvas and product UI ideation space.", stage: .planning, orbit: .inner, angle: -82, url: nil, logoDomain: "figma.com", relationIds: ["paper-design", "framer"], classification: nil),
-        Tool(id: "dessn", name: "Dessn.ai", category: .design, summary: "Design intelligence and product interface inspiration for sharper UI direction.", stage: .research, orbit: .middle, angle: -70, url: URL(string: "https://www.dessn.ai/"), logoDomain: "dessn.ai", relationIds: ["figma"], classification: nil),
-        Tool(id: "supadata", name: "Supadata", category: .research, summary: "Data intake and extraction layer for turning external sources into usable context.", stage: .research, orbit: .inner, angle: -28, url: URL(string: "https://supadata.ai/"), logoDomain: "supadata.ai", relationIds: ["api-mega-list"], classification: nil),
-        Tool(id: "remotion", name: "Remotion", category: .media, summary: "React-powered video generation for programmable launch and product media.", stage: .execution, orbit: .inner, angle: 20, url: URL(string: "https://www.remotion.dev/"), logoDomain: "remotion.dev", relationIds: ["genmedia"], classification: nil),
-        Tool(id: "buffer", name: "Buffer", category: .distribution, summary: "Distribution scheduler for shipping content across social channels.", stage: .approval, orbit: .inner, angle: 74, url: URL(string: "https://buffer.com/"), logoDomain: "buffer.com", relationIds: ["distribution-loop"], classification: nil),
-        Tool(id: "vercel", name: "Vercel", category: .infrastructure, summary: "Deployment and preview infrastructure for shipping web apps quickly.", stage: .approval, orbit: .inner, angle: 126, url: nil, logoDomain: "vercel.com", relationIds: ["docker"], classification: nil),
-        Tool(id: "agent-skills", name: "Agent Skills", category: .knowledge, summary: "Reusable task skills for agents, including public packs and personal knowledge systems.", stage: .planning, orbit: .inner, angle: 178, url: URL(string: "https://github.com/addyosmani/agent-skills"), logoDomain: "github.com", relationIds: ["claude-code"], classification: nil),
-        Tool(id: "openswarm", name: "OpenSwarm", category: .core, summary: "Multi-agent coordination layer for routing work across specialized workers.", stage: .execution, orbit: .middle, angle: -190, url: nil, logoDomain: nil, relationIds: ["founder-os"], classification: nil),
-    ]
+/// Universe seed data, decoded once from the bundled canonical JSON.
+///
+/// Public API is unchanged from the old hand-written Phase-0 stub
+/// (`categories`, `tools`, `category(_:)`, `tools(in:)`) so every existing
+/// consumer keeps compiling untouched.
+enum UniverseSeed {
+    /// Resolves the bundle that contains the app's resources. For an XcodeGen
+    /// app target (no SwiftPM `Bundle.module`), `Bundle(for:)` of a type
+    /// defined in the target returns the app bundle. Unit tests run inside the
+    /// host app (`TEST_HOST` / `BUNDLE_LOADER`), so the same bundle resolves
+    /// there too.
+    private final class BundleToken {}
+
+    private static let seed: SeedFile = {
+        let bundle = Bundle(for: BundleToken.self)
+        guard let url = bundle.url(forResource: "ai-tool-universe.seed", withExtension: "json") else {
+            fatalError("Missing bundled resource ai-tool-universe.seed.json — this is a build-time invariant (XcodeGen copies it from Sources/MyAIMap/Resources).")
+        }
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(SeedFile.self, from: data)
+        } catch {
+            fatalError("Failed to decode ai-tool-universe.seed.json: \(error)")
+        }
+    }()
+
+    static var categories: [ToolCategory] { seed.categories }
+
+    static var tools: [Tool] { seed.tools }
+
+    static var workflowLinks: [UniverseLink] { seed.workflowLinks }
 
     static func category(_ id: ToolCategoryId) -> ToolCategory {
         categories.first { $0.id == id } ?? categories[0]

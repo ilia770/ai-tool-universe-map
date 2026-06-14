@@ -48,20 +48,35 @@ struct ColorHex: Codable, Sendable, ExpressibleByStringLiteral {
     }
 
     var swiftUIColor: Color {
-        let hex = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return .white }
-        let r = Double((value >> 16) & 0xff) / 255
-        let g = Double((value >> 8) & 0xff) / 255
-        let b = Double(value & 0xff) / 255
-        return Color(red: r, green: g, blue: b)
+        let c = Self.components(rawValue) ?? (1, 1, 1, 1)
+        return Color(red: c.r, green: c.g, blue: c.b).opacity(c.a)
     }
 
     var uiColor: UIColor {
-        let hex = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return .white }
-        let r = CGFloat((value >> 16) & 0xff) / 255
-        let g = CGFloat((value >> 8) & 0xff) / 255
-        let b = CGFloat(value & 0xff) / 255
-        return UIColor(red: r, green: g, blue: b, alpha: 1)
+        let c = Self.components(rawValue) ?? (1, 1, 1, 1)
+        return UIColor(red: c.r, green: c.g, blue: c.b, alpha: c.a)
+    }
+
+    /// Parses both `#rrggbb` hex and CSS `rgba(r, g, b, a)` strings (the web
+    /// seed uses hex for `color` and rgba for `glow`). Returns components in
+    /// 0...1, or `nil` if the string isn't a recognised colour.
+    private static func components(_ raw: String) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat)? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.lowercased().hasPrefix("rgba(") || trimmed.lowercased().hasPrefix("rgb(") {
+            let inner = trimmed.drop { $0 != "(" }.dropFirst().prefix { $0 != ")" }
+            let parts = inner.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count >= 3,
+                  let r = Double(parts[0]), let g = Double(parts[1]), let b = Double(parts[2]) else { return nil }
+            let a = parts.count >= 4 ? (Double(parts[3]) ?? 1) : 1
+            return (CGFloat(r / 255), CGFloat(g / 255), CGFloat(b / 255), CGFloat(a))
+        }
+        let hex = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        return (
+            CGFloat((value >> 16) & 0xff) / 255,
+            CGFloat((value >> 8) & 0xff) / 255,
+            CGFloat(value & 0xff) / 255,
+            1
+        )
     }
 }
