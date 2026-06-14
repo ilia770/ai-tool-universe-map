@@ -63,7 +63,8 @@ struct UniverseView: View {
                         category: category,
                         position: Self.toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
                     )
-                    Self.styleToolNode(node, category: category, selected: tool.id == selectedToolId, pocketed: isPocket)
+                    let isDimmed = selectedCategory != .core && category.id != selectedCategory
+                    Self.styleToolNode(node, category: category, selected: tool.id == selectedToolId, pocketed: isPocket, dimmed: isDimmed)
                     node.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
                         orbit: tool.orbit.rawValue,
                         selected: tool.id == selectedToolId,
@@ -233,7 +234,8 @@ struct UniverseView: View {
             for (index, tool) in categoryTools.enumerated() {
                 guard let node = universe.findEntity(named: "tool:\(tool.id)") as? ModelEntity else { continue }
                 let selected = tool.id == selectedToolId
-                styleToolNode(node, category: category, selected: selected, pocketed: isPocket)
+                let isDimmed = selectedCategory != .core && category.id != selectedCategory
+                styleToolNode(node, category: category, selected: selected, pocketed: isPocket, dimmed: isDimmed)
                 var transform = node.transform
                 transform.translation = toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: isPocket)
                 transform.scale = SIMD3<Float>(repeating: PocketTransition.toolNodeScale(
@@ -277,10 +279,14 @@ struct UniverseView: View {
     /// Soft matte orb: category color mixed well toward black for the base,
     /// with a gentle category-hued emissive carrying the selection hierarchy
     /// (selected > pocketed > overview-distant).
-    private static func styleToolNode(_ node: ModelEntity, category: ToolCategory, selected: Bool, pocketed: Bool) {
+    private static func styleToolNode(_ node: ModelEntity, category: ToolCategory, selected: Bool, pocketed: Bool, dimmed: Bool = false) {
         let isCore = category.id == .core
         var material = PhysicallyBasedMaterial()
-        let darken: CGFloat = selected ? 0.6 : pocketed ? 0.68 : 0.75
+        // Foreign nodes recede further when a pocket is open (web parity:
+        // ToolNode.tsx dims out-of-category tools so the open pocket reads
+        // as focused). The dim only applies to non-selected, non-pocketed
+        // foreign nodes — the founder core never dims.
+        let darken: CGFloat = dimmed ? 0.85 : selected ? 0.6 : pocketed ? 0.68 : 0.75
         material.baseColor = .init(tint: darkened(category.color.uiColor, by: darken))
         material.roughness = .init(floatLiteral: isCore ? 0.35 : 0.5)
         material.metallic = .init(floatLiteral: isCore ? 0.1 : 0.05)
@@ -289,7 +295,7 @@ struct UniverseView: View {
         // the camera is browsing another category.
         material.emissiveIntensity = isCore
             ? (selected ? 2.0 : 0.8)
-            : (selected ? 1.5 : pocketed ? 0.5 : 0.18)
+            : (dimmed ? 0.06 : selected ? 1.5 : pocketed ? 0.5 : 0.18)
         if selected {
             // Thin glossy shell over the matte base — "lit from within",
             // not a lampshade.
