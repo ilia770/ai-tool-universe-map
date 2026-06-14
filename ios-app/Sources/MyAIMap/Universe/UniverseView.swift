@@ -62,6 +62,17 @@ struct UniverseView: View {
                     universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
                 }
 
+                // Structural graph edge: founder core (.zero) → this
+                // category anchor. Brighter/thicker as the primary tier.
+                universe.addChild(Self.makeLink(
+                    from: .zero,
+                    to: center,
+                    color: category.color.uiColor,
+                    opacity: 0.5,
+                    thickness: 0.02,
+                    name: "link:core-\(category.id.rawValue)"
+                ))
+
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
@@ -78,6 +89,26 @@ struct UniverseView: View {
                         pocketed: isPocket
                     ))
                     universe.addChild(node)
+
+                    // Structural graph edge: category anchor → tool. Dimmer
+                    // and thinner than core→category (secondary tier).
+                    //
+                    // v1 limitation: these lines are static, drawn once to
+                    // the OVERVIEW tool position. When a pocket opens, its
+                    // tool NODES re-lay-out to Fibonacci-sphere positions
+                    // (applyLayout), but these lines are NOT updated — so in
+                    // the open pocket they no longer reach their nodes. Using
+                    // the overview position here keeps the founder/overview
+                    // graph (the common case) correct; following the pocket
+                    // re-layout is deferred to a later slice.
+                    universe.addChild(Self.makeLink(
+                        from: center,
+                        to: Self.toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: false),
+                        color: category.color.uiColor,
+                        opacity: 0.22,
+                        thickness: 0.012,
+                        name: "link:\(category.id.rawValue)-\(tool.id)"
+                    ))
                 }
             }
 
@@ -298,6 +329,37 @@ struct UniverseView: View {
     }
 
     // MARK: - Entity construction (base state; style applied separately)
+
+    // MARK: - Connection lines (backlog 18, review Pillar-1)
+
+    /// Shared unit box (1×1×1) every link reuses — links only differ by
+    /// transform and material, so one mesh keeps allocations down.
+    private static let linkMesh = MeshResource.generateBox(size: 1)
+
+    /// Builds a static structural line spanning two points as a thin box,
+    /// stretched/oriented via `LinkGeometry`. UnlitMaterial so lines read
+    /// the same regardless of the key/fill rig. NOT tappable — no
+    /// InputTargetComponent / CollisionComponent — so a link can never
+    /// steal a tap from the node sitting under it.
+    private static func makeLink(
+        from: SIMD3<Float>,
+        to: SIMD3<Float>,
+        color: UIColor,
+        opacity: Float,
+        thickness: Float,
+        name: String
+    ) -> ModelEntity {
+        var material = UnlitMaterial(color: color)
+        material.blending = .transparent(opacity: .init(floatLiteral: opacity))
+        let link = ModelEntity(mesh: linkMesh, materials: [material])
+        link.name = name
+
+        let t = LinkGeometry.transform(from: from, to: to, thickness: thickness)
+        link.position = t.position
+        link.scale = t.scale
+        link.orientation = t.rotation
+        return link
+    }
 
     private static func makeTappable(_ entity: ModelEntity, name: String, radius: Float) {
         entity.name = name
