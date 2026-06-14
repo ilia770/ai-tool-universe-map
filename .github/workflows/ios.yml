@@ -1,0 +1,45 @@
+name: iOS
+
+# Path-filtered so web-only PRs don't spin up a macOS runner. Runs the
+# generic-simulator build + build-for-testing (compiles app + test
+# targets without booting a simulator), via the shared verify script —
+# backlog task 34. A booted-simulator test pass stays a local gate
+# (CoreSimulator boots are flaky on CI); this proves the Swift compiles
+# and the test target links on every iOS-touching PR.
+
+on:
+  pull_request:
+    paths:
+      - 'ios-app/**'
+      - 'scripts/ios-verify.sh'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ios-app/**'
+      - 'scripts/ios-verify.sh'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  verify:
+    name: iOS verify (xcodegen • build • build-for-testing)
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Use the runner's default Xcode — its iOS simulator SDK has a
+      # matching installed runtime. Pinning a specific Xcode_X.app can
+      # select an SDK (e.g. 18.0) whose runtime isn't on the image, and
+      # actool then fails with "No simulator runtime version available".
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: ios-app
+        run: xcodegen generate
+
+      - name: Build + build-for-testing
+        run: bash scripts/ios-verify.sh --test-build-only

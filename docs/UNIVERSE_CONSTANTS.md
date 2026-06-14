@@ -68,11 +68,13 @@ No unintended drift. Deviations below are intentional and documented.
 ## Intentional deviations
 
 1. **Shell fade** — web lerps opacity per frame (`+= (0.052 − o) × 0.04`);
-   iOS plays one 0.36 s ease-out fade because the scene rebuilds via
-   `.id(selectedCategory)` (no persistent entity). Same visual outcome.
-2. **Shell breathing (±1.8 %) + group yaw sway** — dropped on iOS
-   (sub-2 % ambient effects); rings still spin. Revisit with backlog 22
-   (needs the persistent scene container, backlog 16).
+   iOS plays one 0.36 s ease-out fade on each pocket-shell spawn. The
+   shell is removed/re-added on category change (the rest of the scene now
+   persists, #55), so a one-shot spawn fade still matches the web visual.
+2. **Shell breathing (±1.8 %) + group yaw sway** — still dropped on iOS,
+   but the persistent scene container now EXISTS (backlog 16, #55), so the
+   per-frame ambient pass is unblocked — schedule it in Phase C (backlog 22).
+   Rings still spin meanwhile, so the pocket reads alive.
 3. **Web-only, pending port:** Sparkles particle field (backlog 21),
    "Pocket world · N tools" readout (backlog 8).
 4. **iOS-only:** procedural torus generation (RealityKit has no torus

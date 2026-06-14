@@ -19,6 +19,12 @@ Rules of engagement:
 - Tasks within a phase are ordered; phases A–C are sequential for iOS,
   phases D–F can interleave any time the simulator / dev server is free.
 
+> **Review top-10 in progress (2026-06-14):** NEW-1 iPad fix #59, NEW-2 seed port #58,
+> NEW-4 connected-to #60, NEW-7 dim+exit #61, NEW-5/6/8/9/10 + iOS CI (this PR). Backlog
+> 15/16 (PocketTransition + persistent scene) landed #55. Remaining review items: NEW-3
+> web url backfill (Codex data lane), backlog 23/26 labels (Phase C pull-forward),
+> backlog 34 iOS CI (this PR), 35/36 perf baseline.
+
 > **Полное мультиагентное ревью 2026-06-12:** `docs/reviews/2026-06-12-full-project-review.md`
 > (9 ролей, 90 находок, 24 P1, 0 опровергнутых). P1: iPad-шит блокирует карту, iOS-сид 12/49
 > инструментов, анонимные сферы без подписей/связей, тупиковая карточка инструмента,
@@ -63,10 +69,10 @@ Rules of engagement:
     (web `dollyToCursor` parity), not the screen center.
 14. `[ ]` **Double-tap focus** — double-tap a node → camera fly-to + select;
     double-tap empty space → overview reset.
-15. `[ ]` **PocketTransition lerp helpers** — `Camera/PocketTransition.swift`
+15. `[x]` **PocketTransition lerp helpers** — `Camera/PocketTransition.swift`
     easing between overview/pocket/node framings (replaces snap), pure-math
     core + tests.
-16. `[ ]` **Persistent scene container** — remove `.id(selectedCategory)`
+16. `[x]` **Persistent scene container** — remove `.id(selectedCategory)`
     full rebuild: keep one scene, move entities on category change so spins,
     fades and cooldowns survive transitions (unlocks real PocketTransition).
 17. `[ ]` **Camera feel tuning pass** — smoothTime/clamps side-by-side vs web
