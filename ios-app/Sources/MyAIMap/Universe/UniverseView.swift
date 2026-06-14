@@ -169,6 +169,24 @@ struct UniverseView: View {
             fill.position = SIMD3<Float>(6, -2, 8)
             fill.look(at: .zero, from: fill.position, relativeTo: nil)
             universe.addChild(fill)
+
+            // Environment depth (backlog 28 + 29): true image-based lighting
+            // (ImageBasedLightComponent) and a skybox both need an
+            // EnvironmentResource loaded from a bundled .exr/.hdr — we have no
+            // such art asset, so genuine IBL and a skybox backdrop are DEFERRED
+            // pending one. As a code-only stand-in this slice adds a single
+            // low-intensity ambient bounce from below/behind, opposite the key,
+            // to lift the dead-black shadowed hemispheres the review flagged
+            // into readable depth. Kept dim (a fraction of the key) so it
+            // softens, not flattens, the PBR shading and never blows out the
+            // emissive selection hierarchy. The RadialGradient background stays
+            // as the skybox stand-in.
+            let bounce = DirectionalLight()
+            bounce.light.intensity = 320
+            bounce.light.color = UIColor(red: 0.62, green: 0.66, blue: 0.85, alpha: 1)
+            bounce.position = SIMD3<Float>(2, -6, -7)
+            bounce.look(at: .zero, from: bounce.position, relativeTo: nil)
+            universe.addChild(bounce)
         } update: { content in
             guard let universe = content.entities.first(where: { $0.name == "universe" }),
                   let state = universe.components[UniverseStateComponent.self] else { return }
@@ -469,6 +487,18 @@ struct UniverseView: View {
         anchor.position = position
         // Oversized hit shape — anchors are small targets at overview distance.
         makeTappable(anchor, name: "cat:\(category.id.rawValue)", radius: max(PocketTransition.baseAnchorRadius * 1.8, 1.1))
+        // VoiceOver (backlog 30/31): the anchor is a button that opens its
+        // pocket. No value — the hint already conveys the action.
+        anchor.isAccessibilityElement = true
+        anchor.accessibilityLabelKey = LocalizedStringResource(stringLiteral: AccessibilityCopy.categoryLabel(category))
+        anchor.accessibilityCustomContent = [
+            AccessibilityComponent.CustomContent(
+                label: "Action",
+                value: LocalizedStringResource(stringLiteral: AccessibilityCopy.categoryHint(category)),
+                importance: .default
+            )
+        ]
+        anchor.accessibilityTraits = .button
         return anchor
     }
 
@@ -517,6 +547,21 @@ struct UniverseView: View {
         node.position = position
         if let tool {
             makeTappable(node, name: "tool:\(tool.id)", radius: max(baseRadius * 1.6, 0.8))
+            // VoiceOver (backlog 30/31): a tappable orb is meaningless to
+            // assistive tech without metadata. Trait .button because tapping
+            // selects the tool; value carries the summary so the tool reads as
+            // "name, summary, button".
+            node.isAccessibilityElement = true
+            node.accessibilityLabelKey = LocalizedStringResource(stringLiteral: AccessibilityCopy.toolLabel(tool))
+            node.accessibilityValue = LocalizedStringResource(stringLiteral: AccessibilityCopy.toolValue(tool))
+            node.accessibilityCustomContent = [
+                AccessibilityComponent.CustomContent(
+                    label: "Action",
+                    value: LocalizedStringResource(stringLiteral: AccessibilityCopy.toolHint(tool)),
+                    importance: .default
+                )
+            ]
+            node.accessibilityTraits = .button
         }
         return node
     }
