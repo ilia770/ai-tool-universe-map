@@ -51,6 +51,7 @@ struct UniverseView: View {
                 let anchor = Self.makeCategoryAnchor(category: category, position: center)
                 Self.styleAnchor(anchor, category: category, selected: category.id == selectedCategory)
                 universe.addChild(anchor)
+                universe.addChild(Self.makeCategoryLabel(category: category, position: center))
                 if category.id == selectedCategory {
                     universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
                 }
@@ -262,6 +263,45 @@ struct UniverseView: View {
         // Oversized hit shape — anchors are small targets at overview distance.
         makeTappable(anchor, name: "cat:\(category.id.rawValue)", radius: max(PocketTransition.baseAnchorRadius * 1.8, 1.1))
         return anchor
+    }
+
+    /// Billboarded 3D text label naming the category (its `shortName`),
+    /// floating above the anchor. Static per category — the position is
+    /// fixed, so it's built once in the make closure and never needs to flow
+    /// through applyLayout. Not tappable (no InputTargetComponent / collision)
+    /// so it can never steal a tap from the anchor sphere underneath it.
+    ///
+    /// `generateText` sizes in METERS — the font size IS the world height —
+    /// so `labelFontSize` is tuned to read at the ~20-unit overview distance
+    /// and `labelLift` clears the anchor sphere. Both are tunable.
+    private static let labelFontSize: CGFloat = 0.8
+    private static let labelLift: Float = 1.0
+
+    private static func makeCategoryLabel(category: ToolCategory, position: SIMD3<Float>) -> Entity {
+        let mesh = MeshResource.generateText(
+            category.shortName,
+            extrusionDepth: 0.01,
+            font: .systemFont(ofSize: labelFontSize, weight: .semibold),
+            containerFrame: .zero,
+            alignment: .center,
+            lineBreakMode: .byTruncatingTail
+        )
+        // UnlitMaterial so the label reads regardless of the key/fill rig.
+        let label = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: category.color.uiColor)])
+
+        // generateText's origin is the text's lower-left; recenter the mesh on
+        // the entity origin by offsetting the model by -bounds.center so the
+        // label sits centered (both axes) over the anchor.
+        let center = mesh.bounds.center
+        label.position = SIMD3<Float>(-center.x, -center.y, -center.z)
+
+        let root = Entity()
+        root.name = "label:\(category.id.rawValue)"
+        root.position = position + SIMD3<Float>(0, PocketTransition.baseAnchorRadius + labelLift, 0)
+        // iOS 18 RealityKit: face the active camera every frame.
+        root.components.set(BillboardComponent())
+        root.addChild(label)
+        return root
     }
 
     private static func makeToolNode(tool: Tool?, category: ToolCategory, position: SIMD3<Float>) -> ModelEntity {
