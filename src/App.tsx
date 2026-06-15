@@ -4,12 +4,26 @@ import { VisualizationLab } from './components/VisualizationLab';
 
 type AppMode = 'map' | 'lab';
 
+function getInitialMode(): AppMode {
+  return window.location.hash === '#visual-lab' ? 'lab' : 'map';
+}
+
 export function App() {
   const [isOpen, setIsOpen] = useState(true);
-  const [mode, setMode] = useState<AppMode>('map');
+  const [mode, setMode] = useState<AppMode>(getInitialMode);
+
+  const openLab = () => {
+    window.location.hash = 'visual-lab';
+    setMode('lab');
+  };
+
+  const openMap = () => {
+    window.history.replaceState(null, '', window.location.pathname);
+    setMode('map');
+  };
 
   if (mode === 'lab') {
-    return <VisualizationLab onBack={() => setMode('map')} />;
+    return <VisualizationLab onBack={openMap} />;
   }
 
   return (
@@ -27,7 +41,7 @@ export function App() {
           </button>
           <button
             type="button"
-            onClick={() => setMode('lab')}
+            onClick={openLab}
             className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.08] px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.14] active:scale-[0.98]"
           >
             Open Visual Lab
