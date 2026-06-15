@@ -1,6 +1,6 @@
 # UI/UX Direction
 
-Last updated: 2026-06-10
+Last updated: 2026-06-15
 
 This folder is the UI/UX specialist area. Put visual references, screenshots, critiques, interaction notes, and design acceptance criteria here.
 
@@ -64,6 +64,64 @@ Score each item 1-5 before release:
 | Mobile | Hard to use | Natural mobile bottom-sheet experience |
 
 Release target: no category below 4.
+
+## Implementation: iOS Phase 3 visual system (backlog 18–31)
+
+The "premium cosmic liquid glass" target above, in concrete RealityKit
+terms. Web↔iOS constants are reconciled in `docs/UNIVERSE_CONSTANTS.md`;
+this section is the *visual-language* map.
+
+### Materials
+
+| Surface | Material | Key params |
+| --- | --- | --- |
+| Tool / core node | `PhysicallyBasedMaterial` | base tinted + darkened by state (0.6–0.85), roughness 0.5 (core 0.35), metallic 0.05; emissive hierarchy 0.06→2.0 by focus/selection; selected adds clearcoat 0.6 / clearcoatRoughness 0.2 ("lit from within"). Web parity: `meshPhysicalMaterial` clearcoat 0.6 on focus (PR #79). |
+| Category anchor | `PhysicallyBasedMaterial` | frosted glass, hue-tinted, faint emissive lift. |
+| Pocket shell + rings | `UnlitMaterial` (transparent) | fixed brightness, independent of the light rig. |
+| Labels (category + tool) | `UnlitMaterial` | `generateText`, billboarded; tool labels distance-faded. |
+| Star field / galaxy dust / skybox | `UnlitMaterial` | ambient layers, never lit. |
+
+### Lighting rig
+
+- **Key** `DirectionalLight` 2 600, soft neutral, upper-left.
+- **Fill** `DirectionalLight` 750, cool (R0.74 G0.80 B1.0), lifts shadowed hemispheres.
+- **IBL** (backlog 29) — `ImageBasedLightComponent` from a procedurally
+  generated equirectangular cosmic env map (`CosmicEnvironmentTexture`),
+  cascaded to all PBR nodes via `ImageBasedLightReceiverComponent`. Replaces
+  the earlier code-only bounce light; gives real reflections.
+- **Skybox** (backlog 28) — `SkyboxEntity`, an inverted sphere (r=300) textured
+  with the *same* env map so backdrop and reflections agree; SwiftUI radial
+  gradient kept as fallback.
+
+### Depth layers (near → far)
+
+Node cloud → galaxy dust → star field (shell 120) → skybox (shell 300).
+
+### Motion language
+
+| Motion | Driver | Cadence |
+| --- | --- | --- |
+| Pocket-shell breathing + yaw sway | `ShellBreathingSystem` / pure `ShellBreathing` | scale ±1.8 % @ 0.32 rad/s, yaw ±0.04 rad @ 0.28 rad/s (web-matched) |
+| Ring spins | `FromToByAnimation` (repeat) | per `PocketShellGeometry` spin rates |
+| Founder halo breathe | `FromToByAnimation` | ±6 % over 2.6 s |
+| Selection pulse | transform/emissive | eased on the selected node |
+| Pocket fade-in | `OpacityComponent` + animation | 0.36 s (`BrandMotion.flow`) |
+| Tool-label distance fade | `ToolLabelFadeSystem` / pure `ToolLabelFade` | opacity 1 ≤6 u → 0 ≥18 u |
+| Camera transitions | `CameraController` / `PocketTransition` | eased, persistent scene (no rebuild) |
+
+### Reduce-motion matrix (`accessibilityReduceMotion`)
+
+| Element | Motion ON | Reduce-motion |
+| --- | --- | --- |
+| Pocket shell | breathe + sway + spins + fade-in | static at final opacity, no component attached |
+| Founder halo | slow breathe | static |
+| Selection pulse | animated pulse | static emphasis |
+| Tool labels | distance-faded (camera-driven, not time) | distance fade retained (not a motion effect) |
+| Camera retarget | eased fly | instant retarget |
+| Star field / dust / skybox | static (no per-frame motion either way) | unchanged |
+
+VoiceOver (backlog 30/31): every tappable entity carries
+`AccessibilityComponent` label/value/hint, trait `.button`.
 
 ## How To Add References
 

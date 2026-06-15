@@ -163,18 +163,20 @@ Rules of engagement:
 
 ## Phase F — docs, QA, hygiene
 
-46. `[ ]` **PHASE_3_PLAN.md** — author the Phase 3 plan (tasks 18–31 scoped
-    into slices with verify gates) once Phase A merges; review with Codex via
-    PR.
-47. `[ ]` **Design README update** — PBR material system, lighting rig,
-    motion language, haptic map: the "premium cosmic liquid glass" spec in
-    implementation terms for iOS.
+46. `[x]` **Phase 3 status** — `docs/PHASE_3_STATUS.md` records tasks 18–31
+    as shipped slices with PRs + verify gates (reframed from a forward plan
+    since the work landed first).
+47. `[x]` **Design README update** — `docs/design/README.md` "Implementation:
+    iOS Phase 3 visual system": PBR materials, lighting rig + IBL + skybox,
+    motion language, reduce-motion matrix.
 48. `[ ]` **Visual QA rubric run** — full desktop/tablet/mobile + iOS sim
     screenshot set against `docs/design/README.md` rubric; findings filed as
     tasks.
-49. `[ ]` **Branch hygiene** — list merged remote branches for the user to
-    delete (deletion is permission-blocked for agents), prune local
-    worktrees, verify no stray dirty files in shared checkout.
+49. `[x]` **Branch hygiene** — only stray merged remote branch is
+    `origin/feat/ios-phase2-haptics-pass` (points at main; user deletes —
+    agent deletion permission-blocked). Phase C slice branches (#72–78)
+    auto-deleted on squash-merge. See "Branch hygiene" in
+    `docs/PHASE_3_STATUS.md` siblings / AGENT_STATUS.
 50. `[ ]` **Release review dry run** — run the release-review checklist
     against the iOS app + web scene before any TestFlight/production push;
     stop-ship findings → tasks.
