@@ -3,6 +3,7 @@ import { ArrowLeft, Brain, Orbit, Sparkles } from 'lucide-react';
 import { categories, tools, workflowLinks } from '../../data/ai-tool-universe';
 import { BrainGraphVariant } from './BrainGraphVariant';
 import { buildVisualizationData } from './visualization-data';
+import { VisionSpaceVariant } from './VisionSpaceVariant';
 
 type LabVariant = 'brain' | 'vision' | 'galaxy';
 
@@ -59,7 +60,9 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
 
       <section className="grid min-h-[calc(100dvh-74px)] grid-cols-1 lg:grid-cols-[1fr_320px]">
         <div className="relative min-h-[620px] overflow-hidden">
-          {variant === 'brain' ? (
+          {variant === 'vision' ? (
+            <VisionSpaceVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
+          ) : variant === 'brain' ? (
             <BrainGraphVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
           ) : (
             <PendingVariant variant={variant} />
