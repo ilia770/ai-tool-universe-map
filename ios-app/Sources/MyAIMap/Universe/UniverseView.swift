@@ -170,23 +170,26 @@ struct UniverseView: View {
             fill.look(at: .zero, from: fill.position, relativeTo: nil)
             universe.addChild(fill)
 
-            // Environment depth (backlog 28 + 29): true image-based lighting
-            // (ImageBasedLightComponent) and a skybox both need an
-            // EnvironmentResource loaded from a bundled .exr/.hdr — we have no
-            // such art asset, so genuine IBL and a skybox backdrop are DEFERRED
-            // pending one. As a code-only stand-in this slice adds a single
-            // low-intensity ambient bounce from below/behind, opposite the key,
-            // to lift the dead-black shadowed hemispheres the review flagged
-            // into readable depth. Kept dim (a fraction of the key) so it
-            // softens, not flattens, the PBR shading and never blows out the
-            // emissive selection hierarchy. The RadialGradient background stays
-            // as the skybox stand-in.
-            let bounce = DirectionalLight()
-            bounce.light.intensity = 320
-            bounce.light.color = UIColor(red: 0.62, green: 0.66, blue: 0.85, alpha: 1)
-            bounce.position = SIMD3<Float>(2, -6, -7)
-            bounce.look(at: .zero, from: bounce.position, relativeTo: nil)
-            universe.addChild(bounce)
+            // Image-based lighting (backlog 29): real reflections + ambient
+            // from a procedurally generated cosmic environment map. The #71
+            // slice deferred this assuming a bundled .exr was required — it
+            // isn't. CosmicEnvironmentTexture paints an equirectangular sky in
+            // CoreGraphics at launch and EnvironmentResource derives the IBL
+            // probe from it. The map is deliberately dim (deep space with a
+            // faint warm horizon) so it lifts the dead-black shadowed
+            // hemispheres the review flagged and adds subtle specular life to
+            // the PBR spheres without flattening the key/fill shaping or
+            // blowing out the emissive selection hierarchy. Replaces the
+            // earlier code-only single-bounce stand-in light.
+            if let equirect = CosmicEnvironmentTexture.makeEquirectangular(),
+               let environment = try? EnvironmentResource(equirectangular: equirect) {
+                let ibl = Entity()
+                ibl.name = "ibl"
+                ibl.components.set(ImageBasedLightComponent(source: .single(environment)))
+                universe.addChild(ibl)
+                // Receiver on the root cascades to every PBR node below it.
+                universe.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl))
+            }
         } update: { content in
             guard let universe = content.entities.first(where: { $0.name == "universe" }),
                   let state = universe.components[UniverseStateComponent.self] else { return }
