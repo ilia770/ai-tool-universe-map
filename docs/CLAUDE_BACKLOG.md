@@ -102,8 +102,10 @@ Rules of engagement:
     pocketed tools (TextMeshResource or attachment views).
 27. `[ ]` **Founder core hero treatment** — layered core: inner emissive
     sphere + outer frosted shell + slow pulse; matches "hero node" brief.
-28. `[ ]` **Scene background depth** — replace flat radial gradient with
-    subtle skybox/environment resource (cosmic depth without banding).
+28. `[x]` **Scene background depth** — `SkyboxEntity` inverted-sphere shell
+    (r=300, beyond the star field) textured with the shared
+    `CosmicEnvironmentTexture` equirectangular map so backdrop and IBL
+    reflections agree; UnlitMaterial, gradient kept as fallback (#74).
 29. `[x]` **IBL / environment lighting** — `EnvironmentResource` image-based
     lighting so PBR materials get real reflections (#72). Procedural
     `CosmicEnvironmentTexture` replaces the deferred bundled-`.exr` assumption;

@@ -140,6 +140,14 @@ struct UniverseView: View {
                 onProximityEvent: onProximityEvent
             ))
 
+            // Cosmic skybox (backlog 28): outermost textured shell, sharing
+            // the env map that drives IBL so backdrop and reflections agree.
+            // Added before the stars so the stars layer in front of it. nil →
+            // texture-gen failed, SwiftUI gradient fallback stays visible.
+            if let skybox = SkyboxEntity.make() {
+                universe.addChild(skybox)
+            }
+
             // Ambient cosmic backdrop (backlog 19): a static star field on a
             // shell far beyond the camera, so the universe sits in stars
             // rather than a flat void. Added once; not tappable, no animation.
