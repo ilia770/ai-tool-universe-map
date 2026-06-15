@@ -60,6 +60,10 @@ enum PocketShellEntity {
             fadeIn(root)
             spin(outer, radPerSec: PocketShellGeometry.outerSpinRadPerSec)
             spin(inner, radPerSec: PocketShellGeometry.innerSpinRadPerSec)
+            // Slow ±1.8 % wobble + yaw sway on the whole shell group
+            // (backlog 22), driven by ShellBreathingSystem. Tag only when
+            // motion is allowed — presence of the component IS the opt-in.
+            root.components.set(ShellBreathingComponent())
         }
         return root
     }

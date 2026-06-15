@@ -89,8 +89,10 @@ Rules of engagement:
     slowly; reduce-motion static.
 21. `[ ]` **Sparkles in pocket** — particle field inside the open pocket
     (RealityKit particle emitter), count/scale parity with web Sparkles.
-22. `[ ]` **Shell breathing + yaw sway** — per-frame system for the ±1.8 %
-    shell wobble and group sway dropped in slice 3 (needs task 16 first).
+22. `[x]` **Shell breathing + yaw sway** — `ShellBreathingSystem` +
+    `ShellBreathingComponent` drive the ±1.8 % wobble and yaw sway on the
+    pocket-shell root; pure `ShellBreathing` curve (web-cadence sin), tagged
+    only when reduce-motion is off (#77).
 23. `[ ]` **CategoryRingEntity** — proper orbit ring + billboarded category
     label around each anchor (web CategoryRing parity).
 24. `[ ]` **Node hover/selection pulse** — selected-node emissive pulse via

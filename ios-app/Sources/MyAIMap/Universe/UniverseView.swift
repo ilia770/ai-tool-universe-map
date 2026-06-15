@@ -33,6 +33,8 @@ struct UniverseView: View {
             // Idempotent; must run before the scene starts updating.
             UniverseStateComponent.registerComponent()
             ProximityCategorySystem.registerSystem()
+            ShellBreathingComponent.registerComponent()
+            ShellBreathingSystem.registerSystem()
 
             let universe = Entity()
             universe.name = "universe"
