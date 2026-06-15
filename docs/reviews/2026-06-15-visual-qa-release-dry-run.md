@@ -67,3 +67,21 @@ iOS: full `xcodebuild test` green on ClaudeGate (142 tests); iOS CI
 **No stop-ship items.** Pending before an actual TestFlight/prod push:
 the 3 P3 polish findings (optional), iOS on-device gesture pass, and the
 web clearcoat parity PR (#79) visual sign-off.
+
+## Follow-up triage (2026-06-15 pm)
+
+- **Finding 3 (iOS edge-label clipping) — FIXED, #82.** Category labels
+  inset radially inward (X/Z × 0.78); verified before/after on ClaudeGate,
+  all 8 labels read fully. Parity constant `categoryRadiusX` untouched.
+- **Findings 1 + 2 (web overview density, tablet vertical band) — share one
+  root cause and are NOT a constant tweak.** The web scene uses a single
+  fixed camera framing (`Scene.tsx` camera + `CameraController` overview
+  offsets) across every viewport. On a tall portrait the vertically-thin
+  category ellipse leaves empty space; pulling the camera in to densify
+  would clip the edge categories (the same trade-off the iOS label inset
+  just dodged). A correct fix is a **responsive / aspect-aware camera**
+  (adjust overview distance + look target by viewport aspect, re-applied on
+  resize) — a small feature needing cross-viewport (desktop/tablet/mobile)
+  visual review, not an autonomous constant change. Promoted to a follow-up;
+  bundle its review with the #79 clearcoat sign-off. Both P3, non-blocking;
+  the desktop framing (primary surface) is already good.
