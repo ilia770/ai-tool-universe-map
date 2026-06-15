@@ -169,17 +169,19 @@ Rules of engagement:
 47. `[x]` **Design README update** — `docs/design/README.md` "Implementation:
     iOS Phase 3 visual system": PBR materials, lighting rig + IBL + skybox,
     motion language, reduce-motion matrix.
-48. `[ ]` **Visual QA rubric run** — full desktop/tablet/mobile + iOS sim
-    screenshot set against `docs/design/README.md` rubric; findings filed as
-    tasks.
+48. `[x]` **Visual QA rubric run** — desktop/tablet/mobile + open pocket +
+    iOS sim screenshots scored against the rubric; all areas ≥4 both
+    platforms; 3 P3 polish findings, no P1/P2. See
+    `docs/reviews/2026-06-15-visual-qa-release-dry-run.md`.
 49. `[x]` **Branch hygiene** — only stray merged remote branch is
     `origin/feat/ios-phase2-haptics-pass` (points at main; user deletes —
     agent deletion permission-blocked). Phase C slice branches (#72–78)
     auto-deleted on squash-merge. See "Branch hygiene" in
     `docs/PHASE_3_STATUS.md` siblings / AGENT_STATUS.
-50. `[ ]` **Release review dry run** — run the release-review checklist
-    against the iOS app + web scene before any TestFlight/production push;
-    stop-ship findings → tasks.
+50. `[x]` **Release review dry run** — `scripts/release-check.sh` green
+    (build + bundle budget); iOS 142 tests + CI green; no stop-ship items.
+    Pending pre-push: 3 P3 polish findings, iOS on-device gesture pass, web
+    clearcoat PR #79 sign-off. See the 2026-06-15 QA/release review doc.
 
 ## Coordination with Codex
 
