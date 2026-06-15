@@ -7,6 +7,12 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
+      // Isolated second entry for the visualization prototype lab; the
+      // production app (index.html) is untouched.
+      input: {
+        main: 'index.html',
+        playground: 'playground.html',
+      },
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules/three/')) return 'three-core';
