@@ -3,16 +3,18 @@ import { ArrowLeft, Brain, Orbit, Sparkles } from 'lucide-react';
 import { categories, tools, workflowLinks } from '../../data/ai-tool-universe';
 import { BrainGraphVariant } from './BrainGraphVariant';
 import { GalaxyMapVariant } from './GalaxyMapVariant';
+import { NeuralUniverseVariant } from './NeuralUniverseVariant';
 import { buildVisualizationData } from './visualization-data';
 import { VisionSpaceVariant } from './VisionSpaceVariant';
 
-type LabVariant = 'brain' | 'vision' | 'galaxy';
+type LabVariant = 'neural' | 'brain' | 'vision' | 'galaxy';
 
 interface VisualizationLabProps {
   onBack: () => void;
 }
 
 const variants: Array<{ id: LabVariant; label: string }> = [
+  { id: 'neural', label: 'Neural Universe' },
   { id: 'brain', label: 'AI Brain' },
   { id: 'vision', label: 'Vision Space' },
   { id: 'galaxy', label: 'AI Galaxy' },
@@ -20,7 +22,7 @@ const variants: Array<{ id: LabVariant; label: string }> = [
 
 export function VisualizationLab({ onBack }: VisualizationLabProps) {
   const data = useMemo(() => buildVisualizationData({ categories, tools, workflowLinks }), []);
-  const [variant, setVariant] = useState<LabVariant>('brain');
+  const [variant, setVariant] = useState<LabVariant>('neural');
   const [selectedId, setSelectedId] = useState('founder-os');
   const selected = data.nodeById.get(selectedId) ?? data.nodes[0];
 
@@ -42,7 +44,7 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
           </div>
         </div>
 
-        <div className="flex rounded-full border border-white/10 bg-white/[0.05] p-1">
+        <div className="flex max-w-full overflow-x-auto rounded-full border border-white/10 bg-white/[0.05] p-1">
           {variants.map((item) => (
             <button
               key={item.id}
@@ -61,7 +63,9 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
 
       <section className="grid min-h-[calc(100dvh-74px)] grid-cols-1 lg:grid-cols-[1fr_320px]">
         <div className="relative min-h-[620px] overflow-hidden">
-          {variant === 'brain' ? (
+          {variant === 'neural' ? (
+            <NeuralUniverseVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
+          ) : variant === 'brain' ? (
             <BrainGraphVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
           ) : variant === 'vision' ? (
             <VisionSpaceVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
@@ -86,14 +90,18 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
             <ComparisonNote
               icon={<Brain size={16} />}
               label="Relationship clarity"
-              value={variant === 'brain' ? 'High' : 'Medium'}
+              value={variant === 'brain' || variant === 'neural' ? 'High' : 'Medium'}
             />
             <ComparisonNote
               icon={<Sparkles size={16} />}
               label="Premium feel"
-              value={variant === 'vision' ? 'High' : 'Medium'}
+              value={variant === 'vision' || variant === 'neural' ? 'High' : 'Medium'}
             />
-            <ComparisonNote icon={<Orbit size={16} />} label="Scale feeling" value={variant === 'galaxy' ? 'High' : 'Medium'} />
+            <ComparisonNote
+              icon={<Orbit size={16} />}
+              label="Scale feeling"
+              value={variant === 'galaxy' || variant === 'neural' ? 'High' : 'Medium'}
+            />
           </div>
         </aside>
       </section>
