@@ -48,4 +48,10 @@ describe('tool input helpers', () => {
     expect(makeSlug('https://www.supadata.ai/')).toBe('supadata-ai');
     expect(getDisplayName('https://wisprflow.ai/')).toBe('Wispr Flow');
   });
+
+  it('falls back to a stable ASCII slug when the input has no latin token', () => {
+    expect(makeSlug('聊天工具')).toMatch(/^tool-[a-z0-9]+$/);
+    expect(makeSlug('🤖')).toMatch(/^tool-[a-z0-9]+$/);
+    expect(makeSlug('聊天工具')).toBe(makeSlug('聊天工具'));
+  });
 });

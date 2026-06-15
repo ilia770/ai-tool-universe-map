@@ -7,13 +7,17 @@ import {
   useState,
 } from 'react';
 import {
-  tools,
   categories,
-  toolById,
   categoryById,
   type AITool,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { useToolStore } from '../useToolStore';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
+
+// Best icon URL for a node, given the store's resolver. Returns undefined when
+// no logo/upload is available so the node falls back to its colored dot.
+type IconResolver = (tool: AITool, size?: number) => string | undefined;
 
 /**
  * BloomGraph — a Neo4j Bloom–style progressive graph exploration scene.
@@ -51,8 +55,16 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+const SEED_ID = 'founder-os';
+
 // ---- bidirectional adjacency (relationIds are stored on the source) --------
-const adjacency: Map<string, string[]> = (() => {
+// Derived from the *reactive* tool list so a user-added tool wires into its
+// classifier-provided relations the moment it appears. Pure: same tools in →
+// same maps out, no module-level state.
+function buildAdjacency(
+  tools: AITool[],
+  toolById: Map<string, AITool>,
+): Map<string, string[]> {
   const map = new Map<string, Set<string>>();
   const ensure = (id: string) => {
     let s = map.get(id);
@@ -73,13 +85,14 @@ const adjacency: Map<string, string[]> = (() => {
   const out = new Map<string, string[]>();
   for (const [k, v] of map) out.set(k, [...v]);
   return out;
-})();
-
-const SEED_ID = 'founder-os';
+}
 
 // directed relationship: the curated `relationIds` give us a natural source
 // (the tool that declares the relation). Used for arrowhead direction.
-const directedFrom: Set<string> = (() => {
+function buildDirectedFrom(
+  tools: AITool[],
+  toolById: Map<string, AITool>,
+): Set<string> {
   const s = new Set<string>();
   for (const t of tools) {
     for (const r of t.relationIds) {
@@ -87,7 +100,7 @@ const directedFrom: Set<string> = (() => {
     }
   }
   return s;
-})();
+}
 
 // ---- simulation node model -------------------------------------------------
 interface SimNode {
@@ -151,7 +164,11 @@ function relationKind(focus: AITool, nb: AITool): RelKind {
 // shortest path (BFS over bidirectional adjacency) between two tools, used to
 // reveal a hidden target found via search / chip navigation by blooming each
 // hop along the way. Returns the id chain inclusive of both ends, or null.
-function shortestPath(from: string, to: string): string[] | null {
+function shortestPath(
+  from: string,
+  to: string,
+  adjacency: Map<string, string[]>,
+): string[] | null {
   if (from === to) return [from];
   const prev = new Map<string, string>();
   const queue: string[] = [from];
@@ -180,10 +197,16 @@ function shortestPath(from: string, to: string): string[] | null {
 
 const NODE_R = 30;
 
-// All logical edges, computed once. Render filters by node presence so edges
-// fade with their (springing-out) nodes instead of popping; the simulation
-// filters by `revealed` so collapsing nodes aren't spring-held in place.
-const allEdges: Edge[] = (() => {
+// All logical edges. Render filters by node presence so edges fade with their
+// (springing-out) nodes instead of popping; the simulation filters by
+// `revealed` so collapsing nodes aren't spring-held in place. Rebuilt whenever
+// the reactive tool list changes so a new tool's relations draw immediately.
+function buildAllEdges(
+  tools: AITool[],
+  toolById: Map<string, AITool>,
+  adjacency: Map<string, string[]>,
+  directedFrom: Set<string>,
+): Edge[] {
   const seen = new Set<string>();
   const out: Edge[] = [];
   for (const t of tools) {
@@ -203,9 +226,41 @@ const allEdges: Edge[] = (() => {
     }
   }
   return out;
-})();
+}
 
 export function BloomGraph() {
+  const { openInApp } = useInAppBrowser();
+  // ---- shared, reactive tool universe (seed tools + user-added tools) ----
+  // Sourcing `tools`/`toolById`/`iconUrlFor` from the store (not the static
+  // data module) makes the whole graph re-derive when the user adds a tool.
+  const { tools, toolById, iconUrlFor } = useToolStore();
+
+  // adjacency / directed / edges are derived from the reactive tool list so a
+  // newly-added tool wires into its classifier-set relations on next render.
+  const adjacency = useMemo(
+    () => buildAdjacency(tools, toolById),
+    [tools, toolById],
+  );
+  const directedFrom = useMemo(
+    () => buildDirectedFrom(tools, toolById),
+    [tools, toolById],
+  );
+  const allEdges = useMemo(
+    () => buildAllEdges(tools, toolById, adjacency, directedFrom),
+    [tools, toolById, adjacency, directedFrom],
+  );
+
+  // keep loop-facing refs to icon resolver / lookups (the sim loop must not
+  // close over a stale render scope).
+  const iconUrlRef = useRef<IconResolver>(iconUrlFor);
+  const adjacencyRef = useRef(adjacency);
+  const toolByIdRef = useRef(toolById);
+  useEffect(() => {
+    iconUrlRef.current = iconUrlFor;
+    adjacencyRef.current = adjacency;
+    toolByIdRef.current = toolById;
+  }, [iconUrlFor, adjacency, toolById]);
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
 
@@ -339,12 +394,46 @@ export function BloomGraph() {
         node.py = anchor ? anchor.y : 0;
       }
     }
-  }, [revealed]);
+    // also re-runs when `tools` grows: any newly-revealed user-added tool that
+    // isn't in the sim yet gets seeded above (near a revealed neighbour), so it
+    // eases in rather than popping. Existing nodes keep their position by id.
+  }, [revealed, tools, adjacency, toolById]);
+
+  // ---- auto-reveal newly added tools so they appear in their cluster ----
+  // A user-added tool is reactive in `tools` but not yet in `revealed`. Reveal
+  // it (and ensure its parent is on screen) so it blooms into its category
+  // cluster without a jarring full reflow — existing node positions are kept by
+  // id in `nodesRef`, only the newcomer is placed (near a revealed neighbour,
+  // else near the seed) and springs/scales in via its `appear` ramp.
+  useEffect(() => {
+    const newlyAdded = tools.filter(
+      (t) => t.userAdded && !revealed.has(t.id),
+    );
+    if (newlyAdded.length === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      setRevealed((prev) => {
+        const next = new Set(prev);
+        for (const t of newlyAdded) {
+          next.add(t.id);
+          // make sure at least one neighbour is visible so the newcomer isn't an
+          // orphan; pull in its nearest already-known relation as an anchor.
+          const anchor = (adjacency.get(t.id) ?? []).find((nb) =>
+            toolById.has(nb),
+          );
+          if (anchor && !next.has(anchor)) next.add(anchor);
+        }
+        return next;
+      });
+      // focus the most recent newcomer so the detail panel reflects it.
+      setFocusId(newlyAdded[newlyAdded.length - 1].id);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tools, revealed, adjacency, toolById]);
 
   // ---- visible edges (both endpoints revealed) — drives simulation springs.
   const edges = useMemo<Edge[]>(
     () => allEdges.filter((e) => revealed.has(e.a) && revealed.has(e.b)),
-    [revealed],
+    [allEdges, revealed],
   );
 
   // keep loop-facing refs in sync (the loop must not depend on render scope)
@@ -531,7 +620,7 @@ export function BloomGraph() {
         return next;
       });
     },
-    [revealed],
+    [revealed, adjacency],
   );
 
   // ---- reveal a (possibly hidden) tool by blooming each hop along the BFS
@@ -551,7 +640,7 @@ export function BloomGraph() {
       const sources = [focusId, ...revealed];
       let path: string[] | null = null;
       for (const s of sources) {
-        const p = shortestPath(s, targetId);
+        const p = shortestPath(s, targetId, adjacency);
         if (p) {
           path = p;
           break;
@@ -593,7 +682,7 @@ export function BloomGraph() {
       }
       setFocusId(targetId);
     },
-    [revealed, focusId],
+    [revealed, focusId, adjacency, toolById],
   );
 
   // ---- collapse to keep only the first `keepCount` expansion steps ----
@@ -638,7 +727,7 @@ export function BloomGraph() {
     setExpanded(new Set([SEED_ID]));
     setStack([{ parent: SEED_ID, introduced: [...(adjacency.get(SEED_ID) ?? [])] }]);
     setFocusId(SEED_ID);
-  }, []);
+  }, [adjacency]);
 
   // node click router: expanded → collapse its children; else expand
   const onNodeClick = useCallback(
@@ -706,7 +795,7 @@ export function BloomGraph() {
             false),
       )
       .slice(0, 6);
-  }, [trimmedQuery]);
+  }, [trimmedQuery, tools]);
   const matchIds = useMemo(
     () => new Set(searchMatches.map((t) => t.id)),
     [searchMatches],
@@ -720,7 +809,7 @@ export function BloomGraph() {
     const m = new Map<string, number>();
     for (const t of tools) m.set(t.category, (m.get(t.category) ?? 0) + 1);
     return m;
-  }, []);
+  }, [tools]);
 
   const toggleCat = useCallback((id: string) => {
     setMutedCats((prev) => {
@@ -736,7 +825,7 @@ export function BloomGraph() {
     const s = new Set<string>([focusId]);
     for (const nb of adjacency.get(focusId) ?? []) if (revealed.has(nb)) s.add(nb);
     return s;
-  }, [focusId, revealed]);
+  }, [focusId, revealed, adjacency]);
 
   // Render edges whose BOTH endpoints are currently in the sim snapshot
   // (revealed OR still springing out). This lets collapsing edges fade with
@@ -752,7 +841,7 @@ export function BloomGraph() {
     return allEdges
       .filter((e) => map.has(e.a) && map.has(e.b))
       .sort((x, y) => rank(x) - rank(y));
-  }, [map, activeSet, hoverId]);
+  }, [allEdges, map, activeSet, hoverId]);
 
   const hiddenCount = focusNode
     ? (adjacency.get(focusId) ?? []).filter((nb) => !revealed.has(nb)).length
@@ -784,7 +873,7 @@ export function BloomGraph() {
     }
     out.sort((a, b) => Number(b.revealed) - Number(a.revealed));
     return out;
-  }, [focusNode, revealed]);
+  }, [focusNode, revealed, adjacency, toolById]);
 
   const stageLabel = focusNode
     ? focusNode.stage.charAt(0).toUpperCase() + focusNode.stage.slice(1)
@@ -1131,7 +1220,7 @@ export function BloomGraph() {
       </svg>
 
       {/* ---- top-left scene header (liquid glass) ---- */}
-      <div className="pointer-events-none absolute left-4 top-16 max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+      <div className="pointer-events-none absolute left-4 top-32 max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
         <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300/80">
           Bloom · Graph Exploration
         </div>
@@ -1151,7 +1240,7 @@ export function BloomGraph() {
       </div>
 
       {/* ---- search (top-center) — liquid glass; starts exploration anywhere ---- */}
-      <div className="pointer-events-auto absolute left-1/2 top-16 z-20 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2">
+      <div className="pointer-events-auto absolute left-1/2 top-[15.5rem] z-20 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 sm:top-32">
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
           <div className="flex items-center gap-2 px-3">
             <svg
@@ -1315,10 +1404,9 @@ export function BloomGraph() {
                   {focusNode.name}
                 </div>
                 {focusNode.url && (
-                  <a
-                    href={focusNode.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
+                  <button
+                    type="button"
+                    onClick={() => openInApp(focusNode.url!, focusNode.name)}
                     className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10.5px] font-medium text-slate-200 transition hover:bg-white/[0.12] active:scale-[0.97]"
                   >
                     Open
@@ -1331,7 +1419,7 @@ export function BloomGraph() {
                         strokeLinejoin="round"
                       />
                     </svg>
-                  </a>
+                  </button>
                 )}
               </div>
               <p className="mt-1.5 text-[12px] leading-relaxed text-slate-300/85">

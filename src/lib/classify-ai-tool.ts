@@ -326,13 +326,24 @@ const displayNameOverrides: Record<string, string> = {
   zed: 'Zed',
 };
 
-export const makeSlug = (value: string) =>
-  value.trim().toLowerCase()
+function stableHash(value: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+export const makeSlug = (value: string) => {
+  const slug = value.trim().toLowerCase()
     .replace(/^https?:\/\//, '')
     .replace(/^www\./, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 42);
+  return slug || `tool-${stableHash(value.trim() || 'tool')}`;
+};
 
 export const getDisplayName = (value: string): string => {
   const trimmed = value.trim();

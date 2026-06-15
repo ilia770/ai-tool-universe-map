@@ -10,13 +10,14 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  tools,
   categories,
-  toolById,
   categoryById,
   type AITool,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { type AddedTool } from '../toolStoreContext';
+import { useToolStore } from '../useToolStore';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 /* ------------------------------------------------------------------ *
  * Neural Universe — Direction O (HERO showpiece)
@@ -71,7 +72,7 @@ const PULSES_PER_EDGE = IS_SMALL ? 1 : 2;
 
 /* --- types -------------------------------------------------------- */
 interface HeroNode {
-  tool: AITool;
+  tool: AddedTool;
   category: ToolCategory;
   pos: THREE.Vector3;
   color: THREE.Color;
@@ -117,37 +118,68 @@ categories.forEach((cat, i) => {
 // the core lobe sits dead-centre so the hero owns the middle
 clusterCenters.set('core', new THREE.Vector3(0, 0, 0));
 
-const HERO_NODES: HeroNode[] = (() => {
-  const rand = mulberry32(0x5eed01);
-  const byCat = new Map<string, AITool[]>();
-  for (const tool of tools) {
+// Deterministic per-tool RNG seed so a node's size / phase stay stable
+// regardless of how many other tools exist around it (important so that
+// adding a tool never reshuffles the appearance of existing nodes).
+function seedForTool(tool: AITool): number {
+  let h = 0x5eed01;
+  const id = tool.id;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
+/* --- reactive graph derivation -----------------------------------
+ * Built from the store's reactive tool list. `prevPos` lets us reuse a
+ * node's previous world position by id so adding a tool never reflows
+ * the existing constellation — only brand-new ids get a fresh slot. */
+interface Graph {
+  heroNodes: HeroNode[];
+  heroById: Map<string, HeroNode>;
+  heroPosById: Map<string, THREE.Vector3>;
+  edges: Edge[];
+  adjacency: Map<string, Set<string>>;
+  edgesByNode: Map<string, number[]>;
+}
+
+function buildGraph(
+  toolList: readonly AddedTool[],
+  prevPos: Map<string, THREE.Vector3>,
+): Graph {
+  const byCat = new Map<string, AddedTool[]>();
+  for (const tool of toolList) {
     const list = byCat.get(tool.category) ?? [];
     list.push(tool);
     byCat.set(tool.category, list);
   }
-  const out: HeroNode[] = [];
+
+  const heroNodes: HeroNode[] = [];
   for (const [catId, list] of byCat) {
     const center = clusterCenters.get(catId) ?? new THREE.Vector3();
     const category = categoryById.get(asCatId(catId)) ?? categories[0];
     const golden = Math.PI * (3 - Math.sqrt(5));
     list.forEach((tool, idx) => {
       const isHero = tool.id === HERO_ID;
-      const y = list.length === 1 ? 0 : 1 - (idx / (list.length - 1)) * 2;
-      const radius = Math.sqrt(Math.max(0, 1 - y * y));
-      const theta = golden * idx;
-      const jitter = 0.6 + rand() * 0.5;
-      const spread = catId === 'core' ? 3 : 10 * jitter;
-      const pos = isHero
-        ? new THREE.Vector3(0, 0, 0)
-        : new THREE.Vector3(
-            center.x + Math.cos(theta) * radius * spread,
-            center.y + y * spread * 0.7 + (rand() - 0.5) * 3.5,
-            center.z + Math.sin(theta) * radius * spread,
-          );
+      // per-tool deterministic RNG keeps size/phase stable across rebuilds
+      const rand = mulberry32(seedForTool(tool));
+      let pos = prevPos.get(tool.id);
+      if (!pos) {
+        const y = list.length === 1 ? 0 : 1 - (idx / (list.length - 1)) * 2;
+        const radius = Math.sqrt(Math.max(0, 1 - y * y));
+        const theta = golden * idx;
+        const jitter = 0.6 + rand() * 0.5;
+        const spread = catId === 'core' ? 3 : 10 * jitter;
+        pos = isHero
+          ? new THREE.Vector3(0, 0, 0)
+          : new THREE.Vector3(
+              center.x + Math.cos(theta) * radius * spread,
+              center.y + y * spread * 0.7 + (rand() - 0.5) * 3.5,
+              center.z + Math.sin(theta) * radius * spread,
+            );
+      }
       // organic size variety; relation-rich nodes read as bigger hubs
       const hubBonus = Math.min(tool.relationIds.length, 6) * 0.06;
       const size = isHero ? 2.4 : 0.9 + rand() * 0.5 + hubBonus;
-      out.push({
+      heroNodes.push({
         tool,
         category,
         pos,
@@ -157,13 +189,39 @@ const HERO_NODES: HeroNode[] = (() => {
       });
     });
   }
-  return out;
-})();
 
-const heroById = new Map<string, HeroNode>(HERO_NODES.map((n) => [n.tool.id, n]));
-const heroPosById = new Map<string, THREE.Vector3>(
-  HERO_NODES.map((n) => [n.tool.id, n.pos]),
-);
+  const heroById = new Map<string, HeroNode>(heroNodes.map((n) => [n.tool.id, n]));
+  const heroPosById = new Map<string, THREE.Vector3>(
+    heroNodes.map((n) => [n.tool.id, n.pos]),
+  );
+
+  // hero-to-hero edges from relationIds (deduped, both endpoints present)
+  const seen = new Set<string>();
+  const edges: Edge[] = [];
+  for (const node of heroNodes) {
+    for (const relId of node.tool.relationIds) {
+      if (!heroPosById.has(relId)) continue;
+      const key = [node.tool.id, relId].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push({ a: node.tool.id, b: relId });
+    }
+  }
+
+  const adjacency = new Map<string, Set<string>>();
+  for (const e of edges) {
+    (adjacency.get(e.a) ?? adjacency.set(e.a, new Set()).get(e.a)!).add(e.b);
+    (adjacency.get(e.b) ?? adjacency.set(e.b, new Set()).get(e.b)!).add(e.a);
+  }
+
+  const edgesByNode = new Map<string, number[]>();
+  edges.forEach((e, i) => {
+    (edgesByNode.get(e.a) ?? edgesByNode.set(e.a, []).get(e.a)!).push(i);
+    (edgesByNode.get(e.b) ?? edgesByNode.set(e.b, []).get(e.b)!).push(i);
+  });
+
+  return { heroNodes, heroById, heroPosById, edges, adjacency, edgesByNode };
+}
 
 const AMBIENT_NODES: AmbientNode[] = (() => {
   const rand = mulberry32(0x1d0e77);
@@ -208,35 +266,6 @@ const AMBIENT_NODES: AmbientNode[] = (() => {
   }
   return out;
 })();
-
-// hero-to-hero edges from relationIds (deduped)
-const EDGES: Edge[] = (() => {
-  const seen = new Set<string>();
-  const out: Edge[] = [];
-  for (const node of HERO_NODES) {
-    for (const relId of node.tool.relationIds) {
-      if (!heroPosById.has(relId)) continue;
-      const key = [node.tool.id, relId].sort().join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ a: node.tool.id, b: relId });
-    }
-  }
-  return out;
-})();
-
-const adjacency = new Map<string, Set<string>>();
-for (const e of EDGES) {
-  (adjacency.get(e.a) ?? adjacency.set(e.a, new Set()).get(e.a)!).add(e.b);
-  (adjacency.get(e.b) ?? adjacency.set(e.b, new Set()).get(e.b)!).add(e.a);
-}
-
-// flat list of edge index per endpoint, for fast active-edge lookups
-const edgesByNode = new Map<string, number[]>();
-EDGES.forEach((e, i) => {
-  (edgesByNode.get(e.a) ?? edgesByNode.set(e.a, []).get(e.a)!).push(i);
-  (edgesByNode.get(e.b) ?? edgesByNode.set(e.b, []).get(e.b)!).push(i);
-});
 
 /* --- shared textures at module scope ------------------------------ */
 function makeGlowTexture(): THREE.Texture {
@@ -328,16 +357,24 @@ function AmbientField({ glow, focused }: { glow: THREE.Texture; focused: boolean
 function SynapsePulses({
   glow,
   activeId,
+  edges,
+  heroPosById,
+  edgesByNode,
+  toolById,
 }: {
   glow: THREE.Texture;
   activeId: string | null;
+  edges: Edge[];
+  heroPosById: Map<string, THREE.Vector3>;
+  edgesByNode: Map<string, number[]>;
+  toolById: Map<string, AddedTool>;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const { camera } = useThree();
-  const total = EDGES.length * PULSES_PER_EDGE;
+  const total = edges.length * PULSES_PER_EDGE;
 
-  // per-pulse static params + scratch endpoints (precomputed once)
+  // per-pulse static params + scratch endpoints (precomputed per graph)
   const data = useMemo(() => {
     const rand = mulberry32(0xabc123);
     const offset = new Float32Array(total);
@@ -348,7 +385,7 @@ function SynapsePulses({
     const bx = new Float32Array(total);
     const by = new Float32Array(total);
     const bz = new Float32Array(total);
-    EDGES.forEach((e, ei) => {
+    edges.forEach((e, ei) => {
       const pa = heroPosById.get(e.a)!;
       const pb = heroPosById.get(e.b)!;
       for (let k = 0; k < PULSES_PER_EDGE; k++) {
@@ -364,21 +401,21 @@ function SynapsePulses({
       }
     });
     return { offset, speed, ax, ay, az, bx, by, bz };
-  }, [total]);
+  }, [total, edges, heroPosById]);
 
   // edge "hot" factor: 1 when edge touches the active node, else 0
   const hotByEdge = useMemo(() => {
-    const arr = new Float32Array(EDGES.length);
+    const arr = new Float32Array(edges.length);
     if (activeId) {
       const idxs = edgesByNode.get(activeId);
       if (idxs) for (const i of idxs) arr[i] = 1;
     }
     return arr;
-  }, [activeId]);
+  }, [activeId, edges, edgesByNode]);
 
   const colorArray = useMemo(() => {
     const arr = new Float32Array(total * 3);
-    EDGES.forEach((e, ei) => {
+    edges.forEach((e, ei) => {
       const col = new THREE.Color(
         categoryById.get(toolById.get(e.b)!.category)!.color,
       ).lerp(new THREE.Color('#ffffff'), 0.4);
@@ -390,7 +427,7 @@ function SynapsePulses({
       }
     });
     return arr;
-  }, [total]);
+  }, [total, edges, toolById]);
 
   useFrame((state) => {
     const mesh = ref.current;
@@ -398,7 +435,7 @@ function SynapsePulses({
     // reduced-motion: pulses crawl rather than dart
     const t = state.clock.elapsedTime * (PREFERS_REDUCED_MOTION ? 0.35 : 1);
     const hasActive = activeId != null;
-    for (let ei = 0; ei < EDGES.length; ei++) {
+    for (let ei = 0; ei < edges.length; ei++) {
       const hot = hotByEdge[ei];
       // unfocused: gentle ambient pulses everywhere; focused: only hot edges
       const visible = hasActive ? hot > 0.5 : true;
@@ -477,13 +514,15 @@ function HeroNeuron({
   const coreRef = useRef<THREE.MeshStandardMaterial>(null);
   const shellRef = useRef<THREE.MeshPhysicalMaterial>(null);
   const [hovered, setHovered] = useState(false);
-
   const isHero = node.tool.id === HERO_ID;
+  const isNew = node.tool.userAdded === true;
   const baseScale = node.size;
   const sCur = useRef(baseScale);
   const haloCur = useRef(1);
   const emisCur = useRef(1.1);
   const opCur = useRef(1);
+  // user-added nodes ease/scale in gently from 0 so they don't pop
+  const bornCur = useRef(isNew ? 0 : 1);
 
   // dendrite spike directions (precomputed per node)
   const spikes = useMemo(() => {
@@ -551,7 +590,9 @@ function HeroNeuron({
     haloCur.current = THREE.MathUtils.lerp(haloCur.current, haloOn, kSoft);
     emisCur.current = THREE.MathUtils.lerp(emisCur.current, emis, kSoft);
     opCur.current = THREE.MathUtils.lerp(opCur.current, opacity, kSoft);
-    g.scale.setScalar(sCur.current);
+    // gentle birth scale-in for freshly added nodes (settles to 1)
+    bornCur.current = THREE.MathUtils.lerp(bornCur.current, 1, kSoft);
+    g.scale.setScalar(sCur.current * bornCur.current);
     // slow majestic self-rotation (held still when reduced-motion)
     g.rotation.y = PREFERS_REDUCED_MOTION ? node.phase : t * 0.12 + node.phase;
 
@@ -699,15 +740,27 @@ function HeroNeuron({
 /* ------------------------------------------------------------------ *
  * Synapse links — additive line segments, dimming when focused
  * ------------------------------------------------------------------ */
-function Synapses({ activeId }: { activeId: string | null }) {
+function Synapses({
+  activeId,
+  edges,
+  heroPosById,
+  adjacency,
+  toolById,
+}: {
+  activeId: string | null;
+  edges: Edge[];
+  heroPosById: Map<string, THREE.Vector3>;
+  adjacency: Map<string, Set<string>>;
+  toolById: Map<string, AddedTool>;
+}) {
   const baseRef = useRef<THREE.LineSegments>(null);
   const activeRef = useRef<THREE.LineSegments>(null);
   const activeMat = useRef<THREE.LineBasicMaterial>(null);
 
   const baseGeo = useMemo(() => {
-    const positions = new Float32Array(EDGES.length * 6);
-    const colors = new Float32Array(EDGES.length * 6);
-    EDGES.forEach((e, i) => {
+    const positions = new Float32Array(edges.length * 6);
+    const colors = new Float32Array(edges.length * 6);
+    edges.forEach((e, i) => {
       const pa = heroPosById.get(e.a)!;
       const pb = heroPosById.get(e.b)!;
       positions.set([pa.x, pa.y, pa.z, pb.x, pb.y, pb.z], i * 6);
@@ -719,7 +772,7 @@ function Synapses({ activeId }: { activeId: string | null }) {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return geo;
-  }, []);
+  }, [edges, heroPosById, toolById]);
 
   const activeGeo = useMemo(() => {
     if (!activeId) return null;
@@ -740,7 +793,7 @@ function Synapses({ activeId }: { activeId: string | null }) {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return geo;
-  }, [activeId]);
+  }, [activeId, heroPosById, adjacency, toolById]);
 
   useFrame((s, delta) => {
     const dt = Math.min(delta, 1 / 30);
@@ -788,7 +841,15 @@ function Synapses({ activeId }: { activeId: string | null }) {
 const HOME_TARGET = new THREE.Vector3(0, 0, 0);
 const _orbit = new THREE.Vector3();
 
-function CameraRig({ activeId }: { activeId: string | null }) {
+function CameraRig({
+  activeId,
+  heroPosById,
+  heroById,
+}: {
+  activeId: string | null;
+  heroPosById: Map<string, THREE.Vector3>;
+  heroById: Map<string, HeroNode>;
+}) {
   const { camera } = useThree();
   const targetPos = useRef(new THREE.Vector3(0, 12, 78));
   const lookTarget = useRef(HOME_TARGET.clone());
@@ -843,6 +904,13 @@ function Scene({
   activeCats,
   onSelect,
   onHover,
+  heroNodes,
+  heroById,
+  heroPosById,
+  edges,
+  adjacency,
+  edgesByNode,
+  toolById,
 }: {
   activeId: string | null;
   hoverId: string | null;
@@ -850,6 +918,13 @@ function Scene({
   activeCats: Set<string> | null;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
+  heroNodes: HeroNode[];
+  heroById: Map<string, HeroNode>;
+  heroPosById: Map<string, THREE.Vector3>;
+  edges: Edge[];
+  adjacency: Map<string, Set<string>>;
+  edgesByNode: Map<string, number[]>;
+  toolById: Map<string, AddedTool>;
 }) {
   const glow = useMemo(() => makeGlowTexture(), []);
   const neighbors = activeId ? adjacency.get(activeId) : undefined;
@@ -869,7 +944,7 @@ function Scene({
       if (searchIds) return searchIds.has(id) ? 'search' : 'dimmed';
       return 'idle';
     },
-    [activeId, neighbors, searchIds, activeCats],
+    [activeId, neighbors, searchIds, activeCats, toolById],
   );
 
   return (
@@ -880,12 +955,25 @@ function Scene({
       <pointLight position={[0, 30, 30]} intensity={1.3} color="#9bd9ff" />
       <pointLight position={[-40, -20, -20]} intensity={0.6} color="#ff8bd2" />
 
-      <CameraRig activeId={activeId} />
+      <CameraRig activeId={activeId} heroPosById={heroPosById} heroById={heroById} />
       <AmbientField glow={glow} focused={Boolean(activeId)} />
-      <Synapses activeId={activeId} />
-      <SynapsePulses glow={glow} activeId={activeId} />
+      <Synapses
+        activeId={activeId}
+        edges={edges}
+        heroPosById={heroPosById}
+        adjacency={adjacency}
+        toolById={toolById}
+      />
+      <SynapsePulses
+        glow={glow}
+        activeId={activeId}
+        edges={edges}
+        heroPosById={heroPosById}
+        edgesByNode={edgesByNode}
+        toolById={toolById}
+      />
 
-      {HERO_NODES.map((node) => {
+      {heroNodes.map((node) => {
         const computed = stateOf(node.tool.id);
         // hovering a non-dimmed node previews it as a neighbor glow
         const state =
@@ -910,12 +998,6 @@ function Scene({
 /* ------------------------------------------------------------------ *
  * Public component
  * ------------------------------------------------------------------ */
-// per-category tool counts (computed once at module scope)
-const CATEGORY_COUNTS = new Map<string, number>();
-for (const tool of tools) {
-  CATEGORY_COUNTS.set(tool.category, (CATEGORY_COUNTS.get(tool.category) ?? 0) + 1);
-}
-
 const STAGE_LABEL: Record<AITool['stage'], string> = {
   research: 'Research',
   planning: 'Planning',
@@ -925,6 +1007,14 @@ const STAGE_LABEL: Record<AITool['stage'], string> = {
 };
 
 export function NeuralUniverse() {
+  const { openInApp } = useInAppBrowser();
+  const { tools, toolById } = useToolStore();
+  const graph = useMemo(() => buildGraph(tools, new Map()), [tools]);
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tool of tools) counts.set(tool.category, (counts.get(tool.category) ?? 0) + 1);
+    return counts;
+  }, [tools]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -932,11 +1022,11 @@ export function NeuralUniverse() {
   const [activeCats, setActiveCats] = useState<Set<string> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const activeTool = activeId ? toolById.get(activeId) : null;
+  const activeTool = activeId ? (toolById.get(activeId) ?? null) : null;
   const activeCat = activeTool ? categoryById.get(activeTool.category) : null;
   const neighborIds = useMemo(
-    () => (activeId ? Array.from(adjacency.get(activeId) ?? []) : []),
-    [activeId],
+    () => (activeId ? Array.from(graph.adjacency.get(activeId) ?? []) : []),
+    [activeId, graph.adjacency],
   );
 
   // live search → matched ids (name / summary / category), ranked name-first
@@ -956,7 +1046,7 @@ export function NeuralUniverse() {
         contains.push(tool);
     }
     return [...starts, ...contains];
-  }, [trimmed]);
+  }, [tools, trimmed]);
 
   // null = no active search highlight (also when a query yields no matches,
   // so the brain stays alive rather than fully dimming out)
@@ -1034,11 +1124,18 @@ export function NeuralUniverse() {
           activeCats={activeCats}
           onSelect={handleSelect}
           onHover={setHoverId}
+          heroNodes={graph.heroNodes}
+          heroById={graph.heroById}
+          heroPosById={graph.heroPosById}
+          edges={graph.edges}
+          adjacency={graph.adjacency}
+          edgesByNode={graph.edgesByNode}
+          toolById={toolById}
         />
       </Canvas>
 
       {/* top chrome-safe heading + search */}
-      <div className="absolute inset-x-0 top-0 px-5 pt-16 sm:px-8">
+      <div className="absolute inset-x-0 top-0 px-5 pt-32 sm:px-8">
         <div className="pointer-events-none">
           <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-cyan-200/70">
             Neural Universe
@@ -1157,7 +1254,7 @@ export function NeuralUniverse() {
                   <span className={on ? 'text-white/80' : 'text-white/55'}>
                     {c.shortName}
                   </span>
-                  <span className="text-white/35">{CATEGORY_COUNTS.get(c.id) ?? 0}</span>
+                  <span className="text-white/35">{categoryCounts.get(c.id) ?? 0}</span>
                 </button>
               );
             })}
@@ -1203,7 +1300,7 @@ export function NeuralUniverse() {
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {neighborIds.map((id) => {
-                  const nb = heroById.get(id);
+                  const nb = graph.heroById.get(id);
                   if (!nb) return null;
                   return (
                     <button
@@ -1233,15 +1330,14 @@ export function NeuralUniverse() {
               {neighborIds.length} {neighborIds.length === 1 ? 'synapse' : 'synapses'}
             </span>
             {activeTool.url && (
-              <a
-                href={activeTool.url}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => openInApp(activeTool.url!, activeTool.name)}
                 className="flex min-h-9 items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.08] px-3.5 py-1.5 text-[12px] font-medium text-white/85 transition-colors hover:border-white/30 hover:bg-white/[0.14] active:opacity-80"
               >
                 Open
                 <span aria-hidden className="text-[13px] leading-none">↗</span>
-              </a>
+              </button>
             )}
           </div>
         </div>

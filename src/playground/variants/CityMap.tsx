@@ -16,6 +16,7 @@ import {
   type AITool,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 /* ------------------------------------------------------------------ *
  * Direction F — "AI City" (CodeCity / software-metropolis metaphor)
@@ -549,6 +550,7 @@ function InfoCard({
   tool: AITool;
   onClose: () => void;
 }) {
+  const { openInApp } = useInAppBrowser();
   const cat = categoryById.get(tool.category);
   const related = tool.relationIds
     .map((id) => tools.find((t) => t.id === id))
@@ -628,15 +630,14 @@ function InfoCard({
       )}
 
       {tool.url && (
-        <a
-          href={tool.url}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={() => openInApp(tool.url!, tool.name)}
           className="mt-3 inline-block text-[12px] font-medium"
           style={{ color: accent }}
         >
           Visit site →
-        </a>
+        </button>
       )}
     </div>
   );

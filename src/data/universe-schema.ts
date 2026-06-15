@@ -21,8 +21,8 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isValidUrl = (value: string) => {
   try {
-    new URL(value);
-    return true;
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
   } catch {
     return false;
   }

@@ -1,4 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
+import { InAppBrowserProvider } from '../components/InAppBrowser';
+import { ToolStoreProvider } from './store';
+import { AddToolModal } from './AddToolModal';
 import { BrainGraph } from './variants/BrainGraph';
 import { ObjectSpace } from './variants/ObjectSpace';
 import { GalaxyMap } from './variants/GalaxyMap';
@@ -48,6 +51,7 @@ function initialId(): string {
 
 export function PlaygroundApp() {
   const [activeId, setActiveId] = useState(initialId);
+  const [addOpen, setAddOpen] = useState(false);
   const active = VARIANTS.find((v) => v.id === activeId) ?? VARIANTS[0];
   const Active = active.Component;
 
@@ -66,10 +70,23 @@ export function PlaygroundApp() {
   }, []);
 
   return (
+    <InAppBrowserProvider>
+    <ToolStoreProvider>
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#03040a] text-white">
       <div className="absolute inset-0">
         <Active />
       </div>
+
+      {/* + Add-tool FAB — paste a tool, the classifier places it. */}
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        title="Add a tool"
+        className="absolute bottom-6 right-6 z-20 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.08] text-2xl font-light text-white shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-2xl transition hover:bg-white/[0.14] active:scale-95"
+      >
+        +
+      </button>
+      <AddToolModal open={addOpen} onClose={() => setAddOpen(false)} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-3 p-4">
         <div className="pointer-events-auto">
@@ -95,5 +112,7 @@ export function PlaygroundApp() {
         </nav>
       </header>
     </div>
+    </ToolStoreProvider>
+    </InAppBrowserProvider>
   );
 }

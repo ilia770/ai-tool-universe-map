@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
-import { CameraControls, Billboard, Text, Line } from '@react-three/drei';
+import { CameraControls, Billboard, Text, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  tools,
   categories,
-  toolById,
   categoryById,
   workflowStages,
   type AITool,
   type ToolCategoryId,
   type WorkflowStageId,
 } from '../../data/ai-tool-universe';
+import { getToolInitials } from '../../lib/tool-logos';
+import { type AddedTool } from '../toolStoreContext';
+import { useToolStore } from '../useToolStore';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 // ---------------------------------------------------------------------------
 // Viewport + motion environment (read once, outside render where possible).
@@ -69,10 +71,12 @@ function mulberry32(seed: number): () => number {
 // ---------------------------------------------------------------------------
 interface GraphNode {
   id: string;
-  tool: AITool;
+  tool: AddedTool;
   color: THREE.Color;
   degree: number;
   radius: number;
+  // True for user-added tools → subtle "new" ring + entrance ease.
+  userAdded: boolean;
   // simulation state
   x: number;
   y: number;
@@ -81,6 +85,11 @@ interface GraphNode {
   vy: number;
   vz: number;
 }
+
+// A frozen snapshot of node positions by id, so a recompute (e.g. after the
+// user adds a tool) can seed existing nodes from where they already are —
+// preventing a jarring reflow. New ids fall back to a seeded shell position.
+type PositionMap = Map<string, { x: number; y: number; z: number }>;
 
 interface GraphEdge {
   a: number; // node index
@@ -110,23 +119,69 @@ const LINK_STRENGTH = 0.45;
 const CENTER_STRENGTH = 0.02;
 const CLUSTER_STRENGTH = 0.055; // intra-category cohesion → clearer clusters
 
-function buildLayout(): Layout {
+// Centroid of the already-placed tools that share a category, so a brand-new
+// tool is born inside its cluster (not at a random shell point) and only has
+// to settle a little — keeping the entrance smooth.
+function seedNearCategory(
+  category: string,
+  prevPositions: PositionMap,
+  tools: AddedTool[],
+): { x: number; y: number; z: number } | null {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  let count = 0;
+  for (const t of tools) {
+    if (t.category !== category) continue;
+    const p = prevPositions.get(t.id);
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    z += p.z;
+    count += 1;
+  }
+  if (count === 0) return null;
+  return { x: x / count, y: y / count, z: z / count };
+}
+
+function buildLayout(tools: AddedTool[], prevPositions: PositionMap): Layout {
   const rand = mulberry32(SEED);
 
   const indexById = new Map<string, number>();
   const nodes: GraphNode[] = tools.map((tool, i) => {
     indexById.set(tool.id, i);
     const cat = categoryById.get(tool.category);
+    // Seed from a prior position if we have one (smooth recompute), else from
+    // a deterministic sphere shell. New tools start near their category's
+    // existing centroid so they ease into the right cluster rather than
+    // flying in from a random corner.
+    const prev = prevPositions.get(tool.id);
+    let sx: number;
+    let sy: number;
+    let sz: number;
+    if (prev) {
+      sx = prev.x;
+      sy = prev.y;
+      sz = prev.z;
+    } else {
+      const seed = seedNearCategory(tool.category, prevPositions, tools);
+      const jx = (rand() - 0.5) * 14;
+      const jy = (rand() - 0.5) * 14;
+      const jz = (rand() - 0.5) * 14;
+      sx = seed ? seed.x + jx : (rand() - 0.5) * 120;
+      sy = seed ? seed.y + jy : (rand() - 0.5) * 120;
+      sz = seed ? seed.z + jz : (rand() - 0.5) * 120;
+    }
     return {
       id: tool.id,
       tool,
       color: new THREE.Color(cat ? cat.color : '#ffffff'),
       degree: 0,
       radius: 1,
-      // initial positions on a sphere shell, seeded
-      x: (rand() - 0.5) * 120,
-      y: (rand() - 0.5) * 120,
-      z: (rand() - 0.5) * 120,
+      userAdded: tool.userAdded === true,
+      x: sx,
+      y: sy,
+      z: sz,
       vx: 0,
       vy: 0,
       vz: 0,
@@ -397,6 +452,8 @@ function Node({
   state,
   searchMatch,
   filteredOut,
+  showIcon,
+  iconUrl,
   geometry,
   onHover,
   onClick,
@@ -407,17 +464,33 @@ function Node({
   searchMatch: boolean;
   // True when an active category/stage filter excludes this node.
   filteredOut: boolean;
+  // Mount the brand-icon badge only for highlighted / near nodes (perf).
+  showIcon: boolean;
+  // Resolved brand-icon URL (logo.dev / uploaded image) or undefined.
+  iconUrl: string | undefined;
   geometry: THREE.SphereGeometry;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  // Brand icon may 404 on logo.dev → fall back to the coloured dot / monogram.
+  const [brokenIconUrl, setBrokenIconUrl] = useState<string | null>(null);
   // Scale is expressed relative to the node's intrinsic radius (the shared
   // geometry is a unit sphere), so base = node.radius.
   const targetScale = useRef(node.radius);
   const targetEmissive = useRef(0.22);
   const targetOpacity = useRef(1);
+
+  // User-added nodes pop in: start tiny so the per-frame ease scales them up
+  // gently into their cluster instead of appearing at full size instantly.
+  useEffect(() => {
+    if (node.userAdded && meshRef.current) {
+      meshRef.current.scale.setScalar(0.001);
+    }
+    // Run once per node identity (a new tool mounts a fresh Node).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id]);
 
   useEffect(() => {
     // Base targets from selection state.
@@ -466,34 +539,112 @@ function Node({
     }
   });
 
+  // Only attempt the brand badge when we have a URL that hasn't errored.
+  const renderIcon = showIcon && Boolean(iconUrl) && brokenIconUrl !== iconUrl;
+
   return (
-    <mesh
-      ref={meshRef}
-      geometry={geometry}
-      position={[node.x, node.y, node.z]}
-      scale={node.radius}
-      renderOrder={2}
-      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-        e.stopPropagation();
-        onHover(node.id);
-      }}
-      onPointerOut={() => onHover(null)}
-      onClick={(e: ThreeEvent<MouseEvent>) => {
-        e.stopPropagation();
-        onClick(node.id);
-      }}
-    >
-      <meshStandardMaterial
-        ref={matRef}
-        color={node.color}
-        emissive={node.color}
-        emissiveIntensity={0.22}
-        roughness={0.38}
-        metalness={0.55}
-        transparent
-        opacity={1}
-      />
-    </mesh>
+    <group position={[node.x, node.y, node.z]}>
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        scale={node.radius}
+        renderOrder={2}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          onHover(node.id);
+        }}
+        onPointerOut={() => onHover(null)}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          onClick(node.id);
+        }}
+      >
+        <meshStandardMaterial
+          ref={matRef}
+          color={node.color}
+          emissive={node.color}
+          emissiveIntensity={0.22}
+          roughness={0.38}
+          metalness={0.55}
+          transparent
+          opacity={1}
+        />
+      </mesh>
+
+      {/* Subtle "new" ring for user-added tools so freshly classified tools
+          are easy to spot in their cluster. */}
+      {node.userAdded ? (
+        <Billboard>
+          <mesh renderOrder={2}>
+            <ringGeometry args={[node.radius * 1.45, node.radius * 1.62, 48]} />
+            <meshBasicMaterial
+              color="#7df0c4"
+              transparent
+              opacity={0.7}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+        </Billboard>
+      ) : null}
+
+      {/* Brand-icon badge — mounted only for highlighted / near nodes so we
+          never instantiate 49+ DOM nodes. Round-cropped logo.dev / uploaded
+          image centred precisely on the node, with a thin ring. If the URL is
+          missing or fails, the coloured-dot / monogram fallback shows. */}
+      {showIcon ? (
+        <Html
+          center
+          transform
+          sprite
+          distanceFactor={18}
+          zIndexRange={[30, 0]}
+          style={{ pointerEvents: 'none' }}
+        >
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: renderIcon ? '#0a1422' : node.color.getStyle(),
+              border: `1.5px solid ${node.color.getStyle()}`,
+              boxShadow: `0 2px 10px rgba(0,0,0,0.5)`,
+            }}
+          >
+            {renderIcon ? (
+              <img
+                src={iconUrl}
+                alt=""
+                width={34}
+                height={34}
+                onError={() => setBrokenIconUrl(iconUrl ?? null)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: 0.2,
+                  color: '#06101c',
+                }}
+              >
+                {getToolInitials(node.tool.name)}
+              </span>
+            )}
+          </div>
+        </Html>
+      ) : null}
+    </group>
   );
 }
 
@@ -579,6 +730,7 @@ function GraphGroup({
   reduceMotion,
   matchIds,
   filteredIds,
+  iconUrlFor,
 }: {
   layout: Layout;
   activeId: string | null;
@@ -592,6 +744,8 @@ function GraphGroup({
   matchIds: Set<string>;
   // Nodes excluded by the active category/stage filter (empty when no filter).
   filteredIds: Set<string>;
+  // Best brand-icon URL for a tool (uploaded image / logo.dev / undefined).
+  iconUrlFor: (tool: AITool, size?: number) => string | undefined;
 }) {
   const groupRef = useRef<THREE.Group>(null);
 
@@ -627,6 +781,20 @@ function GraphGroup({
     return layout.adjacency[idx];
   }, [focus, layout]);
 
+  // Nodes that should mount a brand-icon badge: the focused node, its direct
+  // neighbours, and live search matches. This is exactly the set that already
+  // reads as "near / highlighted / in-focus", so we never instantiate dozens
+  // of DOM badges at once — only a handful are live at any moment.
+  const iconIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (focus) {
+      ids.add(focus);
+      if (neighbours) neighbours.forEach((id) => ids.add(id));
+    }
+    matchIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [focus, neighbours, matchIds]);
+
   return (
     <group ref={groupRef}>
       <Edges layout={layout} focusId={focus} />
@@ -637,6 +805,7 @@ function GraphGroup({
           else if (neighbours && neighbours.has(node.id)) state = 'neighbour';
           else state = 'dim';
         }
+        const showIcon = iconIds.has(node.id) && !filteredIds.has(node.id);
         return (
           <Node
             key={node.id}
@@ -644,6 +813,8 @@ function GraphGroup({
             state={state}
             searchMatch={matchIds.size > 0 && matchIds.has(node.id)}
             filteredOut={filteredIds.has(node.id)}
+            showIcon={showIcon}
+            iconUrl={showIcon ? iconUrlFor(node.tool) : undefined}
             geometry={sphereGeom}
             onHover={onHover}
             onClick={onClick}
@@ -709,15 +880,7 @@ function ReferenceGrid({ extent, compact }: { extent: number; compact: boolean }
 // ---------------------------------------------------------------------------
 // Main component.
 // ---------------------------------------------------------------------------
-// Per-category node counts — computed once at module scope (no Math.random,
-// deterministic) so the legend can show how many tools live in each cluster.
-const CATEGORY_COUNTS: Record<string, number> = (() => {
-  const counts: Record<string, number> = {};
-  for (const t of tools) counts[t.category] = (counts[t.category] ?? 0) + 1;
-  return counts;
-})();
-
-// Stage display order + counts for the workflow filter row.
+// Stage display order for the workflow filter row.
 const STAGE_ORDER: WorkflowStageId[] = [
   'research',
   'planning',
@@ -725,14 +888,28 @@ const STAGE_ORDER: WorkflowStageId[] = [
   'approval',
   'review',
 ];
-const STAGE_COUNTS: Record<string, number> = (() => {
+
+// Count tools by a key (category / stage) — derived from the reactive store
+// list so legend counts update when the user adds a tool.
+function countBy(list: AddedTool[], key: (t: AddedTool) => string): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const t of tools) counts[t.stage] = (counts[t.stage] ?? 0) + 1;
+  for (const t of list) {
+    const k = key(t);
+    counts[k] = (counts[k] ?? 0) + 1;
+  }
   return counts;
-})();
+}
 
 export function Force3D() {
-  const layout = useMemo(() => buildLayout(), []);
+  const { openInApp } = useInAppBrowser();
+  // Source the reactive tool list (49 seeds + anything the user adds) and the
+  // brand-icon resolver from the shared playground store.
+  const { tools, toolById, iconUrlFor } = useToolStore();
+
+  const layout = useMemo(() => buildLayout(tools, new Map()), [tools]);
+
+  const categoryCounts = useMemo(() => countBy(tools, (t) => t.category), [tools]);
+  const stageCounts = useMemo(() => countBy(tools, (t) => t.stage), [tools]);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -772,9 +949,9 @@ export function Force3D() {
     if (idx === undefined) return [];
     return [...layout.adjacency[idx]]
       .map((id) => toolById.get(id))
-      .filter((t): t is AITool => Boolean(t))
+      .filter((t): t is AddedTool => Boolean(t))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [activeId, layout]);
+  }, [activeId, layout, toolById]);
 
   // -------------------------------------------------------------------------
   // Search — match by name / summary / category. Ordered list of matches so
@@ -793,7 +970,7 @@ export function Force3D() {
         );
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [trimmedQuery]);
+  }, [tools, trimmedQuery]);
 
   const matchIds = useMemo(
     () => new Set(searchMatches.map((t) => t.id)),
@@ -814,7 +991,7 @@ export function Force3D() {
       if ((failsCat || failsStage) && !matchIds.has(t.id)) out.add(t.id);
     }
     return out;
-  }, [catFilter, stageFilter, matchIds]);
+  }, [tools, catFilter, stageFilter, matchIds]);
 
   const camDist = layout.bounds * 2.1;
   const resetView = () => {
@@ -907,6 +1084,7 @@ export function Force3D() {
           reduceMotion={reduceMotion}
           matchIds={matchIds}
           filteredIds={filteredIds}
+          iconUrlFor={iconUrlFor}
         />
 
         <FlyController controls={controls} target={activeNode} />
@@ -920,7 +1098,7 @@ export function Force3D() {
       </Canvas>
 
       {/* Top chrome clearance + title + search (frosted-glass HUD). */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-16 sm:px-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-32 sm:px-6">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
             <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/80">
@@ -1051,7 +1229,7 @@ export function Force3D() {
                 {c.shortName}
               </span>
               <span className="font-mono text-[9px] text-white/35">
-                {CATEGORY_COUNTS[c.id] ?? 0}
+                {categoryCounts[c.id] ?? 0}
               </span>
             </button>
           );
@@ -1075,7 +1253,7 @@ export function Force3D() {
               }`}
             >
               {workflowStages[sid].name}
-              <span className="ml-1.5 font-mono text-white/35">{STAGE_COUNTS[sid] ?? 0}</span>
+              <span className="ml-1.5 font-mono text-white/35">{stageCounts[sid] ?? 0}</span>
             </button>
           );
         })}
@@ -1176,17 +1354,16 @@ export function Force3D() {
 
             <div className="mt-4 flex items-center gap-2">
               {activeTool.url ? (
-                <a
-                  href={activeTool.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
+                <button
+                  type="button"
+                  onClick={() => openInApp(activeTool.url!, activeTool.name)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-cyan-100 transition duration-300 hover:border-cyan-300/60 hover:bg-cyan-300/20 active:scale-95"
                 >
                   Open
                   <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M7 17 17 7M9 7h8v8" />
                   </svg>
-                </a>
+                </button>
               ) : null}
               <button
                 type="button"

@@ -16,6 +16,7 @@ import {
   type AITool,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 /* ------------------------------------------------------------------ *
  * Globe Switch (Direction M)
@@ -451,6 +452,7 @@ const PANEL_BASE: CSSProperties = {
 };
 
 export function GlobeSwitch() {
+  const { openInApp } = useInAppBrowser();
   const [level, setLevel] = useState<Level>('globe');
   const [activeCategory, setActiveCategory] = useState<ToolCategory | null>(null);
   const [activeTool, setActiveTool] = useState<AITool | null>(null);
@@ -707,10 +709,9 @@ export function GlobeSwitch() {
             </div>
           ) : null}
           {activeTool.url ? (
-            <a
-              href={activeTool.url}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => openInApp(activeTool.url!, activeTool.name)}
               style={{
                 display: 'inline-block',
                 marginTop: 14,
@@ -718,10 +719,14 @@ export function GlobeSwitch() {
                 fontWeight: 600,
                 color: accent,
                 textDecoration: 'none',
+                background: 'transparent',
+                border: 0,
+                cursor: 'pointer',
+                padding: 0,
               }}
             >
               Open tool ↗
-            </a>
+            </button>
           ) : null}
         </div>
       ) : null}

@@ -22,6 +22,7 @@ import {
   type AITool,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 /* ------------------------------------------------------------------ *
  * AI Galaxy / RTS Map (Direction C)
@@ -774,6 +775,7 @@ function InfoCard({
   relations: AITool[];
   onClose: () => void;
 }) {
+  const { openInApp } = useInAppBrowser();
   return (
     <div className="flex h-full w-full items-end justify-end p-5 sm:items-center">
       <div
@@ -818,14 +820,13 @@ function InfoCard({
         )}
 
         {tool.url && (
-          <a
-            href={tool.url}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => openInApp(tool.url!, tool.name)}
             className="mt-4 inline-flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
           >
             Open ↗
-          </a>
+          </button>
         )}
       </div>
     </div>

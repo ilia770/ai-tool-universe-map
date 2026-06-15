@@ -16,6 +16,7 @@ import {
   tools,
   type ToolCategory,
 } from '../../data/ai-tool-universe';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 const { ACTION } = CameraControlsImpl;
 
@@ -193,6 +194,7 @@ interface SatelliteProps {
 
 /** A small glass tool orb orbiting an opened category world. */
 function Satellite({ name, url, offset, color, geometry }: SatelliteProps) {
+  const { openInApp } = useInAppBrowser();
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
@@ -213,7 +215,7 @@ function Satellite({ name, url, offset, color, geometry }: SatelliteProps) {
         onPointerOut={() => setHovered(false)}
         onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();
-          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+          if (url) openInApp(url, name);
         }}
       >
         <mesh geometry={geometry} scale={hovered ? 1.18 : 1}>

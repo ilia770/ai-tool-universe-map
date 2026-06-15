@@ -5,27 +5,33 @@ import * as THREE from 'three';
 import {
   categories,
   categoryById,
-  tools,
-  toolById,
   workflowStages,
   type AITool,
   type ToolCategory,
   type ToolCategoryId,
 } from '../../data/ai-tool-universe';
+import { type AddedTool } from '../toolStoreContext';
+import { useToolStore } from '../useToolStore';
+import { getToolInitials } from '../../lib/tool-logos';
+import { useInAppBrowser } from '../../components/useInAppBrowser';
 
 /**
  * Direction A — "AI Brain / Obsidian Graph".
  *
- * A force-directed 2.5D node graph. Layout is precomputed once at module
- * load with a small spring/repulsion relaxation (deterministic, no random
- * seeds), so every frame is cheap and stable.
+ * A force-directed 2.5D node graph. The layout is derived from the shared
+ * reactive tool store (49 seed tools + anything the user adds via the +
+ * button) inside a useMemo keyed on `tools`. A persistent id→position ref
+ * seeds every recompute, so existing nodes keep their place and a newly
+ * added tool eases into its category cluster instead of reshuffling the
+ * whole graph.
  *
  * Production layer: glass search, category legend filter, relation-depth
  * highlighting (direct neighbours bright, 2nd-degree dim, rest faint), a
- * full liquid-glass detail panel with clickable connection chips, and a
- * reset-to-overview control. Built on top of the existing iOS-polished
- * smoothness (frame-rate-independent easing, viewport-tiered budgets,
- * touch, reduced-motion).
+ * full liquid-glass detail panel with clickable connection chips, brand
+ * icons (logo.dev / uploaded image, with dot/monogram fallback) rendered
+ * only on labelled nodes, and a reset-to-overview control. Built on top of
+ * the existing iOS-polished smoothness (frame-rate-independent easing,
+ * viewport-tiered budgets, touch, reduced-motion).
  */
 
 // ---------------------------------------------------------------------------
@@ -34,11 +40,13 @@ import {
 
 interface Node {
   id: string;
-  tool: AITool;
+  tool: AddedTool;
   color: THREE.Color;
   glow: string;
   /** size weight derived from connectivity */
   size: number;
+  /** true for user-added tools — gets a subtle "new" ring + ease-in. */
+  isNew: boolean;
   position: THREE.Vector3;
 }
 
@@ -49,18 +57,6 @@ interface Edge {
   kind: 0 | 1;
 }
 
-const DEG = Math.PI / 180;
-
-// Deterministic, index-based jitter so the layout is reproducible.
-function jitter(i: number, salt: number): number {
-  const v = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453;
-  return v - Math.floor(v) - 0.5; // [-0.5, 0.5)
-}
-
-// ---------------------------------------------------------------------------
-// Precomputed force-directed layout (module-level, runs once)
-// ---------------------------------------------------------------------------
-
 interface Graph {
   nodes: Node[];
   edges: Edge[];
@@ -69,9 +65,46 @@ interface Graph {
   radius: number;
 }
 
-const GRAPH: Graph = buildGraph();
+const DEG = Math.PI / 180;
+const HUB_ID = 'founder-os';
 
-function buildGraph(): Graph {
+// Deterministic, index-based jitter so the layout is reproducible.
+function jitter(i: number, salt: number): number {
+  const v = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return v - Math.floor(v) - 0.5; // [-0.5, 0.5)
+}
+
+// Second-degree neighbours of a node (direct neighbours excluded).
+function secondDegree(graph: Graph, id: string): Set<string> {
+  const direct = graph.adjacency.get(id);
+  const out = new Set<string>();
+  if (!direct) return out;
+  for (const nId of direct) {
+    const nn = graph.adjacency.get(nId);
+    if (!nn) continue;
+    for (const mId of nn) {
+      if (mId !== id && !direct.has(mId)) out.add(mId);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Force-directed layout — derived from the reactive store, position-stable
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the graph from the current tool list. `prevPos` carries node
+ * positions across recomputes (by id): existing nodes resume where they
+ * were so the relaxation barely nudges them, while genuinely new ids are
+ * seeded near their category cluster and then settle in. On return the
+ * map is updated with the final positions for the next recompute.
+ */
+function buildGraph(
+  tools: AddedTool[],
+  toolById: Map<string, AddedTool>,
+  prevPos: Map<string, THREE.Vector3>,
+): Graph {
   const indexById = new Map<string, number>();
   tools.forEach((tool, i) => indexById.set(tool.id, i));
 
@@ -100,30 +133,37 @@ function buildGraph(): Graph {
     }
   }
 
-  // Connect every tool to its category hub so the graph is fully connected.
-  // The category hub is represented by the tool whose category === 'core'
-  // (Founder OS) for the core group, and for the others we wire each tool to
-  // Founder OS as the universal centre, plus to one representative per
-  // category to give clustering. We use Founder OS (founder-os) as the
-  // single hub the prompt calls out.
-  const hubId = 'founder-os';
-  if (toolById.has(hubId)) {
+  // Connect every tool to the Founder OS hub so the graph stays connected.
+  if (toolById.has(HUB_ID)) {
     for (const tool of tools) {
-      if (tool.id !== hubId) pushEdge(tool.id, hubId, 1);
+      if (tool.id !== HUB_ID) pushEdge(tool.id, HUB_ID, 1);
     }
   }
 
-  // Seed positions from category angle on a 2.5D plane (mostly XY, small Z).
+  // Count of brand-new (no prior position) nodes — drives whether we run the
+  // full cold relax or just a light warm settle on top of stable positions.
+  let freshCount = 0;
+  for (const tool of tools) if (!prevPos.has(tool.id)) freshCount += 1;
+  const isInitial = prevPos.size === 0;
+
+  // Seed positions: resume from prevPos where known, otherwise from category
+  // angle on a 2.5D plane (mostly XY, small Z).
   const nodes: Node[] = tools.map((tool, i) => {
     const cat = categoryById.get(tool.category);
-    const baseAngle = (cat?.angle ?? tool.angle) * DEG;
-    const isHub = tool.id === hubId;
-    // hub sits near the centre; others fan out by category, pushed by orbit.
-    const ring = isHub ? 0 : 14 + tool.orbit * 6 + (jitter(i, 1) + 0.5) * 6;
-    const ang = baseAngle + jitter(i, 2) * 0.5;
-    const x = Math.cos(ang) * ring + jitter(i, 3) * 4;
-    const y = Math.sin(ang) * ring * 0.78 + jitter(i, 4) * 4;
-    const z = jitter(i, 5) * 6; // small depth jitter for 2.5D feel
+    const isHub = tool.id === HUB_ID;
+    const prior = prevPos.get(tool.id);
+    let position: THREE.Vector3;
+    if (prior) {
+      position = prior.clone();
+    } else {
+      const baseAngle = (cat?.angle ?? tool.angle) * DEG;
+      const ring = isHub ? 0 : 14 + tool.orbit * 6 + (jitter(i, 1) + 0.5) * 6;
+      const ang = baseAngle + jitter(i, 2) * 0.5;
+      const x = Math.cos(ang) * ring + jitter(i, 3) * 4;
+      const y = Math.sin(ang) * ring * 0.78 + jitter(i, 4) * 4;
+      const z = jitter(i, 5) * 6;
+      position = new THREE.Vector3(x, y, z);
+    }
     const deg = degree.get(tool.id) ?? 1;
     const color = new THREE.Color(cat?.color ?? '#9bd6ff');
     return {
@@ -132,21 +172,30 @@ function buildGraph(): Graph {
       color,
       glow: cat?.glow ?? 'rgba(155,214,255,0.3)',
       size: isHub ? 2.6 : 0.85 + Math.min(deg, 8) * 0.16,
-      position: new THREE.Vector3(x, y, z),
+      isNew: Boolean(tool.userAdded),
+      position,
     };
   });
 
-  relax(nodes, edges, indexById, hubId);
+  // Only relax when needed: a full pass on first build, and a short warm pass
+  // when a tool was added (so the newcomer settles into its cluster without
+  // jarring the rest). No new ids → no work, positions are already final.
+  if (isInitial) relax(nodes, edges, indexById, 110);
+  else if (freshCount > 0) relax(nodes, edges, indexById, 36);
 
-  // Re-centre on the hub (or centroid) and measure radius.
+  // Re-centre on the hub (or origin) and measure radius.
   const centre = new THREE.Vector3();
-  const hubIdx = indexById.get(hubId);
+  const hubIdx = indexById.get(HUB_ID);
   if (hubIdx !== undefined) centre.copy(nodes[hubIdx].position);
   let radius = 1;
   for (const n of nodes) {
     n.position.sub(centre);
     radius = Math.max(radius, n.position.length());
   }
+
+  // Persist final positions for the next recompute (smooth incremental adds).
+  prevPos.clear();
+  for (const n of nodes) prevPos.set(n.id, n.position.clone());
 
   // Adjacency for neighbour highlighting.
   const adjacency = new Map<string, Set<string>>();
@@ -164,20 +213,19 @@ function relax(
   nodes: Node[],
   edges: Edge[],
   indexById: Map<string, number>,
-  hubId: string,
+  iterations: number,
 ): void {
   const n = nodes.length;
   const disp = nodes.map(() => new THREE.Vector3());
-  const ITER = 110;
   const REPULSION = 380; // pairwise push strength
   const SPRING = 0.045; // edge pull
   const REST = 13; // ideal edge length
   const Z_DAMP = 0.82; // keep things mostly planar (2.5D)
-  const hubIdx = indexById.get(hubId);
+  const hubIdx = indexById.get(HUB_ID);
   const tmp = new THREE.Vector3();
 
-  for (let it = 0; it < ITER; it++) {
-    const cooling = 1 - it / ITER;
+  for (let it = 0; it < iterations; it++) {
+    const cooling = 1 - it / iterations;
     for (let i = 0; i < n; i++) disp[i].set(0, 0, 0);
 
     // Repulsion between all node pairs.
@@ -221,21 +269,6 @@ function relax(
   }
 }
 
-// Second-degree neighbours of a node (direct neighbours excluded).
-function secondDegree(id: string): Set<string> {
-  const direct = GRAPH.adjacency.get(id);
-  const out = new Set<string>();
-  if (!direct) return out;
-  for (const nId of direct) {
-    const nn = GRAPH.adjacency.get(nId);
-    if (!nn) continue;
-    for (const mId of nn) {
-      if (mId !== id && !direct.has(mId)) out.add(mId);
-    }
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------------------
 // Environment helpers (mobile / reduced-motion) — read once, no per-frame work
 // ---------------------------------------------------------------------------
@@ -261,30 +294,20 @@ const SPHERE_GEOM = new THREE.SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS
 const HALO_GEOM = new THREE.SphereGeometry(1, HALO_SEGMENTS, HALO_SEGMENTS);
 
 // ---------------------------------------------------------------------------
-// Category counts (module-level, once)
-// ---------------------------------------------------------------------------
-
-const CATEGORY_COUNTS: Map<ToolCategoryId, number> = (() => {
-  const m = new Map<ToolCategoryId, number>();
-  for (const t of tools) m.set(t.category, (m.get(t.category) ?? 0) + 1);
-  return m;
-})();
-
-// ---------------------------------------------------------------------------
 // Edge lines (one merged LineSegments per kind)
 // ---------------------------------------------------------------------------
 
-function useEdgeGeometry(kind: 0 | 1) {
+function useEdgeGeometry(graph: Graph, kind: 0 | 1) {
   return useMemo(() => {
-    let segs = GRAPH.edges.filter((e) => e.kind === kind);
+    let segs = graph.edges.filter((e) => e.kind === kind);
     // Bound relation-edge count on phones: keep the strongest (shortest) links
     // so the graph stays legible and light instead of a dense haze.
     if (kind === 0 && readIsSmall() && segs.length > 90) {
       segs = [...segs]
         .sort(
           (p, q) =>
-            GRAPH.nodes[p.a].position.distanceToSquared(GRAPH.nodes[p.b].position) -
-            GRAPH.nodes[q.a].position.distanceToSquared(GRAPH.nodes[q.b].position),
+            graph.nodes[p.a].position.distanceToSquared(graph.nodes[p.b].position) -
+            graph.nodes[q.a].position.distanceToSquared(graph.nodes[q.b].position),
         )
         .slice(0, 90);
     }
@@ -292,8 +315,8 @@ function useEdgeGeometry(kind: 0 | 1) {
     const colors = new Float32Array(segs.length * 6);
     const tmp = new THREE.Color();
     segs.forEach((e, i) => {
-      const a = GRAPH.nodes[e.a];
-      const b = GRAPH.nodes[e.b];
+      const a = graph.nodes[e.a];
+      const b = graph.nodes[e.b];
       positions.set([a.position.x, a.position.y, a.position.z], i * 6);
       positions.set([b.position.x, b.position.y, b.position.z], i * 6 + 3);
       tmp.copy(a.color).lerp(b.color, 0.5);
@@ -304,17 +327,18 @@ function useEdgeGeometry(kind: 0 | 1) {
     geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return { geom, segs };
-  }, [kind]);
+  }, [graph, kind]);
 }
 
 interface EdgesProps {
+  graph: Graph;
   kind: 0 | 1;
   selectedId: string | null;
   reducedMotion: boolean;
 }
 
-function Edges({ kind, selectedId, reducedMotion }: EdgesProps) {
-  const { geom, segs } = useEdgeGeometry(kind);
+function Edges({ graph, kind, selectedId, reducedMotion }: EdgesProps) {
+  const { geom, segs } = useEdgeGeometry(graph, kind);
   const matRef = useRef<THREE.LineBasicMaterial>(null);
 
   // Whether this edge group has any edge incident to the current selection.
@@ -322,12 +346,12 @@ function Edges({ kind, selectedId, reducedMotion }: EdgesProps) {
   const incidentToSelection = useMemo(() => {
     if (!selectedId) return true;
     for (const e of segs) {
-      if (GRAPH.nodes[e.a].id === selectedId || GRAPH.nodes[e.b].id === selectedId) {
+      if (graph.nodes[e.a].id === selectedId || graph.nodes[e.b].id === selectedId) {
         return true;
       }
     }
     return false;
-  }, [segs, selectedId]);
+  }, [graph, segs, selectedId]);
 
   useFrame(({ clock }) => {
     const mat = matRef.current;
@@ -384,8 +408,73 @@ interface NodeMeshProps {
   state: NodeState;
   hovered: boolean;
   showLabel: boolean;
+  iconUrl: string | undefined;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
+}
+
+/**
+ * Round-cropped brand icon badge, centred exactly on the node. Mounted only
+ * when the node already shows a label (selected / hovered / near / in-focus),
+ * so we never mount 49+ DOM nodes at once. Falls back to a coloured dot /
+ * monogram when no icon URL is available or the image fails to load.
+ */
+function NodeBadge({ node, iconUrl }: { node: Node; iconUrl: string | undefined }) {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(iconUrl) && !failed;
+  const ring = node.color.getStyle();
+  const diameter = 30;
+
+  return (
+    <Html
+      center
+      transform
+      sprite
+      distanceFactor={20}
+      position={[0, 0, 0]}
+      zIndexRange={[30, 0]}
+      style={{ pointerEvents: 'none' }}
+    >
+      <div
+        style={{
+          width: diameter,
+          height: diameter,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(8,12,26,0.72)',
+          border: `1.5px solid ${ring}`,
+          boxShadow: `0 0 10px ${node.glow}`,
+        }}
+      >
+        {showImg ? (
+          <img
+            src={iconUrl}
+            alt=""
+            width={diameter}
+            height={diameter}
+            decoding="async"
+            onError={() => setFailed(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.2,
+              color: '#eaf6ff',
+              lineHeight: 1,
+            }}
+          >
+            {getToolInitials(node.tool.name)}
+          </span>
+        )}
+      </div>
+    </Html>
+  );
 }
 
 function NodeMesh({
@@ -393,12 +482,16 @@ function NodeMesh({
   state,
   hovered,
   showLabel,
+  iconUrl,
   onSelect,
   onHover,
 }: NodeMeshProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const haloRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
+  // Ease-in for freshly added nodes (scale 0 → 1 on first frames).
+  const grow = useRef(node.isNew ? 0 : 1);
 
   const targets = useMemo(() => {
     const base = node.size;
@@ -446,20 +539,35 @@ function NodeMesh({
     const core = coreRef.current;
     const halo = haloRef.current;
     if (!core || !halo) return;
+    // Ease the spawn growth toward 1 (frame-rate independent).
+    if (grow.current < 1) {
+      grow.current = Math.min(1, grow.current + (1 - grow.current) * (1 - Math.exp(-6 * delta)) + delta * 0.6);
+    }
+    const g = grow.current;
     // Frame-rate independent easing: same spring feel at 60 / 120 Hz.
     const k = 1 - Math.exp(-9 * delta);
     const hk = 1 - Math.exp(-7 * delta);
     const mat = core.material as THREE.MeshStandardMaterial;
     mat.emissiveIntensity += (targets.emissive - mat.emissiveIntensity) * k;
     mat.opacity += (targets.coreOpacity - mat.opacity) * k;
-    const s = targets.base * targets.scale;
+    const s = targets.base * targets.scale * g;
     core.scale.x += (s - core.scale.x) * k;
     core.scale.y = core.scale.z = core.scale.x;
     const hmat = halo.material as THREE.MeshBasicMaterial;
     hmat.opacity += (targets.haloOpacity - hmat.opacity) * hk;
-    const hs = node.size * 2.4 * (targets.scale * 0.6 + 0.6);
+    const hs = node.size * 2.4 * (targets.scale * 0.6 + 0.6) * g;
     halo.scale.x += (hs - halo.scale.x) * hk;
     halo.scale.y = halo.scale.z = halo.scale.x;
+    // Subtle pulsing "new" ring for user-added nodes.
+    const ring = ringRef.current;
+    if (ring) {
+      const rmat = ring.material as THREE.MeshBasicMaterial;
+      const t = 0.45 + 0.35 * Math.sin(performance.now() * 0.004);
+      rmat.opacity += (t * g - rmat.opacity) * hk;
+      const rs = node.size * (targets.scale * 1.7 + 0.4) * g;
+      ring.scale.x += (rs - ring.scale.x) * hk;
+      ring.scale.y = ring.scale.z = ring.scale.x;
+    }
   });
 
   return (
@@ -467,7 +575,7 @@ function NodeMesh({
       <mesh
         ref={coreRef}
         geometry={SPHERE_GEOM}
-        scale={node.size}
+        scale={node.isNew ? 0.001 : node.size}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(node.id);
@@ -500,34 +608,49 @@ function NodeMesh({
           blending={THREE.AdditiveBlending}
         />
       </mesh>
+      {node.isNew && (
+        <mesh ref={ringRef} geometry={HALO_GEOM} scale={node.size * 1.7}>
+          <meshBasicMaterial
+            color="#eaf6ff"
+            wireframe
+            transparent
+            opacity={0}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
       {showLabel && (
-        <Html
-          center
-          distanceFactor={28}
-          position={[0, node.size * 1.5 + 1.2, 0]}
-          zIndexRange={[40, 0]}
-          style={{ pointerEvents: 'none' }}
-        >
-          <span
-            style={{
-              display: 'inline-block',
-              whiteSpace: 'nowrap',
-              padding: '3px 10px',
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: 0.2,
-              color: '#eaf6ff',
-              background: 'rgba(8,12,26,0.55)',
-              border: `1px solid ${node.color.getStyle()}55`,
-              boxShadow: `0 4px 18px rgba(0,0,0,0.35), 0 0 14px ${node.glow}`,
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-            }}
+        <>
+          <NodeBadge node={node} iconUrl={iconUrl} />
+          <Html
+            center
+            distanceFactor={28}
+            position={[0, node.size * 1.5 + 1.2, 0]}
+            zIndexRange={[40, 0]}
+            style={{ pointerEvents: 'none' }}
           >
-            {node.tool.name}
-          </span>
-        </Html>
+            <span
+              style={{
+                display: 'inline-block',
+                whiteSpace: 'nowrap',
+                padding: '3px 10px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: 0.2,
+                color: '#eaf6ff',
+                background: 'rgba(8,12,26,0.55)',
+                border: `1px solid ${node.color.getStyle()}55`,
+                boxShadow: `0 4px 18px rgba(0,0,0,0.35), 0 0 14px ${node.glow}`,
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+              }}
+            >
+              {node.tool.name}
+            </span>
+          </Html>
+        </>
       )}
     </group>
   );
@@ -538,23 +661,27 @@ function NodeMesh({
 // ---------------------------------------------------------------------------
 
 interface SceneProps {
+  graph: Graph;
   selectedId: string | null;
   hoveredId: string | null;
   matchIds: Set<string> | null;
   mutedCats: Set<ToolCategoryId>;
   reducedMotion: boolean;
   focusToken: number;
+  iconUrlFor: (tool: AITool) => string | undefined;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }
 
 function Scene({
+  graph,
   selectedId,
   hoveredId,
   matchIds,
   mutedCats,
   reducedMotion,
   focusToken,
+  iconUrlFor,
   onSelect,
   onHover,
 }: SceneProps) {
@@ -564,22 +691,22 @@ function Scene({
 
   const neighbours = useMemo(() => {
     if (!selectedId) return null;
-    return GRAPH.adjacency.get(selectedId) ?? new Set<string>();
-  }, [selectedId]);
+    return graph.adjacency.get(selectedId) ?? new Set<string>();
+  }, [graph, selectedId]);
 
   const secondDeg = useMemo(() => {
     if (!selectedId) return null;
-    return secondDegree(selectedId);
-  }, [selectedId]);
+    return secondDegree(graph, selectedId);
+  }, [graph, selectedId]);
 
   // Animate the camera to centre the selected node.
   const focusNode = useCallback(
     (id: string) => {
-      const idx = GRAPH.indexById.get(id);
+      const idx = graph.indexById.get(id);
       const controls = controlsRef.current;
       if (idx === undefined || !controls) return;
-      const p = GRAPH.nodes[idx].position;
-      const dist = id === 'founder-os' ? GRAPH.radius * 1.7 : 26;
+      const p = graph.nodes[idx].position;
+      const dist = id === HUB_ID ? graph.radius * 1.7 : 26;
       void controls.setLookAt(
         p.x + dist * 0.3,
         p.y + dist * 0.18,
@@ -591,17 +718,17 @@ function Scene({
       );
       invalidate();
     },
-    [invalidate],
+    [graph, invalidate],
   );
 
   // Pull the camera back to an overview of the whole graph.
   const resetView = useCallback(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-    const d = GRAPH.radius * 2.4;
+    const d = graph.radius * 2.4;
     void controls.setLookAt(10, 8, d, 0, 0, 0, true);
     invalidate();
-  }, [invalidate]);
+  }, [graph, invalidate]);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -644,7 +771,7 @@ function Scene({
   return (
     <>
       <color attach="background" args={['#03040a']} />
-      <fog attach="fog" args={['#03040a', GRAPH.radius * 1.6, GRAPH.radius * 4]} />
+      <fog attach="fog" args={['#03040a', graph.radius * 1.6, graph.radius * 4]} />
       <ambientLight intensity={0.55} />
       <pointLight position={[0, 0, 40]} intensity={1.2} color="#bfe6ff" />
       <pointLight position={[-40, 30, -20]} intensity={0.5} color="#ff8bd2" />
@@ -653,7 +780,7 @@ function Scene({
         ref={controlsRef}
         makeDefault
         minDistance={12}
-        maxDistance={GRAPH.radius * 4}
+        maxDistance={graph.radius * 4}
         dollySpeed={0.5}
         truckSpeed={0}
         smoothTime={reducedMotion ? 0.3 : 0.55}
@@ -661,10 +788,10 @@ function Scene({
       />
 
       <group ref={rootRef}>
-        <Edges kind={1} selectedId={selectedId} reducedMotion={reducedMotion} />
-        <Edges kind={0} selectedId={selectedId} reducedMotion={reducedMotion} />
+        <Edges graph={graph} kind={1} selectedId={selectedId} reducedMotion={reducedMotion} />
+        <Edges graph={graph} kind={0} selectedId={selectedId} reducedMotion={reducedMotion} />
 
-        {GRAPH.nodes.map((node) => {
+        {graph.nodes.map((node) => {
           const muted = mutedCats.size > 0 && mutedCats.has(node.tool.category);
           let nodeState: NodeState = 'normal';
           if (selectedId) {
@@ -687,7 +814,7 @@ function Scene({
             nodeState === 'neighbour' ||
             nodeState === 'match' ||
             hovered ||
-            (node.id === 'founder-os' && !selectedId && !matchIds);
+            (node.id === HUB_ID && !selectedId && !matchIds);
           return (
             <NodeMesh
               key={node.id}
@@ -695,6 +822,7 @@ function Scene({
               state={nodeState}
               hovered={hovered}
               showLabel={showLabel}
+              iconUrl={showLabel ? iconUrlFor(node.tool) : undefined}
               onSelect={handleSelect}
               onHover={onHover}
             />
@@ -713,12 +841,13 @@ const GLASS =
   'rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl';
 
 interface CategoryLegendProps {
+  counts: Map<ToolCategoryId, number>;
   mutedCats: Set<ToolCategoryId>;
   onToggle: (id: ToolCategoryId) => void;
   onSolo: (id: ToolCategoryId) => void;
 }
 
-function CategoryLegend({ mutedCats, onToggle, onSolo }: CategoryLegendProps) {
+function CategoryLegend({ counts, mutedCats, onToggle, onSolo }: CategoryLegendProps) {
   const anyMuted = mutedCats.size > 0;
   return (
     <div className={`pointer-events-auto ${GLASS} p-2.5`}>
@@ -739,7 +868,7 @@ function CategoryLegend({ mutedCats, onToggle, onSolo }: CategoryLegendProps) {
       <div className="flex flex-col gap-0.5">
         {categories.map((cat: ToolCategory) => {
           const muted = mutedCats.has(cat.id);
-          const count = CATEGORY_COUNTS.get(cat.id) ?? 0;
+          const count = counts.get(cat.id) ?? 0;
           return (
             <button
               key={cat.id}
@@ -776,6 +905,9 @@ function CategoryLegend({ mutedCats, onToggle, onSolo }: CategoryLegendProps) {
 // ---------------------------------------------------------------------------
 
 export function BrainGraph() {
+  const { openInApp } = useInAppBrowser();
+  const { tools, toolById, iconUrlFor } = useToolStore();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
@@ -783,6 +915,18 @@ export function BrainGraph() {
   const [mutedCats, setMutedCats] = useState<Set<ToolCategoryId>>(new Set());
   const [focusToken, setFocusToken] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const graph = useMemo(
+    () => buildGraph(tools, toolById, new Map()),
+    [tools, toolById],
+  );
+
+  // Category counts derived from the reactive tool list.
+  const categoryCounts = useMemo(() => {
+    const m = new Map<ToolCategoryId, number>();
+    for (const t of tools) m.set(t.category, (m.get(t.category) ?? 0) + 1);
+    return m;
+  }, [tools]);
 
   // Search matches (only when query is non-empty and nothing is selected).
   const trimmed = query.trim().toLowerCase();
@@ -800,13 +944,13 @@ export function BrainGraph() {
       }
     }
     return ids;
-  }, [trimmed]);
+  }, [tools, trimmed]);
 
   const firstMatch = useMemo(() => {
     if (!matchIds || matchIds.size === 0) return null;
     for (const t of tools) if (matchIds.has(t.id)) return t.id;
     return null;
-  }, [matchIds]);
+  }, [tools, matchIds]);
 
   // Focus / fly-to helper used by search, chips, and reset.
   const focusOn = useCallback((id: string | null) => {
@@ -854,7 +998,7 @@ export function BrainGraph() {
       }
     }
     return out;
-  }, [cardTool]);
+  }, [cardTool, toolById]);
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
 
@@ -923,19 +1067,21 @@ export function BrainGraph() {
       <Canvas
         className="h-full w-full"
         style={{ width: '100%', height: '100%' }}
-        camera={{ position: [10, 8, GRAPH.radius * 2.4], fov: 52, near: 0.1, far: 2000 }}
+        camera={{ position: [10, 8, graph.radius * 2.4], fov: 52, near: 0.1, far: 2000 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: false }}
         frameloop="always"
         onPointerMissed={clearSelection}
       >
         <Scene
+          graph={graph}
           selectedId={selectedId}
           hoveredId={hoveredId}
           matchIds={selectedId ? null : matchIds}
           mutedCats={mutedCats}
           reducedMotion={reducedMotion}
           focusToken={focusToken}
+          iconUrlFor={iconUrlFor}
           onSelect={handleSelect}
           onHover={setHoveredId}
         />
@@ -951,7 +1097,7 @@ export function BrainGraph() {
       />
 
       {/* Top-left cluster: title + search + legend (clears lab chrome ~64px) */}
-      <div className="pointer-events-none absolute left-4 top-16 z-10 flex w-[15.5rem] max-w-[calc(100%-2rem)] flex-col gap-2.5 sm:left-5">
+      <div className="pointer-events-none absolute left-4 top-32 z-10 flex w-[15.5rem] max-w-[calc(100%-2rem)] flex-col gap-2.5 sm:left-5">
         {/* Title / hint pill */}
         <div className={`pointer-events-none ${GLASS} px-3.5 py-2.5`}>
           <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-200/80">
@@ -962,7 +1108,7 @@ export function BrainGraph() {
               ? 'Showing this tool and its connections — tap empty space to release'
               : trimmed
                 ? `${matchIds?.size ?? 0} match${(matchIds?.size ?? 0) === 1 ? '' : 'es'} • Enter to focus`
-                : 'Search, filter, or tap a node to explore all 49 tools'}
+                : `Search, filter, or tap a node to explore all ${tools.length} tools`}
           </p>
         </div>
 
@@ -1011,6 +1157,7 @@ export function BrainGraph() {
         {/* Category legend (hidden while a search is active to reduce clutter) */}
         {!trimmed && (
           <CategoryLegend
+            counts={categoryCounts}
             mutedCats={mutedCats}
             onToggle={toggleCat}
             onSolo={soloCat}
@@ -1130,15 +1277,14 @@ export function BrainGraph() {
             )}
 
             {cardTool.url && (
-              <a
-                href={cardTool.url}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => openInApp(cardTool.url!, cardTool.name)}
                 className="mt-3 inline-flex items-center rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/[0.12] active:bg-white/[0.16]"
                 style={{ minHeight: 36 }}
               >
                 Open tool →
-              </a>
+              </button>
             )}
           </div>
         )}
