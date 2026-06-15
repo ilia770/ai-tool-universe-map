@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowLeft, Brain, Orbit, Sparkles } from 'lucide-react';
 import { categories, tools, workflowLinks } from '../../data/ai-tool-universe';
+import { BrainGraphVariant } from './BrainGraphVariant';
 import { buildVisualizationData } from './visualization-data';
 
 type LabVariant = 'brain' | 'vision' | 'galaxy';
@@ -18,7 +19,7 @@ const variants: Array<{ id: LabVariant; label: string }> = [
 export function VisualizationLab({ onBack }: VisualizationLabProps) {
   const data = useMemo(() => buildVisualizationData({ categories, tools, workflowLinks }), []);
   const [variant, setVariant] = useState<LabVariant>('brain');
-  const [selectedId] = useState('founder-os');
+  const [selectedId, setSelectedId] = useState('founder-os');
   const selected = data.nodeById.get(selectedId) ?? data.nodes[0];
 
   return (
@@ -58,7 +59,11 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
 
       <section className="grid min-h-[calc(100dvh-74px)] grid-cols-1 lg:grid-cols-[1fr_320px]">
         <div className="relative min-h-[620px] overflow-hidden">
-          <PendingVariant variant={variant} />
+          {variant === 'brain' ? (
+            <BrainGraphVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
+          ) : (
+            <PendingVariant variant={variant} />
+          )}
         </div>
         <aside className="border-t border-white/10 bg-black/30 p-5 lg:border-l lg:border-t-0">
           <div className="rounded-lg border border-white/10 bg-white/[0.05] p-4">
