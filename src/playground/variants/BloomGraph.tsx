@@ -18,26 +18,25 @@ import {
 /**
  * BloomGraph — a Neo4j Bloom–style progressive graph exploration scene.
  *
- * Research (Neo4j Bloom user guide, "Scene interactions" + "Legend panel"):
- * Bloom is NOT a 2D-projection of a 3D space — it is the classic "circles and
- * lines" graph scene rendered in 2D, containing only the parts of the graph
- * you have found through search or *expansion*. The core UX loop is:
- *   1. Start from a seed node (here, Founder OS) and its immediate neighbours.
- *   2. Select a node and "expand" to reveal its not-yet-shown neighbours,
- *      which animate into existence around it; already-shown nodes stay put.
- *   3. Keep expanding outward to walk local regions of the graph.
- * Tech-wise Bloom runs a continuously-relaxing force-directed layout
- * (repulsion between nodes + spring attraction along relationships), captioned
- * category-coloured node circles, and curved relationship lines with type
- * labels. We emulate that faithfully: a deterministic Verlet-ish force
- * simulation in a requestAnimationFrame loop relaxes only the *visible*
- * subgraph, new nodes are seeded in a ring around their expander, the camera
- * eases-to-centre on the focused node, and edges are drawn as quadratic
- * Béziers with mid-point relationship captions. No real embeddings or DB —
- * adjacency is derived from `relationIds` (made bidirectional).
+ * The core UX loop: start from a seed node and its neighbours, *expand* a node
+ * to bloom its hidden neighbours outward on a clean radial fan, and *collapse*
+ * step-by-step to walk back. Relationships are drawn as curved, directional
+ * edges; focusing a node strongly highlights ONLY its direct connections while
+ * everything else dims, so "what connects to what" is obvious at a glance.
  *
- * Stack note: Bloom is inherently a 2D scene, so this variant is a full-screen
- * SVG + div overlay rather than an R3F Canvas — the faithful emulation.
+ * Interaction model (this is the part that makes it legible):
+ *  - Click an UNEXPANDED node → expand it. Its hidden neighbours are seeded
+ *    *at the parent's position* (appear=0) and SPRING outward, eased, onto an
+ *    evenly-spaced angular fan pointing away from the parent's own anchor, so
+ *    nodes never pile up. The camera eases to centre on the selection.
+ *  - Click an already-EXPANDED node → collapse exactly the nodes it
+ *    introduced (provenance-tracked), step-by-step. The ring count shrinks.
+ *  - A breadcrumb of the expansion stack lets you "collapse last" or jump
+ *    back to any earlier step. Escape collapses one step; Collapse-all resets.
+ *
+ * Layout is a deterministic Verlet-ish force simulation (repulsion + edge
+ * springs + gravity) relaxing only the *visible* subgraph in a rAF loop.
+ * Adjacency is derived from `relationIds` (made bidirectional). 2D SVG scene.
  */
 
 // ---- deterministic PRNG (no Math.random during render/module init) ---------
@@ -78,6 +77,18 @@ const adjacency: Map<string, string[]> = (() => {
 
 const SEED_ID = 'founder-os';
 
+// directed relationship: the curated `relationIds` give us a natural source
+// (the tool that declares the relation). Used for arrowhead direction.
+const directedFrom: Set<string> = (() => {
+  const s = new Set<string>();
+  for (const t of tools) {
+    for (const r of t.relationIds) {
+      if (toolById.has(r)) s.add(`${t.id}->${r}`);
+    }
+  }
+  return s;
+})();
+
 // ---- simulation node model -------------------------------------------------
 interface SimNode {
   id: string;
@@ -87,14 +98,15 @@ interface SimNode {
   y: number;
   vx: number;
   vy: number;
-  // appear animation 0 -> 1
-  appear: number;
+  appear: number; // 0 -> 1 spring-in
 }
 
 interface Edge {
   a: string;
   b: string;
   label: string;
+  // directed a -> b for arrowhead (true when curated source is `a`)
+  forward: boolean;
 }
 
 // immutable per-frame render snapshot published from the simulation loop.
@@ -113,26 +125,32 @@ interface Snapshot {
   camY: number;
 }
 
-// relationship caption: derived from the two tools' stages / category bond.
+// relationship caption derived from the two tools' stages / category bond.
 function edgeLabel(a: AITool, b: AITool): string {
-  if (a.category === b.category) return 'PEER';
   if (a.id === SEED_ID || b.id === SEED_ID) return 'ORCHESTRATES';
-  if (a.stage === b.stage) return `${a.stage.toUpperCase()}`;
-  return 'CONNECTS';
+  if (a.category === b.category) return 'PEERS WITH';
+  if (a.stage === b.stage) return `SHARES ${a.stage.toUpperCase()}`;
+  return 'CONNECTS TO';
 }
 
 const NODE_R = 30;
-const APPEAR_SPEED = 0.045;
 
 export function BloomGraph() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
 
-  // track which tools are revealed and which have been expanded
+  // which tools are revealed
   const [revealed, setRevealed] = useState<Set<string>>(
     () => new Set([SEED_ID, ...(adjacency.get(SEED_ID) ?? [])]),
   );
+  // which tools have been expanded (their hidden neighbours pulled in)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([SEED_ID]));
+  // expansion stack: ordered provenance. Each entry records the parent that
+  // was expanded and exactly which new ids it introduced — so collapse is
+  // step-by-step and removes precisely what a given expansion added.
+  const [stack, setStack] = useState<Array<{ parent: string; introduced: string[] }>>(
+    () => [{ parent: SEED_ID, introduced: [...(adjacency.get(SEED_ID) ?? [])] }],
+  );
   const [focusId, setFocusId] = useState<string>(SEED_ID);
   const [hoverId, setHoverId] = useState<string | null>(null);
 
@@ -142,8 +160,9 @@ export function BloomGraph() {
   const rafRef = useRef<number>(0);
   const focusIdRef = useRef<string>(SEED_ID);
   const edgesRef = useRef<Edge[]>([]);
-  // the simulation loop publishes a frozen snapshot here; render reads only
-  // from this state + props/state — never from the mutable refs (purity).
+  // deterministic fan seeds queued when expanding: id -> target offset from
+  // parent. The sim seeds the node at the parent then springs it to target.
+  const fanSeedRef = useRef<Map<string, { px: number; py: number }>>(new Map());
   const [snapshot, setSnapshot] = useState<Snapshot>({
     nodes: [],
     camX: 0,
@@ -165,32 +184,35 @@ export function BloomGraph() {
   // ---- seed / sync simulation nodes when `revealed` changes ----
   useEffect(() => {
     const map = nodesRef.current;
-    const rng = mulberry32(0x9e3779b9 ^ revealed.size);
-    // ensure a node exists for every revealed id
+    const fan = fanSeedRef.current;
     for (const id of revealed) {
       if (map.has(id)) continue;
       const tool = toolById.get(id);
       if (!tool) continue;
       const cat = categoryById.get(tool.category);
       if (!cat) continue;
-      // seed position: in a ring around an already-placed neighbour (its
-      // expander), so new nodes "bloom" outward from where you clicked.
-      let ox = 0;
-      let oy = 0;
-      const neighbours = adjacency.get(id) ?? [];
-      const anchor = neighbours.map((n) => map.get(n)).find((n) => n);
-      if (anchor) {
-        const ang = rng() * Math.PI * 2;
-        const rad = NODE_R * 4 + rng() * 60;
-        ox = anchor.x + Math.cos(ang) * rad;
-        oy = anchor.y + Math.sin(ang) * rad;
+      // If this id was queued by an expansion, seed it AT the parent so it
+      // springs out to its fan target. Otherwise place near a neighbour.
+      const seed = fan.get(id);
+      let ox: number;
+      let oy: number;
+      if (seed) {
+        ox = seed.px;
+        oy = seed.py;
+        fan.delete(id);
       } else if (id === SEED_ID) {
         ox = 0;
         oy = 0;
       } else {
-        const ang = rng() * Math.PI * 2;
-        ox = Math.cos(ang) * 180;
-        oy = Math.sin(ang) * 180;
+        const neighbours = adjacency.get(id) ?? [];
+        const anchor = neighbours.map((n) => map.get(n)).find((n) => n);
+        if (anchor) {
+          ox = anchor.x + 1;
+          oy = anchor.y + 1;
+        } else {
+          ox = 0;
+          oy = 0;
+        }
       }
       map.set(id, {
         id,
@@ -223,7 +245,13 @@ export function BloomGraph() {
         seen.add(key);
         const b = toolById.get(nb);
         if (!b) continue;
-        out.push({ a: id, b: nb, label: edgeLabel(a, b) });
+        // orient a->b along the curated direction when available
+        const forward = directedFrom.has(`${id}->${nb}`)
+          ? true
+          : directedFrom.has(`${nb}->${id}`)
+            ? false
+            : true;
+        out.push({ a: id, b: nb, label: edgeLabel(a, b), forward });
       }
     }
     return out;
@@ -249,8 +277,8 @@ export function BloomGraph() {
   // ---- force simulation loop (runs once; reads dynamic data via refs) ----
   useEffect(() => {
     const step = () => {
-      const edges = edgesRef.current;
-      const focusId = focusIdRef.current;
+      const liveEdges = edgesRef.current;
+      const fId = focusIdRef.current;
       const map = nodesRef.current;
       const arr = [...map.values()];
       const n = arr.length;
@@ -269,7 +297,7 @@ export function BloomGraph() {
             d2 = dx * dx + dy * dy;
           }
           const d = Math.sqrt(d2);
-          const force = 16000 / d2;
+          const force = 18000 / d2;
           const fx = (dx / d) * force;
           const fy = (dy / d) * force;
           a.vx += fx;
@@ -280,8 +308,8 @@ export function BloomGraph() {
       }
 
       // spring attraction along visible edges
-      const REST = NODE_R * 4.4;
-      for (const e of edges) {
+      const REST = NODE_R * 4.6;
+      for (const e of liveEdges) {
         const a = map.get(e.a);
         const b = map.get(e.b);
         if (!a || !b) continue;
@@ -301,26 +329,26 @@ export function BloomGraph() {
       for (const a of arr) {
         a.vx += -a.x * 0.0009;
         a.vy += -a.y * 0.0009;
-        // integrate + damp
         a.vx *= 0.86;
         a.vy *= 0.86;
         a.x += a.vx;
         a.y += a.vy;
-        if (a.appear < 1) a.appear = Math.min(1, a.appear + APPEAR_SPEED);
+        // eased spring-in (overshoot-free easeOut feel)
+        if (a.appear < 1) {
+          a.appear = Math.min(1, a.appear + (1 - a.appear) * 0.12 + 0.012);
+        }
       }
 
-      // ease camera toward target
+      // ease camera toward target, locked to the (moving) focus node
       const cam = camRef.current;
-      cam.x += (cam.tx - cam.x) * 0.08;
-      cam.y += (cam.ty - cam.y) * 0.08;
-      // keep the camera target locked to the (moving) focus node
-      const f = map.get(focusId);
+      cam.x += (cam.tx - cam.x) * 0.09;
+      cam.y += (cam.ty - cam.y) * 0.09;
+      const f = map.get(fId);
       if (f) {
         cam.tx = f.x;
         cam.ty = f.y;
       }
 
-      // publish an immutable render snapshot (fresh objects each frame)
       const renderNodes: RenderNode[] = arr.map((nd) => ({
         id: nd.id,
         x: nd.x,
@@ -337,43 +365,131 @@ export function BloomGraph() {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  // ---- expand a node: reveal its hidden neighbours ----
-  const expand = useCallback((id: string) => {
-    setFocusId(id);
-    setExpanded((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-    setRevealed((prev) => {
-      const nbs = adjacency.get(id) ?? [];
-      const allShown = nbs.every((n) => prev.has(n));
-      if (allShown) return prev; // nothing new — just refocus
-      const next = new Set(prev);
-      for (const nb of nbs) if (toolById.has(nb)) next.add(nb);
-      return next;
-    });
-  }, []);
+  // ---- expand a node: reveal its hidden neighbours on a radial fan ----
+  const expand = useCallback(
+    (id: string) => {
+      setFocusId(id);
+      const parent = nodesRef.current.get(id);
+      const hidden = (adjacency.get(id) ?? []).filter((nb) => !revealed.has(nb));
+      if (hidden.length === 0) return; // nothing new — just refocus
+
+      // direction the fan should point: away from the parent's own anchor
+      // (its nearest already-placed neighbour), so we never grow back inward.
+      let baseAng = 0;
+      if (parent) {
+        const anchor = (adjacency.get(id) ?? [])
+          .map((nb) => nodesRef.current.get(nb))
+          .find((nd) => nd && nd.id !== id);
+        if (anchor) {
+          baseAng = Math.atan2(parent.y - anchor.y, parent.x - anchor.x);
+        } else {
+          // seed node: fan upward
+          baseAng = -Math.PI / 2;
+        }
+      }
+      // even angular fan, deterministic jitter via seeded PRNG. Each new node
+      // is seeded *at* the parent (so it springs out from the click point) but
+      // nudged a few px along its fan angle so repulsion resolves it onto the
+      // intended clean arc rather than a random scatter — no overlap.
+      const rng = mulberry32(0x9e3779b9 ^ (revealed.size * 2654435761));
+      const spread = Math.min(Math.PI * 1.5, 0.55 * hidden.length + 0.6);
+      const px0 = parent ? parent.x : 0;
+      const py0 = parent ? parent.y : 0;
+      const fan = fanSeedRef.current;
+      hidden.forEach((nb, i) => {
+        const t = hidden.length === 1 ? 0.5 : i / (hidden.length - 1);
+        const ang = baseAng + (t - 0.5) * spread + (rng() - 0.5) * 0.12;
+        const nudge = NODE_R * 0.9 + i * 0.4;
+        fan.set(nb, {
+          px: px0 + Math.cos(ang) * nudge,
+          py: py0 + Math.sin(ang) * nudge,
+        });
+      });
+
+      setExpanded((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      setStack((prev) => [...prev, { parent: id, introduced: hidden }]);
+      setRevealed((prev) => {
+        const next = new Set(prev);
+        for (const nb of hidden) next.add(nb);
+        return next;
+      });
+    },
+    [revealed],
+  );
+
+  // ---- collapse to keep only the first `keepCount` expansion steps ----
+  // Recomputes revealed/expanded purely from the kept stack (provenance
+  // replay), so later steps whose parent is gone cascade away cleanly.
+  const collapseToIndex = useCallback(
+    (keepCount: number) => {
+      if (keepCount >= stack.length) return;
+      const kept = stack.slice(0, keepCount);
+      const reveal = new Set<string>([SEED_ID]);
+      const exp = new Set<string>();
+      for (const stepEntry of kept) {
+        exp.add(stepEntry.parent);
+        reveal.add(stepEntry.parent);
+        for (const nb of stepEntry.introduced) reveal.add(nb);
+      }
+      const newFocus = kept.length > 0 ? kept[kept.length - 1].parent : SEED_ID;
+      setStack(kept);
+      setRevealed(reveal);
+      setExpanded(exp);
+      setFocusId(newFocus);
+    },
+    [stack],
+  );
+
+  // collapse the children a node introduced (click on already-expanded node)
+  const collapseNode = useCallback(
+    (id: string) => {
+      const idx = stack.findIndex((s) => s.parent === id);
+      if (idx <= 0) return; // never collapse the seed step
+      collapseToIndex(idx);
+    },
+    [stack, collapseToIndex],
+  );
+
+  const collapseLast = useCallback(() => {
+    collapseToIndex(Math.max(1, stack.length - 1));
+  }, [collapseToIndex, stack.length]);
 
   const reset = useCallback(() => {
     setRevealed(new Set([SEED_ID, ...(adjacency.get(SEED_ID) ?? [])]));
     setExpanded(new Set([SEED_ID]));
+    setStack([{ parent: SEED_ID, introduced: [...(adjacency.get(SEED_ID) ?? [])] }]);
     setFocusId(SEED_ID);
-    camRef.current.x = 0;
-    camRef.current.y = 0;
-    camRef.current.tx = 0;
-    camRef.current.ty = 0;
   }, []);
 
-  // keyboard: escape to collapse
+  // node click router: expanded → collapse its children; else expand
+  const onNodeClick = useCallback(
+    (id: string) => {
+      if (id !== SEED_ID && expanded.has(id) && stack.some((s) => s.parent === id)) {
+        setFocusId(id);
+        collapseNode(id);
+      } else {
+        expand(id);
+      }
+    },
+    [expanded, stack, collapseNode, expand],
+  );
+
+  // keyboard: escape collapses one step (step-by-step), shift+esc resets
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') reset();
+      if (e.key === 'Escape') {
+        if (e.shiftKey || stack.length <= 1) reset();
+        else collapseLast();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [reset]);
+  }, [reset, collapseLast, stack.length]);
 
   // ---- viewport transform: world -> screen (reads snapshot, not refs) ----
   const cx = size.w / 2;
@@ -385,22 +501,36 @@ export function BloomGraph() {
 
   const map = useMemo(() => {
     const m = new Map<string, RenderNode>();
-    for (const n of snapshot.nodes) m.set(n.id, n);
+    for (const node of snapshot.nodes) m.set(node.id, node);
     return m;
   }, [snapshot]);
   const focusNode = focusId ? toolById.get(focusId) : undefined;
   const focusCat = focusNode ? categoryById.get(focusNode.category) : undefined;
 
-  // active set for de-emphasis: focus node + its visible neighbours
+  // active set: focus node + its visible neighbours (direct connections)
   const activeSet = useMemo(() => {
     const s = new Set<string>([focusId]);
     for (const nb of adjacency.get(focusId) ?? []) if (revealed.has(nb)) s.add(nb);
     return s;
   }, [focusId, revealed]);
 
+  // paint dim edges first, then hovered, then active — so the highlighted
+  // relationships always render on top and read crisply.
+  const orderedEdges = useMemo(() => {
+    const rank = (e: Edge) => {
+      const isActive = activeSet.has(e.a) && activeSet.has(e.b);
+      if (isActive) return 2;
+      if (hoverId !== null && (hoverId === e.a || hoverId === e.b)) return 1;
+      return 0;
+    };
+    return [...edges].sort((x, y) => rank(x) - rank(y));
+  }, [edges, activeSet, hoverId]);
+
   const hiddenCount = focusNode
-    ? (adjacency.get(focusId) ?? []).filter((n) => !revealed.has(n)).length
+    ? (adjacency.get(focusId) ?? []).filter((nb) => !revealed.has(nb)).length
     : 0;
+  const focusIsExpanded =
+    focusId !== SEED_ID && expanded.has(focusId) && stack.some((s) => s.parent === focusId);
 
   return (
     <div
@@ -429,6 +559,29 @@ export function BloomGraph() {
             <stop offset="60%" stopColor="#000" stopOpacity="0" />
             <stop offset="100%" stopColor="#000" stopOpacity="0.45" />
           </radialGradient>
+          {/* directional arrowheads — one tinted for active edges */}
+          <marker
+            id="bloom-arrow-dim"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6b86" />
+          </marker>
+          <marker
+            id="bloom-arrow-active"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#cfe0ff" />
+          </marker>
         </defs>
 
         {/* faint dotted grid for an investigative "scene" feel */}
@@ -441,49 +594,88 @@ export function BloomGraph() {
           oy={cy}
         />
 
-        {/* edges */}
+        {/* edges (active/hover drawn last so highlights are never occluded) */}
         <g>
-          {edges.map((e) => {
+          {orderedEdges.map((e) => {
             const na = map.get(e.a);
             const nb = map.get(e.b);
             if (!na || !nb) return null;
-            const [ax, ay] = toScreen(na.x, na.y);
-            const [bx, by] = toScreen(nb.x, nb.y);
+            // draw in directed order a->b (curated source first)
+            const src = e.forward ? na : nb;
+            const dst = e.forward ? nb : na;
+            const [ax, ay] = toScreen(src.x, src.y);
+            const [bx, by] = toScreen(dst.x, dst.y);
             const isActive = activeSet.has(e.a) && activeSet.has(e.b);
-            const isHover = hoverId === e.a || hoverId === e.b;
+            const isHover =
+              hoverId !== null && (hoverId === e.a || hoverId === e.b);
             const appear = Math.min(na.appear, nb.appear);
-            // curved quadratic bezier (perpendicular offset)
-            const mx = (ax + bx) / 2;
-            const my = (ay + by) / 2;
+            // curved quadratic bezier (perpendicular offset), shortened so the
+            // arrowhead lands at the rim of the target node, not its centre.
             const dx = bx - ax;
             const dy = by - ay;
             const len = Math.hypot(dx, dy) || 1;
-            const off = 18;
-            const px = mx + (-dy / len) * off;
-            const py = my + (dx / len) * off;
-            const opacity = (isActive ? 0.9 : isHover ? 0.7 : 0.28) * appear;
+            const ux = dx / len;
+            const uy = dy / len;
+            const trim = NODE_R * 1.0;
+            const sx = ax + ux * trim;
+            const sy = ay + uy * trim;
+            const ex = bx - ux * trim;
+            const ey = by - uy * trim;
+            const mx = (sx + ex) / 2;
+            const my = (sy + ey) / 2;
+            const off = 20;
+            const px = mx + (-uy) * off;
+            const py = my + ux * off;
+            const focusedView = focusId !== SEED_ID || hoverId !== null;
+            const baseOpacity = isActive
+              ? 1
+              : isHover
+                ? 0.85
+                : focusedView
+                  ? 0.08
+                  : 0.3;
+            const opacity = baseOpacity * appear;
             return (
               <g key={`${e.a}|${e.b}`} style={{ opacity }}>
                 <path
-                  d={`M ${ax} ${ay} Q ${px} ${py} ${bx} ${by}`}
+                  d={`M ${sx} ${sy} Q ${px} ${py} ${ex} ${ey}`}
                   fill="none"
-                  stroke={isActive ? na.catGlow : '#5b6b86'}
-                  strokeWidth={isActive ? 1.8 : 1.1}
+                  stroke={isActive ? src.catGlow : '#5b6b86'}
+                  strokeWidth={isActive ? 2.2 : isHover ? 1.6 : 1.1}
                   strokeLinecap="round"
+                  markerEnd={
+                    isActive
+                      ? 'url(#bloom-arrow-active)'
+                      : 'url(#bloom-arrow-dim)'
+                  }
                 />
                 {(isActive || isHover) && (
-                  <text
-                    x={px}
-                    y={py}
-                    fill="#9fb2d4"
-                    fontSize={9}
-                    letterSpacing={1.2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{ pointerEvents: 'none', fontWeight: 600 }}
-                  >
-                    {e.label}
-                  </text>
+                  <g style={{ pointerEvents: 'none' }}>
+                    <rect
+                      x={px - (e.label.length * 3.4 + 8)}
+                      y={py - 9}
+                      width={e.label.length * 6.8 + 16}
+                      height={18}
+                      rx={9}
+                      fill="#070c16"
+                      fillOpacity={0.92}
+                      stroke={isActive ? src.catGlow : '#3c4a63'}
+                      strokeOpacity={0.6}
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={px}
+                      y={py + 1}
+                      fill={isActive ? '#eaf2ff' : '#9fb2d4'}
+                      fontSize={9}
+                      letterSpacing={1.1}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      style={{ fontWeight: 700 }}
+                    >
+                      {e.label}
+                    </text>
+                  </g>
                 )}
               </g>
             );
@@ -498,27 +690,30 @@ export function BloomGraph() {
             const isHover = node.id === hoverId;
             const inActive = activeSet.has(node.id);
             const hasHidden = (adjacency.get(node.id) ?? []).some(
-              (n) => !revealed.has(n),
+              (nb) => !revealed.has(nb),
             );
-            const isExpanded = expanded.has(node.id);
-            const scale = node.appear * (isFocus ? 1.18 : isHover ? 1.08 : 1);
+            const isExpandedNode =
+              expanded.has(node.id) && stack.some((s) => s.parent === node.id);
+            // spring-in: scale up from the parent point with a soft ease
+            const ease = node.appear * node.appear * (3 - 2 * node.appear);
+            const scale = ease * (isFocus ? 1.2 : isHover ? 1.09 : 1);
             const r = NODE_R * scale;
-            const dim = inActive ? 1 : 0.4;
+            const focusedView = focusId !== SEED_ID || hoverId !== null;
+            const dim = inActive ? 1 : focusedView ? 0.22 : 1;
             const label = node.name;
             const labelW = Math.max(54, label.length * 7.0 + 26);
             return (
               <g
                 key={node.id}
                 transform={`translate(${nx} ${ny})`}
-                style={{
-                  cursor: 'pointer',
-                  opacity: node.appear * dim,
-                }}
+                style={{ cursor: 'pointer', opacity: ease * dim }}
                 onMouseEnter={() => setHoverId(node.id)}
-                onMouseLeave={() => setHoverId((h) => (h === node.id ? null : h))}
-                onClick={() => expand(node.id)}
+                onMouseLeave={() =>
+                  setHoverId((h) => (h === node.id ? null : h))
+                }
+                onClick={() => onNodeClick(node.id)}
               >
-                {/* halo */}
+                {/* focus / hover halo */}
                 {(isFocus || isHover) && (
                   <circle
                     r={r + 11}
@@ -529,8 +724,8 @@ export function BloomGraph() {
                     filter="url(#bloom-glow)"
                   />
                 )}
-                {/* expand affordance ring: node has undiscovered neighbours */}
-                {hasHidden && !isExpanded && (
+                {/* expand affordance: dashed ring = undiscovered neighbours */}
+                {hasHidden && !isExpandedNode && (
                   <circle
                     r={r + 5}
                     fill="none"
@@ -540,16 +735,40 @@ export function BloomGraph() {
                     opacity={0.7}
                   />
                 )}
+                {/* collapse affordance: solid inner ring on expanded nodes */}
+                {isExpandedNode && (
+                  <circle
+                    r={r + 5}
+                    fill="none"
+                    stroke={node.catGlow}
+                    strokeWidth={1.4}
+                    opacity={0.6}
+                  />
+                )}
                 {/* node body */}
                 <circle
                   r={r}
                   fill={node.catColor}
                   fillOpacity={0.16}
                   stroke={node.catColor}
-                  strokeWidth={isFocus ? 2.4 : 1.6}
+                  strokeWidth={isFocus ? 2.6 : 1.6}
                   filter={isFocus ? 'url(#bloom-glow)' : undefined}
                 />
                 <circle r={r * 0.42} fill={node.catColor} fillOpacity={0.9} />
+                {/* +/- glyph hint on hover for the active node */}
+                {isHover && node.id !== SEED_ID && (
+                  <text
+                    x={0}
+                    y={1}
+                    fill="#eaf2ff"
+                    fontSize={r * 0.5}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    style={{ pointerEvents: 'none', fontWeight: 700 }}
+                  >
+                    {isExpandedNode ? '–' : hasHidden ? '+' : ''}
+                  </text>
+                )}
                 {/* caption pill */}
                 <g transform={`translate(0 ${r + 16})`}>
                   <rect
@@ -561,7 +780,7 @@ export function BloomGraph() {
                     fill="#0a1322"
                     fillOpacity={0.85}
                     stroke={node.catColor}
-                    strokeOpacity={0.55}
+                    strokeOpacity={isFocus || inActive ? 0.8 : 0.45}
                     strokeWidth={1}
                   />
                   <text
@@ -598,14 +817,50 @@ export function BloomGraph() {
           Bloom · Graph Exploration
         </div>
         <div className="mt-1 text-sm text-slate-300/90">
-          Click any node to expand its connections. They bloom outward; the
-          scene re-centres on your selection.
+          Click a node to <span className="text-sky-200">expand</span> its
+          connections. Click it again to{' '}
+          <span className="text-sky-200">collapse</span>. Focusing dims the rest
+          so it&apos;s clear what links to what.
         </div>
+      </div>
+
+      {/* ---- breadcrumb / expansion trail (top, centred under header) ---- */}
+      <div className="pointer-events-auto absolute left-5 top-32 flex max-w-[60vw] flex-wrap items-center gap-1.5">
+        {stack.map((s, i) => {
+          const t = toolById.get(s.parent);
+          const c = t ? categoryById.get(t.category) : undefined;
+          const isLast = i === stack.length - 1;
+          return (
+            <span key={s.parent} className="flex items-center gap-1.5">
+              {i > 0 && <span className="text-[11px] text-slate-600">›</span>}
+              <button
+                type="button"
+                onClick={() => collapseToIndex(i + 1)}
+                className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur transition"
+                style={{
+                  borderColor: isLast
+                    ? (c?.color ?? '#7dd3fc') + '99'
+                    : 'rgba(255,255,255,0.1)',
+                  background: isLast
+                    ? (c?.color ?? '#7dd3fc') + '1f'
+                    : 'rgba(15,23,42,0.6)',
+                  color: isLast ? '#eaf2ff' : '#94a3b8',
+                }}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: c?.color ?? '#7dd3fc' }}
+                />
+                {t?.name ?? s.parent}
+              </button>
+            </span>
+          );
+        })}
       </div>
 
       {/* ---- focus inspector card (bottom-left) ---- */}
       {focusNode && focusCat && (
-        <div className="pointer-events-none absolute bottom-5 left-5 w-72 rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur-md">
+        <div className="absolute bottom-5 left-5 w-72 rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur-md">
           <div className="flex items-center gap-2">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
@@ -621,13 +876,29 @@ export function BloomGraph() {
           <p className="mt-1 text-[12px] leading-snug text-slate-300/85">
             {focusNode.summary}
           </p>
-          <div className="mt-2.5 text-[11px] text-slate-400">
+          <div className="mt-3 flex items-center gap-2">
             {hiddenCount > 0 ? (
-              <span style={{ color: focusCat.color }}>
-                {hiddenCount} more connection{hiddenCount > 1 ? 's' : ''} to expand
-              </span>
+              <button
+                type="button"
+                onClick={() => expand(focusId)}
+                className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:brightness-110"
+                style={{ background: focusCat.color }}
+              >
+                + Expand {hiddenCount} connection{hiddenCount > 1 ? 's' : ''}
+              </button>
             ) : (
-              <span>All connections revealed</span>
+              <span className="text-[11px] text-slate-400">
+                All connections revealed
+              </span>
+            )}
+            {focusIsExpanded && (
+              <button
+                type="button"
+                onClick={() => collapseNode(focusId)}
+                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/12"
+              >
+                – Collapse
+              </button>
             )}
           </div>
         </div>
@@ -655,10 +926,19 @@ export function BloomGraph() {
         </span>
         <button
           type="button"
-          onClick={reset}
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[12px] font-medium text-slate-100 backdrop-blur transition hover:bg-white/12"
+          onClick={collapseLast}
+          disabled={stack.length <= 1}
+          className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[12px] font-medium text-slate-100 backdrop-blur transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-35"
         >
-          Collapse
+          Collapse last
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          disabled={stack.length <= 1}
+          className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[12px] font-medium text-slate-100 backdrop-blur transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          Reset
         </button>
       </div>
     </div>

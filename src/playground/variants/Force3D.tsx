@@ -1,25 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
-import { CameraControls, Billboard, Text } from '@react-three/drei';
+import { CameraControls, Billboard, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   tools,
+  categories,
   toolById,
   categoryById,
   type AITool,
 } from '../../data/ai-tool-universe';
 
 /**
- * Direction N — "3D Force Graph".
+ * Direction N — "3D Force Graph" (structural / engineering-grade).
  *
- * Emulates vasturiano/3d-force-graph: a true 3D force-directed layout
- * (d3-force-3d technique — velocity Verlet integration with a many-body
- * charge force for repulsion, a link spring force for relations, and a
- * weak centering force) rendered with ThreeJS. Nodes are category-coloured
- * spheres sized by degree; relations are 3D line segments. The layout is
- * precomputed deterministically (seeded PRNG, fixed iteration count with
- * alpha decay) so there is no Math.random() at render time and no
- * per-frame allocation in the animation loop.
+ * A true 3D force-directed layout in the spirit of vasturiano/3d-force-graph:
+ * crisp visible edges, spheres clearly sized by degree, readable cluster
+ * structure under directional lighting. The emphasis is precision and
+ * navigability — inspect the *real* connections in 3D — NOT cinematic bloom.
+ *
+ * Layout (d3-force-3d technique): velocity-Verlet integration with a
+ * many-body charge force (repulsion), a link spring force (relations), an
+ * intra-category cohesion force (so clusters read clearly), and a weak
+ * centering force. Precomputed deterministically with a seeded PRNG and a
+ * fixed iteration count with alpha decay, so there is no Math.random() at
+ * render time and no per-frame allocation in the animation loop.
  */
 
 // ---------------------------------------------------------------------------
@@ -68,23 +72,24 @@ interface Layout {
   edgePositions: Float32Array;
   adjacency: Set<string>[]; // neighbour node-index sets per node
   bounds: number;
+  maxDegree: number;
 }
 
 const SEED = 0x5eed1234;
-const ITERATIONS = 320;
+const ITERATIONS = 380;
 const ALPHA_MIN = 0.001;
 // alphaDecay = 1 - pow(alphaMin, 1/iterations) — matches d3-force convention.
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / ITERATIONS);
-const VELOCITY_DECAY = 0.4;
-const CHARGE = -260; // forceManyBody strength (repulsion)
-const LINK_DISTANCE = 26;
-const LINK_STRENGTH = 0.32;
-const CENTER_STRENGTH = 0.018;
+const VELOCITY_DECAY = 0.42;
+const CHARGE = -240; // forceManyBody strength (repulsion)
+const LINK_DISTANCE = 24;
+const LINK_STRENGTH = 0.45;
+const CENTER_STRENGTH = 0.02;
+const CLUSTER_STRENGTH = 0.055; // intra-category cohesion → clearer clusters
 
 function buildLayout(): Layout {
   const rand = mulberry32(SEED);
 
-  // Build unique edge set from relationIds (undirected, de-duplicated).
   const indexById = new Map<string, number>();
   const nodes: GraphNode[] = tools.map((tool, i) => {
     indexById.set(tool.id, i);
@@ -105,6 +110,7 @@ function buildLayout(): Layout {
     };
   });
 
+  // Build unique edge set from relationIds (undirected, de-duplicated).
   const edgeKey = new Set<string>();
   const edges: GraphEdge[] = [];
   for (const tool of tools) {
@@ -122,18 +128,30 @@ function buildLayout(): Layout {
     }
   }
 
+  let maxDegree = 1;
+  for (const node of nodes) maxDegree = Math.max(maxDegree, node.degree);
+
   // Size by degree (sqrt scaling, like 3d-force-graph nodeVal default).
   for (const n of nodes) {
-    n.radius = 1.6 + Math.sqrt(n.degree) * 1.25;
+    n.radius = 1.5 + Math.sqrt(n.degree) * 1.35;
   }
   // Founder OS core is the hub — make it read as central.
   const core = indexById.get('founder-os');
   if (core !== undefined) {
-    nodes[core].radius = Math.max(nodes[core].radius, 4.2);
+    nodes[core].radius = Math.max(nodes[core].radius, 4.4);
     nodes[core].x = 0;
     nodes[core].y = 0;
     nodes[core].z = 0;
   }
+
+  // Per-category running centroids (recomputed each tick) for cohesion force.
+  const catIndex = new Map<string, number>();
+  categories.forEach((c, i) => catIndex.set(c.id, i));
+  const catCount = categories.length;
+  const cx = new Float32Array(catCount);
+  const cy = new Float32Array(catCount);
+  const cz = new Float32Array(catCount);
+  const cn = new Float32Array(catCount);
 
   // -------------------------------------------------------------------------
   // Force simulation — velocity Verlet integration with alpha annealing.
@@ -142,6 +160,27 @@ function buildLayout(): Layout {
   const n = nodes.length;
   for (let iter = 0; iter < ITERATIONS && alpha > ALPHA_MIN; iter++) {
     alpha += (0 - alpha) * ALPHA_DECAY;
+
+    // Category centroids.
+    cx.fill(0);
+    cy.fill(0);
+    cz.fill(0);
+    cn.fill(0);
+    for (let i = 0; i < n; i++) {
+      const ci = catIndex.get(nodes[i].tool.category);
+      if (ci === undefined) continue;
+      cx[ci] += nodes[i].x;
+      cy[ci] += nodes[i].y;
+      cz[ci] += nodes[i].z;
+      cn[ci] += 1;
+    }
+    for (let c = 0; c < catCount; c++) {
+      if (cn[c] > 0) {
+        cx[c] /= cn[c];
+        cy[c] /= cn[c];
+        cz[c] /= cn[c];
+      }
+    }
 
     // Many-body repulsion (naive O(n^2); n is small — 49 nodes).
     for (let i = 0; i < n; i++) {
@@ -194,9 +233,15 @@ function buildLayout(): Layout {
       b.vz -= dz;
     }
 
-    // Weak centering + integration.
+    // Intra-category cohesion + weak centering + integration.
     for (let i = 0; i < n; i++) {
       const node = nodes[i];
+      const ci = catIndex.get(node.tool.category);
+      if (ci !== undefined && cn[ci] > 1) {
+        node.vx += (cx[ci] - node.x) * CLUSTER_STRENGTH * alpha;
+        node.vy += (cy[ci] - node.y) * CLUSTER_STRENGTH * alpha;
+        node.vz += (cz[ci] - node.z) * CLUSTER_STRENGTH * alpha;
+      }
       node.vx -= node.x * CENTER_STRENGTH * alpha;
       node.vy -= node.y * CENTER_STRENGTH * alpha;
       node.vz -= node.z * CENTER_STRENGTH * alpha;
@@ -245,19 +290,19 @@ function buildLayout(): Layout {
     bounds = Math.max(bounds, Math.abs(node.x), Math.abs(node.y), Math.abs(node.z));
   }
 
-  return { nodes, edges, indexById, edgePositions, adjacency, bounds };
+  return { nodes, edges, indexById, edgePositions, adjacency, bounds, maxDegree };
 }
 
 // ---------------------------------------------------------------------------
-// Edge lines (single LineSegments, vertex-coloured by active/dim state).
+// Base edge mesh — crisp, thin vertex-coloured lines. When a node is focused,
+// its incident edges are repainted bright and the rest dim (but stay visible),
+// so structure reads clearly without additive bloom.
 // ---------------------------------------------------------------------------
-function Edges({
-  layout,
-  activeId,
-}: {
-  layout: Layout;
-  activeId: string | null;
-}) {
+const EDGE_BASE = new THREE.Color('#21364f');
+const EDGE_DIM = new THREE.Color('#16263a');
+const EDGE_HOT = new THREE.Color('#9fe8ff');
+
+function Edges({ layout, focusId }: { layout: Layout; focusId: string | null }) {
   const geom = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(layout.edgePositions, 3));
@@ -266,36 +311,30 @@ function Edges({
     return g;
   }, [layout]);
 
-  // Precompute base + highlight color triplets per edge endpoint.
   useEffect(() => {
     const colorAttr = geom.getAttribute('color') as THREE.BufferAttribute;
     const arr = colorAttr.array as Float32Array;
-    const base = new THREE.Color('#3a5878');
-    const hot = new THREE.Color('#bff0ff');
     layout.edges.forEach((e, i) => {
       const na = layout.nodes[e.a];
       const nb = layout.nodes[e.b];
-      const touches =
-        activeId !== null && (na.id === activeId || nb.id === activeId);
-      const ca = touches ? hot : base;
-      const cb = touches ? hot : base;
-      arr[i * 6 + 0] = ca.r;
-      arr[i * 6 + 1] = ca.g;
-      arr[i * 6 + 2] = ca.b;
-      arr[i * 6 + 3] = cb.r;
-      arr[i * 6 + 4] = cb.g;
-      arr[i * 6 + 5] = cb.b;
+      const touches = focusId !== null && (na.id === focusId || nb.id === focusId);
+      const c = focusId === null ? EDGE_BASE : touches ? EDGE_HOT : EDGE_DIM;
+      arr[i * 6 + 0] = c.r;
+      arr[i * 6 + 1] = c.g;
+      arr[i * 6 + 2] = c.b;
+      arr[i * 6 + 3] = c.r;
+      arr[i * 6 + 4] = c.g;
+      arr[i * 6 + 5] = c.b;
     });
     colorAttr.needsUpdate = true;
-  }, [geom, layout, activeId]);
+  }, [geom, layout, focusId]);
 
   return (
-    <lineSegments geometry={geom}>
+    <lineSegments geometry={geom} renderOrder={1}>
       <lineBasicMaterial
         vertexColors
         transparent
-        opacity={activeId ? 0.85 : 0.42}
-        blending={THREE.AdditiveBlending}
+        opacity={focusId ? 0.95 : 0.6}
         depthWrite={false}
       />
     </lineSegments>
@@ -303,7 +342,8 @@ function Edges({
 }
 
 // ---------------------------------------------------------------------------
-// A single node sphere with hover/active emissive response.
+// A single node sphere. Matte-metal under directional light → depth reads from
+// shading, not glow. Hover/active raise scale + a restrained emissive lift.
 // ---------------------------------------------------------------------------
 function Node({
   node,
@@ -319,36 +359,40 @@ function Node({
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
   const targetScale = useRef(1);
-  const targetEmissive = useRef(0.55);
+  const targetEmissive = useRef(0.22);
+  const targetOpacity = useRef(1);
 
   useEffect(() => {
     if (state === 'active') {
-      targetScale.current = 1.5;
-      targetEmissive.current = 1.6;
+      targetScale.current = 1.35;
+      targetEmissive.current = 0.9;
+      targetOpacity.current = 1;
     } else if (state === 'neighbour') {
-      targetScale.current = 1.18;
-      targetEmissive.current = 1.0;
+      targetScale.current = 1.12;
+      targetEmissive.current = 0.55;
+      targetOpacity.current = 1;
     } else if (state === 'dim') {
-      targetScale.current = 0.82;
-      targetEmissive.current = 0.18;
+      targetScale.current = 0.86;
+      targetEmissive.current = 0.06;
+      targetOpacity.current = 0.32;
     } else {
       targetScale.current = 1;
-      targetEmissive.current = 0.55;
+      targetEmissive.current = 0.22;
+      targetOpacity.current = 1;
     }
   }, [state]);
 
   useFrame((_, delta) => {
+    const k = 1 - Math.pow(0.0006, delta);
     const m = meshRef.current;
     if (m) {
-      const k = 1 - Math.pow(0.0001, delta);
-      const cur = m.scale.x;
-      const next = cur + (targetScale.current - cur) * k;
+      const next = m.scale.x + (targetScale.current - m.scale.x) * k;
       m.scale.setScalar(next);
     }
-    if (matRef.current) {
-      const cur = matRef.current.emissiveIntensity;
-      const k = 1 - Math.pow(0.0001, delta);
-      matRef.current.emissiveIntensity = cur + (targetEmissive.current - cur) * k;
+    const mat = matRef.current;
+    if (mat) {
+      mat.emissiveIntensity += (targetEmissive.current - mat.emissiveIntensity) * k;
+      mat.opacity += (targetOpacity.current - mat.opacity) * k;
     }
   });
 
@@ -356,6 +400,7 @@ function Node({
     <mesh
       ref={meshRef}
       position={[node.x, node.y, node.z]}
+      renderOrder={2}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation();
         onHover(node.id);
@@ -366,23 +411,51 @@ function Node({
         onClick(node.id);
       }}
     >
-      <sphereGeometry args={[node.radius, 32, 32]} />
+      <sphereGeometry args={[node.radius, 48, 48]} />
       <meshStandardMaterial
         ref={matRef}
         color={node.color}
         emissive={node.color}
-        emissiveIntensity={0.55}
-        roughness={0.32}
-        metalness={0.1}
+        emissiveIntensity={0.22}
+        roughness={0.38}
+        metalness={0.55}
         transparent
-        opacity={state === 'dim' ? 0.45 : 1}
+        opacity={1}
       />
     </mesh>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Camera fly-to controller — flies CameraControls to a target node.
+// Thin wireframe focus ring around the active node — a clean "selected"
+// affordance that reads as an inspector, not a glow.
+// ---------------------------------------------------------------------------
+function FocusRing({ node }: { node: GraphNode }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (ref.current) ref.current.rotation.z += delta * 0.6;
+  });
+  const r = node.radius * 1.9;
+  return (
+    <Billboard position={[node.x, node.y, node.z]}>
+      <group ref={ref}>
+        <mesh>
+          <ringGeometry args={[r, r + 0.45, 64]} />
+          <meshBasicMaterial
+            color="#bde8ff"
+            transparent
+            opacity={0.85}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+    </Billboard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Camera fly-to controller — flies CameraControls to a target node and fits.
 // ---------------------------------------------------------------------------
 function FlyController({
   controls,
@@ -393,25 +466,23 @@ function FlyController({
 }) {
   useEffect(() => {
     const c = controls.current;
-    if (!c) return;
-    if (target) {
-      const dist = target.radius * 6 + 18;
-      c.setLookAt(
-        target.x + dist * 0.6,
-        target.y + dist * 0.4,
-        target.z + dist,
-        target.x,
-        target.y,
-        target.z,
-        true,
-      );
-    }
+    if (!c || !target) return;
+    const dist = target.radius * 5 + 22;
+    c.setLookAt(
+      target.x + dist * 0.55,
+      target.y + dist * 0.32,
+      target.z + dist,
+      target.x,
+      target.y,
+      target.z,
+      true,
+    );
   }, [controls, target]);
   return null;
 }
 
 // ---------------------------------------------------------------------------
-// Slow ambient auto-rotate of the whole graph group when idle.
+// Graph group — slow ambient yaw when idle; pauses on interaction.
 // ---------------------------------------------------------------------------
 function GraphGroup({
   layout,
@@ -431,11 +502,16 @@ function GraphGroup({
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
     if (groupRef.current && !paused) {
-      groupRef.current.rotation.y += delta * 0.04;
+      groupRef.current.rotation.y += delta * 0.035;
     }
   });
 
   const focus = activeId ?? hoverId;
+  const focusNode = useMemo(() => {
+    if (!focus) return null;
+    const idx = layout.indexById.get(focus);
+    return idx === undefined ? null : layout.nodes[idx];
+  }, [focus, layout]);
   const neighbours = useMemo(() => {
     if (!focus) return null;
     const idx = layout.indexById.get(focus);
@@ -445,7 +521,7 @@ function GraphGroup({
 
   return (
     <group ref={groupRef}>
-      <Edges layout={layout} activeId={focus} />
+      <Edges layout={layout} focusId={focus} />
       {layout.nodes.map((node) => {
         let state: 'active' | 'neighbour' | 'dim' | 'idle' = 'idle';
         if (focus) {
@@ -454,37 +530,51 @@ function GraphGroup({
           else state = 'dim';
         }
         return (
-          <Node
-            key={node.id}
-            node={node}
-            state={state}
-            onHover={onHover}
-            onClick={onClick}
-          />
+          <Node key={node.id} node={node} state={state} onHover={onHover} onClick={onClick} />
         );
       })}
+
+      {focusNode ? <FocusRing node={focusNode} /> : null}
+
       {/* Label for the focused node, billboarded toward the camera. */}
-      {focus
-        ? layout.nodes
-            .filter((node) => node.id === focus)
-            .map((node) => (
-              <Billboard
-                key={`lbl-${node.id}`}
-                position={[node.x, node.y + node.radius + 4, node.z]}
-              >
-                <Text
-                  fontSize={3.4}
-                  color="#eaffff"
-                  anchorX="center"
-                  anchorY="middle"
-                  outlineWidth={0.18}
-                  outlineColor="#06121f"
-                >
-                  {node.tool.name}
-                </Text>
-              </Billboard>
-            ))
-        : null}
+      {focusNode ? (
+        <Billboard position={[focusNode.x, focusNode.y + focusNode.radius + 4.5, focusNode.z]}>
+          <Text
+            fontSize={3.2}
+            color="#eaf8ff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.16}
+            outlineColor="#040810"
+            fontWeight="bold"
+          >
+            {focusNode.tool.name}
+          </Text>
+        </Billboard>
+      ) : null}
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reference grid floor — a faint engineering grid that grounds the graph in
+// 3D space and reinforces the "structural inspector" read (not a nebula).
+// ---------------------------------------------------------------------------
+function ReferenceGrid({ extent }: { extent: number }) {
+  const { points } = useMemo(() => {
+    const lines: [number, number, number][] = [];
+    const half = extent;
+    const step = (extent * 2) / 16;
+    for (let i = -8; i <= 8; i++) {
+      const p = i * step;
+      lines.push([-half, 0, p], [half, 0, p]);
+      lines.push([p, 0, -half], [p, 0, half]);
+    }
+    return { points: lines };
+  }, [extent]);
+  return (
+    <group position={[0, -extent * 0.78, 0]} renderOrder={0}>
+      <Line points={points} color="#16304a" lineWidth={1} transparent opacity={0.4} segments />
     </group>
   );
 }
@@ -512,39 +602,59 @@ export function Force3D() {
     if (idx === undefined) return [];
     return [...layout.adjacency[idx]]
       .map((id) => toolById.get(id))
-      .filter((t): t is AITool => Boolean(t));
+      .filter((t): t is AITool => Boolean(t))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [activeId, layout]);
 
   const camDist = layout.bounds * 2.1;
+  const resetView = () => {
+    controls.current?.setLookAt(
+      camDist * 0.45,
+      camDist * 0.32,
+      camDist,
+      0,
+      0,
+      0,
+      true,
+    );
+  };
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#04070f]">
-      {/* radial sci-fi backdrop */}
+    <div className="absolute inset-0 overflow-hidden bg-[#05080f]">
+      {/* Cool, near-flat backdrop — legible, not cinematic. */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(120% 90% at 50% 30%, rgba(34,68,110,0.45) 0%, rgba(6,12,24,0.85) 55%, #02040a 100%)',
+            'radial-gradient(130% 100% at 50% 18%, rgba(28,52,82,0.4) 0%, rgba(8,14,26,0.92) 58%, #04070e 100%)',
         }}
       />
 
       <Canvas
         frameloop="always"
         dpr={[1, 2]}
-        camera={{ position: [camDist * 0.4, camDist * 0.3, camDist], fov: 55, near: 0.1, far: 4000 }}
+        camera={{
+          position: [camDist * 0.45, camDist * 0.32, camDist],
+          fov: 50,
+          near: 0.1,
+          far: 4000,
+        }}
         gl={{ antialias: true, alpha: true }}
         onPointerMissed={() => {
           setActiveId(null);
           setHoverId(null);
         }}
       >
-        <color attach="background" args={['#04070f']} />
-        <fog attach="fog" args={['#04070f', camDist * 1.4, camDist * 3.4]} />
+        <color attach="background" args={['#05080f']} />
+        <fog attach="fog" args={['#05080f', camDist * 1.5, camDist * 3.6]} />
 
-        <ambientLight intensity={0.35} />
-        <directionalLight position={[120, 160, 120]} intensity={1.4} color="#cfe8ff" />
-        <directionalLight position={[-140, -80, -120]} intensity={0.6} color="#7a5cff" />
-        <pointLight position={[0, 0, 0]} intensity={2.2} distance={camDist * 2} color="#bdeaff" />
+        {/* Directional key + cool fill → spheres get real volume / depth. */}
+        <ambientLight intensity={0.45} />
+        <hemisphereLight args={['#cfe6ff', '#0a1422', 0.5]} />
+        <directionalLight position={[120, 180, 120]} intensity={2.0} color="#ffffff" />
+        <directionalLight position={[-160, -60, -120]} intensity={0.7} color="#5b78ff" />
+
+        <ReferenceGrid extent={layout.bounds * 1.15} />
 
         <GraphGroup
           layout={layout}
@@ -558,54 +668,102 @@ export function Force3D() {
         <FlyController controls={controls} target={activeNode} />
         <CameraControls
           ref={controls}
-          minDistance={8}
+          minDistance={10}
           maxDistance={camDist * 3}
           dollyToCursor
-          smoothTime={0.45}
+          smoothTime={0.4}
         />
       </Canvas>
 
       {/* Top chrome clearance + title */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 px-6 pt-16">
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-cyan-300/70">
-          3D Force Graph
-        </p>
-        <p className="mt-1 text-sm text-white/45">
-          Drag to orbit · scroll to dolly · hover to trace · click to fly in
-        </p>
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-6 pt-16">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/75">
+            3D Force Graph
+          </p>
+          <p className="mt-1 text-sm text-white/45">
+            Drag to orbit · scroll to dolly · hover to trace · click to fly in
+          </p>
+        </div>
+        <div className="hidden text-right font-mono text-[10px] leading-relaxed text-white/35 sm:block">
+          <div>
+            <span className="text-white/55">{layout.nodes.length}</span> nodes ·{' '}
+            <span className="text-white/55">{layout.edges.length}</span> edges
+          </div>
+          <div>force-directed · 3D</div>
+        </div>
       </div>
 
-      {/* Active node card */}
-      {activeTool ? (
-        <div className="absolute bottom-6 left-6 right-6 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#070d18]/85 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-          <div className="flex items-center gap-2">
+      {/* Category legend — explains node colours, supports the "structural" read. */}
+      <div className="pointer-events-none absolute left-6 top-32 hidden flex-col gap-1.5 md:flex">
+        {categories.map((c) => (
+          <div key={c.id} className="flex items-center gap-2">
             <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor: activeCat?.color ?? '#fff',
-                boxShadow: `0 0 12px ${activeCat?.color ?? '#fff'}`,
-              }}
+              className="h-2 w-2 rounded-[2px]"
+              style={{ backgroundColor: c.color }}
             />
-            <span className="text-[11px] uppercase tracking-[0.28em] text-white/45">
-              {activeCat?.name ?? activeTool.category}
+            <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+              {c.shortName}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Reset-view affordance */}
+      <button
+        type="button"
+        onClick={resetView}
+        className="absolute right-6 top-32 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium tracking-wide text-white/60 backdrop-blur-md transition hover:border-cyan-300/40 hover:text-cyan-200"
+      >
+        Reset view
+      </button>
+
+      {/* Active node inspector card */}
+      {activeTool && activeNode ? (
+        <div className="absolute bottom-6 left-6 right-6 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#070d18]/90 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 rounded-[3px]"
+                style={{
+                  backgroundColor: activeCat?.color ?? '#fff',
+                  boxShadow: `0 0 10px ${activeCat?.color ?? '#fff'}`,
+                }}
+              />
+              <span className="text-[11px] uppercase tracking-[0.28em] text-white/45">
+                {activeCat?.name ?? activeTool.category}
+              </span>
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300/70">
+              {activeNode.degree} {activeNode.degree === 1 ? 'link' : 'links'}
             </span>
           </div>
           <h3 className="mt-2 text-xl font-semibold text-white">{activeTool.name}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-white/65">
-            {activeTool.summary}
-          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-white/65">{activeTool.summary}</p>
           {neighbourTools.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {neighbourTools.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setActiveId(t.id)}
-                  className="rounded-full border border-white/12 bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:border-cyan-300/50 hover:text-cyan-200"
-                >
-                  {t.name}
-                </button>
-              ))}
+            <div className="mt-3">
+              <p className="mb-1.5 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Connected to
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {neighbourTools.map((t) => {
+                  const tc = categoryById.get(t.category);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setActiveId(t.id)}
+                      className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:border-cyan-300/50 hover:text-cyan-100"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: tc?.color ?? '#fff' }}
+                      />
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           <button

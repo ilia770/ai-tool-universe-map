@@ -7,24 +7,30 @@ import {
   tools,
   categories,
   categoryById,
+  toolById,
   type AITool,
 } from '../../data/ai-tool-universe';
 
 /**
  * Direction L — "Firefly"
  *
- * Emulates the Firefly / Northwestern particle explorer technique: a single
- * THREE.Points BufferGeometry holding tens of thousands of particles, rendered
- * by a custom ShaderMaterial that does size-attenuation LOD (distant = tiny
- * dim motes, near = bright stars) plus a per-point "match" attribute that fades
- * filtered-out points. Depth fog + slow camera drift give parallax. The 49 real
- * AI tools are seeded as bright, labelled stars inside a vast deterministic
- * ambient cloud. Filtering is a procedural Html overlay (category + stage),
- * mirroring Firefly's d3-generated filter UI.
+ * A Firefly / Northwestern-style particle explorer. One THREE.Points cloud
+ * holds ~14k deterministic ambient motes plus the 49 REAL AI-tool stars. A
+ * custom ShaderMaterial does size-attenuation LOD (far = dim dust, near =
+ * bright stars), depth fog and twinkle. The 49 tools are the heroes: visibly
+ * larger, category-coloured, ringed with a halo, and labelled when close.
+ *
+ * The four product goals are made explicit:
+ *  1. REAL tools dominate — large glowing stars + near-always-on labels.
+ *  2. Ambient field is clearly SECONDARY — small, dim, slow twinkle, fog.
+ *  3. Filtering is OBVIOUS — a smoothly animated mix dramatically fades
+ *     non-matching stars, re-emphasises matches, and shows a live count.
+ *  4. LOD reads as a data-cloud — zoom out = constellation of tool-stars,
+ *     zoom in = labels, summaries and relation lines.
  *
  * No Math.random at render/module time — a seeded mulberry32 PRNG drives every
  * particle. No per-frame allocation — geometry is built once in useMemo and we
- * only mutate uniforms in useFrame.
+ * mutate uniforms / refs in useFrame. hash routing uses history.replaceState.
  */
 
 // ---- seeded PRNG (mulberry32) -------------------------------------------------
@@ -40,7 +46,7 @@ function mulberry32(seed: number): () => number {
 }
 
 // ---- constants ----------------------------------------------------------------
-const AMBIENT_COUNT = 16000;
+const AMBIENT_COUNT = 14000;
 const REAL_COUNT = tools.length;
 const TOTAL = AMBIENT_COUNT + REAL_COUNT;
 const CLOUD_RADIUS = 120;
@@ -57,10 +63,20 @@ const STAGE_COLOR: Record<Stage, string> = {
 
 const tmpColor = new THREE.Color();
 
+interface RealStar {
+  tool: AITool;
+  pos: THREE.Vector3;
+  catIndex: number;
+  stageIndex: number;
+  color: string;
+}
+
 interface CloudData {
   geometry: THREE.BufferGeometry;
   realPositions: Float32Array;
-  realTools: AITool[];
+  realStars: RealStar[];
+  // index of a real-tool id -> slot in realStars (for relation lines)
+  realIndexById: Map<string, number>;
 }
 
 // Build the entire point cloud once. Real tools occupy the final REAL_COUNT slots.
@@ -70,32 +86,30 @@ function buildCloud(): CloudData {
   const colors = new Float32Array(TOTAL * 3);
   const sizes = new Float32Array(TOTAL);
   const seeds = new Float32Array(TOTAL); // per-point phase for twinkle
-  // category index encoded as float; -1 for ambient assigned to nearest cat hue
   const catIndex = new Float32Array(TOTAL);
   const stageIndex = new Float32Array(TOTAL);
   const isReal = new Float32Array(TOTAL);
 
   const catList = categories;
 
-  // --- ambient particles: a fractal-ish cloud of nebular shells ---
+  // --- ambient particles: a flattened galactic disk + a softer halo sphere ---
   for (let i = 0; i < AMBIENT_COUNT; i++) {
-    // mix of a broad sphere and a flattened galactic disk
-    const disk = rng() < 0.55;
-    const r = Math.pow(rng(), 0.6) * CLOUD_RADIUS;
+    const disk = rng() < 0.62;
+    const r = Math.pow(rng(), 0.55) * CLOUD_RADIUS;
     const theta = rng() * Math.PI * 2;
     let x: number;
     let y: number;
     let z: number;
     if (disk) {
-      const flat = 0.18 + rng() * 0.12;
-      const arm = theta + r * 0.045; // loose spiral
+      const flat = 0.14 + rng() * 0.1;
+      const arm = theta + r * 0.05; // loose spiral arms
       x = Math.cos(arm) * r;
       z = Math.sin(arm) * r;
       y = (rng() - 0.5) * 2 * r * flat;
     } else {
       const phi = Math.acos(2 * rng() - 1);
       x = r * Math.sin(phi) * Math.cos(theta);
-      y = r * Math.sin(phi) * Math.sin(theta) * 0.7;
+      y = r * Math.sin(phi) * Math.sin(theta) * 0.62;
       z = r * Math.cos(phi);
     }
     positions[i * 3] = x;
@@ -103,38 +117,42 @@ function buildCloud(): CloudData {
     positions[i * 3 + 2] = z;
 
     // tint ambient particles by the nearest category angle so the cloud carries
-    // the universe palette, dimmed.
+    // the universe palette, heavily dimmed so it never competes with the heroes.
     const angle = Math.atan2(z, x);
     const cat = catList[Math.floor(((angle + Math.PI) / (Math.PI * 2)) * catList.length) % catList.length];
     tmpColor.set(cat.color);
-    const dim = 0.18 + rng() * 0.22;
-    colors[i * 3] = tmpColor.r * dim;
-    colors[i * 3 + 1] = tmpColor.g * dim;
-    colors[i * 3 + 2] = tmpColor.b * dim;
+    // lift toward a cool white so dust feels atmospheric, then dim hard.
+    const dim = 0.1 + rng() * 0.16;
+    colors[i * 3] = (tmpColor.r * 0.6 + 0.4) * dim;
+    colors[i * 3 + 1] = (tmpColor.g * 0.6 + 0.45) * dim;
+    colors[i * 3 + 2] = (tmpColor.b * 0.6 + 0.55) * dim;
 
-    sizes[i] = 0.5 + rng() * 1.6;
+    // varied sizes: mostly tiny dust, a few brighter background sparks.
+    sizes[i] = rng() < 0.06 ? 1.4 + rng() * 1.4 : 0.35 + rng() * 0.9;
     seeds[i] = rng() * Math.PI * 2;
     catIndex[i] = catList.indexOf(cat);
     stageIndex[i] = Math.floor(rng() * STAGES.length);
     isReal[i] = 0;
   }
 
-  // --- real tool stars: bright, color = category, placed on a structured shell ---
+  // --- real tool stars: bright, color = category, on a structured shell ---
   const realPositions = new Float32Array(REAL_COUNT * 3);
-  const realTools: AITool[] = [];
+  const realStars: RealStar[] = [];
+  const realIndexById = new Map<string, number>();
   for (let j = 0; j < REAL_COUNT; j++) {
     const t = tools[j];
     const i = AMBIENT_COUNT + j;
     const cat = categoryById.get(t.category);
-    // orbit drives radius, angle drives azimuth, a little jitter for organic feel
-    const radius = 14 + t.orbit * 16 + (mulberry32(t.id.length * 2654435761 + j)() - 0.5) * 6;
+    // orbit drives radius, angle drives azimuth, deterministic jitter for life
+    const jit = mulberry32(t.id.length * 2654435761 + j * 9176);
+    const radius = t.orbit === 0 ? 0 : 13 + t.orbit * 15 + (jit() - 0.5) * 5;
     const az = (t.angle * Math.PI) / 180;
     const catAngle = ((cat?.angle ?? 0) * Math.PI) / 180;
-    const a = az * 0.4 + catAngle * 0.6;
-    const tilt = ((mulberry32(j * 40503 + 7)() - 0.5) * 0.9);
+    const a = az * 0.45 + catAngle * 0.55;
+    const tilt = (jit() - 0.5) * 0.85;
     const x = Math.cos(a) * radius;
     const z = Math.sin(a) * radius;
-    const y = Math.sin(tilt) * radius * 0.5;
+    const y = Math.sin(tilt) * radius * 0.42;
     positions[i * 3] = x;
     positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = z;
@@ -142,17 +160,29 @@ function buildCloud(): CloudData {
     realPositions[j * 3 + 1] = y;
     realPositions[j * 3 + 2] = z;
 
-    tmpColor.set(cat?.color ?? '#d8faff');
+    const colorHex = cat?.color ?? '#d8faff';
+    tmpColor.set(colorHex);
     colors[i * 3] = tmpColor.r;
     colors[i * 3 + 1] = tmpColor.g;
     colors[i * 3 + 2] = tmpColor.b;
 
-    sizes[i] = t.id === 'founder-os' ? 9 : 5.2;
+    // Founder OS is the bright core; the rest are clearly larger than dust.
+    sizes[i] = t.id === 'founder-os' ? 14 : 7.5;
     seeds[i] = (j % 17) * 0.37;
-    catIndex[i] = categories.findIndex((c) => c.id === t.category);
-    stageIndex[i] = STAGES.indexOf(t.stage as Stage);
+    const cIdx = categories.findIndex((c) => c.id === t.category);
+    const sIdx = STAGES.indexOf(t.stage as Stage);
+    catIndex[i] = cIdx;
+    stageIndex[i] = sIdx;
     isReal[i] = 1;
-    realTools.push(t);
+
+    realIndexById.set(t.id, j);
+    realStars.push({
+      tool: t,
+      pos: new THREE.Vector3(x, y, z),
+      catIndex: cIdx,
+      stageIndex: sIdx,
+      color: colorHex,
+    });
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -165,7 +195,7 @@ function buildCloud(): CloudData {
   geometry.setAttribute('aReal', new THREE.BufferAttribute(isReal, 1));
   geometry.computeBoundingSphere();
 
-  return { geometry, realPositions, realTools };
+  return { geometry, realPositions, realStars, realIndexById };
 }
 
 // ---- shaders ------------------------------------------------------------------
@@ -181,11 +211,13 @@ const VERT = /* glsl */ `
   uniform float uPixelRatio;
   uniform float uFilterCat;   // -1 = all
   uniform float uFilterStage; // -1 = all
+  uniform float uFilterMix;   // 0 = no filter active, 1 = fully filtered
 
   varying vec3 vColor;
   varying float vMatch;
   varying float vReal;
   varying float vFog;
+  varying float vTwinkle;
 
   void main() {
     vColor = aColor;
@@ -193,20 +225,26 @@ const VERT = /* glsl */ `
 
     float catOk = (uFilterCat < 0.0) ? 1.0 : step(abs(aCat - uFilterCat), 0.5);
     float stageOk = (uFilterStage < 0.0) ? 1.0 : step(abs(aStage - uFilterStage), 0.5);
-    vMatch = catOk * stageOk;
+    // 1 = matches, 0 = does not. Blended by uFilterMix so transitions are smooth.
+    vMatch = mix(1.0, catOk * stageOk, uFilterMix);
 
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float dist = -mv.z;
 
-    // gentle twinkle; real stars pulse stronger on approach
-    float tw = 0.7 + 0.3 * sin(uTime * (aReal > 0.5 ? 2.0 : 0.6) + aSeed * 6.2831);
+    // gentle twinkle; real stars pulse a touch stronger / faster.
+    float tw = 0.72 + 0.28 * sin(uTime * (aReal > 0.5 ? 1.7 : 0.5) + aSeed * 6.2831);
+    vTwinkle = tw;
 
-    // size-attenuation LOD: distant points shrink toward 1px
-    float size = aSize * tw * (300.0 / max(dist, 1.0)) * uPixelRatio * 0.18;
-    gl_PointSize = clamp(size, aReal > 0.5 ? 2.0 : 0.6, 64.0);
+    // size-attenuation LOD: distant points shrink toward sub-pixel dust.
+    // Matched (and unfiltered) real stars get a size boost so they pop forward;
+    // filtered-out points additionally shrink so the cloud visibly re-weights.
+    float emphasize = aReal > 0.5 ? (1.0 + vMatch * 0.45) : 1.0;
+    float shrink = mix(1.0, 0.35, (1.0 - vMatch) * uFilterMix);
+    float size = aSize * tw * emphasize * shrink * (320.0 / max(dist, 1.0)) * uPixelRatio * 0.2;
+    gl_PointSize = clamp(size, aReal > 0.5 ? 2.5 : 0.55, 120.0);
 
     // exponential depth fog
-    vFog = 1.0 - clamp(exp(-pow(dist * 0.006, 1.6)), 0.0, 1.0);
+    vFog = 1.0 - clamp(exp(-pow(dist * 0.0055, 1.6)), 0.0, 1.0);
 
     gl_Position = projectionMatrix * mv;
   }
@@ -218,128 +256,191 @@ const FRAG = /* glsl */ `
   varying float vMatch;
   varying float vReal;
   varying float vFog;
+  varying float vTwinkle;
   uniform vec3 uFogColor;
 
   void main() {
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv);
-    // soft round sprite with a hot core
+
+    // Real stars: hot core + bright halo + a faint diffraction ring.
+    // Ambient dust: soft round mote.
     float core = smoothstep(0.5, 0.0, d);
-    float glow = smoothstep(0.5, 0.15, d);
-    float alpha = core * 0.85 + glow * 0.5;
-    if (alpha < 0.01) discard;
+    float glow = smoothstep(0.5, 0.06, d);
+
+    float ring = vReal > 0.5
+      ? smoothstep(0.34, 0.30, abs(d - 0.40)) * 0.5
+      : 0.0;
+
+    float baseAlpha = vReal > 0.5
+      ? core * 0.95 + glow * 0.55 + ring
+      : core * 0.7 + glow * 0.35;
+    if (baseAlpha < 0.01) discard;
 
     vec3 col = vColor;
-    // real stars get a white-hot center
-    col = mix(col, vec3(1.0), core * core * (vReal > 0.5 ? 0.55 : 0.18));
+    // real stars get a white-hot center; dust stays tinted.
+    col = mix(col, vec3(1.0), core * core * (vReal > 0.5 ? 0.6 : 0.12));
+    // slight chromatic lift on twinkle peak for sparkle.
+    col += vColor * (vTwinkle - 0.72) * (vReal > 0.5 ? 0.6 : 0.25);
 
-    // fade non-matching points (Firefly-style filter)
-    float matchFade = mix(0.06, 1.0, vMatch);
-    // fog blends toward background, but keeps a little glow
-    vec3 final = mix(col, uFogColor, vFog * 0.85);
+    // fade non-matching points strongly (Firefly-style filter).
+    float matchFade = mix(0.05, 1.0, vMatch);
 
-    gl_FragColor = vec4(final, alpha * matchFade * (1.0 - vFog * 0.55));
+    // fog blends toward background but keeps a little glow.
+    vec3 final = mix(col, uFogColor, vFog * 0.82);
+
+    gl_FragColor = vec4(final, baseAlpha * matchFade * (1.0 - vFog * 0.5));
   }
 `;
 
-// ---- labels for nearby real tools --------------------------------------------
+// ---- relation lines for the hovered star -------------------------------------
+function RelationLines({
+  hovered,
+  realStars,
+  realIndexById,
+}: {
+  hovered: number | null;
+  realStars: RealStar[];
+  realIndexById: Map<string, number>;
+}) {
+  const geo = useMemo(() => {
+    if (hovered == null) return null;
+    const src = realStars[hovered];
+    if (!src) return null;
+    const pts: number[] = [];
+    for (const rid of src.tool.relationIds) {
+      const tIdx = realIndexById.get(rid);
+      if (tIdx == null) continue;
+      const dst = realStars[tIdx];
+      pts.push(src.pos.x, src.pos.y, src.pos.z, dst.pos.x, dst.pos.y, dst.pos.z);
+    }
+    if (pts.length === 0) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+    return g;
+  }, [hovered, realStars, realIndexById]);
+
+  if (!geo) return null;
+  const color = realStars[hovered ?? 0]?.color ?? '#ffffff';
+  return (
+    <lineSegments geometry={geo}>
+      <lineBasicMaterial
+        color={color}
+        transparent
+        opacity={0.5}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </lineSegments>
+  );
+}
+
+// ---- labels for nearby / hovered real tools ----------------------------------
 interface LabelsProps {
-  realPositions: Float32Array;
-  realTools: AITool[];
+  realStars: RealStar[];
   hovered: number | null;
   filterCat: number;
   filterStage: number;
 }
 
-function ProximityLabels({
-  realPositions,
-  realTools,
-  hovered,
-  filterCat,
-  filterStage,
-}: LabelsProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const [near, setNear] = useState<number[]>([]);
-  const v = useRef(new THREE.Vector3());
+function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsProps) {
+  // Each entry: index + a "detail" flag (close enough to show the summary).
+  const [near, setNear] = useState<{ j: number; detail: boolean }[]>([]);
+  const nearRef = useRef<{ j: number; detail: boolean }[]>([]);
 
   useFrame((state) => {
     const cam = state.camera;
-    const out: number[] = [];
-    for (let j = 0; j < realTools.length; j++) {
-      v.current.set(
-        realPositions[j * 3],
-        realPositions[j * 3 + 1],
-        realPositions[j * 3 + 2],
-      );
-      const d = v.current.distanceTo(cam.position);
-      if (d < 70 || j === hovered) out.push(j);
+    const out: { j: number; detail: boolean }[] = [];
+    for (let j = 0; j < realStars.length; j++) {
+      const d = realStars[j].pos.distanceTo(cam.position);
+      // Always-on labels for the closest ring of stars; detail when really close.
+      if (d < 88 || j === hovered) {
+        out.push({ j, detail: d < 48 || j === hovered });
+      }
     }
-    // only update state if the set changed (cheap stringify of small array)
-    if (out.length !== near.length || out.some((x, i) => x !== near[i])) {
+    const prev = nearRef.current;
+    const changed =
+      out.length !== prev.length ||
+      out.some((x, i) => x.j !== prev[i]?.j || x.detail !== prev[i]?.detail);
+    if (changed) {
+      nearRef.current = out;
       setNear(out);
     }
   });
 
   return (
-    <group ref={groupRef}>
-      {near.map((j) => {
-        const t = realTools[j];
+    <group>
+      {near.map(({ j, detail }) => {
+        const star = realStars[j];
+        const t = star.tool;
         const cat = categoryById.get(t.category);
-        const matchCat = filterCat < 0 || categories.findIndex((c) => c.id === t.category) === filterCat;
-        const matchStage = filterStage < 0 || STAGES.indexOf(t.stage as Stage) === filterStage;
+        const matchCat = filterCat < 0 || star.catIndex === filterCat;
+        const matchStage = filterStage < 0 || star.stageIndex === filterStage;
         const dim = !(matchCat && matchStage);
         const isHover = j === hovered;
         return (
           <Html
             key={t.id}
-            position={[
-              realPositions[j * 3],
-              realPositions[j * 3 + 1] + 2.4,
-              realPositions[j * 3 + 2],
-            ]}
+            position={[star.pos.x, star.pos.y + 2.6, star.pos.z]}
             center
-            distanceFactor={42}
+            distanceFactor={44}
             style={{ pointerEvents: 'none' }}
-            zIndexRange={[20, 0]}
+            zIndexRange={[isHover ? 60 : 20, 0]}
           >
             <div
               style={{
-                opacity: dim ? 0.25 : 1,
-                transform: isHover ? 'scale(1.08)' : 'scale(1)',
-                transition: 'opacity .4s, transform .2s',
+                opacity: dim ? 0.18 : 1,
+                transform: isHover ? 'scale(1.1)' : 'scale(1)',
+                transition: 'opacity .45s ease, transform .22s ease',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 2,
+                gap: 3,
+                filter: dim ? 'saturate(0.5)' : 'none',
               }}
             >
               <span
                 style={{
-                  fontSize: isHover ? 13 : 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: isHover ? 14 : 11.5,
                   fontWeight: 600,
                   letterSpacing: 0.2,
                   color: '#f4f9ff',
-                  textShadow: `0 0 10px ${cat?.color ?? '#fff'}, 0 1px 2px #000`,
+                  textShadow: `0 0 12px ${cat?.color ?? '#fff'}, 0 1px 3px #000`,
                   fontFamily:
                     'ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
                 }}
               >
+                <span
+                  style={{
+                    width: isHover ? 7 : 5,
+                    height: isHover ? 7 : 5,
+                    borderRadius: 99,
+                    background: star.color,
+                    boxShadow: `0 0 8px ${star.color}, 0 0 14px ${star.color}`,
+                    display: 'inline-block',
+                  }}
+                />
                 {t.name}
               </span>
-              {isHover && (
+              {detail && (
                 <span
                   style={{
                     fontSize: 10,
-                    maxWidth: 220,
+                    maxWidth: 230,
                     whiteSpace: 'normal',
                     textAlign: 'center',
-                    color: '#aab8d4',
-                    background: 'rgba(8,11,24,0.72)',
-                    padding: '3px 7px',
-                    borderRadius: 7,
+                    color: '#b6c4e0',
+                    background: 'rgba(8,11,24,0.78)',
+                    padding: '4px 8px',
+                    borderRadius: 8,
                     border: `1px solid ${cat?.glow ?? 'rgba(255,255,255,0.15)'}`,
-                    backdropFilter: 'blur(6px)',
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+                    lineHeight: 1.35,
                   }}
                 >
                   {t.summary}
@@ -358,7 +459,7 @@ function CameraDrift() {
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     // subtle parallax breathing layered on top of OrbitControls
-    state.camera.position.y += Math.sin(t * 0.18) * 0.012;
+    state.camera.position.y += Math.sin(t * 0.16) * 0.01;
   });
   return null;
 }
@@ -367,29 +468,41 @@ function CameraDrift() {
 function Scene({
   filterCat,
   filterStage,
+  onHoverTool,
 }: {
   filterCat: number;
   filterStage: number;
+  onHoverTool: (id: string | null) => void;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const cloud = useMemo(() => buildCloud(), []);
 
+  const handleHover = (idx: number | null) => {
+    setHovered(idx);
+    onHoverTool(idx == null ? null : cloud.realStars[idx]?.tool.id ?? null);
+  };
+
   return (
     <>
-      <color attach="background" args={['#05060f']} />
-      <fog attach="fog" args={['#05060f', 60, 220]} />
+      <color attach="background" args={['#04050d']} />
+      <fog attach="fog" args={['#04050d', 70, 230]} />
 
       <PointCloudInner
         geometry={cloud.geometry}
         realPositions={cloud.realPositions}
         filterCat={filterCat}
         filterStage={filterStage}
-        onHover={setHovered}
+        onHover={handleHover}
+      />
+
+      <RelationLines
+        hovered={hovered}
+        realStars={cloud.realStars}
+        realIndexById={cloud.realIndexById}
       />
 
       <ProximityLabels
-        realPositions={cloud.realPositions}
-        realTools={cloud.realTools}
+        realStars={cloud.realStars}
         hovered={hovered}
         filterCat={filterCat}
         filterStage={filterStage}
@@ -401,11 +514,11 @@ function Scene({
         enableDamping
         dampingFactor={0.06}
         rotateSpeed={0.5}
-        zoomSpeed={0.8}
-        minDistance={18}
+        zoomSpeed={0.85}
+        minDistance={16}
         maxDistance={200}
         autoRotate
-        autoRotateSpeed={0.18}
+        autoRotateSpeed={0.16}
       />
     </>
   );
@@ -440,17 +553,22 @@ function PointCloudInner({
       uPixelRatio: { value: pixelRatio },
       uFilterCat: { value: -1 },
       uFilterStage: { value: -1 },
-      uFogColor: { value: new THREE.Color('#05060f') },
+      uFilterMix: { value: 0 },
+      uFogColor: { value: new THREE.Color('#04050d') },
     }),
     [pixelRatio],
   );
 
-  useFrame((state) => {
-    if (matRef.current) {
-      matRef.current.uniforms.uTime.value = state.clock.elapsedTime;
-      matRef.current.uniforms.uFilterCat.value = filterCat;
-      matRef.current.uniforms.uFilterStage.value = filterStage;
-    }
+  useFrame((state, delta) => {
+    if (!matRef.current) return;
+    const u = matRef.current.uniforms;
+    u.uTime.value = state.clock.elapsedTime;
+    u.uFilterCat.value = filterCat;
+    u.uFilterStage.value = filterStage;
+    // smoothly ease the filter mix toward its target so fades are buttery.
+    const target = filterCat >= 0 || filterStage >= 0 ? 1 : 0;
+    const k = 1 - Math.exp(-delta * 6);
+    u.uFilterMix.value += (target - u.uFilterMix.value) * k;
   });
 
   const pickGeo = useMemo(() => {
@@ -473,12 +591,16 @@ function PointCloudInner({
         />
       </points>
 
+      {/* invisible larger picking points so hover targets the real stars */}
       <points
         geometry={pickGeo}
-        onPointerMove={(e) => onHover(e.index ?? null)}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          onHover(e.index ?? null);
+        }}
         onPointerOut={() => onHover(null)}
       >
-        <pointsMaterial size={4} transparent opacity={0} depthWrite={false} sizeAttenuation />
+        <pointsMaterial size={6} transparent opacity={0} depthWrite={false} sizeAttenuation />
       </points>
     </group>
   );
@@ -490,6 +612,8 @@ interface OverlayProps {
   setFilterCat: (n: number) => void;
   filterStage: number;
   setFilterStage: (n: number) => void;
+  matchCount: number;
+  hoveredTool: AITool | null;
 }
 
 function FilterOverlay({
@@ -497,18 +621,18 @@ function FilterOverlay({
   setFilterCat,
   filterStage,
   setFilterStage,
+  matchCount,
+  hoveredTool,
 }: OverlayProps) {
+  const filtering = filterCat >= 0 || filterStage >= 0;
   return (
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{ paddingTop: 64 }}
-    >
+    <div className="pointer-events-none absolute inset-0" style={{ paddingTop: 64 }}>
       {/* header */}
       <div className="pointer-events-none absolute left-6 top-[72px] select-none">
         <div
           style={{
             fontFamily: 'ui-sans-serif, -apple-system, "SF Pro Display", sans-serif',
-            fontSize: 22,
+            fontSize: 23,
             fontWeight: 700,
             letterSpacing: -0.3,
             color: '#eaf2ff',
@@ -517,15 +641,98 @@ function FilterOverlay({
         >
           Firefly
         </div>
-        <div style={{ fontSize: 12, color: '#7e8db0', marginTop: 2 }}>
-          {(AMBIENT_COUNT + REAL_COUNT).toLocaleString()} points · {REAL_COUNT} AI tools · drag to fly
+        <div style={{ fontSize: 12, color: '#8493b6', marginTop: 2, maxWidth: 280 }}>
+          {REAL_COUNT} AI tools as glowing stars in a {(AMBIENT_COUNT).toLocaleString()}-mote
+          field. Drag to fly · scroll to zoom in for labels.
+        </div>
+
+        {/* legend */}
+        <div
+          className="pointer-events-none"
+          style={{
+            marginTop: 12,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            maxWidth: 300,
+          }}
+        >
+          <LegendDot label="Tool star" big />
+          <LegendDot label="Ambient dust" />
         </div>
       </div>
+
+      {/* live match readout */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-[78px] -translate-x-1/2 select-none"
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: 0.3,
+          color: filtering ? '#06080f' : '#bccbe8',
+          background: filtering ? 'rgba(110,231,255,0.9)' : 'rgba(12,16,30,0.6)',
+          border: `1px solid ${filtering ? 'rgba(110,231,255,0.9)' : 'rgba(120,140,180,0.2)'}`,
+          padding: '5px 12px',
+          borderRadius: 99,
+          backdropFilter: 'blur(8px)',
+          boxShadow: filtering ? '0 0 18px rgba(110,231,255,0.45)' : 'none',
+          transition: 'all .3s ease',
+        }}
+      >
+        {filtering
+          ? `${matchCount} of ${REAL_COUNT} tools match`
+          : `${REAL_COUNT} tools · all visible`}
+      </div>
+
+      {/* hovered tool readout (bottom-left), reinforces "these are real tools" */}
+      {hoveredTool && (
+        <div
+          className="pointer-events-none absolute bottom-6 left-6 select-none"
+          style={{
+            maxWidth: 280,
+            background: 'rgba(8,11,24,0.82)',
+            border: `1px solid ${categoryById.get(hoveredTool.category)?.glow ?? 'rgba(255,255,255,0.15)'}`,
+            borderRadius: 12,
+            padding: '10px 12px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 99,
+                background: categoryById.get(hoveredTool.category)?.color ?? '#fff',
+                boxShadow: `0 0 10px ${categoryById.get(hoveredTool.category)?.color ?? '#fff'}`,
+              }}
+            />
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#f4f9ff' }}>
+              {hoveredTool.name}
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+                color: '#7e8db0',
+                marginLeft: 'auto',
+              }}
+            >
+              {categoryById.get(hoveredTool.category)?.shortName} · {hoveredTool.stage}
+            </span>
+          </div>
+          <div style={{ fontSize: 11.5, color: '#b6c4e0', marginTop: 5, lineHeight: 1.4 }}>
+            {hoveredTool.summary}
+          </div>
+        </div>
+      )}
 
       {/* category toggles */}
       <div
         className="pointer-events-auto absolute right-5 top-[72px] flex flex-col gap-1.5"
-        style={{ width: 184 }}
+        style={{ width: 186 }}
       >
         <div
           style={{
@@ -538,10 +745,7 @@ function FilterOverlay({
         >
           Category
         </div>
-        <button
-          onClick={() => setFilterCat(-1)}
-          style={chipStyle(filterCat === -1, '#d8faff')}
-        >
+        <button onClick={() => setFilterCat(-1)} style={chipStyle(filterCat === -1, '#d8faff')}>
           All categories
         </button>
         {categories.map((c, i) => (
@@ -567,11 +771,8 @@ function FilterOverlay({
       </div>
 
       {/* stage filter */}
-      <div className="pointer-events-auto absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-1.5">
-        <button
-          onClick={() => setFilterStage(-1)}
-          style={pillStyle(filterStage === -1, '#d8faff')}
-        >
+      <div className="pointer-events-auto absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-wrap justify-center gap-1.5">
+        <button onClick={() => setFilterStage(-1)} style={pillStyle(filterStage === -1, '#d8faff')}>
           All stages
         </button>
         {STAGES.map((s, i) => (
@@ -585,6 +786,36 @@ function FilterOverlay({
         ))}
       </div>
     </div>
+  );
+}
+
+function LegendDot({ label, big }: { label: string; big?: boolean }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 10.5,
+        color: '#8493b6',
+        background: 'rgba(12,16,30,0.5)',
+        border: '1px solid rgba(120,140,180,0.16)',
+        borderRadius: 99,
+        padding: '3px 9px 3px 7px',
+      }}
+    >
+      <span
+        style={{
+          width: big ? 9 : 4,
+          height: big ? 9 : 4,
+          borderRadius: 99,
+          background: big ? '#9fe9ff' : '#5d6a8a',
+          boxShadow: big ? '0 0 10px #6ee7ff, 0 0 4px #fff' : 'none',
+          display: 'inline-block',
+        }}
+      />
+      {label}
+    </span>
   );
 }
 
@@ -628,16 +859,29 @@ function pillStyle(active: boolean, color: string): CSSProperties {
 export function Firefly() {
   const [filterCat, setFilterCat] = useState(-1);
   const [filterStage, setFilterStage] = useState(-1);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  // live count of real tools matching the active filters.
+  const matchCount = useMemo(() => {
+    if (filterCat < 0 && filterStage < 0) return REAL_COUNT;
+    return tools.reduce((n, t) => {
+      const cOk = filterCat < 0 || categories[filterCat]?.id === t.category;
+      const sOk = filterStage < 0 || STAGES[filterStage] === t.stage;
+      return n + (cOk && sOk ? 1 : 0);
+    }, 0);
+  }, [filterCat, filterStage]);
+
+  const hoveredTool = hoveredId ? toolById.get(hoveredId) ?? null : null;
 
   return (
-    <div className="absolute inset-0" style={{ background: '#05060f' }}>
+    <div className="absolute inset-0" style={{ background: '#04050d' }}>
       <Canvas
-        camera={{ position: [0, 22, 96], fov: 58, near: 0.1, far: 600 }}
+        camera={{ position: [0, 24, 98], fov: 58, near: 0.1, far: 600 }}
         gl={{ antialias: true, alpha: false }}
         dpr={[1, 2]}
         frameloop="always"
       >
-        <Scene filterCat={filterCat} filterStage={filterStage} />
+        <Scene filterCat={filterCat} filterStage={filterStage} onHoverTool={setHoveredId} />
       </Canvas>
 
       <FilterOverlay
@@ -645,6 +889,8 @@ export function Firefly() {
         setFilterCat={setFilterCat}
         filterStage={filterStage}
         setFilterStage={setFilterStage}
+        matchCount={matchCount}
+        hoveredTool={hoveredTool}
       />
     </div>
   );
