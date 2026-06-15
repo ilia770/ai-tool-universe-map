@@ -104,8 +104,10 @@ Rules of engagement:
     sphere + outer frosted shell + slow pulse; matches "hero node" brief.
 28. `[ ]` **Scene background depth** — replace flat radial gradient with
     subtle skybox/environment resource (cosmic depth without banding).
-29. `[ ]` **IBL / environment lighting** — `EnvironmentResource` image-based
-    lighting so PBR materials get real reflections; retune key/fill.
+29. `[x]` **IBL / environment lighting** — `EnvironmentResource` image-based
+    lighting so PBR materials get real reflections (#72). Procedural
+    `CosmicEnvironmentTexture` replaces the deferred bundled-`.exr` assumption;
+    skybox backdrop (28) still pending, can now reuse the same env map.
 30. `[ ]` **Reduce-motion + contrast audit (iOS)** — sweep every animation
     and material for `accessibilityReduceMotion` / contrast; matrix table in
     docs/design.
