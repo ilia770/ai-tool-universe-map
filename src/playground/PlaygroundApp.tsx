@@ -2,6 +2,8 @@ import { useEffect, useState, type ComponentType } from 'react';
 import { InAppBrowserProvider } from '../components/InAppBrowser';
 import { ToolStoreProvider } from './store';
 import { AddToolModal } from './AddToolModal';
+import { FindBar } from './FindBar';
+import { ToolDetail } from './ToolDetail';
 import { BrainGraph } from './variants/BrainGraph';
 import { ObjectSpace } from './variants/ObjectSpace';
 import { GalaxyMap } from './variants/GalaxyMap';
@@ -52,6 +54,7 @@ function initialId(): string {
 export function PlaygroundApp() {
   const [activeId, setActiveId] = useState(initialId);
   const [addOpen, setAddOpen] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const active = VARIANTS.find((v) => v.id === activeId) ?? VARIANTS[0];
   const Active = active.Component;
 
@@ -86,7 +89,11 @@ export function PlaygroundApp() {
       >
         +
       </button>
-      <AddToolModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddToolModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={(id) => setDetailId(id)} />
+
+      {/* Hyperbrain chat — hidden while a tool's window is open. */}
+      {detailId ? null : <FindBar onOpenTool={(id) => setDetailId(id)} />}
+      <ToolDetail toolId={detailId} onClose={() => setDetailId(null)} onSelect={(id) => setDetailId(id)} />
 
       <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-3 p-4">
         <div className="pointer-events-auto">
