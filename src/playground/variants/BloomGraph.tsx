@@ -99,6 +99,12 @@ interface SimNode {
   vx: number;
   vy: number;
   appear: number; // 0 -> 1 spring-in
+  // collapse target: when a node is removed we don't pop it; we mark it
+  // collapsing and let `appear` ease back to 0 (springing toward `px,py`,
+  // its parent), then drop it from the sim once invisible.
+  collapsing: boolean;
+  px: number;
+  py: number;
 }
 
 interface Edge {
@@ -114,7 +120,7 @@ interface RenderNode {
   id: string;
   x: number;
   y: number;
-  appear: number;
+  appear: number; // 0 -> 1 spring-in / spring-out (collapse fades to 0)
   catColor: string;
   catGlow: string;
   name: string;
@@ -135,9 +141,51 @@ function edgeLabel(a: AITool, b: AITool): string {
 
 const NODE_R = 30;
 
+// All logical edges, computed once. Render filters by node presence so edges
+// fade with their (springing-out) nodes instead of popping; the simulation
+// filters by `revealed` so collapsing nodes aren't spring-held in place.
+const allEdges: Edge[] = (() => {
+  const seen = new Set<string>();
+  const out: Edge[] = [];
+  for (const t of tools) {
+    const a = t;
+    for (const nb of adjacency.get(t.id) ?? []) {
+      const key = t.id < nb ? `${t.id}|${nb}` : `${nb}|${t.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const b = toolById.get(nb);
+      if (!b) continue;
+      const forward = directedFrom.has(`${t.id}->${nb}`)
+        ? true
+        : directedFrom.has(`${nb}->${t.id}`)
+          ? false
+          : true;
+      out.push({ a: t.id, b: nb, label: edgeLabel(a, b), forward });
+    }
+  }
+  return out;
+})();
+
 export function BloomGraph() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
+
+  // calm motion further when the OS requests reduced motion. Read live so the
+  // sim loop (which only mounts once) can honour the latest preference.
+  const reducedMotionRef = useRef(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => {
+      reducedMotionRef.current = mq.matches;
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // small-viewport flag for lightweight ambient counts (grid density, etc.)
+  const isCompact = size.w < 768;
 
   // which tools are revealed
   const [revealed, setRevealed] = useState<Set<string>>(
@@ -223,39 +271,36 @@ export function BloomGraph() {
         vx: 0,
         vy: 0,
         appear: id === SEED_ID ? 1 : 0,
+        collapsing: false,
+        px: ox,
+        py: oy,
       });
     }
-    // remove nodes no longer revealed (collapse)
-    for (const id of [...map.keys()]) {
-      if (!revealed.has(id)) map.delete(id);
+    // collapse: don't pop nodes — mark them collapsing so they ease back
+    // toward the nearest still-revealed neighbour (their visual "parent")
+    // and the sim drops them only once they've faded out.
+    for (const node of map.values()) {
+      if (revealed.has(node.id)) {
+        // re-revealing a node mid-collapse should cancel the collapse
+        if (node.collapsing) node.collapsing = false;
+        continue;
+      }
+      if (!node.collapsing) {
+        node.collapsing = true;
+        const anchor = (adjacency.get(node.id) ?? [])
+          .map((nb) => map.get(nb))
+          .find((nd) => nd && revealed.has(nd.id) && !nd.collapsing);
+        node.px = anchor ? anchor.x : 0;
+        node.py = anchor ? anchor.y : 0;
+      }
     }
   }, [revealed]);
 
-  // ---- visible edges (both endpoints revealed) ----
-  const edges = useMemo<Edge[]>(() => {
-    const seen = new Set<string>();
-    const out: Edge[] = [];
-    for (const id of revealed) {
-      const a = toolById.get(id);
-      if (!a) continue;
-      for (const nb of adjacency.get(id) ?? []) {
-        if (!revealed.has(nb)) continue;
-        const key = id < nb ? `${id}|${nb}` : `${nb}|${id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const b = toolById.get(nb);
-        if (!b) continue;
-        // orient a->b along the curated direction when available
-        const forward = directedFrom.has(`${id}->${nb}`)
-          ? true
-          : directedFrom.has(`${nb}->${id}`)
-            ? false
-            : true;
-        out.push({ a: id, b: nb, label: edgeLabel(a, b), forward });
-      }
-    }
-    return out;
-  }, [revealed]);
+  // ---- visible edges (both endpoints revealed) — drives simulation springs.
+  const edges = useMemo<Edge[]>(
+    () => allEdges.filter((e) => revealed.has(e.a) && revealed.has(e.b)),
+    [revealed],
+  );
 
   // keep loop-facing refs in sync (the loop must not depend on render scope)
   useEffect(() => {
@@ -283,11 +328,20 @@ export function BloomGraph() {
       const arr = [...map.values()];
       const n = arr.length;
 
-      // repulsion (O(n^2) — fine for <=49 nodes)
+      const reduced = reducedMotionRef.current;
+      // ease constants: gentler springs when reduced motion is requested.
+      const camEase = reduced ? 0.16 : 0.09;
+      const appearGain = reduced ? 0.2 : 0.12;
+      const appearBias = reduced ? 0.02 : 0.012;
+
+      // repulsion (O(n^2) — fine for <=49 nodes). Collapsing nodes are leaving
+      // so they neither push nor get pushed — keeps the staying cluster calm.
       for (let i = 0; i < n; i++) {
         const a = arr[i];
+        if (a.collapsing) continue;
         for (let j = i + 1; j < n; j++) {
           const b = arr[j];
+          if (b.collapsing) continue;
           let dx = a.x - b.x;
           let dy = a.y - b.y;
           let d2 = dx * dx + dy * dy;
@@ -327,6 +381,19 @@ export function BloomGraph() {
 
       // gentle gravity toward origin keeps the cluster on-screen
       for (const a of arr) {
+        if (a.collapsing) {
+          // spring HOME toward the parent point while fading out — no pop.
+          a.x += (a.px - a.x) * (reduced ? 0.22 : 0.16);
+          a.y += (a.py - a.y) * (reduced ? 0.22 : 0.16);
+          a.vx = 0;
+          a.vy = 0;
+          a.appear += (0 - a.appear) * (reduced ? 0.28 : 0.18) - 0.012;
+          if (a.appear <= 0.02) {
+            a.appear = 0;
+            map.delete(a.id);
+          }
+          continue;
+        }
         a.vx += -a.x * 0.0009;
         a.vy += -a.y * 0.0009;
         a.vx *= 0.86;
@@ -335,16 +402,16 @@ export function BloomGraph() {
         a.y += a.vy;
         // eased spring-in (overshoot-free easeOut feel)
         if (a.appear < 1) {
-          a.appear = Math.min(1, a.appear + (1 - a.appear) * 0.12 + 0.012);
+          a.appear = Math.min(1, a.appear + (1 - a.appear) * appearGain + appearBias);
         }
       }
 
       // ease camera toward target, locked to the (moving) focus node
       const cam = camRef.current;
-      cam.x += (cam.tx - cam.x) * 0.09;
-      cam.y += (cam.ty - cam.y) * 0.09;
+      cam.x += (cam.tx - cam.x) * camEase;
+      cam.y += (cam.ty - cam.y) * camEase;
       const f = map.get(fId);
-      if (f) {
+      if (f && !f.collapsing) {
         cam.tx = f.x;
         cam.ty = f.y;
       }
@@ -514,8 +581,10 @@ export function BloomGraph() {
     return s;
   }, [focusId, revealed]);
 
-  // paint dim edges first, then hovered, then active — so the highlighted
-  // relationships always render on top and read crisply.
+  // Render edges whose BOTH endpoints are currently in the sim snapshot
+  // (revealed OR still springing out). This lets collapsing edges fade with
+  // their nodes instead of popping. Paint dim edges first, then hovered, then
+  // active — so highlighted relationships render on top and read crisply.
   const orderedEdges = useMemo(() => {
     const rank = (e: Edge) => {
       const isActive = activeSet.has(e.a) && activeSet.has(e.b);
@@ -523,8 +592,10 @@ export function BloomGraph() {
       if (hoverId !== null && (hoverId === e.a || hoverId === e.b)) return 1;
       return 0;
     };
-    return [...edges].sort((x, y) => rank(x) - rank(y));
-  }, [edges, activeSet, hoverId]);
+    return allEdges
+      .filter((e) => map.has(e.a) && map.has(e.b))
+      .sort((x, y) => rank(x) - rank(y));
+  }, [map, activeSet, hoverId]);
 
   const hiddenCount = focusNode
     ? (adjacency.get(focusId) ?? []).filter((nb) => !revealed.has(nb)).length
@@ -541,6 +612,15 @@ export function BloomGraph() {
           'radial-gradient(120% 100% at 50% 0%, #0b1220 0%, #060912 55%, #03060d 100%)',
       }}
     >
+      <style>{`
+        @keyframes bloomCardIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="bloomCardIn"] { animation: none !important; }
+        }
+      `}</style>
       <svg
         width={size.w}
         height={size.h}
@@ -592,6 +672,7 @@ export function BloomGraph() {
           camY={snapshot.camY}
           ox={cx}
           oy={cy}
+          compact={isCompact}
         />
 
         {/* edges (active/hover drawn last so highlights are never occluded) */}
@@ -634,9 +715,18 @@ export function BloomGraph() {
                 : focusedView
                   ? 0.08
                   : 0.3;
-            const opacity = baseOpacity * appear;
+            // Two-layer opacity: outer group eases the highlight/dim change
+            // (CSS transition → no snap on selection); inner group carries the
+            // frame-driven spring `appear` (no transition → tracks the sim).
             return (
-              <g key={`${e.a}|${e.b}`} style={{ opacity }}>
+              <g
+                key={`${e.a}|${e.b}`}
+                style={{
+                  opacity: baseOpacity,
+                  transition: 'opacity 320ms cubic-bezier(0.22,1,0.36,1)',
+                }}
+              >
+                <g style={{ opacity: appear }}>
                 <path
                   d={`M ${sx} ${sy} Q ${px} ${py} ${ex} ${ey}`}
                   fill="none"
@@ -677,6 +767,7 @@ export function BloomGraph() {
                     </text>
                   </g>
                 )}
+                </g>
               </g>
             );
           })}
@@ -702,17 +793,31 @@ export function BloomGraph() {
             const dim = inActive ? 1 : focusedView ? 0.22 : 1;
             const label = node.name;
             const labelW = Math.max(54, label.length * 7.0 + 26);
+            // comfortable touch target — at least ~22px radius regardless of
+            // the visual node size, so taps land on phones.
+            const hitR = Math.max(r + 14, 26);
             return (
               <g
                 key={node.id}
                 transform={`translate(${nx} ${ny})`}
-                style={{ cursor: 'pointer', opacity: ease * dim }}
+                style={{ cursor: 'pointer' }}
                 onMouseEnter={() => setHoverId(node.id)}
                 onMouseLeave={() =>
                   setHoverId((h) => (h === node.id ? null : h))
                 }
                 onClick={() => onNodeClick(node.id)}
               >
+                {/* invisible generous hit area for touch */}
+                <circle r={hitR} fill="transparent" />
+                {/* inner: frame-driven spring `appear` (no transition) wrapped
+                    by CSS-eased highlight `dim` (smooth on selection). */}
+                <g
+                  style={{
+                    opacity: dim,
+                    transition: 'opacity 320ms cubic-bezier(0.22,1,0.36,1)',
+                  }}
+                >
+                <g style={{ opacity: ease }}>
                 {/* focus / hover halo */}
                 {(isFocus || isHover) && (
                   <circle
@@ -796,6 +901,8 @@ export function BloomGraph() {
                     {label}
                   </text>
                 </g>
+                </g>
+                </g>
               </g>
             );
           })}
@@ -811,77 +918,85 @@ export function BloomGraph() {
         />
       </svg>
 
-      {/* ---- top-left scene header ---- */}
-      <div className="pointer-events-none absolute left-5 top-16 max-w-xs">
+      {/* ---- top-left scene header (liquid glass) ---- */}
+      <div className="pointer-events-none absolute left-4 top-16 max-w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
         <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300/80">
           Bloom · Graph Exploration
         </div>
-        <div className="mt-1 text-sm text-slate-300/90">
-          Click a node to <span className="text-sky-200">expand</span> its
-          connections. Click it again to{' '}
+        <div className="mt-1 text-[13px] leading-snug text-slate-300/90">
+          Tap a node to <span className="text-sky-200">expand</span> its
+          connections. Tap it again to{' '}
           <span className="text-sky-200">collapse</span>. Focusing dims the rest
           so it&apos;s clear what links to what.
         </div>
       </div>
 
-      {/* ---- breadcrumb / expansion trail (top, centred under header) ---- */}
-      <div className="pointer-events-auto absolute left-5 top-32 flex max-w-[60vw] flex-wrap items-center gap-1.5">
-        {stack.map((s, i) => {
-          const t = toolById.get(s.parent);
-          const c = t ? categoryById.get(t.category) : undefined;
-          const isLast = i === stack.length - 1;
-          return (
-            <span key={s.parent} className="flex items-center gap-1.5">
-              {i > 0 && <span className="text-[11px] text-slate-600">›</span>}
-              <button
-                type="button"
-                onClick={() => collapseToIndex(i + 1)}
-                className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur transition"
-                style={{
-                  borderColor: isLast
-                    ? (c?.color ?? '#7dd3fc') + '99'
-                    : 'rgba(255,255,255,0.1)',
-                  background: isLast
-                    ? (c?.color ?? '#7dd3fc') + '1f'
-                    : 'rgba(15,23,42,0.6)',
-                  color: isLast ? '#eaf2ff' : '#94a3b8',
-                }}
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: c?.color ?? '#7dd3fc' }}
-                />
-                {t?.name ?? s.parent}
-              </button>
-            </span>
-          );
-        })}
-      </div>
+      {/* ---- breadcrumb / expansion trail (top, under header) — glass ---- */}
+      {stack.length > 1 && (
+        <div className="pointer-events-auto absolute left-4 right-4 top-[8.5rem] flex max-w-[min(60vw,40rem)] flex-wrap items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:right-auto">
+          {stack.map((s, i) => {
+            const t = toolById.get(s.parent);
+            const c = t ? categoryById.get(t.category) : undefined;
+            const isLast = i === stack.length - 1;
+            return (
+              <span key={s.parent} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-[11px] text-slate-500">›</span>}
+                <button
+                  type="button"
+                  onClick={() => collapseToIndex(i + 1)}
+                  className="flex min-h-[30px] items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition active:scale-[0.97]"
+                  style={{
+                    borderColor: isLast
+                      ? (c?.color ?? '#7dd3fc') + '99'
+                      : 'rgba(255,255,255,0.12)',
+                    background: isLast
+                      ? (c?.color ?? '#7dd3fc') + '24'
+                      : 'rgba(255,255,255,0.05)',
+                    color: isLast ? '#eaf2ff' : '#aab8cf',
+                  }}
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: c?.color ?? '#7dd3fc' }}
+                  />
+                  {t?.name ?? s.parent}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
 
-      {/* ---- focus inspector card (bottom-left) ---- */}
+      {/* ---- focus inspector card (bottom-left) — liquid glass ---- */}
       {focusNode && focusCat && (
-        <div className="absolute bottom-5 left-5 w-72 rounded-2xl border border-white/10 bg-slate-950/70 p-4 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: focusCat.color }}
-            />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {focusCat.shortName}
-            </span>
+        <div className="absolute bottom-4 left-4 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/[0.07] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+          {/* keyed so content cross-fades smoothly between selections */}
+          <div
+            key={focusNode.id}
+            style={{ animation: 'bloomCardIn 320ms cubic-bezier(0.22,1,0.36,1)' }}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ background: focusCat.color }}
+              />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                {focusCat.shortName}
+              </span>
+            </div>
+            <div className="mt-1.5 text-lg font-semibold text-white">
+              {focusNode.name}
+            </div>
+            <p className="mt-1 text-[12px] leading-snug text-slate-300/85">
+              {focusNode.summary}
+            </p>
           </div>
-          <div className="mt-1.5 text-lg font-semibold text-white">
-            {focusNode.name}
-          </div>
-          <p className="mt-1 text-[12px] leading-snug text-slate-300/85">
-            {focusNode.summary}
-          </p>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {hiddenCount > 0 ? (
               <button
                 type="button"
                 onClick={() => expand(focusId)}
-                className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:brightness-110"
+                className="min-h-[34px] rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:brightness-110 active:scale-[0.97]"
                 style={{ background: focusCat.color }}
               >
                 + Expand {hiddenCount} connection{hiddenCount > 1 ? 's' : ''}
@@ -895,7 +1010,7 @@ export function BloomGraph() {
               <button
                 type="button"
                 onClick={() => collapseNode(focusId)}
-                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/12"
+                className="min-h-[34px] rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/[0.12] active:scale-[0.97]"
               >
                 – Collapse
               </button>
@@ -904,11 +1019,11 @@ export function BloomGraph() {
         </div>
       )}
 
-      {/* ---- legend (top-right) ---- */}
-      <div className="pointer-events-none absolute right-5 top-16 flex flex-col items-end gap-1.5">
+      {/* ---- legend (top-right) — glass; hidden on phones to save space ---- */}
+      <div className="pointer-events-none absolute right-4 top-16 hidden flex-col items-end gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:flex">
         {categories.map((c) => (
           <div key={c.id} className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] uppercase tracking-wider text-slate-300/80">
               {c.shortName}
             </span>
             <span
@@ -919,16 +1034,16 @@ export function BloomGraph() {
         ))}
       </div>
 
-      {/* ---- controls (bottom-right) ---- */}
-      <div className="absolute bottom-5 right-5 flex items-center gap-2">
-        <span className="rounded-full bg-slate-900/70 px-3 py-1.5 text-[11px] text-slate-400 backdrop-blur">
+      {/* ---- controls (bottom-right) — liquid glass ---- */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-2 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+        <span className="hidden rounded-full bg-white/[0.04] px-3 py-1.5 text-[11px] text-slate-300/80 sm:inline">
           {revealed.size} / {tools.length} nodes
         </span>
         <button
           type="button"
           onClick={collapseLast}
           disabled={stack.length <= 1}
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[12px] font-medium text-slate-100 backdrop-blur transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-35"
+          className="min-h-[36px] rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-[12px] font-medium text-slate-100 transition hover:bg-white/[0.12] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100"
         >
           Collapse last
         </button>
@@ -936,7 +1051,7 @@ export function BloomGraph() {
           type="button"
           onClick={reset}
           disabled={stack.length <= 1}
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[12px] font-medium text-slate-100 backdrop-blur transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-35"
+          className="min-h-[36px] rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-[12px] font-medium text-slate-100 transition hover:bg-white/[0.12] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100"
         >
           Reset
         </button>
@@ -953,20 +1068,25 @@ interface GridProps {
   camY: number;
   ox: number;
   oy: number;
+  compact: boolean;
 }
-function GridLayer({ w, h, camX, camY, ox, oy }: GridProps) {
-  const step = 56;
+function GridLayer({ w, h, camX, camY, ox, oy, compact }: GridProps) {
+  // Larger spacing on small viewports = fewer dots (lighter on mobile).
+  const step = compact ? 72 : 56;
   const dots = useMemo(() => {
     const out: Array<[number, number]> = [];
     const cols = Math.ceil(w / step) + 2;
     const rows = Math.ceil(h / step) + 2;
+    // hard cap on dot count so very large viewports never blow up the DOM.
+    const maxDots = 900;
     for (let i = 0; i < cols; i++) {
       for (let j = 0; j < rows; j++) {
+        if (out.length >= maxDots) break;
         out.push([i, j]);
       }
     }
     return out;
-  }, [w, h]);
+  }, [w, h, step]);
   const offX = ((ox - camX) % step) - step;
   const offY = ((oy - camY) % step) - step;
   return (

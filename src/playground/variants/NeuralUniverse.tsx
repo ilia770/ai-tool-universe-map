@@ -1,13 +1,6 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
-import {
-  EffectComposer,
-  Bloom,
-  Vignette,
-  DepthOfField,
-  ChromaticAberration,
-} from '@react-three/postprocessing';
 import * as THREE from 'three';
 import {
   tools,
@@ -51,6 +44,23 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/* --- viewport / motion budget (read once, mobile-aware) ----------- */
+// Small screens get fewer ambient neurons + haze and fewer pulses so the
+// scene stays buttery on a phone. Read defensively for SSR safety.
+const VIEWPORT_W =
+  typeof window !== 'undefined' ? window.innerWidth : 1280;
+const IS_SMALL = VIEWPORT_W < 768;
+const PREFERS_REDUCED_MOTION =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// scale ambient density down hard on phones
+const CLUSTER_CORE_COUNT = IS_SMALL ? 28 : 60;
+const CLUSTER_OTHER_COUNT = IS_SMALL ? 18 : 40;
+const HAZE_COUNT = IS_SMALL ? 140 : 340;
+const PULSES_PER_EDGE = IS_SMALL ? 1 : 2;
 
 /* --- types -------------------------------------------------------- */
 interface HeroNode {
@@ -156,7 +166,7 @@ const AMBIENT_NODES: AmbientNode[] = (() => {
   for (const cat of categories) {
     const center = clusterCenters.get(cat.id) ?? new THREE.Vector3();
     const base = new THREE.Color(cat.color);
-    const count = cat.id === 'core' ? 60 : 40;
+    const count = cat.id === 'core' ? CLUSTER_CORE_COUNT : CLUSTER_OTHER_COUNT;
     for (let i = 0; i < count; i++) {
       const dir = new THREE.Vector3(
         rand() - 0.5,
@@ -175,7 +185,7 @@ const AMBIENT_NODES: AmbientNode[] = (() => {
     }
   }
   // far volumetric haze — gives the field real depth
-  for (let i = 0; i < 340; i++) {
+  for (let i = 0; i < HAZE_COUNT; i++) {
     const dir = new THREE.Vector3(
       rand() - 0.5,
       rand() - 0.5,
@@ -261,18 +271,21 @@ function AmbientField({ glow, focused }: { glow: THREE.Texture; focused: boolean
   useFrame((state, delta) => {
     const mesh = ref.current;
     if (!mesh) return;
+    const dt = Math.min(delta, 1 / 30);
     const t = state.clock.elapsedTime;
     dimRef.current = THREE.MathUtils.lerp(
       dimRef.current,
       focused ? 0.22 : 1,
-      1 - Math.pow(0.02, delta),
+      1 - Math.pow(0.02, dt),
     );
     const dim = dimRef.current;
     for (let i = 0; i < AMBIENT_NODES.length; i++) {
       const n = AMBIENT_NODES[i];
       dummy.position.copy(n.pos);
       dummy.quaternion.copy(camera.quaternion);
-      const pulse = 0.82 + Math.sin(t * 0.7 + n.phase) * 0.18;
+      const pulse = PREFERS_REDUCED_MOTION
+        ? 0.9
+        : 0.82 + Math.sin(t * 0.7 + n.phase) * 0.18;
       dummy.scale.setScalar(n.scale * pulse * dim);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -305,7 +318,6 @@ function AmbientField({ glow, focused }: { glow: THREE.Texture; focused: boolean
  * Synapse pulses — bright sparks travelling along every edge.
  * One instanced mesh; per-edge travel precomputed, positions mutated.
  * ------------------------------------------------------------------ */
-const PULSES_PER_EDGE = 2;
 function SynapsePulses({
   glow,
   activeId,
@@ -376,7 +388,8 @@ function SynapsePulses({
   useFrame((state) => {
     const mesh = ref.current;
     if (!mesh) return;
-    const t = state.clock.elapsedTime;
+    // reduced-motion: pulses crawl rather than dart
+    const t = state.clock.elapsedTime * (PREFERS_REDUCED_MOTION ? 0.35 : 1);
     const hasActive = activeId != null;
     for (let ei = 0; ei < EDGES.length; ei++) {
       const hot = hotByEdge[ei];
@@ -485,44 +498,51 @@ function HeroNeuron({
     });
   }, [node.tool.id, node.tool.name, isHero]);
 
-  useFrame((s) => {
+  useFrame((s, delta) => {
     const g = groupRef.current;
     if (!g) return;
+    const dt = Math.min(delta, 1 / 30);
+    // frame-rate-independent easing — identical settle on 60 & 120 Hz
+    const kFast = 1 - Math.pow(0.0001, dt);
+    const kSoft = 1 - Math.pow(0.00005, dt);
     const t = s.clock.elapsedTime;
-    const breathe = 1 + Math.sin(t * 1.2 + node.phase) * 0.05;
+    const breathe = PREFERS_REDUCED_MOTION
+      ? 1
+      : 1 + Math.sin(t * 1.2 + node.phase) * 0.05;
 
+    // base values pushed up to keep the bloom-free glow reading bright
     let s2 = baseScale;
-    let haloOn = isHero ? 1.4 : 1;
-    let emis = isHero ? 1.6 : 1.1;
+    let haloOn = isHero ? 1.9 : 1.4;
+    let emis = isHero ? 2.4 : 1.7;
     let opacity = 1;
     if (state === 'active') {
       s2 = baseScale * 1.5;
-      haloOn = 2.8;
-      emis = 3.2;
+      haloOn = 3.4;
+      emis = 4.2;
     } else if (state === 'neighbor') {
       s2 = baseScale * 1.22;
-      haloOn = 2;
-      emis = 2.2;
+      haloOn = 2.5;
+      emis = 3;
     } else if (state === 'dimmed') {
-      haloOn = 0.28;
-      emis = 0.35;
-      opacity = 0.32;
+      haloOn = 0.32;
+      emis = 0.4;
+      opacity = 0.3;
     }
     if (hovered && state !== 'active') {
       s2 *= 1.2;
       haloOn = Math.max(haloOn, 2.1);
       emis = Math.max(emis, 2.4);
     }
-    sCur.current = THREE.MathUtils.lerp(sCur.current, s2 * breathe, 0.12);
-    haloCur.current = THREE.MathUtils.lerp(haloCur.current, haloOn, 0.1);
-    emisCur.current = THREE.MathUtils.lerp(emisCur.current, emis, 0.1);
-    opCur.current = THREE.MathUtils.lerp(opCur.current, opacity, 0.1);
+    sCur.current = THREE.MathUtils.lerp(sCur.current, s2 * breathe, kFast);
+    haloCur.current = THREE.MathUtils.lerp(haloCur.current, haloOn, kSoft);
+    emisCur.current = THREE.MathUtils.lerp(emisCur.current, emis, kSoft);
+    opCur.current = THREE.MathUtils.lerp(opCur.current, opacity, kSoft);
     g.scale.setScalar(sCur.current);
-    // slow majestic self-rotation
-    g.rotation.y = t * 0.12 + node.phase;
+    // slow majestic self-rotation (held still when reduced-motion)
+    g.rotation.y = PREFERS_REDUCED_MOTION ? node.phase : t * 0.12 + node.phase;
 
     const activePulse =
-      state === 'active' || state === 'neighbor'
+      !PREFERS_REDUCED_MOTION && (state === 'active' || state === 'neighbor')
         ? 1 + Math.sin(t * 3.4) * 0.18
         : 1;
     if (haloRef.current) {
@@ -707,12 +727,15 @@ function Synapses({ activeId }: { activeId: string | null }) {
   }, [activeId]);
 
   useFrame((s, delta) => {
+    const dt = Math.min(delta, 1 / 30);
     if (baseRef.current) {
       const m = baseRef.current.material as THREE.LineBasicMaterial;
-      m.opacity = THREE.MathUtils.lerp(m.opacity, activeId ? 0.04 : 0.2, 1 - Math.pow(0.02, delta));
+      m.opacity = THREE.MathUtils.lerp(m.opacity, activeId ? 0.04 : 0.2, 1 - Math.pow(0.02, dt));
     }
     if (activeMat.current) {
-      activeMat.current.opacity = 0.6 + Math.sin(s.clock.elapsedTime * 4) * 0.3;
+      activeMat.current.opacity = PREFERS_REDUCED_MOTION
+        ? 0.7
+        : 0.6 + Math.sin(s.clock.elapsedTime * 4) * 0.3;
     }
   });
 
@@ -757,7 +780,9 @@ function CameraRig({ activeId }: { activeId: string | null }) {
   const angle = useRef(0);
 
   useFrame((s, delta) => {
-    angle.current += delta * 0.05;
+    // clamp delta so a tab-restore / stutter can't make the camera jump
+    const dt = Math.min(delta, 1 / 30);
+    angle.current += dt * (PREFERS_REDUCED_MOTION ? 0.018 : 0.05);
     if (activeId) {
       const focus = heroPosById.get(activeId);
       if (focus) {
@@ -782,8 +807,8 @@ function CameraRig({ activeId }: { activeId: string | null }) {
       lookTarget.current.copy(HOME_TARGET);
     }
     // eased follow — different speeds give a cinematic settle
-    const posK = 1 - Math.pow(activeId ? 0.0009 : 0.004, delta);
-    const lookK = 1 - Math.pow(0.0015, delta);
+    const posK = 1 - Math.pow(activeId ? 0.0009 : 0.004, dt);
+    const lookK = 1 - Math.pow(0.0015, dt);
     camera.position.lerp(targetPos.current, posK);
     current.current.lerp(lookTarget.current, lookK);
     camera.lookAt(current.current);
@@ -807,7 +832,6 @@ function Scene({
   onHover: (id: string | null) => void;
 }) {
   const glow = useMemo(() => makeGlowTexture(), []);
-  const caOffset = useMemo(() => new THREE.Vector2(0.0006, 0.0009), []);
   const neighbors = activeId ? adjacency.get(activeId) : undefined;
 
   const stateOf = useCallback(
@@ -843,27 +867,6 @@ function Scene({
           glow={glow}
         />
       ))}
-
-      <EffectComposer>
-        <Bloom
-          intensity={1.7}
-          luminanceThreshold={0.12}
-          luminanceSmoothing={0.9}
-          mipmapBlur
-          radius={0.88}
-        />
-        <DepthOfField
-          focusDistance={0.02}
-          focalLength={0.12}
-          bokehScale={2.4}
-        />
-        <ChromaticAberration
-          offset={caOffset}
-          radialModulation={false}
-          modulationOffset={0}
-        />
-        <Vignette eskil={false} offset={0.22} darkness={0.9} />
-      </EffectComposer>
     </>
   );
 }
@@ -899,7 +902,12 @@ export function NeuralUniverse() {
     <div className="absolute inset-0 overflow-hidden bg-[#04060f]">
       <Canvas
         camera={{ position: [0, 12, 78], fov: 52, near: 0.1, far: 420 }}
-        gl={{ antialias: true, alpha: false }}
+        gl={{
+          antialias: !IS_SMALL,
+          alpha: false,
+          powerPreference: 'high-performance',
+          toneMapping: THREE.ACESFilmicToneMapping,
+        }}
         dpr={[1, 2]}
         onPointerMissed={() => setActiveId(null)}
       >
@@ -912,14 +920,14 @@ export function NeuralUniverse() {
       </Canvas>
 
       {/* top chrome-safe heading */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 px-8 pt-16">
+      <div className="pointer-events-none absolute inset-x-0 top-0 px-5 pt-16 sm:px-8">
         <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-cyan-200/70">
           Neural Universe
         </p>
-        <h2 className="mt-1 text-2xl font-semibold text-white/95">
+        <h2 className="nu-fade mt-1 text-xl font-semibold text-white/95 sm:text-2xl" key={activeTool?.id ?? 'home'}>
           {activeTool ? activeTool.name : 'Flying inside the living AI brain'}
         </h2>
-        <p className="mt-1 max-w-md text-sm text-white/45">
+        <p className="mt-1 max-w-md text-[13px] text-white/45 sm:text-sm">
           {activeTool
             ? `Inside ${activeTool.name}'s sub-world — its connected tools are lit up around it.`
             : 'Tap a glowing neuron to dive into its world of connected tools.'}
@@ -931,7 +939,7 @@ export function NeuralUniverse() {
         <button
           type="button"
           onClick={() => setActiveId(null)}
-          className="absolute left-8 top-[136px] flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-[13px] font-medium text-white/80 backdrop-blur-xl transition hover:border-white/30 hover:bg-white/[0.12]"
+          className="nu-fade absolute left-5 top-[136px] flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-4 py-2 text-[13px] font-medium text-white/85 shadow-lg shadow-black/30 backdrop-blur-2xl transition-colors duration-300 hover:border-white/25 hover:bg-white/[0.14] active:bg-white/[0.16] sm:left-8"
         >
           <span aria-hidden className="text-base leading-none">←</span>
           Back to the brain
@@ -943,14 +951,14 @@ export function NeuralUniverse() {
 
       {/* legend (hidden inside a sub-world to keep focus) */}
       {!activeTool && (
-        <div className="pointer-events-none absolute bottom-6 left-8 flex flex-wrap gap-x-4 gap-y-2">
+        <div className="nu-fade pointer-events-none absolute bottom-5 left-5 right-5 flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-lg shadow-black/30 backdrop-blur-2xl sm:left-8 sm:right-auto sm:max-w-md">
           {categories.map((c) => (
-            <div key={c.id} className="flex items-center gap-1.5">
+            <div key={c.id} className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
               <span
                 className="h-2 w-2 rounded-full"
                 style={{ backgroundColor: c.color, boxShadow: `0 0 8px ${c.color}` }}
               />
-              <span className="text-[11px] text-white/55">{c.shortName}</span>
+              <span className="text-[11px] text-white/60">{c.shortName}</span>
             </div>
           ))}
         </div>
@@ -958,7 +966,10 @@ export function NeuralUniverse() {
 
       {/* selected-tool detail card */}
       {activeTool && activeCat && (
-        <div className="absolute bottom-6 right-6 w-80 rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+        <div
+          key={activeTool.id}
+          className="nu-fade absolute inset-x-5 bottom-5 max-h-[58vh] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.07] p-5 shadow-xl shadow-black/40 backdrop-blur-2xl sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-80"
+        >
           <div className="flex items-center gap-2">
             <span
               className="h-2.5 w-2.5 rounded-full"
@@ -985,7 +996,7 @@ export function NeuralUniverse() {
                       key={id}
                       type="button"
                       onClick={() => setActiveId(id)}
-                      className="rounded-full border px-2.5 py-1 text-[11px] text-white/75 transition hover:text-white"
+                      className="min-h-9 rounded-full border px-3 py-1.5 text-[12px] text-white/80 transition-colors duration-200 hover:text-white active:opacity-80"
                       style={{
                         borderColor: `${nb.category.color}55`,
                         backgroundColor: `${nb.category.color}1a`,
@@ -1005,6 +1016,18 @@ export function NeuralUniverse() {
           </div>
         </div>
       )}
+
+      {/* eased glass entrance (calmed under reduced-motion) */}
+      <style>{`
+        .nu-fade { animation: nuFade 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+        @keyframes nuFade {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .nu-fade { animation-duration: 1ms; transform: none; }
+        }
+      `}</style>
     </div>
   );
 }

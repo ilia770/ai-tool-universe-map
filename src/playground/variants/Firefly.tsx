@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, OrbitControls } from '@react-three/drei';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import {
   tools,
@@ -15,22 +16,24 @@ import {
  * Direction L — "Firefly"
  *
  * A Firefly / Northwestern-style particle explorer. One THREE.Points cloud
- * holds ~14k deterministic ambient motes plus the 49 REAL AI-tool stars. A
- * custom ShaderMaterial does size-attenuation LOD (far = dim dust, near =
- * bright stars), depth fog and twinkle. The 49 tools are the heroes: visibly
- * larger, category-coloured, ringed with a halo, and labelled when close.
+ * holds a bounded field of deterministic ambient motes plus the 49 REAL
+ * AI-tool stars. A custom ShaderMaterial does size-attenuation LOD (far = dim
+ * dust, near = bright stars), depth fog and twinkle. The 49 tools are the
+ * heroes: visibly larger, category-coloured, ringed with a halo, labelled.
  *
- * The four product goals are made explicit:
- *  1. REAL tools dominate — large glowing stars + near-always-on labels.
- *  2. Ambient field is clearly SECONDARY — small, dim, slow twinkle, fog.
- *  3. Filtering is OBVIOUS — a smoothly animated mix dramatically fades
- *     non-matching stars, re-emphasises matches, and shows a live count.
- *  4. LOD reads as a data-cloud — zoom out = constellation of tool-stars,
- *     zoom in = labels, summaries and relation lines.
+ * iOS App-Store pass:
+ *  - Ambient mote count is BOUNDED and scaled hard on small viewports so the
+ *    field never tanks phone fps. Geometry + materials are built once / shared.
+ *  - Tap selects a star and the camera EASES to focus it; drag orbits; pinch
+ *    zooms (OrbitControls). No popping — selection, focus and filter fades are
+ *    all smoothly interpolated.
+ *  - All HUD / cards / controls are liquid-glass (frosted, rounded-2xl) with
+ *    eased show/hide and phone-width reflow.
+ *  - prefers-reduced-motion calms autorotate, drift and twinkle.
  *
  * No Math.random at render/module time — a seeded mulberry32 PRNG drives every
  * particle. No per-frame allocation — geometry is built once in useMemo and we
- * mutate uniforms / refs in useFrame. hash routing uses history.replaceState.
+ * mutate uniforms / refs in useFrame.
  */
 
 // ---- seeded PRNG (mulberry32) -------------------------------------------------
@@ -45,10 +48,17 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+// ---- viewport-aware ambient budget (mobile-first weight control) -------------
+// Bounded counts, scaled HARD on small viewports so the field stays light.
+function pickAmbientCount(width: number): number {
+  if (width < 480) return 2600; // small phones
+  if (width < 768) return 4200; // large phones
+  if (width < 1280) return 8000; // tablets / small laptops
+  return 12000; // desktop ceiling (bounded)
+}
+
 // ---- constants ----------------------------------------------------------------
-const AMBIENT_COUNT = 14000;
 const REAL_COUNT = tools.length;
-const TOTAL = AMBIENT_COUNT + REAL_COUNT;
 const CLOUD_RADIUS = 120;
 const STAGES = ['research', 'planning', 'execution', 'approval', 'review'] as const;
 type Stage = (typeof STAGES)[number];
@@ -80,20 +90,21 @@ interface CloudData {
 }
 
 // Build the entire point cloud once. Real tools occupy the final REAL_COUNT slots.
-function buildCloud(): CloudData {
+function buildCloud(ambientCount: number): CloudData {
+  const total = ambientCount + REAL_COUNT;
   const rng = mulberry32(0xf17e_f1a7);
-  const positions = new Float32Array(TOTAL * 3);
-  const colors = new Float32Array(TOTAL * 3);
-  const sizes = new Float32Array(TOTAL);
-  const seeds = new Float32Array(TOTAL); // per-point phase for twinkle
-  const catIndex = new Float32Array(TOTAL);
-  const stageIndex = new Float32Array(TOTAL);
-  const isReal = new Float32Array(TOTAL);
+  const positions = new Float32Array(total * 3);
+  const colors = new Float32Array(total * 3);
+  const sizes = new Float32Array(total);
+  const seeds = new Float32Array(total); // per-point phase for twinkle
+  const catIndex = new Float32Array(total);
+  const stageIndex = new Float32Array(total);
+  const isReal = new Float32Array(total);
 
   const catList = categories;
 
   // --- ambient particles: a flattened galactic disk + a softer halo sphere ---
-  for (let i = 0; i < AMBIENT_COUNT; i++) {
+  for (let i = 0; i < ambientCount; i++) {
     const disk = rng() < 0.62;
     const r = Math.pow(rng(), 0.55) * CLOUD_RADIUS;
     const theta = rng() * Math.PI * 2;
@@ -141,7 +152,7 @@ function buildCloud(): CloudData {
   const realIndexById = new Map<string, number>();
   for (let j = 0; j < REAL_COUNT; j++) {
     const t = tools[j];
-    const i = AMBIENT_COUNT + j;
+    const i = ambientCount + j;
     const cat = categoryById.get(t.category);
     // orbit drives radius, angle drives azimuth, deterministic jitter for life
     const jit = mulberry32(t.id.length * 2654435761 + j * 9176);
@@ -212,6 +223,7 @@ const VERT = /* glsl */ `
   uniform float uFilterCat;   // -1 = all
   uniform float uFilterStage; // -1 = all
   uniform float uFilterMix;   // 0 = no filter active, 1 = fully filtered
+  uniform float uTwinkleAmt;  // 0 = calm (reduced motion), 1 = lively
 
   varying vec3 vColor;
   varying float vMatch;
@@ -231,8 +243,11 @@ const VERT = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float dist = -mv.z;
 
-    // gentle twinkle; real stars pulse a touch stronger / faster.
-    float tw = 0.72 + 0.28 * sin(uTime * (aReal > 0.5 ? 1.7 : 0.5) + aSeed * 6.2831);
+    // gentle twinkle; real stars pulse a touch stronger / faster. Amplitude is
+    // scaled by uTwinkleAmt so reduced-motion users get a near-static field.
+    float twBase = aReal > 0.5 ? 0.28 : 0.18;
+    float tw = (1.0 - twBase * uTwinkleAmt)
+      + twBase * uTwinkleAmt * (0.5 + 0.5 * sin(uTime * (aReal > 0.5 ? 1.7 : 0.5) + aSeed * 6.2831));
     vTwinkle = tw;
 
     // size-attenuation LOD: distant points shrink toward sub-pixel dust.
@@ -281,7 +296,7 @@ const FRAG = /* glsl */ `
     // real stars get a white-hot center; dust stays tinted.
     col = mix(col, vec3(1.0), core * core * (vReal > 0.5 ? 0.6 : 0.12));
     // slight chromatic lift on twinkle peak for sparkle.
-    col += vColor * (vTwinkle - 0.72) * (vReal > 0.5 ? 0.6 : 0.25);
+    col += vColor * max(vTwinkle - 0.82, 0.0) * (vReal > 0.5 ? 0.6 : 0.25);
 
     // fade non-matching points strongly (Firefly-style filter).
     float matchFade = mix(0.05, 1.0, vMatch);
@@ -293,19 +308,20 @@ const FRAG = /* glsl */ `
   }
 `;
 
-// ---- relation lines for the hovered star -------------------------------------
+// ---- relation lines for the active (hovered / selected) star -----------------
 function RelationLines({
-  hovered,
+  active,
   realStars,
   realIndexById,
 }: {
-  hovered: number | null;
+  active: number | null;
   realStars: RealStar[];
   realIndexById: Map<string, number>;
 }) {
+  const matRef = useRef<THREE.LineBasicMaterial>(null);
   const geo = useMemo(() => {
-    if (hovered == null) return null;
-    const src = realStars[hovered];
+    if (active == null) return null;
+    const src = realStars[active];
     if (!src) return null;
     const pts: number[] = [];
     for (const rid of src.tool.relationIds) {
@@ -318,16 +334,32 @@ function RelationLines({
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
     return g;
-  }, [hovered, realStars, realIndexById]);
+  }, [active, realStars, realIndexById]);
+
+  // ease the line opacity in so relations never pop on.
+  useFrame((_, delta) => {
+    const m = matRef.current;
+    if (!m) return;
+    const k = 1 - Math.exp(-delta * 7);
+    m.opacity += (0.5 - m.opacity) * k;
+  });
+
+  // free the previous geometry to avoid GPU buffer leaks across selections.
+  useEffect(() => {
+    return () => {
+      geo?.dispose();
+    };
+  }, [geo]);
 
   if (!geo) return null;
-  const color = realStars[hovered ?? 0]?.color ?? '#ffffff';
+  const color = realStars[active ?? 0]?.color ?? '#ffffff';
   return (
     <lineSegments geometry={geo}>
       <lineBasicMaterial
+        ref={matRef}
         color={color}
         transparent
-        opacity={0.5}
+        opacity={0}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />
@@ -335,27 +367,35 @@ function RelationLines({
   );
 }
 
-// ---- labels for nearby / hovered real tools ----------------------------------
+// ---- labels for nearby / active real tools -----------------------------------
 interface LabelsProps {
   realStars: RealStar[];
-  hovered: number | null;
+  active: number | null;
   filterCat: number;
   filterStage: number;
+  reducedMotion: boolean;
 }
 
-function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsProps) {
+function ProximityLabels({ realStars, active, filterCat, filterStage, reducedMotion }: LabelsProps) {
   // Each entry: index + a "detail" flag (close enough to show the summary).
   const [near, setNear] = useState<{ j: number; detail: boolean }[]>([]);
   const nearRef = useRef<{ j: number; detail: boolean }[]>([]);
+  const tickRef = useRef(0);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
+    // throttle the proximity scan to ~12Hz — labels don't need per-frame churn
+    // and this keeps phone CPU cool.
+    tickRef.current += delta;
+    if (tickRef.current < 0.08) return;
+    tickRef.current = 0;
+
     const cam = state.camera;
     const out: { j: number; detail: boolean }[] = [];
     for (let j = 0; j < realStars.length; j++) {
       const d = realStars[j].pos.distanceTo(cam.position);
       // Always-on labels for the closest ring of stars; detail when really close.
-      if (d < 88 || j === hovered) {
-        out.push({ j, detail: d < 48 || j === hovered });
+      if (d < 88 || j === active) {
+        out.push({ j, detail: d < 48 || j === active });
       }
     }
     const prev = nearRef.current;
@@ -377,7 +417,7 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
         const matchCat = filterCat < 0 || star.catIndex === filterCat;
         const matchStage = filterStage < 0 || star.stageIndex === filterStage;
         const dim = !(matchCat && matchStage);
-        const isHover = j === hovered;
+        const isActive = j === active;
         return (
           <Html
             key={t.id}
@@ -385,13 +425,15 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
             center
             distanceFactor={44}
             style={{ pointerEvents: 'none' }}
-            zIndexRange={[isHover ? 60 : 20, 0]}
+            zIndexRange={[isActive ? 60 : 20, 0]}
           >
             <div
               style={{
                 opacity: dim ? 0.18 : 1,
-                transform: isHover ? 'scale(1.1)' : 'scale(1)',
-                transition: 'opacity .45s ease, transform .22s ease',
+                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                transition: reducedMotion
+                  ? 'opacity .25s linear'
+                  : 'opacity .45s ease, transform .3s cubic-bezier(0.22,1,0.36,1)',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 flexDirection: 'column',
@@ -405,7 +447,7 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
-                  fontSize: isHover ? 14 : 11.5,
+                  fontSize: isActive ? 14 : 11.5,
                   fontWeight: 600,
                   letterSpacing: 0.2,
                   color: '#f4f9ff',
@@ -416,8 +458,8 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
               >
                 <span
                   style={{
-                    width: isHover ? 7 : 5,
-                    height: isHover ? 7 : 5,
+                    width: isActive ? 7 : 5,
+                    height: isActive ? 7 : 5,
                     borderRadius: 99,
                     background: star.color,
                     boxShadow: `0 0 8px ${star.color}, 0 0 14px ${star.color}`,
@@ -433,13 +475,14 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
                     maxWidth: 230,
                     whiteSpace: 'normal',
                     textAlign: 'center',
-                    color: '#b6c4e0',
-                    background: 'rgba(8,11,24,0.78)',
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    border: `1px solid ${cat?.glow ?? 'rgba(255,255,255,0.15)'}`,
-                    backdropFilter: 'blur(8px)',
-                    boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+                    color: '#cdd9f2',
+                    background: 'rgba(255,255,255,0.06)',
+                    padding: '5px 9px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
                     lineHeight: 1.35,
                   }}
                 >
@@ -455,8 +498,9 @@ function ProximityLabels({ realStars, hovered, filterCat, filterStage }: LabelsP
 }
 
 // ---- slow cinematic drift -----------------------------------------------------
-function CameraDrift() {
+function CameraDrift({ reducedMotion }: { reducedMotion: boolean }) {
   useFrame((state) => {
+    if (reducedMotion) return;
     const t = state.clock.elapsedTime;
     // subtle parallax breathing layered on top of OrbitControls
     state.camera.position.y += Math.sin(t * 0.16) * 0.01;
@@ -464,23 +508,90 @@ function CameraDrift() {
   return null;
 }
 
+// ---- eased camera focus: smoothly drives OrbitControls target + dolly --------
+// Mutates persistent vectors only — zero per-frame allocation.
+function CameraFocus({
+  target,
+  controlsRef,
+}: {
+  target: THREE.Vector3 | null;
+  controlsRef: React.RefObject<OrbitControlsImpl | null>;
+}) {
+  const { camera } = useThree();
+  const desiredTarget = useRef(new THREE.Vector3());
+  const desiredPos = useRef(new THREE.Vector3());
+  const offset = useRef(new THREE.Vector3());
+  const active = useRef(false);
+
+  useEffect(() => {
+    const ctrl = controlsRef.current;
+    if (!target || !ctrl) {
+      active.current = false;
+      return;
+    }
+    desiredTarget.current.copy(target);
+    // keep the current viewing direction; pull the camera to a comfortable
+    // framing distance from the chosen star.
+    offset.current.copy(camera.position).sub(ctrl.target);
+    const dist = THREE.MathUtils.clamp(offset.current.length(), 16, 200);
+    const framing = THREE.MathUtils.clamp(dist, 30, 52);
+    offset.current.setLength(framing);
+    desiredPos.current.copy(target).add(offset.current);
+    active.current = true;
+  }, [target, camera, controlsRef]);
+
+  useFrame((_, delta) => {
+    if (!active.current) return;
+    const ctrl = controlsRef.current;
+    if (!ctrl) return;
+    // critically-damped ease toward the framing — buttery, no overshoot.
+    const k = 1 - Math.exp(-delta * 4.5);
+    ctrl.target.lerp(desiredTarget.current, k);
+    camera.position.lerp(desiredPos.current, k);
+    ctrl.update();
+    if (
+      ctrl.target.distanceToSquared(desiredTarget.current) < 0.01 &&
+      camera.position.distanceToSquared(desiredPos.current) < 0.01
+    ) {
+      active.current = false;
+    }
+  });
+
+  return null;
+}
+
 // ---- scene shell --------------------------------------------------------------
 function Scene({
+  ambientCount,
   filterCat,
   filterStage,
-  onHoverTool,
+  selectedId,
+  reducedMotion,
+  onPickTool,
 }: {
+  ambientCount: number;
   filterCat: number;
   filterStage: number;
-  onHoverTool: (id: string | null) => void;
+  selectedId: string | null;
+  reducedMotion: boolean;
+  onPickTool: (id: string | null) => void;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const cloud = useMemo(() => buildCloud(), []);
+  const cloud = useMemo(() => buildCloud(ambientCount), [ambientCount]);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
-  const handleHover = (idx: number | null) => {
-    setHovered(idx);
-    onHoverTool(idx == null ? null : cloud.realStars[idx]?.tool.id ?? null);
-  };
+  // dispose the GPU geometry when the cloud is rebuilt (e.g. viewport tier change).
+  useEffect(() => {
+    const g = cloud.geometry;
+    return () => g.dispose();
+  }, [cloud]);
+
+  const selectedIdx = selectedId ? cloud.realIndexById.get(selectedId) ?? null : null;
+  const active = hovered ?? selectedIdx;
+  const focusTarget = selectedIdx != null ? cloud.realStars[selectedIdx]?.pos ?? null : null;
+
+  // stop the gentle auto-rotate while a tool is focused so the framing holds.
+  const autoRotate = !reducedMotion && selectedIdx == null;
 
   return (
     <>
@@ -492,46 +603,53 @@ function Scene({
         realPositions={cloud.realPositions}
         filterCat={filterCat}
         filterStage={filterStage}
-        onHover={handleHover}
+        reducedMotion={reducedMotion}
+        onHover={setHovered}
+        onPick={(idx) => onPickTool(idx == null ? null : cloud.realStars[idx]?.tool.id ?? null)}
       />
 
       <RelationLines
-        hovered={hovered}
+        active={active}
         realStars={cloud.realStars}
         realIndexById={cloud.realIndexById}
       />
 
       <ProximityLabels
         realStars={cloud.realStars}
-        hovered={hovered}
+        active={active}
         filterCat={filterCat}
         filterStage={filterStage}
+        reducedMotion={reducedMotion}
       />
 
-      <CameraDrift />
+      <CameraDrift reducedMotion={reducedMotion} />
+      <CameraFocus target={focusTarget} controlsRef={controlsRef} />
       <OrbitControls
+        ref={controlsRef}
         enablePan={false}
         enableDamping
-        dampingFactor={0.06}
+        dampingFactor={0.08}
         rotateSpeed={0.5}
         zoomSpeed={0.85}
         minDistance={16}
         maxDistance={200}
-        autoRotate
+        autoRotate={autoRotate}
         autoRotateSpeed={0.16}
       />
     </>
   );
 }
 
-// Inner cloud that owns the shader material + hover picking. Geometry is passed
+// Inner cloud that owns the shader material + tap picking. Geometry is passed
 // in from the parent so labels and picking share the same world positions.
 interface InnerProps {
   geometry: THREE.BufferGeometry;
   realPositions: Float32Array;
   filterCat: number;
   filterStage: number;
+  reducedMotion: boolean;
   onHover: (idx: number | null) => void;
+  onPick: (idx: number | null) => void;
 }
 
 function PointCloudInner({
@@ -539,7 +657,9 @@ function PointCloudInner({
   realPositions,
   filterCat,
   filterStage,
+  reducedMotion,
   onHover,
+  onPick,
 }: InnerProps) {
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const pixelRatio = useMemo(
@@ -554,9 +674,10 @@ function PointCloudInner({
       uFilterCat: { value: -1 },
       uFilterStage: { value: -1 },
       uFilterMix: { value: 0 },
+      uTwinkleAmt: { value: reducedMotion ? 0 : 1 },
       uFogColor: { value: new THREE.Color('#04050d') },
     }),
-    [pixelRatio],
+    [pixelRatio, reducedMotion],
   );
 
   useFrame((state, delta) => {
@@ -571,11 +692,16 @@ function PointCloudInner({
     u.uFilterMix.value += (target - u.uFilterMix.value) * k;
   });
 
+  // touch/tap picking: distinguish a tap from a drag so orbiting never selects.
+  const downRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
   const pickGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(realPositions, 3));
     return g;
   }, [realPositions]);
+
+  useEffect(() => () => pickGeo.dispose(), [pickGeo]);
 
   return (
     <group>
@@ -591,48 +717,81 @@ function PointCloudInner({
         />
       </points>
 
-      {/* invisible larger picking points so hover targets the real stars */}
+      {/* invisible larger picking points: hover (desktop) + tap (touch) select */}
       <points
         geometry={pickGeo}
         onPointerMove={(e) => {
-          e.stopPropagation();
-          onHover(e.index ?? null);
+          if (e.pointerType === 'mouse') {
+            e.stopPropagation();
+            onHover(e.index ?? null);
+          }
         }}
-        onPointerOut={() => onHover(null)}
+        onPointerOut={(e) => {
+          if (e.pointerType === 'mouse') onHover(null);
+        }}
+        onPointerDown={(e) => {
+          downRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
+        }}
+        onPointerUp={(e) => {
+          const d = downRef.current;
+          downRef.current = null;
+          if (!d) return;
+          // a tap = small travel + short duration; a drag = orbit (ignored).
+          const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+          if (moved < 10 && performance.now() - d.t < 500) {
+            e.stopPropagation();
+            onPick(e.index ?? null);
+          }
+        }}
       >
-        <pointsMaterial size={6} transparent opacity={0} depthWrite={false} sizeAttenuation />
+        <pointsMaterial
+          size={reducedMotion ? 8 : 7}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          sizeAttenuation
+        />
       </points>
     </group>
   );
 }
 
-// ---- filter overlay (procedural, Firefly-style) -------------------------------
+// ---- filter overlay (liquid glass, Firefly-style) -----------------------------
 interface OverlayProps {
+  ambientCount: number;
   filterCat: number;
   setFilterCat: (n: number) => void;
   filterStage: number;
   setFilterStage: (n: number) => void;
   matchCount: number;
-  hoveredTool: AITool | null;
+  selectedTool: AITool | null;
+  onClearSelection: () => void;
+  isPhone: boolean;
 }
 
 function FilterOverlay({
+  ambientCount,
   filterCat,
   setFilterCat,
   filterStage,
   setFilterStage,
   matchCount,
-  hoveredTool,
+  selectedTool,
+  onClearSelection,
+  isPhone,
 }: OverlayProps) {
   const filtering = filterCat >= 0 || filterStage >= 0;
   return (
     <div className="pointer-events-none absolute inset-0" style={{ paddingTop: 64 }}>
-      {/* header */}
-      <div className="pointer-events-none absolute left-6 top-[72px] select-none">
+      {/* header — liquid glass card */}
+      <div
+        className="pointer-events-none absolute left-4 top-[72px] select-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        style={{ maxWidth: isPhone ? 'calc(100vw - 32px)' : 320 }}
+      >
         <div
           style={{
             fontFamily: 'ui-sans-serif, -apple-system, "SF Pro Display", sans-serif',
-            fontSize: 23,
+            fontSize: 22,
             fontWeight: 700,
             letterSpacing: -0.3,
             color: '#eaf2ff',
@@ -641,42 +800,32 @@ function FilterOverlay({
         >
           Firefly
         </div>
-        <div style={{ fontSize: 12, color: '#8493b6', marginTop: 2, maxWidth: 280 }}>
-          {REAL_COUNT} AI tools as glowing stars in a {(AMBIENT_COUNT).toLocaleString()}-mote
-          field. Drag to fly · scroll to zoom in for labels.
+        <div style={{ fontSize: 12, color: '#9fb0d0', marginTop: 3, lineHeight: 1.4 }}>
+          {REAL_COUNT} AI tools as glowing stars in a {ambientCount.toLocaleString()}-mote field.
+          {isPhone ? ' Drag to fly · pinch to zoom · tap a star.' : ' Drag to fly · scroll to zoom · click a star.'}
         </div>
 
         {/* legend */}
-        <div
-          className="pointer-events-none"
-          style={{
-            marginTop: 12,
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-            maxWidth: 300,
-          }}
-        >
+        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           <LegendDot label="Tool star" big />
           <LegendDot label="Ambient dust" />
         </div>
       </div>
 
-      {/* live match readout */}
+      {/* live match readout — frosted pill */}
       <div
-        className="pointer-events-none absolute left-1/2 top-[78px] -translate-x-1/2 select-none"
+        className="pointer-events-none absolute left-1/2 top-[76px] -translate-x-1/2 select-none rounded-full border backdrop-blur-xl"
         style={{
           fontSize: 12,
           fontWeight: 600,
           letterSpacing: 0.3,
-          color: filtering ? '#06080f' : '#bccbe8',
-          background: filtering ? 'rgba(110,231,255,0.9)' : 'rgba(12,16,30,0.6)',
-          border: `1px solid ${filtering ? 'rgba(110,231,255,0.9)' : 'rgba(120,140,180,0.2)'}`,
-          padding: '5px 12px',
-          borderRadius: 99,
-          backdropFilter: 'blur(8px)',
-          boxShadow: filtering ? '0 0 18px rgba(110,231,255,0.45)' : 'none',
-          transition: 'all .3s ease',
+          whiteSpace: 'nowrap',
+          color: filtering ? '#06080f' : '#cdd9f2',
+          background: filtering ? 'rgba(110,231,255,0.9)' : 'rgba(255,255,255,0.07)',
+          borderColor: filtering ? 'rgba(110,231,255,0.9)' : 'rgba(255,255,255,0.12)',
+          padding: '6px 14px',
+          boxShadow: filtering ? '0 0 18px rgba(110,231,255,0.45)' : '0 6px 20px rgba(0,0,0,0.35)',
+          transition: 'all .35s cubic-bezier(0.22,1,0.36,1)',
         }}
       >
         {filtering
@@ -684,63 +833,72 @@ function FilterOverlay({
           : `${REAL_COUNT} tools · all visible`}
       </div>
 
-      {/* hovered tool readout (bottom-left), reinforces "these are real tools" */}
-      {hoveredTool && (
-        <div
-          className="pointer-events-none absolute bottom-6 left-6 select-none"
-          style={{
-            maxWidth: 280,
-            background: 'rgba(8,11,24,0.82)',
-            border: `1px solid ${categoryById.get(hoveredTool.category)?.glow ?? 'rgba(255,255,255,0.15)'}`,
-            borderRadius: 12,
-            padding: '10px 12px',
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span
-              style={{
-                width: 9,
-                height: 9,
-                borderRadius: 99,
-                background: categoryById.get(hoveredTool.category)?.color ?? '#fff',
-                boxShadow: `0 0 10px ${categoryById.get(hoveredTool.category)?.color ?? '#fff'}`,
-              }}
-            />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#f4f9ff' }}>
-              {hoveredTool.name}
-            </span>
-            <span
+      {/* selected tool readout (bottom-left) — liquid glass, eased show/hide */}
+      <div
+        className="pointer-events-auto absolute bottom-24 left-4 select-none rounded-2xl border border-white/10 bg-white/[0.07] p-3 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+        style={{
+          maxWidth: isPhone ? 'calc(100vw - 32px)' : 300,
+          opacity: selectedTool ? 1 : 0,
+          transform: selectedTool ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)',
+          transition: 'opacity .35s ease, transform .35s cubic-bezier(0.22,1,0.36,1)',
+          pointerEvents: selectedTool ? 'auto' : 'none',
+        }}
+      >
+        {selectedTool && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 99,
+                  flex: '0 0 auto',
+                  background: categoryById.get(selectedTool.category)?.color ?? '#fff',
+                  boxShadow: `0 0 10px ${categoryById.get(selectedTool.category)?.color ?? '#fff'}`,
+                }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#f4f9ff' }}>
+                {selectedTool.name}
+              </span>
+              <button
+                onClick={onClearSelection}
+                aria-label="Clear selection"
+                className="ml-auto flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-[#9fb0d0] transition hover:bg-white/[0.12]"
+                style={{ flex: '0 0 auto', fontSize: 15, lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+            <div
               style={{
                 fontSize: 10,
                 textTransform: 'uppercase',
                 letterSpacing: 0.6,
-                color: '#7e8db0',
-                marginLeft: 'auto',
+                color: '#8ea0c4',
+                marginTop: 4,
               }}
             >
-              {categoryById.get(hoveredTool.category)?.shortName} · {hoveredTool.stage}
-            </span>
-          </div>
-          <div style={{ fontSize: 11.5, color: '#b6c4e0', marginTop: 5, lineHeight: 1.4 }}>
-            {hoveredTool.summary}
-          </div>
-        </div>
-      )}
+              {categoryById.get(selectedTool.category)?.shortName} · {selectedTool.stage}
+            </div>
+            <div style={{ fontSize: 11.5, color: '#cdd9f2', marginTop: 6, lineHeight: 1.45 }}>
+              {selectedTool.summary}
+            </div>
+          </>
+        )}
+      </div>
 
-      {/* category toggles */}
+      {/* category toggles — liquid-glass panel, touch-friendly chips */}
       <div
-        className="pointer-events-auto absolute right-5 top-[72px] flex flex-col gap-1.5"
-        style={{ width: 186 }}
+        className="pointer-events-auto absolute right-3 top-[72px] flex flex-col gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] p-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        style={{ width: isPhone ? 150 : 190 }}
       >
         <div
           style={{
             fontSize: 10,
             textTransform: 'uppercase',
             letterSpacing: 1.4,
-            color: '#6c7b9e',
-            marginBottom: 2,
+            color: '#8294b8',
+            margin: '2px 2px 2px',
           }}
         >
           Category
@@ -759,21 +917,27 @@ function FilterOverlay({
                 width: 8,
                 height: 8,
                 borderRadius: 99,
+                flex: '0 0 auto',
                 background: c.color,
                 boxShadow: `0 0 8px ${c.color}`,
                 display: 'inline-block',
                 marginRight: 8,
               }}
             />
-            {c.shortName ?? c.name}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.shortName ?? c.name}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* stage filter */}
-      <div className="pointer-events-auto absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-wrap justify-center gap-1.5">
+      {/* stage filter — frosted pill rail */}
+      <div
+        className="pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-wrap justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        style={{ maxWidth: 'calc(100vw - 24px)' }}
+      >
         <button onClick={() => setFilterStage(-1)} style={pillStyle(filterStage === -1, '#d8faff')}>
-          All stages
+          All
         </button>
         {STAGES.map((s, i) => (
           <button
@@ -792,15 +956,13 @@ function FilterOverlay({
 function LegendDot({ label, big }: { label: string; big?: boolean }) {
   return (
     <span
+      className="rounded-full border border-white/10 bg-white/[0.05]"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
         fontSize: 10.5,
-        color: '#8493b6',
-        background: 'rgba(12,16,30,0.5)',
-        border: '1px solid rgba(120,140,180,0.16)',
-        borderRadius: 99,
+        color: '#9fb0d0',
         padding: '3px 9px 3px 7px',
       }}
     >
@@ -825,16 +987,16 @@ function chipStyle(active: boolean, color: string): CSSProperties {
     alignItems: 'center',
     fontSize: 12,
     fontWeight: 500,
-    padding: '6px 10px',
-    borderRadius: 9,
+    padding: '8px 10px', // comfortable tap target
+    borderRadius: 12,
     textAlign: 'left',
-    color: active ? '#06080f' : '#c4d0e8',
-    background: active ? color : 'rgba(14,18,34,0.62)',
-    border: `1px solid ${active ? color : 'rgba(120,140,180,0.18)'}`,
-    backdropFilter: 'blur(8px)',
+    color: active ? '#06080f' : '#cdd9f2',
+    background: active ? color : 'rgba(255,255,255,0.05)',
+    border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
     cursor: 'pointer',
     transition: 'background .2s, color .2s, border-color .2s',
     textTransform: 'capitalize',
+    minWidth: 0,
   };
 }
 
@@ -842,24 +1004,67 @@ function pillStyle(active: boolean, color: string): CSSProperties {
   return {
     fontSize: 11,
     fontWeight: 600,
-    padding: '6px 12px',
+    padding: '7px 13px', // comfortable tap target
     borderRadius: 99,
-    color: active ? '#06080f' : '#b8c6e4',
-    background: active ? color : 'rgba(12,16,30,0.66)',
-    border: `1px solid ${active ? color : 'rgba(120,140,180,0.2)'}`,
-    backdropFilter: 'blur(8px)',
+    color: active ? '#06080f' : '#c5d2ec',
+    background: active ? color : 'transparent',
+    border: `1px solid ${active ? color : 'rgba(255,255,255,0.1)'}`,
     cursor: 'pointer',
     textTransform: 'capitalize',
     boxShadow: active ? `0 0 14px ${color}66` : 'none',
     transition: 'all .2s',
+    whiteSpace: 'nowrap',
   };
+}
+
+// ---- viewport + reduced-motion hooks (mobile weight + calm motion) -----------
+function useViewport() {
+  const [width, setWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1280,
+  );
+  useEffect(() => {
+    let raf = 0;
+    const onResize = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setWidth(window.innerWidth));
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+  return width;
+}
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
 }
 
 // ---- root ---------------------------------------------------------------------
 export function Firefly() {
+  const width = useViewport();
+  const reducedMotion = useReducedMotion();
+  const isPhone = width < 768;
+
+  // bucket the ambient count to a viewport tier so the cloud only rebuilds when
+  // the tier actually changes (not on every resize pixel).
+  const ambientCount = useMemo(() => pickAmbientCount(width), [width]);
+
   const [filterCat, setFilterCat] = useState(-1);
   const [filterStage, setFilterStage] = useState(-1);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // live count of real tools matching the active filters.
   const matchCount = useMemo(() => {
@@ -871,26 +1076,36 @@ export function Firefly() {
     }, 0);
   }, [filterCat, filterStage]);
 
-  const hoveredTool = hoveredId ? toolById.get(hoveredId) ?? null : null;
+  const selectedTool = selectedId ? toolById.get(selectedId) ?? null : null;
 
   return (
     <div className="absolute inset-0" style={{ background: '#04050d' }}>
       <Canvas
         camera={{ position: [0, 24, 98], fov: 58, near: 0.1, far: 600 }}
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: !isPhone, alpha: false, powerPreference: 'high-performance' }}
         dpr={[1, 2]}
         frameloop="always"
       >
-        <Scene filterCat={filterCat} filterStage={filterStage} onHoverTool={setHoveredId} />
+        <Scene
+          ambientCount={ambientCount}
+          filterCat={filterCat}
+          filterStage={filterStage}
+          selectedId={selectedId}
+          reducedMotion={reducedMotion}
+          onPickTool={setSelectedId}
+        />
       </Canvas>
 
       <FilterOverlay
+        ambientCount={ambientCount}
         filterCat={filterCat}
         setFilterCat={setFilterCat}
         filterStage={filterStage}
         setFilterStage={setFilterStage}
         matchCount={matchCount}
-        hoveredTool={hoveredTool}
+        selectedTool={selectedTool}
+        onClearSelection={() => setSelectedId(null)}
+        isPhone={isPhone}
       />
     </div>
   );

@@ -10,6 +10,26 @@ import {
   type AITool,
 } from '../../data/ai-tool-universe';
 
+// ---------------------------------------------------------------------------
+// Viewport + motion environment (read once, outside render where possible).
+// On phones we draw a sparser reference grid and calm motion further.
+// ---------------------------------------------------------------------------
+function readEnv(): { compact: boolean; reduceMotion: boolean } {
+  if (typeof window === 'undefined') {
+    return { compact: false, reduceMotion: false };
+  }
+  return {
+    compact: window.innerWidth < 768,
+    reduceMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  };
+}
+
+// Frame-rate-independent damping factor for an exponential ease toward target.
+// `rate` ~ fraction of remaining gap closed per second.
+function damp(rate: number, delta: number): number {
+  return 1 - Math.pow(1 - rate, Math.min(delta, 0.05) * 60);
+}
+
 /**
  * Direction N — "3D Force Graph" (structural / engineering-grade).
  *
@@ -307,34 +327,58 @@ function Edges({ layout, focusId }: { layout: Layout; focusId: string | null }) 
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(layout.edgePositions, 3));
     const colors = new Float32Array(layout.edges.length * 6);
+    // Seed at base colour so the very first frame has no flash.
+    for (let i = 0; i < layout.edges.length; i++) {
+      colors[i * 6 + 0] = EDGE_BASE.r;
+      colors[i * 6 + 1] = EDGE_BASE.g;
+      colors[i * 6 + 2] = EDGE_BASE.b;
+      colors[i * 6 + 3] = EDGE_BASE.r;
+      colors[i * 6 + 4] = EDGE_BASE.g;
+      colors[i * 6 + 5] = EDGE_BASE.b;
+    }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     return g;
   }, [layout]);
 
+  const matRef = useRef<THREE.LineBasicMaterial>(null);
+  const targetOpacity = useRef(0.6);
   useEffect(() => {
+    targetOpacity.current = focusId ? 0.95 : 0.6;
+  }, [focusId]);
+
+  // Smoothly ease each edge's vertex colour + the global opacity toward the
+  // target every frame — no snapping when focus changes.
+  useFrame((_, delta) => {
     const colorAttr = geom.getAttribute('color') as THREE.BufferAttribute;
     const arr = colorAttr.array as Float32Array;
-    layout.edges.forEach((e, i) => {
-      const na = layout.nodes[e.a];
-      const nb = layout.nodes[e.b];
-      const touches = focusId !== null && (na.id === focusId || nb.id === focusId);
+    const k = damp(0.85, delta);
+    const edges = layout.edges;
+    const nodes = layout.nodes;
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i];
+      const touches =
+        focusId !== null && (nodes[e.a].id === focusId || nodes[e.b].id === focusId);
       const c = focusId === null ? EDGE_BASE : touches ? EDGE_HOT : EDGE_DIM;
-      arr[i * 6 + 0] = c.r;
-      arr[i * 6 + 1] = c.g;
-      arr[i * 6 + 2] = c.b;
-      arr[i * 6 + 3] = c.r;
-      arr[i * 6 + 4] = c.g;
-      arr[i * 6 + 5] = c.b;
-    });
+      const o = i * 6;
+      arr[o + 0] += (c.r - arr[o + 0]) * k;
+      arr[o + 1] += (c.g - arr[o + 1]) * k;
+      arr[o + 2] += (c.b - arr[o + 2]) * k;
+      arr[o + 3] = arr[o + 0];
+      arr[o + 4] = arr[o + 1];
+      arr[o + 5] = arr[o + 2];
+    }
     colorAttr.needsUpdate = true;
-  }, [geom, layout, focusId]);
+    const mat = matRef.current;
+    if (mat) mat.opacity += (targetOpacity.current - mat.opacity) * k;
+  });
 
   return (
     <lineSegments geometry={geom} renderOrder={1}>
       <lineBasicMaterial
+        ref={matRef}
         vertexColors
         transparent
-        opacity={focusId ? 0.95 : 0.6}
+        opacity={0.6}
         depthWrite={false}
       />
     </lineSegments>
@@ -348,42 +392,46 @@ function Edges({ layout, focusId }: { layout: Layout; focusId: string | null }) 
 function Node({
   node,
   state,
+  geometry,
   onHover,
   onClick,
 }: {
   node: GraphNode;
   state: 'active' | 'neighbour' | 'dim' | 'idle';
+  geometry: THREE.SphereGeometry;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const targetScale = useRef(1);
+  // Scale is expressed relative to the node's intrinsic radius (the shared
+  // geometry is a unit sphere), so base = node.radius.
+  const targetScale = useRef(node.radius);
   const targetEmissive = useRef(0.22);
   const targetOpacity = useRef(1);
 
   useEffect(() => {
     if (state === 'active') {
-      targetScale.current = 1.35;
+      targetScale.current = node.radius * 1.35;
       targetEmissive.current = 0.9;
       targetOpacity.current = 1;
     } else if (state === 'neighbour') {
-      targetScale.current = 1.12;
+      targetScale.current = node.radius * 1.12;
       targetEmissive.current = 0.55;
       targetOpacity.current = 1;
     } else if (state === 'dim') {
-      targetScale.current = 0.86;
+      targetScale.current = node.radius * 0.86;
       targetEmissive.current = 0.06;
       targetOpacity.current = 0.32;
     } else {
-      targetScale.current = 1;
+      targetScale.current = node.radius;
       targetEmissive.current = 0.22;
       targetOpacity.current = 1;
     }
-  }, [state]);
+  }, [state, node.radius]);
 
   useFrame((_, delta) => {
-    const k = 1 - Math.pow(0.0006, delta);
+    const k = damp(0.82, delta);
     const m = meshRef.current;
     if (m) {
       const next = m.scale.x + (targetScale.current - m.scale.x) * k;
@@ -399,7 +447,9 @@ function Node({
   return (
     <mesh
       ref={meshRef}
+      geometry={geometry}
       position={[node.x, node.y, node.z]}
+      scale={node.radius}
       renderOrder={2}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation();
@@ -411,7 +461,6 @@ function Node({
         onClick(node.id);
       }}
     >
-      <sphereGeometry args={[node.radius, 48, 48]} />
       <meshStandardMaterial
         ref={matRef}
         color={node.color}
@@ -430,25 +479,38 @@ function Node({
 // Thin wireframe focus ring around the active node — a clean "selected"
 // affordance that reads as an inspector, not a glow.
 // ---------------------------------------------------------------------------
-function FocusRing({ node }: { node: GraphNode }) {
-  const ref = useRef<THREE.Group>(null);
+function FocusRing({ node, reduceMotion }: { node: GraphNode; reduceMotion: boolean }) {
+  const spinRef = useRef<THREE.Group>(null);
+  const scaleRef = useRef<THREE.Group>(null);
+  // Ease the ring in from zero each time the focused node changes — no pop.
+  useEffect(() => {
+    if (scaleRef.current) scaleRef.current.scale.setScalar(0.001);
+  }, [node.id]);
   useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.z += delta * 0.6;
+    if (spinRef.current && !reduceMotion) spinRef.current.rotation.z += delta * 0.6;
+    const s = scaleRef.current;
+    if (s) {
+      const k = damp(0.8, delta);
+      const next = s.scale.x + (1 - s.scale.x) * k;
+      s.scale.setScalar(next);
+    }
   });
   const r = node.radius * 1.9;
   return (
     <Billboard position={[node.x, node.y, node.z]}>
-      <group ref={ref}>
-        <mesh>
-          <ringGeometry args={[r, r + 0.45, 64]} />
-          <meshBasicMaterial
-            color="#bde8ff"
-            transparent
-            opacity={0.85}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </mesh>
+      <group ref={scaleRef}>
+        <group ref={spinRef}>
+          <mesh>
+            <ringGeometry args={[r, r + 0.45, 64]} />
+            <meshBasicMaterial
+              color="#bde8ff"
+              transparent
+              opacity={0.85}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       </group>
     </Billboard>
   );
@@ -491,6 +553,8 @@ function GraphGroup({
   onHover,
   onClick,
   paused,
+  compact,
+  reduceMotion,
 }: {
   layout: Layout;
   activeId: string | null;
@@ -498,12 +562,28 @@ function GraphGroup({
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
   paused: boolean;
+  compact: boolean;
+  reduceMotion: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+
+  // One shared unit-sphere geometry for all 49 nodes — per-node radius is
+  // applied via mesh scale. Fewer segments on phones to stay light.
+  const sphereGeom = useMemo(() => {
+    const seg = compact ? 24 : 40;
+    return new THREE.SphereGeometry(1, seg, seg);
+  }, [compact]);
+  useEffect(() => () => sphereGeom.dispose(), [sphereGeom]);
+
+  // Target ambient yaw speed — calmer when reduced motion is requested.
+  const yawSpeed = reduceMotion ? 0.012 : 0.035;
+  const yawVel = useRef(0);
   useFrame((_, delta) => {
-    if (groupRef.current && !paused) {
-      groupRef.current.rotation.y += delta * 0.035;
-    }
+    // Ease the rotation velocity toward 0 (paused) or yawSpeed so starting /
+    // stopping the ambient spin never snaps.
+    const target = paused ? 0 : yawSpeed;
+    yawVel.current += (target - yawVel.current) * damp(0.12, delta);
+    if (groupRef.current) groupRef.current.rotation.y += yawVel.current * delta;
   });
 
   const focus = activeId ?? hoverId;
@@ -530,11 +610,18 @@ function GraphGroup({
           else state = 'dim';
         }
         return (
-          <Node key={node.id} node={node} state={state} onHover={onHover} onClick={onClick} />
+          <Node
+            key={node.id}
+            node={node}
+            state={state}
+            geometry={sphereGeom}
+            onHover={onHover}
+            onClick={onClick}
+          />
         );
       })}
 
-      {focusNode ? <FocusRing node={focusNode} /> : null}
+      {focusNode ? <FocusRing node={focusNode} reduceMotion={reduceMotion} /> : null}
 
       {/* Label for the focused node, billboarded toward the camera. */}
       {focusNode ? (
@@ -560,21 +647,31 @@ function GraphGroup({
 // Reference grid floor — a faint engineering grid that grounds the graph in
 // 3D space and reinforces the "structural inspector" read (not a nebula).
 // ---------------------------------------------------------------------------
-function ReferenceGrid({ extent }: { extent: number }) {
-  const { points } = useMemo(() => {
+function ReferenceGrid({ extent, compact }: { extent: number; compact: boolean }) {
+  const points = useMemo(() => {
     const lines: [number, number, number][] = [];
+    const divisions = compact ? 10 : 16;
+    const span = divisions / 2;
     const half = extent;
-    const step = (extent * 2) / 16;
-    for (let i = -8; i <= 8; i++) {
+    const step = (extent * 2) / divisions;
+    for (let i = -span; i <= span; i++) {
       const p = i * step;
       lines.push([-half, 0, p], [half, 0, p]);
       lines.push([p, 0, -half], [p, 0, half]);
     }
-    return { points: lines };
-  }, [extent]);
+    return lines;
+  }, [extent, compact]);
   return (
     <group position={[0, -extent * 0.78, 0]} renderOrder={0}>
-      <Line points={points} color="#16304a" lineWidth={1} transparent opacity={0.4} segments />
+      <Line
+        points={points}
+        color="#16304a"
+        lineWidth={1}
+        transparent
+        opacity={0.4}
+        depthWrite={false}
+        segments
+      />
     </group>
   );
 }
@@ -587,6 +684,21 @@ export function Force3D() {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const controls = useRef<CameraControls | null>(null);
+
+  // Viewport + motion environment, kept reactive so the scene stays light and
+  // calm if the device rotates / a setting changes.
+  const [env, setEnv] = useState(readEnv);
+  useEffect(() => {
+    const onResize = () => setEnv(readEnv());
+    window.addEventListener('resize', onResize);
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    mq.addEventListener('change', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      mq.removeEventListener('change', onResize);
+    };
+  }, []);
+  const { compact, reduceMotion } = env;
 
   const activeNode = useMemo(() => {
     if (!activeId) return null;
@@ -654,7 +766,7 @@ export function Force3D() {
         <directionalLight position={[120, 180, 120]} intensity={2.0} color="#ffffff" />
         <directionalLight position={[-160, -60, -120]} intensity={0.7} color="#5b78ff" />
 
-        <ReferenceGrid extent={layout.bounds * 1.15} />
+        <ReferenceGrid extent={layout.bounds * 1.15} compact={compact} />
 
         <GraphGroup
           layout={layout}
@@ -663,6 +775,8 @@ export function Force3D() {
           onHover={setHoverId}
           onClick={setActiveId}
           paused={Boolean(hoverId || activeId)}
+          compact={compact}
+          reduceMotion={reduceMotion}
         />
 
         <FlyController controls={controls} target={activeNode} />
@@ -671,110 +785,120 @@ export function Force3D() {
           minDistance={10}
           maxDistance={camDist * 3}
           dollyToCursor
-          smoothTime={0.4}
+          smoothTime={reduceMotion ? 0.25 : 0.45}
         />
       </Canvas>
 
-      {/* Top chrome clearance + title */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-6 pt-16">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/75">
+      {/* Top chrome clearance + title (frosted-glass HUD pill) */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-16 sm:px-6">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/80">
             3D Force Graph
           </p>
-          <p className="mt-1 text-sm text-white/45">
-            Drag to orbit · scroll to dolly · hover to trace · click to fly in
+          <p className="mt-1 text-xs text-white/55 sm:text-sm">
+            Drag to orbit · pinch to zoom · tap a node to fly in
           </p>
         </div>
-        <div className="hidden text-right font-mono text-[10px] leading-relaxed text-white/35 sm:block">
+        <div className="hidden rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-right font-mono text-[10px] leading-relaxed text-white/45 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:block">
           <div>
-            <span className="text-white/55">{layout.nodes.length}</span> nodes ·{' '}
-            <span className="text-white/55">{layout.edges.length}</span> edges
+            <span className="text-white/70">{layout.nodes.length}</span> nodes ·{' '}
+            <span className="text-white/70">{layout.edges.length}</span> edges
           </div>
           <div>force-directed · 3D</div>
         </div>
       </div>
 
-      {/* Category legend — explains node colours, supports the "structural" read. */}
-      <div className="pointer-events-none absolute left-6 top-32 hidden flex-col gap-1.5 md:flex">
+      {/* Category legend — frosted glass card; hidden on phones to keep it light. */}
+      <div className="pointer-events-none absolute left-4 top-32 hidden flex-col gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:left-6 md:flex">
         {categories.map((c) => (
           <div key={c.id} className="flex items-center gap-2">
             <span
               className="h-2 w-2 rounded-[2px]"
               style={{ backgroundColor: c.color }}
             />
-            <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
               {c.shortName}
             </span>
           </div>
         ))}
       </div>
 
-      {/* Reset-view affordance */}
+      {/* Reset-view affordance — glass button, comfortable tap target. */}
       <button
         type="button"
         onClick={resetView}
-        className="absolute right-6 top-32 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium tracking-wide text-white/60 backdrop-blur-md transition hover:border-cyan-300/40 hover:text-cyan-200"
+        className="absolute right-4 top-32 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium tracking-wide text-white/70 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/40 hover:bg-white/[0.1] hover:text-cyan-100 active:scale-95 sm:right-6"
       >
         Reset view
       </button>
 
-      {/* Active node inspector card */}
-      {activeTool && activeNode ? (
-        <div className="absolute bottom-6 left-6 right-6 mx-auto max-w-md rounded-2xl border border-white/10 bg-[#070d18]/90 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 rounded-[3px]"
-                style={{
-                  backgroundColor: activeCat?.color ?? '#fff',
-                  boxShadow: `0 0 10px ${activeCat?.color ?? '#fff'}`,
-                }}
-              />
-              <span className="text-[11px] uppercase tracking-[0.28em] text-white/45">
-                {activeCat?.name ?? activeTool.category}
+      {/* Active node inspector card — liquid glass, eased slide-up, scrollable
+          so it never overflows on phone height. */}
+      <div
+        className={`pointer-events-none absolute bottom-4 left-4 right-4 mx-auto max-w-md transition-all duration-500 ease-out sm:bottom-6 ${
+          activeTool && activeNode
+            ? 'translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-6 opacity-0'
+        }`}
+        aria-hidden={!(activeTool && activeNode)}
+      >
+        {activeTool && activeNode ? (
+          <div className="pointer-events-auto max-h-[60vh] overflow-y-auto overscroll-contain rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                  style={{
+                    backgroundColor: activeCat?.color ?? '#fff',
+                    boxShadow: `0 0 10px ${activeCat?.color ?? '#fff'}`,
+                  }}
+                />
+                <span className="truncate text-[11px] uppercase tracking-[0.28em] text-white/50">
+                  {activeCat?.name ?? activeTool.category}
+                </span>
+              </div>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300/75">
+                {activeNode.degree} {activeNode.degree === 1 ? 'link' : 'links'}
               </span>
             </div>
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300/70">
-              {activeNode.degree} {activeNode.degree === 1 ? 'link' : 'links'}
-            </span>
-          </div>
-          <h3 className="mt-2 text-xl font-semibold text-white">{activeTool.name}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-white/65">{activeTool.summary}</p>
-          {neighbourTools.length > 0 ? (
-            <div className="mt-3">
-              <p className="mb-1.5 text-[10px] uppercase tracking-[0.24em] text-white/35">
-                Connected to
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {neighbourTools.map((t) => {
-                  const tc = categoryById.get(t.category);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setActiveId(t.id)}
-                      className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:border-cyan-300/50 hover:text-cyan-100"
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: tc?.color ?? '#fff' }}
-                      />
-                      {t.name}
-                    </button>
-                  );
-                })}
+            <h3 className="mt-2 text-xl font-semibold text-white">{activeTool.name}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/70">{activeTool.summary}</p>
+            {neighbourTools.length > 0 ? (
+              <div className="mt-3">
+                <p className="mb-1.5 text-[10px] uppercase tracking-[0.24em] text-white/40">
+                  Connected to
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {neighbourTools.map((t) => {
+                    const tc = categoryById.get(t.category);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setActiveId(t.id)}
+                        className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-[11px] text-white/75 transition duration-300 hover:border-cyan-300/50 hover:bg-white/[0.12] hover:text-cyan-100 active:scale-95"
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: tc?.color ?? '#fff' }}
+                        />
+                        {t.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setActiveId(null)}
-            className="mt-3 text-[11px] uppercase tracking-[0.2em] text-white/35 transition hover:text-white/70"
-          >
-            Close
-          </button>
-        </div>
-      ) : null}
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setActiveId(null)}
+              className="mt-4 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/45 transition duration-300 hover:bg-white/[0.1] hover:text-white/80 active:scale-95"
+            >
+              Close
+            </button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

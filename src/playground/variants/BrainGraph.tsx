@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -211,11 +211,28 @@ function relax(
 }
 
 // ---------------------------------------------------------------------------
+// Environment helpers (mobile / reduced-motion) — read once, no per-frame work
+// ---------------------------------------------------------------------------
+
+function readIsSmall(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 768;
+}
+
+function readReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// ---------------------------------------------------------------------------
 // Shared GPU resources
 // ---------------------------------------------------------------------------
 
-const SPHERE_GEOM = new THREE.SphereGeometry(1, 22, 22);
-const HALO_GEOM = new THREE.SphereGeometry(1, 18, 18);
+// Lower-poly spheres on phones keep the draw light without a visible drop.
+const SPHERE_SEGMENTS = readIsSmall() ? 16 : 22;
+const HALO_SEGMENTS = readIsSmall() ? 12 : 18;
+const SPHERE_GEOM = new THREE.SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS);
+const HALO_GEOM = new THREE.SphereGeometry(1, HALO_SEGMENTS, HALO_SEGMENTS);
 
 // ---------------------------------------------------------------------------
 // Edge lines (one merged LineSegments per kind)
@@ -223,7 +240,18 @@ const HALO_GEOM = new THREE.SphereGeometry(1, 18, 18);
 
 function useEdgeGeometry(kind: 0 | 1) {
   return useMemo(() => {
-    const segs = GRAPH.edges.filter((e) => e.kind === kind);
+    let segs = GRAPH.edges.filter((e) => e.kind === kind);
+    // Bound relation-edge count on phones: keep the strongest (shortest) links
+    // so the graph stays legible and light instead of a dense haze.
+    if (kind === 0 && readIsSmall() && segs.length > 90) {
+      segs = [...segs]
+        .sort(
+          (p, q) =>
+            GRAPH.nodes[p.a].position.distanceToSquared(GRAPH.nodes[p.b].position) -
+            GRAPH.nodes[q.a].position.distanceToSquared(GRAPH.nodes[q.b].position),
+        )
+        .slice(0, 90);
+    }
     const positions = new Float32Array(segs.length * 6);
     const colors = new Float32Array(segs.length * 6);
     const tmp = new THREE.Color();
@@ -246,35 +274,39 @@ function useEdgeGeometry(kind: 0 | 1) {
 interface EdgesProps {
   kind: 0 | 1;
   selectedId: string | null;
+  reducedMotion: boolean;
 }
 
-function Edges({ kind, selectedId }: EdgesProps) {
+function Edges({ kind, selectedId, reducedMotion }: EdgesProps) {
   const { geom, segs } = useEdgeGeometry(kind);
   const matRef = useRef<THREE.LineBasicMaterial>(null);
 
-  // When a node is selected, fade non-incident edges. Recompute the per-vertex
-  // alpha only on selection change (not per frame).
-  const opacityForSelection = useMemo(() => {
-    if (!selectedId) return null;
-    return segs.map((e) => {
-      const incident =
-        GRAPH.nodes[e.a].id === selectedId || GRAPH.nodes[e.b].id === selectedId;
-      return incident ? 1 : 0.12;
-    });
+  // Whether this edge group has any edge incident to the current selection.
+  // Computed only on selection change (not per frame), no allocations in loop.
+  const incidentToSelection = useMemo(() => {
+    if (!selectedId) return true;
+    for (const e of segs) {
+      if (GRAPH.nodes[e.a].id === selectedId || GRAPH.nodes[e.b].id === selectedId) {
+        return true;
+      }
+    }
+    return false;
   }, [segs, selectedId]);
 
   useFrame(({ clock }) => {
-    if (!matRef.current) return;
-    // Pulsing baseline so links feel alive.
-    const pulse = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.3);
+    const mat = matRef.current;
+    if (!mat) return;
+    // Pulsing baseline so links feel alive (held calm under reduced motion).
+    const pulse = reducedMotion
+      ? 0.5
+      : 0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.3);
     const base = kind === 1 ? 0.16 : 0.34;
-    matRef.current.opacity = base + pulse * (kind === 1 ? 0.05 : 0.1);
+    const swing = kind === 1 ? 0.05 : 0.1;
+    // When a selection exists and this group isn't incident, ease toward dim.
+    const dim = selectedId && !incidentToSelection ? 0.22 : 1;
+    const target = (base + pulse * swing) * dim;
+    mat.opacity += (target - mat.opacity) * 0.12;
   });
-
-  // Dim whole material when a selection exists and this group isn't strongly
-  // incident. Cheap approximation: if any incident edge, keep bright.
-  const groupDim =
-    opacityForSelection && !opacityForSelection.some((o) => o === 1) ? 0.18 : 1;
 
   return (
     <lineSegments geometry={geom} renderOrder={-1}>
@@ -282,7 +314,7 @@ function Edges({ kind, selectedId }: EdgesProps) {
         ref={matRef}
         vertexColors
         transparent
-        opacity={kind === 1 ? 0.18 : 0.36 * groupDim}
+        opacity={kind === 1 ? 0.18 : 0.36}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />
@@ -342,20 +374,23 @@ function NodeMesh({
     return { base, emissive, scale, haloOpacity, coreOpacity };
   }, [hovered, node.size, state]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const core = coreRef.current;
     const halo = haloRef.current;
     if (!core || !halo) return;
+    // Frame-rate independent easing: same spring feel at 60 / 120 Hz.
+    const k = 1 - Math.exp(-9 * delta);
+    const hk = 1 - Math.exp(-7 * delta);
     const mat = core.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity += (targets.emissive - mat.emissiveIntensity) * 0.12;
-    mat.opacity += (targets.coreOpacity - mat.opacity) * 0.12;
+    mat.emissiveIntensity += (targets.emissive - mat.emissiveIntensity) * k;
+    mat.opacity += (targets.coreOpacity - mat.opacity) * k;
     const s = targets.base * targets.scale;
-    core.scale.x += (s - core.scale.x) * 0.14;
+    core.scale.x += (s - core.scale.x) * k;
     core.scale.y = core.scale.z = core.scale.x;
     const hmat = halo.material as THREE.MeshBasicMaterial;
-    hmat.opacity += (targets.haloOpacity - hmat.opacity) * 0.1;
+    hmat.opacity += (targets.haloOpacity - hmat.opacity) * hk;
     const hs = node.size * 2.4 * (targets.scale * 0.6 + 0.6);
-    halo.scale.x += (hs - halo.scale.x) * 0.1;
+    halo.scale.x += (hs - halo.scale.x) * hk;
     halo.scale.y = halo.scale.z = halo.scale.x;
   });
 
@@ -409,16 +444,17 @@ function NodeMesh({
             style={{
               display: 'inline-block',
               whiteSpace: 'nowrap',
-              padding: '2px 9px',
+              padding: '3px 10px',
               borderRadius: 999,
               fontSize: 12,
               fontWeight: 600,
               letterSpacing: 0.2,
               color: '#eaf6ff',
-              background: 'rgba(8,12,26,0.66)',
-              border: `1px solid ${node.color.getStyle()}66`,
-              boxShadow: `0 0 14px ${node.glow}`,
-              backdropFilter: 'blur(4px)',
+              background: 'rgba(8,12,26,0.55)',
+              border: `1px solid ${node.color.getStyle()}55`,
+              boxShadow: `0 4px 18px rgba(0,0,0,0.35), 0 0 14px ${node.glow}`,
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
             }}
           >
             {node.tool.name}
@@ -436,11 +472,18 @@ function NodeMesh({
 interface SceneProps {
   selectedId: string | null;
   hoveredId: string | null;
+  reducedMotion: boolean;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }
 
-function Scene({ selectedId, hoveredId, onSelect, onHover }: SceneProps) {
+function Scene({
+  selectedId,
+  hoveredId,
+  reducedMotion,
+  onSelect,
+  onHover,
+}: SceneProps) {
   const controlsRef = useRef<CameraControls>(null);
   const { invalidate } = useThree();
   const idleRef = useRef(0);
@@ -483,15 +526,20 @@ function Scene({ selectedId, hoveredId, onSelect, onHover }: SceneProps) {
   // Gentle idle drift of the whole graph when nothing is selected.
   const rootRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
-    if (!rootRef.current) return;
-    if (!selectedId) {
+    const root = rootRef.current;
+    if (!root) return;
+    // Frame-rate independent return-to-neutral.
+    const settle = 1 - Math.exp(-5 * delta);
+    if (!selectedId && !reducedMotion) {
       idleRef.current += delta * 0.06;
-      rootRef.current.rotation.y = Math.sin(idleRef.current) * 0.18;
-      rootRef.current.rotation.x = Math.cos(idleRef.current * 0.7) * 0.05;
+      const targetY = Math.sin(idleRef.current) * 0.18;
+      const targetX = Math.cos(idleRef.current * 0.7) * 0.05;
+      root.rotation.y += (targetY - root.rotation.y) * settle;
+      root.rotation.x += (targetX - root.rotation.x) * settle;
     } else {
-      // ease rotation back to neutral
-      rootRef.current.rotation.y *= 0.96;
-      rootRef.current.rotation.x *= 0.96;
+      // ease rotation back to neutral (also the reduced-motion resting state)
+      root.rotation.y += (0 - root.rotation.y) * settle;
+      root.rotation.x += (0 - root.rotation.x) * settle;
     }
   });
 
@@ -509,12 +557,14 @@ function Scene({ selectedId, hoveredId, onSelect, onHover }: SceneProps) {
         minDistance={12}
         maxDistance={GRAPH.radius * 4}
         dollySpeed={0.5}
-        smoothTime={0.4}
+        truckSpeed={0}
+        smoothTime={reducedMotion ? 0.3 : 0.55}
+        draggingSmoothTime={0.18}
       />
 
       <group ref={rootRef}>
-        <Edges kind={1} selectedId={selectedId} />
-        <Edges kind={0} selectedId={selectedId} />
+        <Edges kind={1} selectedId={selectedId} reducedMotion={reducedMotion} />
+        <Edges kind={0} selectedId={selectedId} reducedMotion={reducedMotion} />
 
         {GRAPH.nodes.map((node) => {
           let nodeState: NodeMeshProps['state'] = 'normal';
@@ -553,10 +603,32 @@ function Scene({ selectedId, hoveredId, onSelect, onHover }: SceneProps) {
 export function BrainGraph() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
 
-  const selectedTool = selectedId ? toolById.get(selectedId) : undefined;
-  const selectedCategory = selectedTool
-    ? categoryById.get(selectedTool.category)
+  // Remember the last selected id so the detail card keeps its content while
+  // it eases out after deselect. Updated asynchronously in an effect (no
+  // cascading renders); when something is selected we show it immediately.
+  const [lastId, setLastId] = useState<string | null>(null);
+  useEffect(() => {
+    if (selectedId) {
+      const id = window.setTimeout(() => setLastId(selectedId), 0);
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+  }, [selectedId]);
+  const cardId = selectedId ?? lastId;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReducedMotion(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const cardTool = cardId ? toolById.get(cardId) : undefined;
+  const cardCategory = cardTool
+    ? categoryById.get(cardTool.category)
     : undefined;
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
@@ -575,6 +647,7 @@ export function BrainGraph() {
         <Scene
           selectedId={selectedId}
           hoveredId={hoveredId}
+          reducedMotion={reducedMotion}
           onSelect={setSelectedId}
           onHover={setHoveredId}
         />
@@ -589,40 +662,63 @@ export function BrainGraph() {
         }}
       />
 
-      {/* Title / hint */}
-      <div className="pointer-events-none absolute left-5 top-5 select-none">
-        <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-200/70">
-          AI Brain
-        </p>
-        <p className="mt-1 text-[11px] text-white/35">
-          {selectedId ? 'Click empty space to release focus' : 'Click a node to focus its neighbourhood'}
-        </p>
-      </div>
-
-      {/* Selected-tool detail card */}
-      {selectedTool && (
-        <div
-          className="pointer-events-none absolute bottom-5 left-5 max-w-xs rounded-2xl border p-4 backdrop-blur"
-          style={{
-            borderColor: `${selectedCategory?.color ?? '#9bd6ff'}55`,
-            background: 'rgba(6,9,20,0.7)',
-            boxShadow: `0 0 30px ${selectedCategory?.glow ?? 'rgba(155,214,255,0.3)'}`,
-          }}
-        >
-          <p
-            className="text-[10px] font-semibold uppercase tracking-[0.22em]"
-            style={{ color: selectedCategory?.color ?? '#9bd6ff' }}
-          >
-            {selectedCategory?.shortName ?? selectedTool.category}
+      {/* Title / hint — liquid-glass pill, clears the lab chrome (~64px) */}
+      <div className="pointer-events-none absolute left-4 top-16 select-none sm:left-5">
+        <div className="inline-flex flex-col rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-200/80">
+            AI Brain
           </p>
-          <p className="mt-1 text-base font-semibold text-white">
-            {selectedTool.name}
-          </p>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/60">
-            {selectedTool.summary}
+          <p className="mt-1 text-[11px] text-white/45">
+            {selectedId
+              ? 'Tap empty space to release focus'
+              : 'Tap a node • drag to orbit • pinch to zoom'}
           </p>
         </div>
-      )}
+      </div>
+
+      {/* Selected-tool detail card — liquid glass, eased show/hide */}
+      <div
+        className="pointer-events-none absolute bottom-4 left-4 right-4 z-10 flex justify-start sm:right-auto sm:bottom-5 sm:left-5"
+        aria-hidden={!selectedId}
+      >
+        {cardTool && (
+          <div
+            className="w-full max-w-[22rem] origin-bottom-left rounded-2xl border border-white/10 bg-white/[0.07] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ease-out"
+            style={{
+              opacity: selectedId ? 1 : 0,
+              transform: selectedId
+                ? 'translateY(0) scale(1)'
+                : 'translateY(10px) scale(0.97)',
+              pointerEvents: selectedId ? 'auto' : 'none',
+              boxShadow: `0 12px 40px rgba(0,0,0,0.45), 0 0 26px ${cardCategory?.glow ?? 'rgba(155,214,255,0.25)'}`,
+            }}
+          >
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+              style={{ color: cardCategory?.color ?? '#9bd6ff' }}
+            >
+              {cardCategory?.shortName ?? cardTool.category}
+            </p>
+            <p className="mt-1 text-base font-semibold leading-snug text-white">
+              {cardTool.name}
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-white/65">
+              {cardTool.summary}
+            </p>
+            {cardTool.url && (
+              <a
+                href={cardTool.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-white/80 transition-colors duration-200 hover:bg-white/[0.12] active:bg-white/[0.16]"
+                style={{ minHeight: 36 }}
+              >
+                Open tool →
+              </a>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
