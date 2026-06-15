@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ArrowLeft, Brain, Orbit, Sparkles } from 'lucide-react';
 import { categories, tools, workflowLinks } from '../../data/ai-tool-universe';
 import { BrainGraphVariant } from './BrainGraphVariant';
+import { GalaxyMapVariant } from './GalaxyMapVariant';
 import { buildVisualizationData } from './visualization-data';
 import { VisionSpaceVariant } from './VisionSpaceVariant';
 
@@ -60,12 +61,12 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
 
       <section className="grid min-h-[calc(100dvh-74px)] grid-cols-1 lg:grid-cols-[1fr_320px]">
         <div className="relative min-h-[620px] overflow-hidden">
-          {variant === 'vision' ? (
-            <VisionSpaceVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
-          ) : variant === 'brain' ? (
+          {variant === 'brain' ? (
             <BrainGraphVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
+          ) : variant === 'vision' ? (
+            <VisionSpaceVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
           ) : (
-            <PendingVariant variant={variant} />
+            <GalaxyMapVariant data={data} selectedId={selected.id} onSelect={setSelectedId} />
           )}
         </div>
         <aside className="border-t border-white/10 bg-black/30 p-5 lg:border-l lg:border-t-0">
@@ -97,16 +98,6 @@ export function VisualizationLab({ onBack }: VisualizationLabProps) {
         </aside>
       </section>
     </main>
-  );
-}
-
-function PendingVariant({ variant }: { variant: LabVariant }) {
-  return (
-    <div className="flex h-full min-h-[620px] items-center justify-center bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,0.12),transparent_42%),#03040a]">
-      <p className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/65">
-        {variant} variant mounts in the next tasks
-      </p>
-    </div>
   );
 }
 
