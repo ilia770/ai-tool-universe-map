@@ -531,6 +531,10 @@ struct UniverseView: View {
     /// and `labelLift` clears the anchor sphere. Both are tunable.
     private static let labelFontSize: CGFloat = 0.8
     private static let labelLift: Float = 1.0
+    /// Radial inset (X/Z) applied to category labels so edge categories don't
+    /// clip off the portrait-iPhone frame; 1.0 = label dead-centre over its
+    /// anchor, lower pulls it toward the core.
+    private static let labelInset: Float = 0.78
 
     /// Tool labels read up close inside an open pocket, so they're smaller
     /// than the category labels and lifted just clear of the orb.
@@ -604,7 +608,12 @@ struct UniverseView: View {
 
         let root = Entity()
         root.name = "label:\(category.id.rawValue)"
-        root.position = position + SIMD3<Float>(0, PocketTransition.baseAnchorRadius + labelLift, 0)
+        // Pull the label radially inward (X/Z only) toward the core so the
+        // edge categories' labels don't clip off the right/left frame on a
+        // portrait iPhone, whose narrow horizontal FOV can't fit the full
+        // category ring plus label width. Keeps the label above its cluster.
+        let inset = SIMD3<Float>(position.x * labelInset, position.y, position.z * labelInset)
+        root.position = inset + SIMD3<Float>(0, PocketTransition.baseAnchorRadius + labelLift, 0)
         // iOS 18 RealityKit: face the active camera every frame.
         root.components.set(BillboardComponent())
         root.addChild(label)
