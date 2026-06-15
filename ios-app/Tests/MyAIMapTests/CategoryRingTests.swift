@@ -8,7 +8,13 @@ import simd
 /// without live entities — so these tests only pin the new numeric
 /// constants to sane ranges and confirm the ring's torus parameters yield
 /// valid geometry.
+// @MainActor: the constants under test are static members of `UniverseView`
+// (a SwiftUI `View`, hence MainActor-isolated). Swift 6 strict concurrency on
+// the Xcode 16.x CI toolchain rejects reading them from a nonisolated `@Test`
+// context; isolating the suite to the main actor fixes the build. (The local
+// 26.x gate doesn't flag it, so this only surfaced in iOS CI.)
 @Suite("Phase C visuals — ring / pulse / halo constants")
+@MainActor
 struct CategoryRingTests {
 
     @Test func categoryRingConstantsAreSane() {
