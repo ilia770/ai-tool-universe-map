@@ -1,4 +1,11 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -449,6 +456,8 @@ function SynapsePulses({
  * ------------------------------------------------------------------ */
 const SPIKE_GEO = new THREE.ConeGeometry(0.08, 0.5, 6);
 
+type NeuronState = 'idle' | 'active' | 'neighbor' | 'dimmed' | 'search';
+
 function HeroNeuron({
   node,
   state,
@@ -457,7 +466,7 @@ function HeroNeuron({
   glow,
 }: {
   node: HeroNode;
-  state: 'idle' | 'active' | 'neighbor' | 'dimmed';
+  state: NeuronState;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   glow: THREE.Texture;
@@ -523,6 +532,11 @@ function HeroNeuron({
       s2 = baseScale * 1.22;
       haloOn = 2.5;
       emis = 3;
+    } else if (state === 'search') {
+      // a search match while no tool is focused — make it sing
+      s2 = baseScale * 1.35;
+      haloOn = 3.2;
+      emis = 4;
     } else if (state === 'dimmed') {
       haloOn = 0.32;
       emis = 0.4;
@@ -542,7 +556,8 @@ function HeroNeuron({
     g.rotation.y = PREFERS_REDUCED_MOTION ? node.phase : t * 0.12 + node.phase;
 
     const activePulse =
-      !PREFERS_REDUCED_MOTION && (state === 'active' || state === 'neighbor')
+      !PREFERS_REDUCED_MOTION &&
+      (state === 'active' || state === 'neighbor' || state === 'search')
         ? 1 + Math.sin(t * 3.4) * 0.18
         : 1;
     if (haloRef.current) {
@@ -559,7 +574,8 @@ function HeroNeuron({
     if (shellRef.current) shellRef.current.opacity = 0.16 + opCur.current * 0.14;
   });
 
-  const labelVisible = state === 'active' || state === 'neighbor' || hovered;
+  const labelVisible =
+    state === 'active' || state === 'neighbor' || state === 'search' || hovered;
   const haloSize = isHero ? 8 : 4.6;
 
   return (
@@ -823,11 +839,15 @@ function CameraRig({ activeId }: { activeId: string | null }) {
 function Scene({
   activeId,
   hoverId,
+  searchIds,
+  activeCats,
   onSelect,
   onHover,
 }: {
   activeId: string | null;
   hoverId: string | null;
+  searchIds: Set<string> | null;
+  activeCats: Set<string> | null;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }) {
@@ -835,13 +855,21 @@ function Scene({
   const neighbors = activeId ? adjacency.get(activeId) : undefined;
 
   const stateOf = useCallback(
-    (id: string): 'idle' | 'active' | 'neighbor' | 'dimmed' => {
-      if (!activeId) return 'idle';
-      if (id === activeId) return 'active';
-      if (neighbors?.has(id)) return 'neighbor';
-      return 'dimmed';
+    (id: string): NeuronState => {
+      // a focused tool always wins — its sub-world is the story
+      if (activeId) {
+        if (id === activeId) return 'active';
+        if (neighbors?.has(id)) return 'neighbor';
+        return 'dimmed';
+      }
+      const tool = toolById.get(id);
+      // category filter: tools outside the active set recede
+      if (activeCats && tool && !activeCats.has(tool.category)) return 'dimmed';
+      // search: matches sing, everything else recedes
+      if (searchIds) return searchIds.has(id) ? 'search' : 'dimmed';
+      return 'idle';
     },
-    [activeId, neighbors],
+    [activeId, neighbors, searchIds, activeCats],
   );
 
   return (
@@ -857,16 +885,24 @@ function Scene({
       <Synapses activeId={activeId} />
       <SynapsePulses glow={glow} activeId={activeId} />
 
-      {HERO_NODES.map((node) => (
-        <HeroNeuron
-          key={node.tool.id}
-          node={node}
-          state={hoverId === node.tool.id && !activeId ? 'neighbor' : stateOf(node.tool.id)}
-          onSelect={onSelect}
-          onHover={onHover}
-          glow={glow}
-        />
-      ))}
+      {HERO_NODES.map((node) => {
+        const computed = stateOf(node.tool.id);
+        // hovering a non-dimmed node previews it as a neighbor glow
+        const state =
+          hoverId === node.tool.id && !activeId && computed !== 'dimmed'
+            ? 'neighbor'
+            : computed;
+        return (
+          <HeroNeuron
+            key={node.tool.id}
+            node={node}
+            state={state}
+            onSelect={onSelect}
+            onHover={onHover}
+            glow={glow}
+          />
+        );
+      })}
     </>
   );
 }
@@ -874,9 +910,27 @@ function Scene({
 /* ------------------------------------------------------------------ *
  * Public component
  * ------------------------------------------------------------------ */
+// per-category tool counts (computed once at module scope)
+const CATEGORY_COUNTS = new Map<string, number>();
+for (const tool of tools) {
+  CATEGORY_COUNTS.set(tool.category, (CATEGORY_COUNTS.get(tool.category) ?? 0) + 1);
+}
+
+const STAGE_LABEL: Record<AITool['stage'], string> = {
+  research: 'Research',
+  planning: 'Planning',
+  execution: 'Execution',
+  approval: 'Approval',
+  review: 'Review',
+};
+
 export function NeuralUniverse() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  // category ids that are currently emphasised; null = all on
+  const [activeCats, setActiveCats] = useState<Set<string> | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const activeTool = activeId ? toolById.get(activeId) : null;
   const activeCat = activeTool ? categoryById.get(activeTool.category) : null;
@@ -885,18 +939,80 @@ export function NeuralUniverse() {
     [activeId],
   );
 
+  // live search → matched ids (name / summary / category), ranked name-first
+  const trimmed = query.trim().toLowerCase();
+  const matches = useMemo(() => {
+    if (!trimmed) return [];
+    const starts: AITool[] = [];
+    const contains: AITool[] = [];
+    for (const tool of tools) {
+      const name = tool.name.toLowerCase();
+      if (name.startsWith(trimmed)) starts.push(tool);
+      else if (
+        name.includes(trimmed) ||
+        tool.summary.toLowerCase().includes(trimmed) ||
+        (categoryById.get(tool.category)?.name.toLowerCase().includes(trimmed) ?? false)
+      )
+        contains.push(tool);
+    }
+    return [...starts, ...contains];
+  }, [trimmed]);
+
+  // null = no active search highlight (also when a query yields no matches,
+  // so the brain stays alive rather than fully dimming out)
+  const searchIds = useMemo(
+    () => (trimmed && matches.length > 0 ? new Set(matches.map((t) => t.id)) : null),
+    [trimmed, matches],
+  );
+
   const handleSelect = useCallback((id: string) => {
     setActiveId((prev) => (prev === id ? null : id));
   }, []);
 
-  // Esc backs out of the focused sub-world
+  const resetView = useCallback(() => {
+    setActiveId(null);
+    setQuery('');
+    setActiveCats(null);
+  }, []);
+
+  const toggleCategory = useCallback((catId: string) => {
+    setActiveCats((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      // empty set means "no filter" — show everything
+      return next.size === 0 ? null : next;
+    });
+  }, []);
+
+  // Esc: clear search first, then back out of the sub-world / filters
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setActiveId(null);
+      if (e.key !== 'Escape') return;
+      if (trimmed) {
+        setQuery('');
+        searchRef.current?.blur();
+      } else if (activeId) {
+        setActiveId(null);
+      } else if (activeCats) {
+        setActiveCats(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [trimmed, activeId, activeCats]);
+
+  // Enter in the search field → fly to the first match
+  const onSearchKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && matches.length > 0) {
+        e.preventDefault();
+        setActiveId(matches[0].id);
+        searchRef.current?.blur();
+      }
+    },
+    [matches],
+  );
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#04060f]">
@@ -914,24 +1030,73 @@ export function NeuralUniverse() {
         <Scene
           activeId={activeId}
           hoverId={hoverId}
+          searchIds={searchIds}
+          activeCats={activeCats}
           onSelect={handleSelect}
           onHover={setHoverId}
         />
       </Canvas>
 
-      {/* top chrome-safe heading */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 px-5 pt-16 sm:px-8">
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-cyan-200/70">
-          Neural Universe
-        </p>
-        <h2 className="nu-fade mt-1 text-xl font-semibold text-white/95 sm:text-2xl" key={activeTool?.id ?? 'home'}>
-          {activeTool ? activeTool.name : 'Flying inside the living AI brain'}
-        </h2>
-        <p className="mt-1 max-w-md text-[13px] text-white/45 sm:text-sm">
-          {activeTool
-            ? `Inside ${activeTool.name}'s sub-world — its connected tools are lit up around it.`
-            : 'Tap a glowing neuron to dive into its world of connected tools.'}
-        </p>
+      {/* top chrome-safe heading + search */}
+      <div className="absolute inset-x-0 top-0 px-5 pt-16 sm:px-8">
+        <div className="pointer-events-none">
+          <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-cyan-200/70">
+            Neural Universe
+          </p>
+          <h2 className="nu-fade mt-1 text-xl font-semibold text-white/95 sm:text-2xl" key={activeTool?.id ?? 'home'}>
+            {activeTool ? activeTool.name : 'Flying inside the living AI brain'}
+          </h2>
+          <p className="mt-1 max-w-md text-[13px] text-white/45 sm:text-sm">
+            {activeTool
+              ? `Inside ${activeTool.name}'s sub-world — its connected tools are lit up around it.`
+              : trimmed
+                ? matches.length > 0
+                  ? `${matches.length} ${matches.length === 1 ? 'tool' : 'tools'} match — press Enter to fly to the first.`
+                  : `No tools match “${query.trim()}”.`
+                : 'Tap a glowing neuron to dive into its world of connected tools.'}
+          </p>
+        </div>
+
+        {/* liquid-glass search field (hidden inside a sub-world) */}
+        {!activeTool && (
+          <div className="nu-fade pointer-events-auto mt-3 flex max-w-md items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 py-2.5 shadow-lg shadow-black/30 backdrop-blur-2xl focus-within:border-cyan-300/40">
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="h-4 w-4 shrink-0 text-white/45"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search tools, categories…"
+              aria-label="Search AI tools"
+              className="min-w-0 flex-1 bg-transparent text-[14px] text-white/90 outline-none placeholder:text-white/35"
+            />
+            {trimmed && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  searchRef.current?.focus();
+                }}
+                aria-label="Clear search"
+                className="shrink-0 rounded-full px-1.5 text-base leading-none text-white/45 transition-colors hover:text-white/80"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* back-out button (only inside a sub-world) */}
@@ -949,18 +1114,54 @@ export function NeuralUniverse() {
         </button>
       )}
 
-      {/* legend (hidden inside a sub-world to keep focus) */}
+      {/* interactive category legend + filter (hidden inside a sub-world) */}
       {!activeTool && (
-        <div className="nu-fade pointer-events-none absolute bottom-5 left-5 right-5 flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-lg shadow-black/30 backdrop-blur-2xl sm:left-8 sm:right-auto sm:max-w-md">
-          {categories.map((c) => (
-            <div key={c.id} className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: c.color, boxShadow: `0 0 8px ${c.color}` }}
-              />
-              <span className="text-[11px] text-white/60">{c.shortName}</span>
-            </div>
-          ))}
+        <div className="nu-fade absolute bottom-5 left-5 right-5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-lg shadow-black/30 backdrop-blur-2xl sm:left-8 sm:right-auto sm:max-w-md">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/40">
+              {activeCats ? `Filtering ${activeCats.size}` : 'Categories'}
+            </span>
+            {(activeCats || trimmed) && (
+              <button
+                type="button"
+                onClick={resetView}
+                className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-white/55 transition-colors hover:border-white/25 hover:text-white/85"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map((c) => {
+              const on = !activeCats || activeCats.has(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleCategory(c.id)}
+                  aria-pressed={activeCats ? activeCats.has(c.id) : true}
+                  className="flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all duration-300 active:scale-[0.97]"
+                  style={{
+                    borderColor: on ? `${c.color}66` : 'rgba(255,255,255,0.06)',
+                    backgroundColor: on ? `${c.color}1f` : 'rgba(255,255,255,0.02)',
+                    opacity: on ? 1 : 0.45,
+                  }}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{
+                      backgroundColor: c.color,
+                      boxShadow: on ? `0 0 8px ${c.color}` : 'none',
+                    }}
+                  />
+                  <span className={on ? 'text-white/80' : 'text-white/55'}>
+                    {c.shortName}
+                  </span>
+                  <span className="text-white/35">{CATEGORY_COUNTS.get(c.id) ?? 0}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -980,15 +1181,28 @@ export function NeuralUniverse() {
             </span>
           </div>
           <h3 className="mt-2 text-lg font-semibold text-white">{activeTool.name}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-white/60">{activeTool.summary}</p>
+
+          {/* workflow stage pill */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span
+              className="rounded-full border border-white/15 bg-white/[0.05] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-white/65"
+            >
+              {STAGE_LABEL[activeTool.stage]} stage
+            </span>
+          </div>
+
+          <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.2em] text-white/40">
+            What it does
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-white/65">{activeTool.summary}</p>
 
           {neighborIds.length > 0 && (
-            <div className="mt-3.5">
+            <div className="mt-4">
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/40">
-                Connected tools
+                Connected to · {neighborIds.length}
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {neighborIds.slice(0, 8).map((id) => {
+                {neighborIds.map((id) => {
                   const nb = heroById.get(id);
                   if (!nb) return null;
                   return (
@@ -996,12 +1210,16 @@ export function NeuralUniverse() {
                       key={id}
                       type="button"
                       onClick={() => setActiveId(id)}
-                      className="min-h-9 rounded-full border px-3 py-1.5 text-[12px] text-white/80 transition-colors duration-200 hover:text-white active:opacity-80"
+                      className="flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] text-white/80 transition-all duration-200 hover:text-white active:scale-[0.97]"
                       style={{
                         borderColor: `${nb.category.color}55`,
                         backgroundColor: `${nb.category.color}1a`,
                       }}
                     >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: nb.category.color }}
+                      />
                       {nb.tool.name}
                     </button>
                   );
@@ -1010,9 +1228,21 @@ export function NeuralUniverse() {
             </div>
           )}
 
-          <div className="mt-3 flex items-center gap-4 text-[11px] text-white/45">
-            <span className="capitalize">Stage: {activeTool.stage}</span>
-            <span>{neighborIds.length} synapses</span>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <span className="text-[11px] text-white/40">
+              {neighborIds.length} {neighborIds.length === 1 ? 'synapse' : 'synapses'}
+            </span>
+            {activeTool.url && (
+              <a
+                href={activeTool.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-9 items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.08] px-3.5 py-1.5 text-[12px] font-medium text-white/85 transition-colors hover:border-white/30 hover:bg-white/[0.14] active:opacity-80"
+              >
+                Open
+                <span aria-hidden className="text-[13px] leading-none">↗</span>
+              </a>
+            )}
           </div>
         </div>
       )}

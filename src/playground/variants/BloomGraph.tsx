@@ -139,6 +139,45 @@ function edgeLabel(a: AITool, b: AITool): string {
   return 'CONNECTS TO';
 }
 
+// typed relationship between a focused tool and a neighbour, used by the
+// detail-panel chips so "follow the connections" reads at a glance.
+type RelKind = 'ORCHESTRATES' | 'PEER' | 'CONNECTS';
+function relationKind(focus: AITool, nb: AITool): RelKind {
+  if (focus.id === SEED_ID || nb.id === SEED_ID) return 'ORCHESTRATES';
+  if (focus.category === nb.category) return 'PEER';
+  return 'CONNECTS';
+}
+
+// shortest path (BFS over bidirectional adjacency) between two tools, used to
+// reveal a hidden target found via search / chip navigation by blooming each
+// hop along the way. Returns the id chain inclusive of both ends, or null.
+function shortestPath(from: string, to: string): string[] | null {
+  if (from === to) return [from];
+  const prev = new Map<string, string>();
+  const queue: string[] = [from];
+  const seen = new Set<string>([from]);
+  while (queue.length) {
+    const cur = queue.shift() as string;
+    for (const nb of adjacency.get(cur) ?? []) {
+      if (seen.has(nb)) continue;
+      seen.add(nb);
+      prev.set(nb, cur);
+      if (nb === to) {
+        const path = [to];
+        let p = cur;
+        while (p !== from) {
+          path.unshift(p);
+          p = prev.get(p) as string;
+        }
+        path.unshift(from);
+        return path;
+      }
+      queue.push(nb);
+    }
+  }
+  return null;
+}
+
 const NODE_R = 30;
 
 // All logical edges, computed once. Render filters by node presence so edges
@@ -201,6 +240,12 @@ export function BloomGraph() {
   );
   const [focusId, setFocusId] = useState<string>(SEED_ID);
   const [hoverId, setHoverId] = useState<string | null>(null);
+
+  // search + category filter (production: start exploration from any tool,
+  // constrain what blooms). Both are purely additive to the bloom model.
+  const [query, setQuery] = useState('');
+  const [mutedCats, setMutedCats] = useState<Set<string>>(() => new Set());
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   // mutable simulation state lives in refs (no per-frame React allocation)
   const nodesRef = useRef<Map<string, SimNode>>(new Map());
@@ -489,6 +534,68 @@ export function BloomGraph() {
     [revealed],
   );
 
+  // ---- reveal a (possibly hidden) tool by blooming each hop along the BFS
+  // path from the nearest already-revealed seed, then focus it. Powers search
+  // results and detail-panel relationship chips: any tool becomes reachable
+  // while keeping the breadcrumb provenance coherent. Hops are recorded as
+  // expansion steps so collapse still walks back cleanly.
+  const revealAndFocus = useCallback(
+    (targetId: string) => {
+      if (!toolById.has(targetId)) return;
+      if (revealed.has(targetId)) {
+        setFocusId(targetId);
+        return;
+      }
+      // find a path from a currently-revealed node to the target so we bloom
+      // a connected trail (never an orphan). Prefer the focus node's path.
+      const sources = [focusId, ...revealed];
+      let path: string[] | null = null;
+      for (const s of sources) {
+        const p = shortestPath(s, targetId);
+        if (p) {
+          path = p;
+          break;
+        }
+      }
+      if (!path) {
+        setFocusId(targetId);
+        return;
+      }
+
+      // bloom along the path: each hop's neighbour-set is the next node.
+      const nextRevealed = new Set(revealed);
+      const newSteps: Array<{ parent: string; introduced: string[] }> = [];
+      const nextExpanded = new Set<string>();
+      const fan = fanSeedRef.current;
+      const map = nodesRef.current;
+      for (let i = 0; i < path.length - 1; i++) {
+        const parentId = path[i];
+        const childId = path[i + 1];
+        if (nextRevealed.has(childId)) continue;
+        nextRevealed.add(childId);
+        nextExpanded.add(parentId);
+        newSteps.push({ parent: parentId, introduced: [childId] });
+        // seed the child at the parent so it springs out (matches `expand`).
+        const parentNode = map.get(parentId);
+        const px0 = parentNode ? parentNode.x : 0;
+        const py0 = parentNode ? parentNode.y : 0;
+        const ang = -Math.PI / 2 + i * 0.7;
+        fan.set(childId, {
+          px: px0 + Math.cos(ang) * (NODE_R * 1.1),
+          py: py0 + Math.sin(ang) * (NODE_R * 1.1),
+        });
+      }
+
+      if (newSteps.length > 0) {
+        setRevealed(nextRevealed);
+        setExpanded((prev) => new Set([...prev, ...nextExpanded]));
+        setStack((prev) => [...prev, ...newSteps]);
+      }
+      setFocusId(targetId);
+    },
+    [revealed, focusId],
+  );
+
   // ---- collapse to keep only the first `keepCount` expansion steps ----
   // Recomputes revealed/expanded purely from the kept stack (provenance
   // replay), so later steps whose parent is gone cascade away cleanly.
@@ -546,17 +653,29 @@ export function BloomGraph() {
     [expanded, stack, collapseNode, expand],
   );
 
-  // keyboard: escape collapses one step (step-by-step), shift+esc resets
+  // keyboard: Escape clears an active search/category filter first, otherwise
+  // collapses one step (step-by-step); shift+esc resets. "/" focuses search.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement !== searchRef.current) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
       if (e.key === 'Escape') {
+        if (query || mutedCats.size > 0) {
+          setQuery('');
+          setMutedCats(new Set());
+          searchRef.current?.blur();
+          return;
+        }
         if (e.shiftKey || stack.length <= 1) reset();
         else collapseLast();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [reset, collapseLast, stack.length]);
+  }, [reset, collapseLast, stack.length, query, mutedCats]);
 
   // ---- viewport transform: world -> screen (reads snapshot, not refs) ----
   const cx = size.w / 2;
@@ -573,6 +692,44 @@ export function BloomGraph() {
   }, [snapshot]);
   const focusNode = focusId ? toolById.get(focusId) : undefined;
   const focusCat = focusNode ? categoryById.get(focusNode.category) : undefined;
+
+  // ---- search matches (across ALL tools, not just revealed) ----
+  const trimmedQuery = query.trim().toLowerCase();
+  const searchMatches = useMemo(() => {
+    if (!trimmedQuery) return [] as AITool[];
+    return tools
+      .filter(
+        (t) =>
+          t.name.toLowerCase().includes(trimmedQuery) ||
+          t.summary.toLowerCase().includes(trimmedQuery) ||
+          (categoryById.get(t.category)?.name.toLowerCase().includes(trimmedQuery) ??
+            false),
+      )
+      .slice(0, 6);
+  }, [trimmedQuery]);
+  const matchIds = useMemo(
+    () => new Set(searchMatches.map((t) => t.id)),
+    [searchMatches],
+  );
+
+  // ---- category mute set: tools whose category is muted recede (eased) ----
+  const anyMuted = mutedCats.size > 0;
+
+  // counts per category over the full universe (legend chips)
+  const catCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tools) m.set(t.category, (m.get(t.category) ?? 0) + 1);
+    return m;
+  }, []);
+
+  const toggleCat = useCallback((id: string) => {
+    setMutedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // active set: focus node + its visible neighbours (direct connections)
   const activeSet = useMemo(() => {
@@ -602,6 +759,36 @@ export function BloomGraph() {
     : 0;
   const focusIsExpanded =
     focusId !== SEED_ID && expanded.has(focusId) && stack.some((s) => s.parent === focusId);
+
+  // typed relationship chips for the detail panel: every neighbour of the
+  // focus node, its kind (ORCHESTRATES/PEER/CONNECTS) and whether it's already
+  // revealed. Clicking a chip blooms+focuses that neighbour. Revealed chips
+  // first so the visible graph is easy to walk.
+  const relationChips = useMemo(() => {
+    if (!focusNode) return [];
+    const out: Array<{
+      tool: AITool;
+      cat: ToolCategory | undefined;
+      kind: RelKind;
+      revealed: boolean;
+    }> = [];
+    for (const nb of adjacency.get(focusNode.id) ?? []) {
+      const t = toolById.get(nb);
+      if (!t) continue;
+      out.push({
+        tool: t,
+        cat: categoryById.get(t.category),
+        kind: relationKind(focusNode, t),
+        revealed: revealed.has(nb),
+      });
+    }
+    out.sort((a, b) => Number(b.revealed) - Number(a.revealed));
+    return out;
+  }, [focusNode, revealed]);
+
+  const stageLabel = focusNode
+    ? focusNode.stage.charAt(0).toUpperCase() + focusNode.stage.slice(1)
+    : '';
 
   return (
     <div
@@ -708,13 +895,20 @@ export function BloomGraph() {
             const px = mx + (-uy) * off;
             const py = my + ux * off;
             const focusedView = focusId !== SEED_ID || hoverId !== null;
-            const baseOpacity = isActive
+            const ta = toolById.get(e.a);
+            const tb = toolById.get(e.b);
+            const edgeMuted =
+              anyMuted &&
+              ((ta ? mutedCats.has(ta.category) : false) ||
+                (tb ? mutedCats.has(tb.category) : false));
+            let baseOpacity = isActive
               ? 1
               : isHover
                 ? 0.85
                 : focusedView
                   ? 0.08
                   : 0.3;
+            if (edgeMuted && !isActive) baseOpacity = Math.min(baseOpacity, 0.05);
             // Two-layer opacity: outer group eases the highlight/dim change
             // (CSS transition → no snap on selection); inner group carries the
             // frame-driven spring `appear` (no transition → tracks the sim).
@@ -785,12 +979,19 @@ export function BloomGraph() {
             );
             const isExpandedNode =
               expanded.has(node.id) && stack.some((s) => s.parent === node.id);
+            const nodeTool = toolById.get(node.id);
+            const isMutedCat = nodeTool ? mutedCats.has(nodeTool.category) : false;
+            const isMatch = matchIds.has(node.id);
             // spring-in: scale up from the parent point with a soft ease
             const ease = node.appear * node.appear * (3 - 2 * node.appear);
             const scale = ease * (isFocus ? 1.2 : isHover ? 1.09 : 1);
             const r = NODE_R * scale;
             const focusedView = focusId !== SEED_ID || hoverId !== null;
-            const dim = inActive ? 1 : focusedView ? 0.22 : 1;
+            // dim priority: muted category recedes hardest, then non-active in a
+            // focused view, then search dims unmatched while a query is active.
+            let dim = inActive ? 1 : focusedView ? 0.22 : 1;
+            if (isMutedCat && !isFocus) dim = Math.min(dim, 0.1);
+            if (trimmedQuery && !isMatch && !isFocus) dim = Math.min(dim, 0.16);
             const label = node.name;
             const labelW = Math.max(54, label.length * 7.0 + 26);
             // comfortable touch target — at least ~22px radius regardless of
@@ -826,6 +1027,17 @@ export function BloomGraph() {
                     stroke={node.catGlow}
                     strokeWidth={isFocus ? 2 : 1.2}
                     opacity={0.55}
+                    filter="url(#bloom-glow)"
+                  />
+                )}
+                {/* search-match pulse ring (only while a query is active) */}
+                {isMatch && !isFocus && (
+                  <circle
+                    r={r + 9}
+                    fill="none"
+                    stroke="#fde68a"
+                    strokeWidth={1.8}
+                    opacity={0.85}
                     filter="url(#bloom-glow)"
                   />
                 )}
@@ -929,6 +1141,108 @@ export function BloomGraph() {
           <span className="text-sky-200">collapse</span>. Focusing dims the rest
           so it&apos;s clear what links to what.
         </div>
+        <div className="mt-2 text-[11px] text-slate-400/80">
+          Press{' '}
+          <kbd className="rounded bg-white/10 px-1 py-0.5 font-mono text-[10px] text-slate-200">
+            /
+          </kbd>{' '}
+          to search · <span className="text-slate-300">Esc</span> to step back
+        </div>
+      </div>
+
+      {/* ---- search (top-center) — liquid glass; starts exploration anywhere ---- */}
+      <div className="pointer-events-auto absolute left-1/2 top-16 z-20 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <div className="flex items-center gap-2 px-3">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              className="shrink-0 text-slate-400"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path
+                d="m20 20-3.5-3.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchMatches.length > 0) {
+                  revealAndFocus(searchMatches[0].id);
+                } else if (e.key === 'Escape') {
+                  if (query) {
+                    e.stopPropagation();
+                    setQuery('');
+                  } else {
+                    searchRef.current?.blur();
+                  }
+                }
+              }}
+              type="text"
+              inputMode="search"
+              placeholder="Search the AI-tool universe…"
+              aria-label="Search tools"
+              className="min-h-[40px] w-full bg-transparent py-2 text-[13px] text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="shrink-0 rounded-full px-1.5 text-[16px] leading-none text-slate-400 transition hover:text-slate-100"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {trimmedQuery && (
+            <div className="border-t border-white/10 px-1.5 pb-1.5 pt-1">
+              {searchMatches.length === 0 ? (
+                <div className="px-2.5 py-2 text-[12px] text-slate-400">
+                  No tools match “{query.trim()}”.
+                </div>
+              ) : (
+                searchMatches.map((t, i) => {
+                  const c = categoryById.get(t.category);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => revealAndFocus(t.id)}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-white/[0.08] active:scale-[0.99]"
+                    >
+                      <span
+                        className="inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: c?.color ?? '#7dd3fc' }}
+                      />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-[12.5px] font-medium text-slate-100">
+                          {t.name}
+                        </span>
+                        <span className="truncate text-[10.5px] text-slate-400">
+                          {c?.shortName} · {t.stage}
+                        </span>
+                      </span>
+                      {i === 0 && (
+                        <span className="ml-auto shrink-0 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-slate-300">
+                          ↵
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ---- breadcrumb / expansion trail (top, under header) — glass ---- */}
@@ -967,71 +1281,193 @@ export function BloomGraph() {
         </div>
       )}
 
-      {/* ---- focus inspector card (bottom-left) — liquid glass ---- */}
+      {/* ---- tool detail panel (bottom-left) — liquid glass ---- */}
       {focusNode && focusCat && (
-        <div className="absolute bottom-4 left-4 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-white/[0.07] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+        <div className="absolute bottom-4 left-4 flex max-h-[calc(100vh-9rem)] w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
           {/* keyed so content cross-fades smoothly between selections */}
           <div
             key={focusNode.id}
+            className="flex min-h-0 flex-col"
             style={{ animation: 'bloomCardIn 320ms cubic-bezier(0.22,1,0.36,1)' }}
           >
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: focusCat.color }}
-              />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {focusCat.shortName}
-              </span>
+            <div className="px-4 pt-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ background: focusCat.color }}
+                />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  {focusCat.shortName}
+                </span>
+                <span className="text-slate-600">·</span>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.12em]"
+                  style={{
+                    color: focusCat.glow,
+                    background: focusCat.color + '1f',
+                  }}
+                >
+                  {stageLabel}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-start justify-between gap-2">
+                <div className="text-lg font-semibold leading-tight text-white">
+                  {focusNode.name}
+                </div>
+                {focusNode.url && (
+                  <a
+                    href={focusNode.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10.5px] font-medium text-slate-200 transition hover:bg-white/[0.12] active:scale-[0.97]"
+                  >
+                    Open
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M7 17 17 7M9 7h8v8"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                )}
+              </div>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-slate-300/85">
+                {focusNode.summary}
+              </p>
             </div>
-            <div className="mt-1.5 text-lg font-semibold text-white">
-              {focusNode.name}
+
+            {/* connected-to: typed relationship chips */}
+            {relationChips.length > 0 && (
+              <div className="mt-3 flex min-h-0 flex-col px-4">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    Connected to · {relationChips.length}
+                  </span>
+                </div>
+                <div className="-mr-1 flex max-h-[9.5rem] flex-wrap gap-1.5 overflow-y-auto pr-1">
+                  {relationChips.map((rel) => (
+                    <button
+                      key={rel.tool.id}
+                      type="button"
+                      onClick={() => revealAndFocus(rel.tool.id)}
+                      onMouseEnter={() => setHoverId(rel.tool.id)}
+                      onMouseLeave={() =>
+                        setHoverId((h) => (h === rel.tool.id ? null : h))
+                      }
+                      className="group flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition active:scale-[0.97]"
+                      style={{
+                        borderColor: rel.revealed
+                          ? (rel.cat?.color ?? '#7dd3fc') + '66'
+                          : 'rgba(255,255,255,0.1)',
+                        background: rel.revealed
+                          ? (rel.cat?.color ?? '#7dd3fc') + '14'
+                          : 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      <span
+                        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{
+                          background: rel.revealed
+                            ? (rel.cat?.color ?? '#7dd3fc')
+                            : 'transparent',
+                          boxShadow: rel.revealed
+                            ? 'none'
+                            : `inset 0 0 0 1.5px ${rel.cat?.color ?? '#7dd3fc'}`,
+                        }}
+                      />
+                      <span className="font-medium text-slate-100">
+                        {rel.tool.name}
+                      </span>
+                      <span
+                        className="text-[8.5px] font-bold uppercase tracking-[0.08em]"
+                        style={{ color: (rel.cat?.glow ?? '#9fb2d4') + 'cc' }}
+                      >
+                        {rel.kind}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 px-4 pb-4">
+              {hiddenCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => expand(focusId)}
+                  className="min-h-[34px] rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:brightness-110 active:scale-[0.97]"
+                  style={{ background: focusCat.color }}
+                >
+                  + Expand all {hiddenCount} neighbour{hiddenCount > 1 ? 's' : ''}
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  All connections revealed
+                </span>
+              )}
+              {focusIsExpanded && (
+                <button
+                  type="button"
+                  onClick={() => collapseNode(focusId)}
+                  className="min-h-[34px] rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/[0.12] active:scale-[0.97]"
+                >
+                  – Collapse
+                </button>
+              )}
             </div>
-            <p className="mt-1 text-[12px] leading-snug text-slate-300/85">
-              {focusNode.summary}
-            </p>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {hiddenCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => expand(focusId)}
-                className="min-h-[34px] rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:brightness-110 active:scale-[0.97]"
-                style={{ background: focusCat.color }}
-              >
-                + Expand {hiddenCount} connection{hiddenCount > 1 ? 's' : ''}
-              </button>
-            ) : (
-              <span className="text-[11px] text-slate-400">
-                All connections revealed
-              </span>
-            )}
-            {focusIsExpanded && (
-              <button
-                type="button"
-                onClick={() => collapseNode(focusId)}
-                className="min-h-[34px] rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 text-[11px] font-medium text-slate-200 transition hover:bg-white/[0.12] active:scale-[0.97]"
-              >
-                – Collapse
-              </button>
-            )}
           </div>
         </div>
       )}
 
-      {/* ---- legend (top-right) — glass; hidden on phones to save space ---- */}
-      <div className="pointer-events-none absolute right-4 top-16 hidden flex-col items-end gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:flex">
-        {categories.map((c) => (
-          <div key={c.id} className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-slate-300/80">
-              {c.shortName}
-            </span>
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: c.color }}
-            />
-          </div>
-        ))}
+      {/* ---- category filter + legend (top-right) — interactive glass ---- */}
+      <div className="pointer-events-auto absolute right-4 top-16 hidden w-[12.5rem] flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:flex">
+        <div className="mb-0.5 flex items-center justify-between px-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Categories
+          </span>
+          {anyMuted && (
+            <button
+              type="button"
+              onClick={() => setMutedCats(new Set())}
+              className="rounded-full px-1.5 text-[10px] text-sky-300/90 transition hover:text-sky-200"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        {categories.map((c) => {
+          const muted = mutedCats.has(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleCat(c.id)}
+              aria-pressed={!muted}
+              className="flex min-h-[30px] items-center gap-2 rounded-lg px-2 py-1 text-left transition active:scale-[0.98]"
+              style={{
+                background: muted ? 'transparent' : 'rgba(255,255,255,0.05)',
+                opacity: muted ? 0.4 : 1,
+              }}
+            >
+              <span
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{
+                  background: muted ? 'transparent' : c.color,
+                  boxShadow: muted ? `inset 0 0 0 1.5px ${c.color}` : 'none',
+                }}
+              />
+              <span className="flex-1 truncate text-[11px] text-slate-200">
+                {c.shortName}
+              </span>
+              <span className="shrink-0 text-[10px] tabular-nums text-slate-400">
+                {catCounts.get(c.id) ?? 0}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ---- controls (bottom-right) — liquid glass ---- */}

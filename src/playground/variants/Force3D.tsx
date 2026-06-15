@@ -7,7 +7,10 @@ import {
   categories,
   toolById,
   categoryById,
+  workflowStages,
   type AITool,
+  type ToolCategoryId,
+  type WorkflowStageId,
 } from '../../data/ai-tool-universe';
 
 // ---------------------------------------------------------------------------
@@ -392,12 +395,18 @@ function Edges({ layout, focusId }: { layout: Layout; focusId: string | null }) 
 function Node({
   node,
   state,
+  searchMatch,
+  filteredOut,
   geometry,
   onHover,
   onClick,
 }: {
   node: GraphNode;
   state: 'active' | 'neighbour' | 'dim' | 'idle';
+  // True when this node matches the live search query (and a query exists).
+  searchMatch: boolean;
+  // True when an active category/stage filter excludes this node.
+  filteredOut: boolean;
   geometry: THREE.SphereGeometry;
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
@@ -411,24 +420,37 @@ function Node({
   const targetOpacity = useRef(1);
 
   useEffect(() => {
+    // Base targets from selection state.
+    let scale = node.radius;
+    let emissive = 0.22;
+    let opacity = 1;
     if (state === 'active') {
-      targetScale.current = node.radius * 1.35;
-      targetEmissive.current = 0.9;
-      targetOpacity.current = 1;
+      scale = node.radius * 1.35;
+      emissive = 0.9;
     } else if (state === 'neighbour') {
-      targetScale.current = node.radius * 1.12;
-      targetEmissive.current = 0.55;
-      targetOpacity.current = 1;
+      scale = node.radius * 1.12;
+      emissive = 0.55;
     } else if (state === 'dim') {
-      targetScale.current = node.radius * 0.86;
-      targetEmissive.current = 0.06;
-      targetOpacity.current = 0.32;
-    } else {
-      targetScale.current = node.radius;
-      targetEmissive.current = 0.22;
-      targetOpacity.current = 1;
+      scale = node.radius * 0.86;
+      emissive = 0.06;
+      opacity = 0.32;
     }
-  }, [state, node.radius]);
+    // Search match overrides toward emphasis (calm lift, never garish).
+    if (searchMatch) {
+      scale = Math.max(scale, node.radius * 1.22);
+      emissive = Math.max(emissive, 0.75);
+      opacity = 1;
+    }
+    // Filtered-out nodes recede smoothly behind everything else.
+    if (filteredOut) {
+      scale = node.radius * 0.82;
+      emissive = 0.04;
+      opacity = 0.12;
+    }
+    targetScale.current = scale;
+    targetEmissive.current = emissive;
+    targetOpacity.current = opacity;
+  }, [state, searchMatch, filteredOut, node.radius]);
 
   useFrame((_, delta) => {
     const k = damp(0.82, delta);
@@ -555,6 +577,8 @@ function GraphGroup({
   paused,
   compact,
   reduceMotion,
+  matchIds,
+  filteredIds,
 }: {
   layout: Layout;
   activeId: string | null;
@@ -564,6 +588,10 @@ function GraphGroup({
   paused: boolean;
   compact: boolean;
   reduceMotion: boolean;
+  // Live search matches (empty when no query). Highlighted in the scene.
+  matchIds: Set<string>;
+  // Nodes excluded by the active category/stage filter (empty when no filter).
+  filteredIds: Set<string>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
 
@@ -614,6 +642,8 @@ function GraphGroup({
             key={node.id}
             node={node}
             state={state}
+            searchMatch={matchIds.size > 0 && matchIds.has(node.id)}
+            filteredOut={filteredIds.has(node.id)}
             geometry={sphereGeom}
             onHover={onHover}
             onClick={onClick}
@@ -679,11 +709,38 @@ function ReferenceGrid({ extent, compact }: { extent: number; compact: boolean }
 // ---------------------------------------------------------------------------
 // Main component.
 // ---------------------------------------------------------------------------
+// Per-category node counts — computed once at module scope (no Math.random,
+// deterministic) so the legend can show how many tools live in each cluster.
+const CATEGORY_COUNTS: Record<string, number> = (() => {
+  const counts: Record<string, number> = {};
+  for (const t of tools) counts[t.category] = (counts[t.category] ?? 0) + 1;
+  return counts;
+})();
+
+// Stage display order + counts for the workflow filter row.
+const STAGE_ORDER: WorkflowStageId[] = [
+  'research',
+  'planning',
+  'execution',
+  'approval',
+  'review',
+];
+const STAGE_COUNTS: Record<string, number> = (() => {
+  const counts: Record<string, number> = {};
+  for (const t of tools) counts[t.stage] = (counts[t.stage] ?? 0) + 1;
+  return counts;
+})();
+
 export function Force3D() {
   const layout = useMemo(() => buildLayout(), []);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  // Active category / stage filters. `null` = no filter (all emphasised).
+  const [catFilter, setCatFilter] = useState<ToolCategoryId | null>(null);
+  const [stageFilter, setStageFilter] = useState<WorkflowStageId | null>(null);
   const controls = useRef<CameraControls | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Viewport + motion environment, kept reactive so the scene stays light and
   // calm if the device rotates / a setting changes.
@@ -708,6 +765,7 @@ export function Force3D() {
 
   const activeTool = activeId ? (toolById.get(activeId) ?? null) : null;
   const activeCat = activeTool ? categoryById.get(activeTool.category) : null;
+  const activeStage = activeTool ? workflowStages[activeTool.stage] : null;
   const neighbourTools = useMemo(() => {
     if (!activeId) return [];
     const idx = layout.indexById.get(activeId);
@@ -718,8 +776,52 @@ export function Force3D() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [activeId, layout]);
 
+  // -------------------------------------------------------------------------
+  // Search — match by name / summary / category. Ordered list of matches so
+  // Enter can fly to the first one. Empty query → no matches highlighted.
+  // -------------------------------------------------------------------------
+  const trimmedQuery = query.trim().toLowerCase();
+  const searchMatches = useMemo(() => {
+    if (!trimmedQuery) return [] as AITool[];
+    return tools
+      .filter((t) => {
+        const cat = categoryById.get(t.category);
+        return (
+          t.name.toLowerCase().includes(trimmedQuery) ||
+          t.summary.toLowerCase().includes(trimmedQuery) ||
+          (cat ? cat.name.toLowerCase().includes(trimmedQuery) : false)
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [trimmedQuery]);
+
+  const matchIds = useMemo(
+    () => new Set(searchMatches.map((t) => t.id)),
+    [searchMatches],
+  );
+
+  // -------------------------------------------------------------------------
+  // Filter — nodes excluded by the active category / stage filter recede in
+  // the scene. A search match always rescues a node from being filtered out,
+  // so search and filter compose rather than fight.
+  // -------------------------------------------------------------------------
+  const filteredIds = useMemo(() => {
+    if (!catFilter && !stageFilter) return new Set<string>();
+    const out = new Set<string>();
+    for (const t of tools) {
+      const failsCat = catFilter !== null && t.category !== catFilter;
+      const failsStage = stageFilter !== null && t.stage !== stageFilter;
+      if ((failsCat || failsStage) && !matchIds.has(t.id)) out.add(t.id);
+    }
+    return out;
+  }, [catFilter, stageFilter, matchIds]);
+
   const camDist = layout.bounds * 2.1;
   const resetView = () => {
+    setActiveId(null);
+    setQuery('');
+    setCatFilter(null);
+    setStageFilter(null);
     controls.current?.setLookAt(
       camDist * 0.45,
       camDist * 0.32,
@@ -730,6 +832,32 @@ export function Force3D() {
       true,
     );
   };
+
+  const focusFirstMatch = () => {
+    const first = searchMatches[0];
+    if (first) setActiveId(first.id);
+  };
+
+  // Keyboard: Enter focuses first match (handled on the input), Esc clears the
+  // query / deselects from anywhere on the screen.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (query) setQuery('');
+        else if (activeId) setActiveId(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [query, activeId]);
+
+  const toggleCat = (id: ToolCategoryId) =>
+    setCatFilter((cur) => (cur === id ? null : id));
+  const toggleStage = (id: WorkflowStageId) =>
+    setStageFilter((cur) => (cur === id ? null : id));
+
+  const hasFilter = catFilter !== null || stageFilter !== null;
+  const showHint = !activeTool && !trimmedQuery && !hasFilter;
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#05080f]">
@@ -777,6 +905,8 @@ export function Force3D() {
           paused={Boolean(hoverId || activeId)}
           compact={compact}
           reduceMotion={reduceMotion}
+          matchIds={matchIds}
+          filteredIds={filteredIds}
         />
 
         <FlyController controls={controls} target={activeNode} />
@@ -789,16 +919,96 @@ export function Force3D() {
         />
       </Canvas>
 
-      {/* Top chrome clearance + title (frosted-glass HUD pill) */}
+      {/* Top chrome clearance + title + search (frosted-glass HUD). */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-16 sm:px-6">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/80">
-            3D Force Graph
-          </p>
-          <p className="mt-1 text-xs text-white/55 sm:text-sm">
-            Drag to orbit · pinch to zoom · tap a node to fly in
-          </p>
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-cyan-300/80">
+              3D Force Graph
+            </p>
+            <p className="mt-1 text-xs text-white/55 sm:text-sm">
+              Drag to orbit · pinch to zoom · tap a node to fly in
+            </p>
+          </div>
+
+          {/* Search field — glass, with live match count + clear affordance. */}
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl focus-within:border-cyan-300/40">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4 shrink-0 text-white/35"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  focusFirstMatch();
+                } else if (e.key === 'Escape') {
+                  setQuery('');
+                }
+              }}
+              placeholder="Search tools…"
+              aria-label="Search tools"
+              className="w-40 bg-transparent text-sm text-white/85 outline-none placeholder:text-white/35 sm:w-52"
+            />
+            {trimmedQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  searchRef.current?.focus();
+                }}
+                aria-label="Clear search"
+                className="shrink-0 rounded-full px-1 text-white/40 transition hover:text-white/80 active:scale-90"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+
+          {/* Live search results — click to fly to a node. */}
+          {trimmedQuery ? (
+            <div className="pointer-events-auto max-h-[40vh] w-[18rem] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-white/[0.07] p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+              {searchMatches.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-white/45">No tools match “{query.trim()}”.</p>
+              ) : (
+                searchMatches.map((t) => {
+                  const tc = categoryById.get(t.category);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setActiveId(t.id)}
+                      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition duration-200 hover:bg-white/[0.1] active:scale-[0.98] ${
+                        activeId === t.id ? 'bg-white/[0.12]' : ''
+                      }`}
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: tc?.color ?? '#fff' }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-white/85">{t.name}</span>
+                      <span className="shrink-0 text-[9px] uppercase tracking-[0.18em] text-white/35">
+                        {tc?.shortName ?? t.category}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
         </div>
+
         <div className="hidden rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-right font-mono text-[10px] leading-relaxed text-white/45 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:block">
           <div>
             <span className="text-white/70">{layout.nodes.length}</span> nodes ·{' '}
@@ -808,34 +1018,98 @@ export function Force3D() {
         </div>
       </div>
 
-      {/* Category legend — frosted glass card; hidden on phones to keep it light. */}
-      <div className="pointer-events-none absolute left-4 top-32 hidden flex-col gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:left-6 md:flex">
-        {categories.map((c) => (
-          <div key={c.id} className="flex items-center gap-2">
-            <span
-              className="h-2 w-2 rounded-[2px]"
-              style={{ backgroundColor: c.color }}
-            />
-            <span className="text-[10px] uppercase tracking-[0.18em] text-white/50">
-              {c.shortName}
-            </span>
-          </div>
-        ))}
+      {/* Category legend — interactive glass card; toggling a category
+          emphasises its tools and recedes the rest. Hidden on phones. */}
+      <div className="pointer-events-auto absolute left-4 top-1/2 hidden -translate-y-1/2 flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.06] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:left-6 md:flex">
+        <p className="px-2 pb-1 pt-0.5 text-[9px] uppercase tracking-[0.24em] text-white/35">
+          Categories
+        </p>
+        {categories.map((c) => {
+          const on = catFilter === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleCat(c.id)}
+              aria-pressed={on}
+              className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition duration-300 active:scale-[0.97] ${
+                on
+                  ? 'bg-white/[0.12]'
+                  : catFilter
+                    ? 'opacity-45 hover:opacity-80'
+                    : 'hover:bg-white/[0.08]'
+              }`}
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-[2px]"
+                style={{
+                  backgroundColor: c.color,
+                  boxShadow: on ? `0 0 8px ${c.color}` : 'none',
+                }}
+              />
+              <span className="flex-1 text-[10px] uppercase tracking-[0.18em] text-white/55">
+                {c.shortName}
+              </span>
+              <span className="font-mono text-[9px] text-white/35">
+                {CATEGORY_COUNTS[c.id] ?? 0}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Reset-view affordance — glass button, comfortable tap target. */}
+      {/* Workflow-stage filter row — glass chips along the bottom edge. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex flex-wrap justify-center gap-1.5 px-4 sm:bottom-6">
+        {STAGE_ORDER.map((sid) => {
+          const on = stageFilter === sid;
+          return (
+            <button
+              key={sid}
+              type="button"
+              onClick={() => toggleStage(sid)}
+              aria-pressed={on}
+              className={`pointer-events-auto rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] backdrop-blur-xl transition duration-300 active:scale-95 ${
+                on
+                  ? 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100'
+                  : 'border-white/10 bg-white/[0.06] text-white/55 hover:bg-white/[0.1] hover:text-white/80'
+              }`}
+            >
+              {workflowStages[sid].name}
+              <span className="ml-1.5 font-mono text-white/35">{STAGE_COUNTS[sid] ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Reset / overview affordance — glass button, comfortable tap target. */}
       <button
         type="button"
         onClick={resetView}
-        className="absolute right-4 top-32 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium tracking-wide text-white/70 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/40 hover:bg-white/[0.1] hover:text-cyan-100 active:scale-95 sm:right-6"
+        className="pointer-events-auto absolute right-4 top-32 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium tracking-wide text-white/70 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-300 hover:border-cyan-300/40 hover:bg-white/[0.1] hover:text-cyan-100 active:scale-95 sm:right-6"
       >
-        Reset view
+        Overview
       </button>
 
-      {/* Active node inspector card — liquid glass, eased slide-up, scrollable
-          so it never overflows on phone height. */}
+      {/* Initial hint / empty state — fades out once the user engages. */}
       <div
-        className={`pointer-events-none absolute bottom-4 left-4 right-4 mx-auto max-w-md transition-all duration-500 ease-out sm:bottom-6 ${
+        className={`pointer-events-none absolute inset-x-0 top-1/2 mx-auto flex max-w-xs -translate-y-1/2 flex-col items-center px-6 text-center transition-opacity duration-700 ${
+          showHint ? 'opacity-100' : 'opacity-0'
+        }`}
+        aria-hidden={!showHint}
+      >
+        <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-300/70">
+          Inspect the universe
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-white/55">
+          Tap any node to fly in and reveal what it does and what it connects to.
+          Search to find a tool, or filter by category and stage.
+        </p>
+      </div>
+
+      {/* Active node inspector card — liquid glass, eased slide-up, scrollable
+          so it never overflows on phone height. Sits above the stage chips. */}
+      <div
+        className={`pointer-events-none absolute bottom-16 left-4 right-4 mx-auto max-w-md transition-all duration-500 ease-out sm:bottom-20 ${
           activeTool && activeNode
             ? 'translate-y-0 opacity-100'
             : 'pointer-events-none translate-y-6 opacity-0'
@@ -843,7 +1117,7 @@ export function Force3D() {
         aria-hidden={!(activeTool && activeNode)}
       >
         {activeTool && activeNode ? (
-          <div className="pointer-events-auto max-h-[60vh] overflow-y-auto overscroll-contain rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
+          <div className="pointer-events-auto max-h-[58vh] overflow-y-auto overscroll-contain rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <span
@@ -862,11 +1136,21 @@ export function Force3D() {
               </span>
             </div>
             <h3 className="mt-2 text-xl font-semibold text-white">{activeTool.name}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-white/70">{activeTool.summary}</p>
+
+            {/* Workflow stage badge — where this tool sits in the flow. */}
+            {activeStage ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-cyan-200/70">Stage</span>
+                <span className="text-[11px] font-medium text-cyan-100/90">{activeStage.name}</span>
+              </div>
+            ) : null}
+
+            <p className="mt-2.5 text-sm leading-relaxed text-white/70">{activeTool.summary}</p>
+
             {neighbourTools.length > 0 ? (
               <div className="mt-3">
                 <p className="mb-1.5 text-[10px] uppercase tracking-[0.24em] text-white/40">
-                  Connected to
+                  Connected to ({neighbourTools.length})
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {neighbourTools.map((t) => {
@@ -889,13 +1173,29 @@ export function Force3D() {
                 </div>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={() => setActiveId(null)}
-              className="mt-4 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/45 transition duration-300 hover:bg-white/[0.1] hover:text-white/80 active:scale-95"
-            >
-              Close
-            </button>
+
+            <div className="mt-4 flex items-center gap-2">
+              {activeTool.url ? (
+                <a
+                  href={activeTool.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-cyan-100 transition duration-300 hover:border-cyan-300/60 hover:bg-cyan-300/20 active:scale-95"
+                >
+                  Open
+                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 17 17 7M9 7h8v8" />
+                  </svg>
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setActiveId(null)}
+                className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/45 transition duration-300 hover:bg-white/[0.1] hover:text-white/80 active:scale-95"
+              >
+                Close
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

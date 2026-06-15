@@ -3,10 +3,14 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
+  categories,
   categoryById,
   tools,
   toolById,
+  workflowStages,
   type AITool,
+  type ToolCategory,
+  type ToolCategoryId,
 } from '../../data/ai-tool-universe';
 
 /**
@@ -15,6 +19,13 @@ import {
  * A force-directed 2.5D node graph. Layout is precomputed once at module
  * load with a small spring/repulsion relaxation (deterministic, no random
  * seeds), so every frame is cheap and stable.
+ *
+ * Production layer: glass search, category legend filter, relation-depth
+ * highlighting (direct neighbours bright, 2nd-degree dim, rest faint), a
+ * full liquid-glass detail panel with clickable connection chips, and a
+ * reset-to-overview control. Built on top of the existing iOS-polished
+ * smoothness (frame-rate-independent easing, viewport-tiered budgets,
+ * touch, reduced-motion).
  */
 
 // ---------------------------------------------------------------------------
@@ -210,6 +221,21 @@ function relax(
   }
 }
 
+// Second-degree neighbours of a node (direct neighbours excluded).
+function secondDegree(id: string): Set<string> {
+  const direct = GRAPH.adjacency.get(id);
+  const out = new Set<string>();
+  if (!direct) return out;
+  for (const nId of direct) {
+    const nn = GRAPH.adjacency.get(nId);
+    if (!nn) continue;
+    for (const mId of nn) {
+      if (mId !== id && !direct.has(mId)) out.add(mId);
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Environment helpers (mobile / reduced-motion) — read once, no per-frame work
 // ---------------------------------------------------------------------------
@@ -233,6 +259,16 @@ const SPHERE_SEGMENTS = readIsSmall() ? 16 : 22;
 const HALO_SEGMENTS = readIsSmall() ? 12 : 18;
 const SPHERE_GEOM = new THREE.SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS);
 const HALO_GEOM = new THREE.SphereGeometry(1, HALO_SEGMENTS, HALO_SEGMENTS);
+
+// ---------------------------------------------------------------------------
+// Category counts (module-level, once)
+// ---------------------------------------------------------------------------
+
+const CATEGORY_COUNTS: Map<ToolCategoryId, number> = (() => {
+  const m = new Map<ToolCategoryId, number>();
+  for (const t of tools) m.set(t.category, (m.get(t.category) ?? 0) + 1);
+  return m;
+})();
 
 // ---------------------------------------------------------------------------
 // Edge lines (one merged LineSegments per kind)
@@ -303,7 +339,7 @@ function Edges({ kind, selectedId, reducedMotion }: EdgesProps) {
     const base = kind === 1 ? 0.16 : 0.34;
     const swing = kind === 1 ? 0.05 : 0.1;
     // When a selection exists and this group isn't incident, ease toward dim.
-    const dim = selectedId && !incidentToSelection ? 0.22 : 1;
+    const dim = selectedId && !incidentToSelection ? 0.18 : 1;
     const target = (base + pulse * swing) * dim;
     mat.opacity += (target - mat.opacity) * 0.12;
   });
@@ -326,9 +362,26 @@ function Edges({ kind, selectedId, reducedMotion }: EdgesProps) {
 // Node sphere + halo
 // ---------------------------------------------------------------------------
 
+/**
+ * Relation-depth + filter state collapsed into a single visual tier:
+ *   selected  — the focused node
+ *   neighbour — direct (1st-degree) connection of the selection
+ *   far       — 2nd-degree connection (dimmer)
+ *   dimmed    — unrelated to the selection, or filtered/search-out
+ *   match     — a search/filter highlight when nothing is selected
+ *   normal    — resting state
+ */
+type NodeState =
+  | 'normal'
+  | 'selected'
+  | 'neighbour'
+  | 'far'
+  | 'dimmed'
+  | 'match';
+
 interface NodeMeshProps {
   node: Node;
-  state: 'normal' | 'selected' | 'neighbour' | 'dimmed';
+  state: NodeState;
   hovered: boolean;
   showLabel: boolean;
   onSelect: (id: string) => void;
@@ -352,25 +405,40 @@ function NodeMesh({
     const emissive =
       state === 'selected'
         ? 1.5
-        : state === 'neighbour'
-          ? 0.9
-          : state === 'dimmed'
-            ? 0.12
-            : 0.45;
+        : state === 'match'
+          ? 1.2
+          : state === 'neighbour'
+            ? 0.9
+            : state === 'far'
+              ? 0.45
+              : state === 'dimmed'
+                ? 0.1
+                : 0.45;
     const scale =
-      (state === 'selected' ? 1.35 : state === 'dimmed' ? 0.8 : 1) *
-      (hovered ? 1.18 : 1);
+      (state === 'selected'
+        ? 1.35
+        : state === 'match'
+          ? 1.22
+          : state === 'dimmed'
+            ? 0.78
+            : state === 'far'
+              ? 0.92
+              : 1) * (hovered ? 1.18 : 1);
     const haloOpacity =
       state === 'selected'
         ? 0.5
-        : hovered
-          ? 0.4
-          : state === 'neighbour'
-            ? 0.22
-            : state === 'dimmed'
-              ? 0.04
-              : 0.16;
-    const coreOpacity = state === 'dimmed' ? 0.18 : 0.95;
+        : state === 'match'
+          ? 0.42
+          : hovered
+            ? 0.4
+            : state === 'neighbour'
+              ? 0.22
+              : state === 'far'
+                ? 0.1
+                : state === 'dimmed'
+                  ? 0.03
+                  : 0.16;
+    const coreOpacity = state === 'dimmed' ? 0.16 : state === 'far' ? 0.6 : 0.95;
     return { base, emissive, scale, haloOpacity, coreOpacity };
   }, [hovered, node.size, state]);
 
@@ -472,7 +540,10 @@ function NodeMesh({
 interface SceneProps {
   selectedId: string | null;
   hoveredId: string | null;
+  matchIds: Set<string> | null;
+  mutedCats: Set<ToolCategoryId>;
   reducedMotion: boolean;
+  focusToken: number;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }
@@ -480,7 +551,10 @@ interface SceneProps {
 function Scene({
   selectedId,
   hoveredId,
+  matchIds,
+  mutedCats,
   reducedMotion,
+  focusToken,
   onSelect,
   onHover,
 }: SceneProps) {
@@ -491,6 +565,11 @@ function Scene({
   const neighbours = useMemo(() => {
     if (!selectedId) return null;
     return GRAPH.adjacency.get(selectedId) ?? new Set<string>();
+  }, [selectedId]);
+
+  const secondDeg = useMemo(() => {
+    if (!selectedId) return null;
+    return secondDegree(selectedId);
   }, [selectedId]);
 
   // Animate the camera to centre the selected node.
@@ -515,6 +594,15 @@ function Scene({
     [invalidate],
   );
 
+  // Pull the camera back to an overview of the whole graph.
+  const resetView = useCallback(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const d = GRAPH.radius * 2.4;
+    void controls.setLookAt(10, 8, d, 0, 0, 0, true);
+    invalidate();
+  }, [invalidate]);
+
   const handleSelect = useCallback(
     (id: string) => {
       onSelect(id);
@@ -522,6 +610,16 @@ function Scene({
     },
     [focusNode, onSelect],
   );
+
+  // React to external focus requests (search Enter / chip clicks / reset).
+  // focusToken increments to retrigger; selectedId null → overview.
+  const lastToken = useRef(focusToken);
+  useEffect(() => {
+    if (focusToken === lastToken.current) return;
+    lastToken.current = focusToken;
+    if (selectedId) focusNode(selectedId);
+    else resetView();
+  }, [focusToken, selectedId, focusNode, resetView]);
 
   // Gentle idle drift of the whole graph when nothing is selected.
   const rootRef = useRef<THREE.Group>(null);
@@ -567,18 +665,29 @@ function Scene({
         <Edges kind={0} selectedId={selectedId} reducedMotion={reducedMotion} />
 
         {GRAPH.nodes.map((node) => {
-          let nodeState: NodeMeshProps['state'] = 'normal';
+          const muted = mutedCats.size > 0 && mutedCats.has(node.tool.category);
+          let nodeState: NodeState = 'normal';
           if (selectedId) {
             if (node.id === selectedId) nodeState = 'selected';
             else if (neighbours?.has(node.id)) nodeState = 'neighbour';
+            else if (secondDeg?.has(node.id)) nodeState = 'far';
             else nodeState = 'dimmed';
+            // A category filter further recedes muted nodes even within the
+            // selection's neighbourhood.
+            if (muted && nodeState !== 'selected') nodeState = 'dimmed';
+          } else if (matchIds) {
+            nodeState = matchIds.has(node.id) ? 'match' : 'dimmed';
+          } else if (muted) {
+            nodeState = 'dimmed';
           }
+
           const hovered = hoveredId === node.id;
           const showLabel =
             nodeState === 'selected' ||
             nodeState === 'neighbour' ||
+            nodeState === 'match' ||
             hovered ||
-            node.id === 'founder-os';
+            (node.id === 'founder-os' && !selectedId && !matchIds);
           return (
             <NodeMesh
               key={node.id}
@@ -597,6 +706,72 @@ function Scene({
 }
 
 // ---------------------------------------------------------------------------
+// Glass UI primitives
+// ---------------------------------------------------------------------------
+
+const GLASS =
+  'rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl';
+
+interface CategoryLegendProps {
+  mutedCats: Set<ToolCategoryId>;
+  onToggle: (id: ToolCategoryId) => void;
+  onSolo: (id: ToolCategoryId) => void;
+}
+
+function CategoryLegend({ mutedCats, onToggle, onSolo }: CategoryLegendProps) {
+  const anyMuted = mutedCats.size > 0;
+  return (
+    <div className={`pointer-events-auto ${GLASS} p-2.5`}>
+      <div className="flex items-center justify-between gap-3 px-1 pb-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/55">
+          Categories
+        </p>
+        {anyMuted && (
+          <button
+            type="button"
+            onClick={() => onSolo('__all__' as ToolCategoryId)}
+            className="text-[10px] font-medium text-cyan-200/80 transition-colors hover:text-cyan-100"
+          >
+            Show all
+          </button>
+        )}
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {categories.map((cat: ToolCategory) => {
+          const muted = mutedCats.has(cat.id);
+          const count = CATEGORY_COUNTS.get(cat.id) ?? 0;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => onToggle(cat.id)}
+              onDoubleClick={() => onSolo(cat.id)}
+              title={`${cat.name} — ${cat.description}\nClick to toggle • double-click to solo`}
+              className="group flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors duration-200 hover:bg-white/[0.07]"
+              style={{ minHeight: 34, opacity: muted ? 0.4 : 1 }}
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full transition-all duration-300"
+                style={{
+                  background: cat.color,
+                  boxShadow: muted ? 'none' : `0 0 10px ${cat.glow}`,
+                }}
+              />
+              <span className="flex-1 text-[12px] font-medium text-white/80">
+                {cat.shortName}
+              </span>
+              <span className="text-[10px] tabular-nums text-white/40">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Public component
 // ---------------------------------------------------------------------------
 
@@ -604,10 +779,43 @@ export function BrainGraph() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
+  const [query, setQuery] = useState('');
+  const [mutedCats, setMutedCats] = useState<Set<ToolCategoryId>>(new Set());
+  const [focusToken, setFocusToken] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Search matches (only when query is non-empty and nothing is selected).
+  const trimmed = query.trim().toLowerCase();
+  const matchIds = useMemo(() => {
+    if (!trimmed) return null;
+    const ids = new Set<string>();
+    for (const t of tools) {
+      const cat = categoryById.get(t.category);
+      if (
+        t.name.toLowerCase().includes(trimmed) ||
+        t.summary.toLowerCase().includes(trimmed) ||
+        (cat?.name.toLowerCase().includes(trimmed) ?? false)
+      ) {
+        ids.add(t.id);
+      }
+    }
+    return ids;
+  }, [trimmed]);
+
+  const firstMatch = useMemo(() => {
+    if (!matchIds || matchIds.size === 0) return null;
+    for (const t of tools) if (matchIds.has(t.id)) return t.id;
+    return null;
+  }, [matchIds]);
+
+  // Focus / fly-to helper used by search, chips, and reset.
+  const focusOn = useCallback((id: string | null) => {
+    setSelectedId(id);
+    setFocusToken((t) => t + 1);
+  }, []);
 
   // Remember the last selected id so the detail card keeps its content while
-  // it eases out after deselect. Updated asynchronously in an effect (no
-  // cascading renders); when something is selected we show it immediately.
+  // it eases out after deselect.
   const [lastId, setLastId] = useState<string | null>(null);
   useEffect(() => {
     if (selectedId) {
@@ -630,8 +838,85 @@ export function BrainGraph() {
   const cardCategory = cardTool
     ? categoryById.get(cardTool.category)
     : undefined;
+  const cardStage = cardTool ? workflowStages[cardTool.stage] : undefined;
+
+  // Connections of the selected tool that actually exist in the dataset.
+  const cardRelations = useMemo(() => {
+    if (!cardTool) return [];
+    const seen = new Set<string>();
+    const out: AITool[] = [];
+    for (const id of cardTool.relationIds) {
+      if (seen.has(id)) continue;
+      const t = toolById.get(id);
+      if (t) {
+        seen.add(id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [cardTool]);
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    // Camera focus is driven inside the Scene's handleSelect; no token needed.
+  }, []);
+
+  const toggleCat = useCallback((id: ToolCategoryId) => {
+    setMutedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Solo: isolate one category (mute every other). '__all__' clears the filter.
+  const soloCat = useCallback((id: ToolCategoryId) => {
+    if ((id as string) === '__all__') {
+      setMutedCats(new Set());
+      return;
+    }
+    setMutedCats(() => {
+      const next = new Set<ToolCategoryId>();
+      for (const c of categories) if (c.id !== id) next.add(c.id);
+      return next;
+    });
+  }, []);
+
+  // Keyboard: Enter focuses first match, Esc clears selection / search.
+  const onSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && firstMatch) {
+        e.preventDefault();
+        setQuery('');
+        focusOn(firstMatch);
+        inputRef.current?.blur();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        if (query) setQuery('');
+        else focusOn(null);
+        inputRef.current?.blur();
+      }
+    },
+    [firstMatch, focusOn, query],
+  );
+
+  // Global Esc to deselect even when not in the input.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      if (selectedId) focusOn(null);
+      else if (mutedCats.size > 0) setMutedCats(new Set());
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId, mutedCats, focusOn]);
+
+  const showReset = selectedId !== null || mutedCats.size > 0 || trimmed !== '';
 
   return (
     <div className="absolute inset-0 h-full w-full">
@@ -647,8 +932,11 @@ export function BrainGraph() {
         <Scene
           selectedId={selectedId}
           hoveredId={hoveredId}
+          matchIds={selectedId ? null : matchIds}
+          mutedCats={mutedCats}
           reducedMotion={reducedMotion}
-          onSelect={setSelectedId}
+          focusToken={focusToken}
+          onSelect={handleSelect}
           onHover={setHoveredId}
         />
       </Canvas>
@@ -662,18 +950,108 @@ export function BrainGraph() {
         }}
       />
 
-      {/* Title / hint — liquid-glass pill, clears the lab chrome (~64px) */}
-      <div className="pointer-events-none absolute left-4 top-16 select-none sm:left-5">
-        <div className="inline-flex flex-col rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+      {/* Top-left cluster: title + search + legend (clears lab chrome ~64px) */}
+      <div className="pointer-events-none absolute left-4 top-16 z-10 flex w-[15.5rem] max-w-[calc(100%-2rem)] flex-col gap-2.5 sm:left-5">
+        {/* Title / hint pill */}
+        <div className={`pointer-events-none ${GLASS} px-3.5 py-2.5`}>
           <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-200/80">
             AI Brain
           </p>
-          <p className="mt-1 text-[11px] text-white/45">
+          <p className="mt-1 text-[11px] leading-relaxed text-white/45">
             {selectedId
-              ? 'Tap empty space to release focus'
-              : 'Tap a node • drag to orbit • pinch to zoom'}
+              ? 'Showing this tool and its connections — tap empty space to release'
+              : trimmed
+                ? `${matchIds?.size ?? 0} match${(matchIds?.size ?? 0) === 1 ? '' : 'es'} • Enter to focus`
+                : 'Search, filter, or tap a node to explore all 49 tools'}
           </p>
         </div>
+
+        {/* Search field */}
+        <div className={`pointer-events-auto ${GLASS} flex items-center gap-2 px-3 py-2`}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            className="shrink-0 text-white/40"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onSearchKeyDown}
+            placeholder="Search tools…"
+            aria-label="Search AI tools"
+            spellCheck={false}
+            autoComplete="off"
+            className="w-full bg-transparent text-[13px] text-white/90 placeholder:text-white/35 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                inputRef.current?.focus();
+              }}
+              aria-label="Clear search"
+              className="shrink-0 rounded-md px-1 text-white/40 transition-colors hover:text-white/80"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Category legend (hidden while a search is active to reduce clutter) */}
+        {!trimmed && (
+          <CategoryLegend
+            mutedCats={mutedCats}
+            onToggle={toggleCat}
+            onSolo={soloCat}
+          />
+        )}
+      </div>
+
+      {/* Reset / overview control (top-right) */}
+      <div className="pointer-events-none absolute right-4 top-16 z-10 sm:right-5">
+        <button
+          type="button"
+          onClick={() => {
+            setQuery('');
+            setMutedCats(new Set());
+            focusOn(null);
+          }}
+          aria-label="Reset to overview"
+          className={`pointer-events-auto ${GLASS} flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-white/75 transition-all duration-300 hover:bg-white/[0.12] active:scale-[0.97]`}
+          style={{
+            minHeight: 36,
+            opacity: showReset ? 1 : 0,
+            transform: showReset ? 'translateY(0)' : 'translateY(-6px)',
+            pointerEvents: showReset ? 'auto' : 'none',
+          }}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v4h4" />
+          </svg>
+          Overview
+        </button>
       </div>
 
       {/* Selected-tool detail card — liquid glass, eased show/hide */}
@@ -683,7 +1061,7 @@ export function BrainGraph() {
       >
         {cardTool && (
           <div
-            className="w-full max-w-[22rem] origin-bottom-left rounded-2xl border border-white/10 bg-white/[0.07] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ease-out"
+            className="w-full max-w-[23rem] origin-bottom-left rounded-2xl border border-white/10 bg-white/[0.07] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ease-out"
             style={{
               opacity: selectedId ? 1 : 0,
               transform: selectedId
@@ -693,18 +1071,64 @@ export function BrainGraph() {
               boxShadow: `0 12px 40px rgba(0,0,0,0.45), 0 0 26px ${cardCategory?.glow ?? 'rgba(155,214,255,0.25)'}`,
             }}
           >
-            <p
-              className="text-[10px] font-semibold uppercase tracking-[0.22em]"
-              style={{ color: cardCategory?.color ?? '#9bd6ff' }}
-            >
-              {cardCategory?.shortName ?? cardTool.category}
-            </p>
-            <p className="mt-1 text-base font-semibold leading-snug text-white">
+            {/* Category + workflow stage row */}
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
+                style={{ color: cardCategory?.color ?? '#9bd6ff' }}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    background: cardCategory?.color ?? '#9bd6ff',
+                    boxShadow: `0 0 8px ${cardCategory?.glow ?? 'rgba(155,214,255,0.4)'}`,
+                  }}
+                />
+                {cardCategory?.shortName ?? cardTool.category}
+              </span>
+              {cardStage && (
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-white/55">
+                  {cardStage.name}
+                </span>
+              )}
+            </div>
+
+            <p className="mt-2 text-base font-semibold leading-snug text-white">
               {cardTool.name}
             </p>
             <p className="mt-1.5 text-xs leading-relaxed text-white/65">
               {cardTool.summary}
             </p>
+
+            {/* Connections — clickable chips that fly to that tool */}
+            {cardRelations.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                  Connected to
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {cardRelations.map((rel) => {
+                    const relCat = categoryById.get(rel.category);
+                    return (
+                      <button
+                        key={rel.id}
+                        type="button"
+                        onClick={() => focusOn(rel.id)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/80 transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.96]"
+                        style={{ minHeight: 28 }}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: relCat?.color ?? '#9bd6ff' }}
+                        />
+                        {rel.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {cardTool.url && (
               <a
                 href={cardTool.url}
