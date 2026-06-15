@@ -7,6 +7,7 @@ playwright-report/
 .env.*
 !.env.example
 .vercel
+.superpowers/
 .agent/status/
 .agent/tmp/
 
