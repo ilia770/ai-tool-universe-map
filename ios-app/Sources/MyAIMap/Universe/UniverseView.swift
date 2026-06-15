@@ -35,6 +35,8 @@ struct UniverseView: View {
             ProximityCategorySystem.registerSystem()
             ShellBreathingComponent.registerComponent()
             ShellBreathingSystem.registerSystem()
+            ToolLabelComponent.registerComponent()
+            ToolLabelFadeSystem.registerSystem()
 
             let universe = Entity()
             universe.name = "universe"
@@ -230,6 +232,9 @@ struct UniverseView: View {
                         reduceMotion: reduceMotion
                     ))
                 }
+                // Billboarded, distance-faded tool labels for the open pocket
+                // (backlog 26). Rebuilt on every category change.
+                Self.refreshToolLabels(universe: universe, selectedCategory: selectedCategory)
             }
 
             Self.applyLayout(
@@ -526,6 +531,58 @@ struct UniverseView: View {
     /// and `labelLift` clears the anchor sphere. Both are tunable.
     private static let labelFontSize: CGFloat = 0.8
     private static let labelLift: Float = 1.0
+
+    /// Tool labels read up close inside an open pocket, so they're smaller
+    /// than the category labels and lifted just clear of the orb.
+    private static let toolLabelFontSize: CGFloat = 0.32
+    private static let toolLabelLift: Float = 0.5
+
+    /// Billboarded name label for a pocketed tool, distance-faded by
+    /// `ToolLabelFadeSystem`. Built/removed with the pocket (see
+    /// `refreshToolLabels`) so the overview scene stays uncluttered. Not
+    /// tappable — the tool orb beneath it owns the tap. Starts fully
+    /// transparent; the fade system sets the real opacity on the next frame.
+    private static func makeToolLabel(tool: Tool, position: SIMD3<Float>) -> Entity {
+        let mesh = MeshResource.generateText(
+            tool.name,
+            extrusionDepth: 0.01,
+            font: .systemFont(ofSize: toolLabelFontSize, weight: .medium),
+            containerFrame: .zero,
+            alignment: .center,
+            lineBreakMode: .byTruncatingTail
+        )
+        let label = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: .white)])
+        let center = mesh.bounds.center
+        label.position = SIMD3<Float>(-center.x, -center.y, -center.z)
+
+        let root = Entity()
+        root.name = "tool-label:\(tool.id)"
+        root.position = position + SIMD3<Float>(0, toolLabelLift, 0)
+        root.components.set(BillboardComponent())
+        root.components.set(ToolLabelComponent())
+        root.components.set(OpacityComponent(opacity: 0))
+        root.addChild(label)
+        return root
+    }
+
+    /// Removes any existing tool labels and, when a category pocket is open,
+    /// adds a fresh label at each pocketed tool's position. Mirrors the
+    /// pocket-shell lifecycle in the update closure.
+    private static func refreshToolLabels(universe: Entity, selectedCategory: ToolCategoryId) {
+        for child in universe.children where child.name.hasPrefix("tool-label:") {
+            child.removeFromParent()
+        }
+        guard selectedCategory != .core else { return }
+        let category = UniverseSeed.category(selectedCategory)
+        let tools = UniverseSeed.tools(in: selectedCategory)
+        for (index, tool) in tools.enumerated() {
+            let position = toolPosition(
+                tool: tool, category: category,
+                index: index, count: tools.count, pocketed: true
+            )
+            universe.addChild(makeToolLabel(tool: tool, position: position))
+        }
+    }
 
     private static func makeCategoryLabel(category: ToolCategory, position: SIMD3<Float>) -> Entity {
         let mesh = MeshResource.generateText(

@@ -97,11 +97,14 @@ Rules of engagement:
     label around each anchor (web CategoryRing parity).
 24. `[ ]` **Node hover/selection pulse** — selected-node emissive pulse via
     transform/emissive animation, reduce-motion static highlight.
-25. `[ ]` **Tool monogram textures** — generate monogram textures (brand
-    color + initial) onto tool spheres so nodes are identifiable; Logo.dev
-    bitmaps later if licensing allows.
-26. `[ ]` **Billboarded tool labels** — distance-faded text entities for
-    pocketed tools (TextMeshResource or attachment views).
+25. `[~]` **Tool monogram textures** — SUPERSEDED by 26. Texture-mapping
+    letters onto spheres distorts and fights the PBR look; billboarded tool
+    labels (26, the canonical web approach) deliver node identifiability
+    crisply. Revisit only if labels prove insufficient at far distance.
+26. `[x]` **Billboarded tool labels** — `makeToolLabel` billboarded
+    `generateText` entities per pocketed tool, spawned/removed with the
+    pocket; `ToolLabelFadeSystem` + pure `ToolLabelFade` curve fade them by
+    camera distance so the overview stays uncluttered (#78).
 27. `[ ]` **Founder core hero treatment** — layered core: inner emissive
     sphere + outer frosted shell + slow pulse; matches "hero node" brief.
 28. `[x]` **Scene background depth** — `SkyboxEntity` inverted-sphere shell
