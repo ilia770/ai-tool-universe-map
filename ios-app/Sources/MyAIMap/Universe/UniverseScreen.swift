@@ -6,6 +6,17 @@ struct UniverseScreen: View {
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
     @State private var settingsPresented = false
+    @State private var chatThread = ChatThreadStore(liveToolIds: Set(UniverseSeed.tools.map(\.id)))
+
+    /// "No active panel" gate for the ChatDock (web parity: the FindBar hides
+    /// when a tool window opens). On iPhone the detail sheet is always
+    /// presented, so the panel is "active" only once it is expanded past its
+    /// peek detent — collapsed at `.height(118)` means the canvas is clear and
+    /// the chat composer should show. Reuses the existing `sheetDetent` state
+    /// rather than adding a second source of truth.
+    private var isPanelActive: Bool {
+        sheetDetent != .height(118)
+    }
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -101,12 +112,23 @@ struct UniverseScreen: View {
                 // clarityMode (review NEW-6: a visible control that does
                 // nothing is worse than no control). Re-mount it with the
                 // focus/context/atlas dim-and-fade pass in Phase C.
+                // ChatDock shows only when no panel is active (web parity:
+                // the FindBar hides once a tool window opens). Gated on the
+                // expanded-sheet flag so the composer owns the clear canvas
+                // and never fights the detail panel for the bottom.
+                if !isPanelActive {
+                    ChatDock()
+                        .environment(chatThread)
+                        .padding(.top, 12)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 CategoryRail { id in
                     selectCategory(id)
                 }
                 // Keep the rail visible above the sheet's compact detent.
                 .padding(.bottom, 118)
             }
+            .brandAnimation(BrandMotion.entry, value: isPanelActive)
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 10)
