@@ -3,8 +3,7 @@ import SwiftUI
 /// Pure presentation model for one history chip. Resolves the tool name from
 /// the seed (falling back to the raw id) and exposes the accessibility label /
 /// deleted flag the view renders. Kept out of the View so it is unit-testable.
-@MainActor
-struct HistoryChipModel: @MainActor Identifiable {
+struct HistoryChipModel: Identifiable {
     let event: ToolHistory.Event
 
     var id: String { event.id.uuidString }
