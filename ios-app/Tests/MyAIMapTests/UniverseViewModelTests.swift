@@ -126,4 +126,61 @@ struct UniverseViewModelTests {
         model.searchQuery = "zzz-no-such-tool"
         #expect(model.focusFirstSearchMatch() == false)
     }
+
+    // MARK: - Delete (P2)
+
+    @Test func deleteToolHidesItFromAllToolLists() {
+        let model = UniverseViewModel()
+        guard let victim = UniverseSeed.tools(in: .design).dropFirst().first else {
+            Issue.record("seed needs >= 2 design tools")
+            return
+        }
+        model.deleteTool(victim.id)
+        #expect(model.tools.contains { $0.id == victim.id } == false)
+        #expect(model.tools(in: .design).contains { $0.id == victim.id } == false)
+        #expect(model.searchResults.contains { $0.id == victim.id } == false)
+    }
+
+    @Test func deletingSelectedToolMovesSelectionToNeighbour() {
+        let model = UniverseViewModel()
+        model.selectCategory(.design)
+        let designTools = UniverseSeed.tools(in: .design)
+        guard designTools.count >= 2 else {
+            Issue.record("seed needs >= 2 design tools")
+            return
+        }
+        model.selectTool(designTools[0].id)
+        model.deleteTool(designTools[0].id)
+        // Selection must still be valid and must not be the deleted id.
+        #expect(model.selectedTool.id != designTools[0].id)
+        #expect(model.tools.contains { $0.id == model.selectedTool.id })
+    }
+
+    @Test func deleteToolIsIgnoredForUnknownID() {
+        let model = UniverseViewModel()
+        let before = model.tools.count
+        model.deleteTool("does-not-exist")
+        #expect(model.tools.count == before)
+    }
+
+    @Test func deleteToolNotifiesDeletionSink() {
+        let model = UniverseViewModel()
+        var captured: [ToolDeletion] = []
+        model.deletionSink = { captured.append($0) }
+        guard let victim = UniverseSeed.tools(in: .media).first else {
+            Issue.record("seed needs a media tool")
+            return
+        }
+        model.deleteTool(victim.id)
+        #expect(captured.count == 1)
+        #expect(captured.first?.toolID == victim.id)
+        #expect(captured.first?.toolName == victim.name)
+        #expect(captured.first?.category == victim.category)
+    }
+
+    @Test func deleteFounderCoreIsRejected() {
+        let model = UniverseViewModel()
+        model.deleteTool("founder-os")
+        #expect(model.tools.contains { $0.id == "founder-os" })
+    }
 }
