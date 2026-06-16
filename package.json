@@ -22,6 +22,7 @@
     "release:check": "bash scripts/release-check.sh",
     "size:check": "node scripts/check-bundle-size.mjs",
     "gen:knowledge": "node scripts/gen-knowledge-json.mjs",
+    "gen:classifier": "node scripts/gen-classifier-json.mjs",
     "test": "vitest run src"
   },
   "dependencies": {
