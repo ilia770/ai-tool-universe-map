@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, UserRound } from 'lucide-react';
 import { InAppBrowserProvider } from '../components/InAppBrowser';
 import { ToolStoreProvider } from './store';
 import { useToolStore } from './useToolStore';
 import { AddToolModal } from './AddToolModal';
 import { FindBar } from './FindBar';
 import { ToolDetail } from './ToolDetail';
+import { SettingsPanel } from './SettingsPanel';
+import { t } from './i18n';
 import { BrainGraph } from './variants/BrainGraph';
 import { ObjectSpace } from './variants/ObjectSpace';
 import { GalaxyMap } from './variants/GalaxyMap';
@@ -126,8 +128,9 @@ function PlaygroundShell() {
   const [addPrefill, setAddPrefill] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const reduced = usePrefersReducedMotion();
-  const { tools } = useToolStore();
+  const { tools, settings, setSettings } = useToolStore();
 
   const active = VARIANTS.find((v) => v.id === activeId) ?? VARIANTS[0];
   const Active = active.Component;
@@ -140,6 +143,7 @@ function PlaygroundShell() {
   const select = (id: string) => {
     setActiveId(id);
     setMoreOpen(false);
+    setSettings({ variantId: id });
     if (typeof window !== 'undefined') window.history.replaceState(null, '', `#${id}`);
   };
 
@@ -155,6 +159,19 @@ function PlaygroundShell() {
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // No hash? Prefer the persisted variant from Settings.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const r = requestAnimationFrame(() => {
+      if (!window.location.hash && VARIANTS.some((v) => v.id === settings.variantId)) {
+        setActiveId(settings.variantId);
+      }
+    });
+    return () => cancelAnimationFrame(r);
+    // run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close the More disclosure on Escape / outside tap.
@@ -272,6 +289,25 @@ function PlaygroundShell() {
             </button>
           </nav>
 
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof navigator !== 'undefined' && navigator.vibrate && !reduced) navigator.vibrate(8);
+              setSettingsOpen(true);
+            }}
+            aria-label={t('account.open', settings.language)}
+            aria-haspopup="dialog"
+            className={cx(
+              'flex h-11 w-11 items-center justify-center transition active:scale-[0.96]',
+              GLASS.bar,
+              '[@media(hover:hover)]:hover:bg-white/[0.14]',
+              FOCUS_RING,
+            )}
+            style={{ transitionTimingFunction: EASE.out }}
+          >
+            <UserRound className="h-5 w-5 text-white/80" aria-hidden />
+          </button>
+
           {moreOpen && (
             <div
               role="menu"
@@ -311,6 +347,14 @@ function PlaygroundShell() {
           )}
         </div>
       </header>
+
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        variants={VARIANTS.map((v) => ({ id: v.id, ship: v.ship }))}
+        activeVariantId={activeId}
+        onSelectVariant={select}
+      />
     </div>
   );
 }
