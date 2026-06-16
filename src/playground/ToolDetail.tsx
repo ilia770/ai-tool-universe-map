@@ -3,6 +3,8 @@ import { ArrowUpRight, X } from 'lucide-react';
 import { useToolStore } from './useToolStore';
 import { categoryById } from '../data/ai-tool-universe';
 import { knowledgeFor } from './knowledge';
+import type { InferredEdge } from '../lib/relationship-intelligence.types';
+import { connectedBecause } from './relationshipReason';
 import { useInAppBrowser } from '../components/useInAppBrowser';
 import {
   ACCENT,
@@ -73,7 +75,7 @@ interface Props {
  * on phones, right column on desktop. Liquid glass, App-Store-grade.
  */
 export function ToolDetail({ toolId, onClose, onSelect }: Props) {
-  const { toolById, iconUrlFor } = useToolStore();
+  const { toolById, iconUrlFor, edgesFor } = useToolStore();
   const { openInApp } = useInAppBrowser();
 
   // mounted + visible state so the panel animates IN, and animates OUT
@@ -132,7 +134,12 @@ export function ToolDetail({ toolId, onClose, onSelect }: Props) {
   const cat = categoryById.get(tool.category);
   const k = knowledgeFor(tool.id);
   const icon = iconUrlFor(tool, 96);
-  const connections = tool.relationIds
+  const inferredEdges = edgesFor(tool.id);
+  const edgeByToId = new Map(inferredEdges.map((e) => [e.toId, e]));
+  // Inferred edges may point at tools not in the curated relationIds list —
+  // surface them too so "Connected because …" reasons aren't hidden.
+  const connectionIds = Array.from(new Set([...tool.relationIds, ...inferredEdges.map((e) => e.toId)]));
+  const connections = connectionIds
     .map((id) => toolById.get(id))
     .filter((t): t is NonNullable<typeof t> => Boolean(t));
 
@@ -144,6 +151,7 @@ export function ToolDetail({ toolId, onClose, onSelect }: Props) {
       k={k}
       icon={icon}
       connections={connections}
+      edgeByToId={edgeByToId}
       visible={visible}
       reduce={reduce}
       drag={drag}
@@ -168,6 +176,7 @@ interface ViewProps {
   k: Knowledge;
   icon: string | undefined;
   connections: Tool[];
+  edgeByToId: Map<string, InferredEdge>;
   visible: boolean;
   reduce: boolean;
   drag: { y: number; t: number } | null;
@@ -186,6 +195,7 @@ function ToolDetailView({
   k,
   icon,
   connections,
+  edgeByToId,
   visible,
   reduce,
   drag,
@@ -521,6 +531,7 @@ function ToolDetailView({
                     key={c.id}
                     tool={c}
                     icon={iconUrlFor(c, 48)}
+                    edge={edgeByToId.get(c.id)}
                     index={i}
                     visible={visible}
                     reduce={reduce}
@@ -608,6 +619,7 @@ function ClampText({ text, reduce }: { text: string; reduce: boolean }) {
 function ConnectionChip({
   tool,
   icon,
+  edge,
   index,
   visible,
   reduce,
@@ -615,21 +627,28 @@ function ConnectionChip({
 }: {
   tool: Tool;
   icon: string | undefined;
+  edge: InferredEdge | undefined;
   index: number;
   visible: boolean;
   reduce: boolean;
   onSelect: (id: string) => void;
 }) {
+  const [revealed, setRevealed] = useState(false);
+  const captionId = useId();
+
   const onClick = useCallback(() => {
     tap();
     onSelect(tool.id);
   }, [onSelect, tool.id]);
 
+  const onToggle = useCallback(() => {
+    tap();
+    setRevealed((v) => !v);
+  }, []);
+
   return (
-    <button
-      type="button"
-      data-no-drag
-      onClick={onClick}
+    <div
+      className="flex min-w-0 flex-col gap-1"
       style={
         reduce
           ? undefined
@@ -640,26 +659,67 @@ function ConnectionChip({
               transform: visible ? 'scale(1)' : 'scale(0.9)',
             }
       }
-      className={cx(
-        'flex min-h-[44px] select-none items-center gap-2 px-2.5 py-1.5',
-        GLASS.chip, TYPE.chip, TEXT.body, FOCUS_RING, HOVER_LIFT,
-        'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)]',
-        'transition-[background,transform,color] duration-150 hover:bg-white/[0.12] hover:text-white active:scale-95 active:bg-white/20',
-      )}
     >
-      {icon ? (
-        <img src={icon} alt="" className="h-4 w-4 shrink-0 rounded" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-semibold text-white"
-          style={{ background: categoryColor(tool.category) }}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          data-no-drag
+          onClick={onClick}
+          className={cx(
+            'flex min-h-[44px] select-none items-center gap-2 px-2.5 py-1.5',
+            GLASS.chip, TYPE.chip, TEXT.body, FOCUS_RING, HOVER_LIFT,
+            'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)]',
+            'transition-[background,transform,color] duration-150 hover:bg-white/[0.12] hover:text-white active:scale-95 active:bg-white/20',
+          )}
         >
-          {initials(tool.name)[0] ?? '?'}
-        </span>
-      )}
-      <span className="truncate">{tool.name}</span>
-    </button>
+          {icon ? (
+            <img src={icon} alt="" className="h-4 w-4 shrink-0 rounded" />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-semibold text-white"
+              style={{ background: categoryColor(tool.category) }}
+            >
+              {initials(tool.name)[0] ?? '?'}
+            </span>
+          )}
+          <span className="truncate">{tool.name}</span>
+        </button>
+        {edge ? (
+          <button
+            type="button"
+            data-no-drag
+            onClick={onToggle}
+            aria-expanded={revealed}
+            aria-controls={captionId}
+            aria-label={`Why connected to ${tool.name}`}
+            className={cx(
+              'flex h-11 w-7 shrink-0 items-center justify-center text-white/45',
+              RADIUS.control, FOCUS_RING,
+              'transition duration-150 hover:bg-white/10 hover:text-white active:scale-90',
+            )}
+          >
+            <span aria-hidden="true" className={cx(TYPE.chip)}>{revealed ? '×' : '?'}</span>
+          </button>
+        ) : null}
+      </div>
+      {edge ? (
+        <div
+          id={captionId}
+          className="overflow-hidden"
+          style={
+            reduce
+              ? { maxHeight: revealed ? '64px' : '0px' }
+              : {
+                  maxHeight: revealed ? '64px' : '0px',
+                  transition: `max-height ${DURATION.enter}ms ${EASE.out}`,
+                }
+          }
+        >
+          <p className={cx('px-1 pt-0.5', TYPE.chip, TEXT.meta)}>{connectedBecause(edge)}</p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
