@@ -10,7 +10,9 @@ export default defineConfig({
       // Isolated second entry for the visualization prototype lab; the
       // production app (index.html) is untouched.
       input: {
-        main: 'index.html',
+        // Key must stay `index` so the production entry chunk is emitted as
+        // `index-*.js` (the CI post-build artifact guard greps that prefix).
+        index: 'index.html',
         playground: 'playground.html',
       },
       output: {
