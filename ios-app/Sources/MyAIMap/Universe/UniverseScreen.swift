@@ -3,10 +3,12 @@ import SwiftUI
 struct UniverseScreen: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
     @State private var settingsPresented = false
     @State private var chatThread = ChatThreadStore(liveToolIds: Set(UniverseSeed.tools.map(\.id)))
+    @State private var boot = UniverseBootState()
 
     /// "No active panel" gate for the ChatDock (web parity: the FindBar hides
     /// when a tool window opens). On iPhone the detail sheet is always
@@ -68,6 +70,14 @@ struct UniverseScreen: View {
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
+        // Branded cold-launch state: keep the void + ProgressOrb on top until
+        // the scene's first frame is up, so launch never flashes black.
+        .overlay {
+            if boot.phase == .loading {
+                UniverseLoadingView()
+                    .transition(.opacity)
+            }
+        }
         .sheet(isPresented: $settingsPresented) {
             SettingsSheet()
                 .presentationDetents([.medium, .large])
@@ -77,6 +87,13 @@ struct UniverseScreen: View {
         .onAppear {
             sheetPresented = true
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
+            // Defer the reveal one frame so the first paint is the branded
+            // loader, then cross-fade to the live scene once it's up.
+            Task { @MainActor in
+                withAnimation(BrandMotion.resolved(BrandMotion.entry, reduceMotion: reduceMotion)) {
+                    boot.markSceneReady()
+                }
+            }
         }
     }
 
