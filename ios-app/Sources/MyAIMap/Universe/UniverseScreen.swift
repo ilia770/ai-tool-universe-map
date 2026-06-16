@@ -105,6 +105,8 @@ struct UniverseScreen: View {
                 header
                 SearchDock()
                     .padding(.top, 10)
+                HistoryStrip()
+                    .padding(.top, 10)
                 PocketReadout()
                     .padding(.top, 12)
                 Spacer(minLength: 0)
