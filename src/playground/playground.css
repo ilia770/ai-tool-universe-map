@@ -1,0 +1,29 @@
+/* Keyframes for the playground shell micro-animations (FindBar entrance,
+   per-turn + chip stagger, send-button bump). Kept in the playground lane;
+   the production index.css is untouched. */
+
+@keyframes findbar-rise {
+  from { transform: translateY(16px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes findbar-turn {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes findbar-chip {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes findbar-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@keyframes findbar-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
