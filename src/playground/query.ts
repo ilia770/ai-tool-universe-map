@@ -75,7 +75,13 @@ export function runQuery(text: string, tools: AITool[]): QueryResult {
 
   const top = matches[0];
   const k = knowledgeFor(top.id);
-  const why = k?.killerFeatures.length ? ` — ${k.killerFeatures[0]}` : k?.whatFor ? ` — ${k.whatFor}` : '';
+  const why = k?.killerFeatures.length
+    ? ` — ${k.killerFeatures[0]}`
+    : k?.whatFor
+      ? ` — ${k.whatFor}`
+      : top.summary
+        ? ` — ${top.summary}`
+        : '';
   const others = matches.slice(1, 3).map((m) => m.name);
   const tail = others.length ? ` Also worth a look: ${others.join(', ')}.` : '';
   return {

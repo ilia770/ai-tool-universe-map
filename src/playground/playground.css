@@ -27,3 +27,67 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Per-word stream fade — answer words mount 0→1 (simulated on-device stream). */
+@keyframes findbar-word {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 3-dot thinking pulse — staggered scale/opacity, 1.4s loop. */
+@keyframes findbar-think {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* Follow-up pills reveal after the answer paints. */
+@keyframes findbar-pill {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Non-destructive "Cleared · Undo" toast. */
+@keyframes findbar-toast {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Send-icon state morph (↑ ↔ ■) cross-fade + settle. */
+@keyframes findbar-icon-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Shell (PlaygroundApp) micro-animations. */
+
+/* FAB entrance — rise into place on mount (no pop). */
+@keyframes fab-rise {
+  from { transform: translateY(14px) scale(0.9); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* FAB empty-state pulse — gentle breathing halo to draw the first add. */
+@keyframes fab-pulse {
+  0%, 100% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(125, 211, 252, 0); }
+  50% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 6px rgba(125, 211, 252, 0.14); }
+}
+
+/* AddToolModal (+ add tool) micro-animations. */
+
+/* Preview row + match chips + error rise into place. */
+@keyframes atm-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Brand-plate pop on first preview (EASE.back settle, icon only). */
+@keyframes atm-plate-pop {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Add-tool celebration bloom — the CTA flares into the universe at submit. */
+@keyframes atm-bloom {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
