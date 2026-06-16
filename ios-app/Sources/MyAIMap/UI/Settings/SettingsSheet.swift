@@ -8,6 +8,7 @@ struct SettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showResetConfirm = false
 
@@ -86,7 +87,7 @@ struct SettingsSheet: View {
                             return
                         }
                         BrandHaptics.fire(.medium)
-                        withAnimation(BrandMotion.nudge) {
+                        withAnimation(BrandMotion.resolved(BrandMotion.nudge, reduceMotion: reduceMotion)) {
                             settings.visualizationStyle = style
                         }
                     } label: {
@@ -125,7 +126,7 @@ struct SettingsSheet: View {
                     Button {
                         BrandHaptics.fire(.light)
                         guard settings.language != lang else { return }
-                        withAnimation(BrandMotion.nudge) {
+                        withAnimation(BrandMotion.resolved(BrandMotion.nudge, reduceMotion: reduceMotion)) {
                             settings.language = lang
                         }
                     } label: {
