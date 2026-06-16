@@ -211,7 +211,7 @@ struct ToolDetailSection: View {
                                 // stealing the tap (which still focuses the tool).
                                 .simultaneousGesture(
                                     edge == nil ? nil :
-                                    LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                                    LongPressGesture(minimumDuration: InteractionTokens.longPressSeconds).onEnded { _ in
                                         toggleReason(related.id)
                                     }
                                 )

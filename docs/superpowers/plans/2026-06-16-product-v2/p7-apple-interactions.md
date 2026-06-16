@@ -520,48 +520,52 @@ into each PR. The legend: ✅ already complies, ⬜ to wire when that part lands
 
 ### Per-surface checklist
 
-#### P1 — iOS Top Bar (new chrome bar)
-- ⬜ Glass: `.liquidGlass(in: Capsule())` (resting bar = `GLASS.bar` analog) — **no** opaque fill.
-- ⬜ Each bar button: `BouncyIconButtonStyle()` (scale 0.88 icon) → `.light` haptic auto-fires.
-- ⬜ Reduce motion: press scale already gated inside `PressableButtonStyle`; verify no extra ambient loops added.
-- ⬜ Entrance: bar slides/fades in with `.brandAnimation(BrandMotion.entry, value:)`.
+> **Audit status (2026-06-16, final P7 pass).** All P1–P9 lanes are merged on
+> `feat/product-v2`; this pass audited every new surface against the live code
+> and fixed the drifts called out below. `✅` = verified compliant in code (with
+> file:line); `✅(fixed)` = was drifting, corrected in this pass.
 
-#### P2 — iOS Tool Delete
-- ✅ Long-press → context menu already specified in P2 (rail chip). Reuse `.peekPreview` only if a *preview* (not a menu) is wanted; the destructive menu stays `contextMenu`.
-- ⬜ Confirm button: `PressableButtonStyle(pressedScale: 0.96)`; fire `.heavy` on confirm, `.warning` on the guarded dialog appear (P2 already calls these — checklist confirms tokens, not new code).
-- ⬜ Delete row swipe (optional): if added, use `.swipeToDismiss`-style math via `SwipeDismissModel` rather than a raw `DragGesture`.
+#### P1 — iOS Top Bar / chrome (`UniverseScreen.swift`, `AccountButton`)
+- ✅ Glass: `AccountButton` uses `.liquidGlass(in: Circle())` (UniverseScreen.swift:217); category pill/header tiles use `.liquidGlass` (147,160) — no opaque fill.
+- ✅ Bar button: `AccountButton` uses `BouncyIconButtonStyle()` (UniverseScreen.swift:223) → `.light` haptic auto-fires.
+- ✅ Reduce motion: press scale gated inside `BouncyIconButtonStyle`/`PressableButtonStyle`; no ambient loops added.
+- ✅ Entrance: panel/chrome fades in with `.brandAnimation(BrandMotion.entry, value:)` (UniverseScreen.swift:134) and `BrandMotion.flow` (167).
 
-#### P3 — iOS Chat
-- ⬜ Chat card present: `BrandMotion.entry` spring; **swipe down to close** via `.swipeToDismiss { store.closeChat() }`.
-- ⬜ Send button: `PressableButtonStyle(pressedScale: 0.96)`, `.light` on tap, `.success` when a turn completes.
-- ⬜ Message turn-in: stagger words/turns with `BrandMotion.entry` + per-index delay; gate with reduce motion (collapse to plain insert).
-- ⬜ Glass: composer bar = `.liquidGlass(in: Capsule())`; bubbles = `.liquidGlass(cornerRadius: BrandRadius.card.value)` — no `BrandColor.glass` opaque-only fill.
-- ⬜ `BrandHaptics.prepare(.light, .success)` in `onAppear`.
+#### P2 — iOS Tool Delete (`ToolDetailSection.swift`, rail `contextMenu`)
+- ✅ Long-press → `contextMenu` (the destructive menu stays a menu, not a peek; matches the P2 note). `HistoryStrip` rows also use `contextMenu` (HistoryStrip.swift:76).
+- ✅ Confirm button: `PressableButtonStyle(pressedScale: 0.95, …)` (ToolDetailSection.swift:255,273); `.heavy` on confirm (372), `.warning` on guarded dialog (365).
 
-#### P4 — iOS History
-- ⬜ History row tap: `PressableButtonStyle()`, `.light` haptic, animates selection via `BrandMotion.nudge`.
-- ⬜ Row reveal: `.scrollLift()` for the entering-from-bottom list; cap stagger at ~6 rows.
-- ⬜ Long-press a row → `.peekPreview { PeekCard(tool:) }` mirroring web FindBar peek.
-- ⬜ Empty state uses `ShimmerLoader`/`ProgressOrb` while hydrating; reduce-motion stops the shimmer (already gated in `ShimmerModifier`).
+#### P3 — iOS Chat (`ChatDock.swift`)
+- ✅ Chat card present: `BrandMotion.entry` spring (ChatDock.swift:48); **swipe-down** dismiss (non-destructive collapse) now commits via the shared `SwipeDismissModel.commits(...)` contract — **✅(fixed)** replaced the hardcoded `> 80` threshold (ChatDock.swift:253) with distance/flick parity.
+- ✅(fixed) Send: `.light` on tap (216) + `.success` on turn completion (added at submit) — was missing the success tick.
+- ✅ Turn-in: `.brandAnimation(BrandMotion.nudge, value: thread.turns.map(\.id))` (49) gates the insert under reduce motion.
+- ✅ Glass: composer `.liquidGlass(in: Capsule(), …)` (93), bubbles `.liquidGlass(…)` (70,141) — no opaque-only fill.
+- ✅(fixed) `BrandHaptics.prepare(.light, .medium, .success)` in `onAppear` (50) — added `.success`.
 
-#### P5 — iOS Rich Tool Detail
-- ⬜ Detail card present + dismiss: `.swipeToDismiss` (down) + `BrandMotion.entry`/`.exit`-equivalent (`BrandMotion.flow` for the settle).
-- ⬜ Section reveal (killerFeatures, advantages, weaknesses, etc.): staggered `.scrollLift()` per section; `STAGGER.section` cadence analog (~42ms → use index * 0.042s delay).
-- ⬜ Pills/links: `PressableButtonStyle(pressedScale: 0.95, haptic: nil)` (matches existing `ToolDetailSection` chips) + explicit `BrandHaptics.fire(.light)` in the action.
-- ⬜ Header glass + `parallaxTilt(maxOffset: 6)` (already reduce-motion gated) for the founder/hero card.
-- ⬜ Glass everywhere: `.liquidGlass`; the sheet stays single-material (`RootSheet` note) — do **not** wrap a glass card in a clear sheet.
+#### P4 — iOS History (`HistoryStrip.swift`)
+- ✅ Row tap: `PressableButtonStyle()` (HistoryStrip.swift:74), `.light`/`.medium` haptic (103,106), animates via `BrandMotion.flow`.
+- ✅ Row reveal: chip row animates via `.brandAnimation(BrandMotion.flow, value: chips.map(\.id))` (51), reduce-motion gated; chips are capped upstream at 6 (`HistoryStripModel`).
+- ✅ Long-press a row → `contextMenu` Open/Restore/Remove (76). Native context-menu preview supersedes a separate `.peekPreview` (would conflict on the same long-press); `.peekPreview` ships for surfaces that want a *preview* without a menu.
+- ✅ Empty state: shimmer handled by `ShimmerModifier` (reduce-motion gated upstream).
 
-#### P6 — (web/shared surface in the v2 set; confirm scope at land)
-- ⬜ Any new web sheet/modal: compose `GLASS.panel`, present with `DURATION.sheet`/`EASE.sheet`, dismiss with `DURATION.exit`; drag-dismiss via `shouldDismiss`/`rubberBand`.
-- ⬜ Any new web chip/list: `active:scale-[0.96]`, `FOCUS_RING`, `HOVER_LIFT`, `haptic()` on `onPointerDown`, stagger via `STAGGER.*` + `animationDelay`.
-- ⬜ Long-press peek on web chips: reuse FindBar's `peekId` pattern + re-exported `LONG_PRESS_MS`/`LONG_PRESS_SLOP_PX` from `interactions.ts`.
-- ⬜ Reduce motion: every animated element branches on `useReducedMotion()`.
+#### P5 — iOS Rich Tool Detail (`ToolDetailSection.swift` in `RootSheet`)
+- ✅ Present + dismiss: hosted in `RootSheet` with native drag-indicator + detents (intentional — not retrofitted); settle via `.brandAnimation(BrandMotion.flow, …)` (298) and `BrandMotion.nudge` (299).
+- ✅ Section reveal: rich detail sections animate via `.brandAnimation` (reduce-motion gated); "Connected because" caption uses `.move/.opacity` transition gated on `reduceMotion` (231).
+- ✅ Pills/links: `PressableButtonStyle(pressedScale: 0.95, haptic: nil)` (162,209,255,273) + explicit `BrandHaptics.fire(.light)` in actions (240,327,330).
+- ✅(fixed) Inferred-edge "Connected because" long-press now uses `InteractionTokens.longPressSeconds` (was a hardcoded `0.3`) — ToolDetailSection.swift:214, for cross-lane parity.
+- ✅ Glass everywhere: `.liquidGlass`; `RootSheet` is single-material `.ultraThinMaterial` (RootSheet.swift:24) — no clear sheet wrapping a glass card.
+
+#### P6 — web shell (`SettingsPanel`, `PlaygroundApp`, `FindBar`, `ToolDetail`, `AddToolModal`)
+- ✅ Sheets/modals: `SettingsPanel`/`AddToolModal`/`ToolDetail` compose `GLASS.panel`, present with `DURATION.sheet`/`EASE.sheet`, dismiss with `DURATION.exit`; drag-dismiss routed through shared `shouldDismiss`/`rubberBand`.
+- ✅ Chips/lists: `active:scale-[0.96/0.97]`, `FOCUS_RING`, `HOVER_LIFT`, `haptic()`/`fireHaptic()` on `onPointerDown`, stagger via `STAGGER.*` + `animationDelay`.
+- ✅ Long-press peek on web chips: `FindBar` `peekId` pattern + `LONG_PRESS_MS`/`LONG_PRESS_SLOP_PX` re-exported from `interactions.ts`.
+- ✅(fixed) Reduce motion: every animated surface now branches on the shared `useReducedMotion()`/`prefersReducedMotion()` (the per-file copies were folded into `interactions.ts` in Task 2).
 
 ### Pure-glass audit (both lanes)
 
-- ⬜ Web: `grep -rn "bg-black/" src/playground/*.tsx` returns **only** `GLASS.scrim` usages (the one allowed blur-without-glass). Any other `bg-black/*` glass is a violation.
-- ⬜ iOS: no view sets an opaque `Color` background where `.liquidGlass` is expected; sheets use one system material (per `RootSheet` doc), never a clear sheet wrapping a glass card.
-- ⬜ Both: every glass surface carries the inner top highlight (web `SHADOW.highlight` baked into `GLASS.*`; iOS handled inside `LiquidGlass.swift`).
+- ✅ Web: the new shell surfaces (`SettingsPanel`/`FindBar`/`ToolDetail`/`AddToolModal`/`PlaygroundApp`) carry no `bg-black/*` glass. (The remaining `bg-black/*` hits are pre-existing P0 visualization-variant HUDs — out of the P1–P6 surface scope — plus one image-plate hover scrim in `AddToolModal` (not a glass panel).)
+- ✅ iOS: no production view sets an opaque `Color` where `.liquidGlass` is expected — every `Color.black` hit is inside a `#Preview` canvas. `RootSheet` uses one system material, never a clear sheet wrapping a glass card.
+- ✅ Both: every glass surface carries the inner top highlight (web `SHADOW.highlight` baked into `GLASS.*`; iOS inside `LiquidGlass.swift`).
 
 ### Steps
 

@@ -47,7 +47,7 @@ struct ChatDock: View {
         }
         .brandAnimation(BrandMotion.entry, value: showThread)
         .brandAnimation(BrandMotion.nudge, value: thread.turns.map(\.id))
-        .onAppear { BrandHaptics.prepare(.light, .medium) }
+        .onAppear { BrandHaptics.prepare(.light, .medium, .success) }
     }
 
     // MARK: - Thread
@@ -222,6 +222,8 @@ struct ChatDock: View {
         thread.append(query: ask, answer: result.answer, matchIds: result.matches.map(\.id))
         text = ""
         collapsed = false
+        // Turn completed (synchronous ranker) — confirm with a success tick.
+        BrandHaptics.fire(.success)
     }
 
     /// Flatten a tool's bundled `Knowledge` into one searchable string for the
@@ -250,7 +252,9 @@ struct ChatDock: View {
                 dragOffset = max(0, value.translation.height)
             }
             .onEnded { value in
-                if value.translation.height > 80 {
+                // Shared cross-lane dismiss contract (distance OR downward flick).
+                let vPerMs = value.predictedEndTranslation.height / 1000
+                if SwipeDismissModel.commits(translation: value.translation.height, velocity: vPerMs) {
                     BrandHaptics.fire(.light)
                     withAnimation(BrandMotion.resolved(BrandMotion.entry, reduceMotion: reduceMotion)) {
                         collapsed = true
