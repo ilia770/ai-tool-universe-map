@@ -5,6 +5,7 @@ struct UniverseScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
+    @State private var settingsPresented = false
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -56,6 +57,12 @@ struct UniverseScreen: View {
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $settingsPresented) {
+            SettingsSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.disabled)
+        }
         .onAppear {
             sheetPresented = true
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
@@ -118,15 +125,6 @@ struct UniverseScreen: View {
                     strokeStrength: 0.16
                 )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("My AI Map")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("Research → Plan → Build → Approve → Review")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-            }
-
             Spacer()
 
             Text("\(UniverseSeed.tools.count) tools")
@@ -135,6 +133,11 @@ struct UniverseScreen: View {
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
                 .liquidGlass(in: Capsule(), tint: selectedCategoryModel.color.swiftUIColor.opacity(0.5), strokeStrength: 0.08)
+
+            AccountButton {
+                BrandHaptics.fire(.medium)
+                settingsPresented = true
+            }
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
     }
@@ -171,7 +174,34 @@ struct UniverseScreen: View {
     }
 }
 
+/// Circular liquid-glass account/avatar button in the top bar. Opens the
+/// Settings sheet. Reuses `BouncyIconButtonStyle` press feedback and the
+/// shared `liquidGlass` material so it reads as one family with the
+/// header's sparkles tile and the tool-count pill.
+struct AccountButton: View {
+    @Environment(UniverseViewModel.self) private var model
+    @Environment(AppSettings.self) private var settings
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                .frame(width: 42, height: 42)
+                .liquidGlass(
+                    in: Circle(),
+                    tint: model.selectedCategoryModel.color.swiftUIColor,
+                    strokeStrength: 0.16
+                )
+        }
+        .buttonStyle(BouncyIconButtonStyle())
+        .accessibilityLabel(L10n.accountAccessibilityLabel(settings.language))
+    }
+}
+
 #Preview {
     UniverseScreen()
         .environment(UniverseViewModel())
+        .environment(AppSettings())
 }
