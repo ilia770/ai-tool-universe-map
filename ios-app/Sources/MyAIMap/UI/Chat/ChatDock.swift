@@ -145,7 +145,7 @@ struct ChatDock: View {
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
-        .onLongPressGesture(minimumDuration: 0.35) {
+        .onLongPressGesture(minimumDuration: InteractionTokens.longPressSeconds) {
             BrandHaptics.fire(.medium)
             withAnimation(BrandMotion.resolved(BrandMotion.nudge, reduceMotion: reduceMotion)) {
                 peekId = isPeeking ? nil : tool.id
