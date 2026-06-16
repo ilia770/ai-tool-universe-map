@@ -214,10 +214,24 @@ struct ChatDock: View {
         let ask = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ask.isEmpty else { return }
         BrandHaptics.fire(.light)
-        let result = QueryEngine.run(ask, in: UniverseSeed.tools)
+        // Feed the enriched P0 knowledge layer into the ranker so NL asks
+        // match on killer features / who-uses / pricing — not just the seed
+        // name+summary. Web parity: `searchableText` folds `ToolKnowledge`
+        // into the haystack. The closure is the hook QueryEngine left open.
+        let result = QueryEngine.run(ask, in: UniverseSeed.tools, knowledge: Self.knowledgeText)
         thread.append(query: ask, answer: result.answer, matchIds: result.matches.map(\.id))
         text = ""
         collapsed = false
+    }
+
+    /// Flatten a tool's bundled `Knowledge` into one searchable string for the
+    /// `QueryEngine` haystack. Returns "" when no record is bundled (the
+    /// engine's no-op default), so unknown ids fall back to seed fields.
+    private static func knowledgeText(for id: String) -> String {
+        guard let k = KnowledgeStore.knowledge(for: id) else { return "" }
+        return ([k.whatFor, k.whoUses, k.pricing.summary]
+                + k.killerFeatures + k.advantages)
+            .joined(separator: " ")
     }
 
     private func open(_ tool: Tool) {
