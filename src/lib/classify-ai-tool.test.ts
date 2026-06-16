@@ -43,6 +43,29 @@ describe('classifyTool', () => {
   });
 });
 
+describe('classifyTool — misplacement regression audit', () => {
+  it('classifies PostHog as analytics, never social/distribution', () => {
+    expect(classifyTool('posthog')).toBe('analytics');
+    expect(classifyTool('https://posthog.com')).toBe('analytics');
+    expect(classifyTool('posthog')).not.toBe('distribution');
+  });
+
+  it('routes the analytics/observability cohort correctly', () => {
+    expect(classifyTool('mixpanel')).toBe('analytics');
+    expect(classifyTool('amplitude')).toBe('analytics');
+    expect(classifyTool('sentry')).toBe('analytics');
+    expect(classifyTool('grafana')).toBe('analytics');
+    expect(classifyTool('https://www.datadoghq.com')).toBe('analytics');
+  });
+
+  it('does not regress the previously-correct cohort', () => {
+    expect(classifyTool('https://cursor.com')).toBe('coding');
+    expect(classifyTool('Make in Figma')).toBe('design');
+    expect(classifyTool('Remotion video renderer')).toBe('media');
+    expect(classifyTool('https://buffer.com/')).toBe('distribution');
+  });
+});
+
 describe('tool input helpers', () => {
   it('creates stable slugs and display names', () => {
     expect(makeSlug('https://www.supadata.ai/')).toBe('supadata-ai');
