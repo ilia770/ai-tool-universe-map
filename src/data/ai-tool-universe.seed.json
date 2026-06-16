@@ -72,6 +72,15 @@
       "color": "#d8faff",
       "glow": "rgba(103, 232, 249, 0.18)",
       "angle": -178
+    },
+    {
+      "id": "analytics",
+      "name": "Analytics & Observability",
+      "shortName": "Analytics",
+      "description": "Product analytics, telemetry, error tracking, dashboards, and observability for shipped software.",
+      "color": "#ff9bd2",
+      "glow": "rgba(255, 155, 210, 0.28)",
+      "angle": 100
     }
   ],
   "workflowStages": {
