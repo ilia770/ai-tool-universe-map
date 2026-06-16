@@ -22,6 +22,14 @@ export interface AddedTool extends AITool {
   inferredEdges?: InferredEdge[];
 }
 
+export type Language = 'en' | 'ru';
+
+export interface PlaygroundSettings {
+  language: Language;
+  /** Active visualization variant id (e.g. 'A'). */
+  variantId: string;
+}
+
 export interface ToolStore {
   tools: AddedTool[];
   toolById: Map<string, AddedTool>;
@@ -31,10 +39,20 @@ export interface ToolStore {
   dynamicCategories: ToolCategory[];
   /** Classify + place a new tool. Returns it (or an existing match). */
   addTool: (input: AddToolInput) => AddedTool;
+  /** Remove a user-added tool (seed tools are ignored). */
+  removeTool: (id: string) => void;
   /** Inferred relationship edges for a tool id (empty if none). */
   edgesFor: (id: string) => InferredEdge[];
   /** Best icon URL for a tool: user image override, else logo.dev. */
   iconUrlFor: (tool: AITool, size?: number) => string | undefined;
+  /** Persisted UI settings (language + active visualization). */
+  settings: PlaygroundSettings;
+  /** Patch persisted settings. */
+  setSettings: (patch: Partial<PlaygroundSettings>) => void;
+  /** Wipe added tools, icon overrides, settings, and the chat thread. */
+  resetData: () => void;
+  /** JSON snapshot of the user's added tools + settings. */
+  exportData: () => string;
 }
 
 export const ToolStoreContext = createContext<ToolStore | null>(null);

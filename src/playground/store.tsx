@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -16,8 +17,70 @@ import {
   ToolStoreContext,
   type AddToolInput,
   type AddedTool,
+  type Language,
+  type PlaygroundSettings,
   type ToolStore,
 } from './toolStoreContext';
+
+const STORE_KEY = 'playground.store.v1';
+/** Same key FindBar uses, so a reset clears the chat thread too. */
+const FINDBAR_KEY = 'playground.findbar.turns.v1';
+const MAX_STORE_BYTES = 400_000;
+
+export const DEFAULT_SETTINGS: PlaygroundSettings = { language: 'en', variantId: 'A' };
+
+export interface PersistedState {
+  added: AddedTool[];
+  icons: Record<string, string>;
+  settings: PlaygroundSettings;
+}
+
+function isLanguage(v: unknown): v is Language {
+  return v === 'en' || v === 'ru';
+}
+
+export function loadPersisted(): PersistedState {
+  const empty: PersistedState = { added: [], icons: {}, settings: DEFAULT_SETTINGS };
+  if (typeof localStorage === 'undefined') return empty;
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw || raw.length > MAX_STORE_BYTES) return empty;
+    const parsed = JSON.parse(raw) as Partial<PersistedState> | null;
+    if (!parsed || typeof parsed !== 'object') return empty;
+    const added = Array.isArray(parsed.added)
+      ? (parsed.added.filter((t) => t && typeof (t as AddedTool).id === 'string') as AddedTool[])
+      : [];
+    const icons =
+      parsed.icons && typeof parsed.icons === 'object'
+        ? (parsed.icons as Record<string, string>)
+        : {};
+    const s = (parsed.settings ?? {}) as Partial<PlaygroundSettings>;
+    const settings: PlaygroundSettings = {
+      language: isLanguage(s.language) ? s.language : DEFAULT_SETTINGS.language,
+      variantId: typeof s.variantId === 'string' ? s.variantId : DEFAULT_SETTINGS.variantId,
+    };
+    return { added, icons, settings };
+  } catch {
+    return empty;
+  }
+}
+
+export function persist(state: PersistedState): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  } catch {
+    /* storage full / unavailable — stay in-memory */
+  }
+}
+
+export function serializeExport(added: AddedTool[], settings: PlaygroundSettings): string {
+  return JSON.stringify(
+    { exportedAt: new Date().toISOString(), settings, tools: added },
+    null,
+    2,
+  );
+}
 
 /* ------------------------------------------------------------------ *
  * Playground tool store
@@ -54,9 +117,18 @@ function sameToolIdentity(tool: AITool, slug: string, name: string, domain?: str
 }
 
 export function ToolStoreProvider({ children }: { children: ReactNode }) {
-  const [added, setAdded] = useState<AddedTool[]>([]);
+  const [boot] = useState(loadPersisted);
+  const [added, setAdded] = useState<AddedTool[]>(boot.added);
   const [dynamicCategories, setDynamicCategories] = useState<ToolCategory[]>([]);
-  const [icons, setIcons] = useState<Map<string, string>>(() => new Map());
+  const [icons, setIcons] = useState<Map<string, string>>(
+    () => new Map(Object.entries(boot.icons)),
+  );
+  const [settings, setSettingsState] = useState<PlaygroundSettings>(boot.settings);
+
+  // Persist added tools, icon overrides, and settings on every change.
+  useEffect(() => {
+    persist({ added, icons: Object.fromEntries(icons), settings });
+  }, [added, icons, settings]);
 
   const tools = useMemo<AddedTool[]>(() => [...seedTools, ...added], [added]);
   const allCategories = useMemo<ToolCategory[]>(
@@ -127,6 +199,36 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
     [added, allCategories],
   );
 
+  const removeTool = useCallback((id: string) => {
+    setAdded((prev) => prev.filter((t) => t.id !== id));
+    setIcons((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const setSettings = useCallback((patch: Partial<PlaygroundSettings>) => {
+    setSettingsState((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const resetData = useCallback(() => {
+    setAdded([]);
+    setIcons(new Map());
+    setDynamicCategories([]);
+    setSettingsState(DEFAULT_SETTINGS);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem(FINDBAR_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  const exportData = useCallback(() => serializeExport(added, settings), [added, settings]);
+
   const edgesFor = useCallback(
     (id: string): InferredEdge[] => toolById.get(id)?.inferredEdges ?? [],
     [toolById],
@@ -138,8 +240,34 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ToolStore>(
-    () => ({ tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor, edgesFor }),
-    [tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor, edgesFor],
+    () => ({
+      tools,
+      toolById,
+      allCategories,
+      dynamicCategories,
+      addTool,
+      removeTool,
+      iconUrlFor,
+      edgesFor,
+      settings,
+      setSettings,
+      resetData,
+      exportData,
+    }),
+    [
+      tools,
+      toolById,
+      allCategories,
+      dynamicCategories,
+      addTool,
+      removeTool,
+      iconUrlFor,
+      edgesFor,
+      settings,
+      setSettings,
+      resetData,
+      exportData,
+    ],
   );
 
   return <ToolStoreContext.Provider value={value}>{children}</ToolStoreContext.Provider>;
