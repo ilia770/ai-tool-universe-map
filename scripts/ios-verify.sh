@@ -57,6 +57,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Knowledge JSON must stay byte-identical across lanes (P0 contract).
+# It is emitted from src/playground/knowledge.data.ts via `npm run gen:knowledge`.
+if ! diff -q "$ROOT_DIR/src/data/knowledge.json" \
+             "$ROOT_DIR/ios-app/Sources/MyAIMap/Resources/knowledge.json" >/dev/null; then
+  echo "knowledge.json drift: run 'npm run gen:knowledge' and commit both copies." >&2
+  exit 1
+fi
+
 echo "== Xcode =="
 xcodebuild -version
 
