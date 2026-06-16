@@ -14,6 +14,25 @@ final class UniverseViewModel {
     var clarityMode: ClarityMode = .focus
     var searchQuery: String = ""
 
+    /// Memoised inferred relationship edges per tool id (P9). Computed once
+    /// per id via `RelationshipIntelligence.infer` over the seed universe and
+    /// cached, so neither the detail sheet nor the link-drawing pass triggers
+    /// a per-frame recompute. `@ObservationIgnored` keeps the cache out of the
+    /// observation graph (mutating it must not invalidate views).
+    @ObservationIgnored private var edgeCache: [String: [InferredEdge]] = [:]
+
+    /// Inferred edges for a tool id (empty when the id is unknown). Cached.
+    func inferredEdges(for id: String) -> [InferredEdge] {
+        if let cached = edgeCache[id] { return cached }
+        guard let tool = UniverseSeed.tools.first(where: { $0.id == id }) else {
+            edgeCache[id] = []
+            return []
+        }
+        let edges = RelationshipIntelligence.infer(candidate: tool, universe: UniverseSeed.tools)
+        edgeCache[id] = edges
+        return edges
+    }
+
     // MARK: - Derived state
 
     var selectedCategoryModel: ToolCategory {

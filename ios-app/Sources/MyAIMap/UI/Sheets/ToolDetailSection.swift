@@ -7,7 +7,10 @@ import SwiftUI
 /// animation) now belongs to the presenting sheet.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browserSheet: BrowserSheetItem?
+    /// Tool ids whose "Connected because …" caption is currently revealed.
+    @State private var revealedReasons: Set<String> = []
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -21,12 +24,24 @@ struct ToolDetailSection: View {
         model.selectedTool
     }
 
-    /// Resolves `selectedTool.relationIds` to existing seed tools, skipping
-    /// any id that doesn't resolve (defensive — the seed is clean, but stale
-    /// references must never crash or render an empty chip).
+    /// Inferred relationship edges for the selected tool, keyed by target id
+    /// (P9). Memoised in the view model, so this is a cache read, not a
+    /// per-render recompute.
+    private var inferredEdgeByToId: [String: InferredEdge] {
+        Dictionary(model.inferredEdges(for: selectedTool.id).map { ($0.toId, $0) },
+                   uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Resolves the selected tool's connections — curated `relationIds` plus
+    /// any inferred-edge targets — to existing seed tools, skipping ids that
+    /// don't resolve (defensive — stale references must never crash or render
+    /// an empty chip).
     private var relatedTools: [Tool] {
-        selectedTool.relationIds.compactMap { id in
-            UniverseSeed.tools.first { $0.id == id }
+        var seen = Set<String>()
+        let ids = selectedTool.relationIds + inferredEdgeByToId.keys.sorted()
+        return ids.compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return UniverseSeed.tools.first { $0.id == id }
         }
     }
 
@@ -104,7 +119,7 @@ struct ToolDetailSection: View {
 
             if !relatedTools.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("CONNECTED TO")
+                    Text("CONNECTED TO · \(relatedTools.count)")
                         .font(.caption2.weight(.bold))
                         .tracking(1.4)
                         .foregroundStyle(BrandColor.textMuted)
@@ -112,6 +127,7 @@ struct ToolDetailSection: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(relatedTools) { related in
+                                let edge = inferredEdgeByToId[related.id]
                                 Button {
                                     focusRelated(related.id)
                                 } label: {
@@ -123,13 +139,40 @@ struct ToolDetailSection: View {
                                             .font(.caption.weight(.medium))
                                             .foregroundStyle(.white)
                                             .lineLimit(1)
+                                        // Inferred edges get a "why" affordance.
+                                        if edge != nil {
+                                            Image(systemName: revealedReasons.contains(related.id) ? "xmark.circle.fill" : "questionmark.circle")
+                                                .font(.caption2)
+                                                .foregroundStyle(.white.opacity(0.5))
+                                        }
                                     }
                                     .padding(.horizontal, 11)
                                     .padding(.vertical, 7)
                                     .liquidGlass(in: Capsule())
                                 }
                                 .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+                                // Long-press reveals "Connected because …" without
+                                // stealing the tap (which still focuses the tool).
+                                .simultaneousGesture(
+                                    edge == nil ? nil :
+                                    LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                                        toggleReason(related.id)
+                                    }
+                                )
                             }
+                        }
+                    }
+
+                    // "Connected because …" captions for any revealed inferred
+                    // edge. Rendered under the rail so the horizontal scroll
+                    // geometry never reflows when a caption opens.
+                    ForEach(relatedTools) { related in
+                        if let edge = inferredEdgeByToId[related.id], revealedReasons.contains(related.id) {
+                            Text("Connected because — \(RelationshipReason.connectedBecause(edge))")
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.62))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                         }
                     }
                 }
@@ -185,6 +228,19 @@ struct ToolDetailSection: View {
         BrandHaptics.fire(.light)
         withAnimation(BrandMotion.nudge) {
             model.selectTool(id)
+        }
+    }
+
+    /// Toggles the "Connected because …" caption for an inferred-edge chip.
+    /// BrandHaptics on toggle; the reveal honours Reduce Motion.
+    private func toggleReason(_ id: String) {
+        BrandHaptics.fire(.light)
+        if reduceMotion {
+            if !revealedReasons.insert(id).inserted { revealedReasons.remove(id) }
+        } else {
+            withAnimation(BrandMotion.nudge) {
+                if !revealedReasons.insert(id).inserted { revealedReasons.remove(id) }
+            }
         }
     }
 

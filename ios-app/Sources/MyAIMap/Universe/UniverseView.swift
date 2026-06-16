@@ -58,6 +58,11 @@ struct UniverseView: View {
             // Added once; additive to the core's existing emissive styling.
             universe.addChild(Self.makeFounderHalo(reduceMotion: reduceMotion))
 
+            // Overview tool positions, accumulated as nodes are built, so the
+            // P9 inferred-edge pass below can look up both endpoints. Static —
+            // populated once during the one-time build, never per frame.
+            var toolPositionById: [String: SIMD3<Float>] = ["founder-os": .zero]
+
             var anchors: [ProximityWatcherCore.Anchor] = []
             for category in UniverseSeed.categories where category.id != .core {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
@@ -87,6 +92,11 @@ struct UniverseView: View {
                 let categoryTools = UniverseSeed.tools(in: category.id)
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
+                    let overviewPosition = Self.toolPosition(
+                        tool: tool, category: category, index: index,
+                        count: categoryTools.count, pocketed: false
+                    )
+                    toolPositionById[tool.id] = overviewPosition
                     let node = Self.makeToolNode(
                         tool: tool,
                         category: category,
@@ -127,11 +137,36 @@ struct UniverseView: View {
                     // re-layout is deferred to a later slice.
                     universe.addChild(Self.makeLink(
                         from: center,
-                        to: Self.toolPosition(tool: tool, category: category, index: index, count: categoryTools.count, pocketed: false),
+                        to: overviewPosition,
                         color: category.color.uiColor,
                         opacity: 0.22,
                         thickness: 0.012,
                         name: "link:\(category.id.rawValue)-\(tool.id)"
+                    ))
+                }
+            }
+
+            // Inferred relationship edges (P9): violet links drawn between two
+            // tool nodes, alpha + thickness scaled by confidence. Static
+            // geometry built once here — no per-frame work, so the 60fps /
+            // no-postprocessing constraints hold. Each pair drawn once
+            // (fromId < toId) so a mutual A↔B edge isn't doubled.
+            let inferredTint = UIColor(red: 0.79, green: 0.71, blue: 1.0, alpha: 1) // web #c9b4ff
+            var drawnInferred = Set<String>()
+            for tool in UniverseSeed.tools {
+                for edge in RelationshipIntelligence.infer(candidate: tool, universe: UniverseSeed.tools) {
+                    let key = [edge.fromId, edge.toId].sorted().joined(separator: "->")
+                    guard drawnInferred.insert(key).inserted else { continue }
+                    guard let from = toolPositionById[edge.fromId],
+                          let to = toolPositionById[edge.toId] else { continue }
+                    let confidence = Float(edge.confidence)
+                    universe.addChild(Self.makeLink(
+                        from: from,
+                        to: to,
+                        color: inferredTint,
+                        opacity: 0.12 + confidence * 0.5,   // 0.12–0.62 (web parity)
+                        thickness: 0.008 + confidence * 0.012,
+                        name: "inferred:\(edge.fromId)-\(edge.toId)-\(edge.kind.rawValue)"
                     ))
                 }
             }
