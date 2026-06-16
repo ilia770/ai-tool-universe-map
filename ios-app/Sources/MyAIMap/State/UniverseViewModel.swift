@@ -14,6 +14,21 @@ final class UniverseViewModel {
     var clarityMode: ClarityMode = .focus
     var searchQuery: String = ""
 
+    /// Tool add/delete history (P4). Pure `ToolHistory` value type; side
+    /// effects (persistence) live in `historyStore`, mirroring how
+    /// `SearchCore`/`UniverseSelection` keep logic out of the side-effecting
+    /// shell. Loaded on init, saved on every mutation.
+    private(set) var history: ToolHistory
+    @ObservationIgnored private let historyStore: HistoryStore?
+
+    /// Tests pass `historyStore: nil` to skip persistence; production callers
+    /// get the default `UserDefaults`-backed store. Defaulting both params
+    /// preserves the zero-arg `UniverseViewModel()` callers already use.
+    init(history: ToolHistory? = nil, historyStore: HistoryStore? = HistoryStore()) {
+        self.historyStore = historyStore
+        self.history = history ?? historyStore?.load() ?? ToolHistory()
+    }
+
     /// Memoised inferred relationship edges per tool id (P9). Computed once
     /// per id via `RelationshipIntelligence.infer` over the seed universe and
     /// cached, so neither the detail sheet nor the link-drawing pass triggers
@@ -60,6 +75,12 @@ final class UniverseViewModel {
         SearchCore.results(for: searchQuery, in: UniverseSeed.tools) { UniverseSeed.category($0).shortName }
     }
 
+    /// Web parity: FindBar.tsx:196 `tools.filter(userAdded).slice(-6).reverse()`.
+    /// Most-recent-first, de-duplicated per tool, capped at six.
+    var recentHistory: [ToolHistory.Event] {
+        history.recents(limit: 6)
+    }
+
     // MARK: - Intents
 
     func selectCategory(_ id: ToolCategoryId) {
@@ -88,6 +109,19 @@ final class UniverseViewModel {
 
     func setHover(_ id: String?) {
         selection.hoveredToolID = id
+    }
+
+    /// Record that a tool was added to the universe. Persists immediately so
+    /// the strip survives relaunch.
+    func recordAdded(_ toolID: String) {
+        history.record(toolID: toolID, kind: .added)
+        historyStore?.save(history)
+    }
+
+    /// Record that a tool was removed from the universe.
+    func recordDeleted(_ toolID: String) {
+        history.record(toolID: toolID, kind: .deleted)
+        historyStore?.save(history)
     }
 
     /// Enter-to-focus parity with the web build ([C3], `focusTool` in
