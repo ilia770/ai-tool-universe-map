@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { QuadraticBezierLine } from '@react-three/drei';
 import type { ToolCategoryId, UniverseLink, WorkflowStageId } from '../../data/ai-tool-universe';
+import type { InferredEdge } from '../../lib/relationship-intelligence.types';
+import { buildInferredLineData } from './inferredLineData';
 
 type RelationLens = 'direct' | 'adjacent' | 'stage' | 'category';
 
@@ -15,6 +17,8 @@ interface ConnectionLinesProps {
   pocketCategory: ToolCategoryId | null;
   relationLens: RelationLens;
   selectedId: string;
+  /** Inferred relationship edges (P9), drawn in violet by confidence. */
+  inferredEdges?: InferredEdge[];
 }
 
 export function ConnectionLines({
@@ -28,7 +32,14 @@ export function ConnectionLines({
   pocketCategory,
   relationLens,
   selectedId,
+  inferredEdges,
 }: ConnectionLinesProps) {
+  // Static geometry: inferred lines depend only on the edge list + positions,
+  // so they live in a memo (no useFrame) — no per-frame relayout, 60fps holds.
+  const inferredLines = useMemo(
+    () => buildInferredLineData(inferredEdges ?? [], positionById),
+    [inferredEdges, positionById],
+  );
   const lineData = useMemo(() =>
     links.flatMap((link) => {
       const start = positionById.get(link.source);
@@ -108,6 +119,20 @@ export function ConnectionLines({
           />
         );
       })}
+      {/* Inferred relationship edges (P9): violet so they read as
+          "intelligence", distinct from the curated blue/white graph.
+          Opacity + width scale with confidence (buildInferredLineData). */}
+      {inferredLines.map(({ edge, start, end, opacity, lineWidth }) => (
+        <QuadraticBezierLine
+          key={`inferred-${edge.fromId}-${edge.toId}-${edge.kind}`}
+          start={start}
+          end={end}
+          color="#c9b4ff"
+          lineWidth={lineWidth}
+          opacity={opacity}
+          transparent
+        />
+      ))}
     </>
   );
 }
