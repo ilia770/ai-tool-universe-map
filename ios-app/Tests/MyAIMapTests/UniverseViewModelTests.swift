@@ -183,4 +183,28 @@ struct UniverseViewModelTests {
         model.deleteTool("founder-os")
         #expect(model.tools.contains { $0.id == "founder-os" })
     }
+
+    // MARK: - P4 history
+
+    @Test func recordingAddedSurfacesInRecentHistory() {
+        let model = UniverseViewModel(history: ToolHistory(), historyStore: nil)
+        model.recordAdded("figma")
+        #expect(model.recentHistory.first?.toolID == "figma")
+        #expect(model.recentHistory.first?.kind == .added)
+    }
+
+    @Test func recentHistoryIsCappedAtSixMostRecentFirst() {
+        let model = UniverseViewModel(history: ToolHistory(), historyStore: nil)
+        for i in 0..<8 { model.recordAdded("tool-\(i)") }
+        #expect(model.recentHistory.count == 6)
+        #expect(model.recentHistory.first?.toolID == "tool-7")
+    }
+
+    @Test func recordingDeletedKeepsToolInHistoryMarkedDeleted() {
+        let model = UniverseViewModel(history: ToolHistory(), historyStore: nil)
+        model.recordAdded("figma")
+        model.recordDeleted("figma")
+        #expect(model.recentHistory.first?.toolID == "figma")
+        #expect(model.recentHistory.first?.kind == .deleted)
+    }
 }
