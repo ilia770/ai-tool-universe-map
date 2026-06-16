@@ -4,8 +4,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { tools as seedTools, type AITool } from '../data/ai-tool-universe';
+import { tools as seedTools, categories as seedCategories, type AITool, type ToolCategory } from '../data/ai-tool-universe';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
+import { classifyIntake } from '../lib/intake';
+import { makeDynamicCategory } from '../lib/dynamic-category';
 import { getToolLogoUrl } from '../lib/tool-logos';
 import {
   ToolStoreContext,
@@ -50,9 +52,14 @@ function sameToolIdentity(tool: AITool, slug: string, name: string, domain?: str
 
 export function ToolStoreProvider({ children }: { children: ReactNode }) {
   const [added, setAdded] = useState<AddedTool[]>([]);
+  const [dynamicCategories, setDynamicCategories] = useState<ToolCategory[]>([]);
   const [icons, setIcons] = useState<Map<string, string>>(() => new Map());
 
   const tools = useMemo<AddedTool[]>(() => [...seedTools, ...added], [added]);
+  const allCategories = useMemo<ToolCategory[]>(
+    () => [...seedCategories, ...dynamicCategories],
+    [dynamicCategories],
+  );
   const toolById = useMemo(() => {
     const map = new Map<string, AddedTool>();
     tools.forEach((t) => map.set(t.id, t));
@@ -67,11 +74,28 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
       const existing = [...seedTools, ...added].find((t) => sameToolIdentity(t, slug, name, domain));
       if (existing) return existing;
 
-      const result = classifyToolDetailed(input.text);
+      // Resolve the intake outcome (caller may pass a pre-resolved one from a
+      // URL fallback / confirmation flow). A newCategory outcome mints a fresh
+      // branch instead of dumping the tool into `core`.
+      const outcome = input.outcome
+        ?? classifyIntake(input.text, input.text === domain ? {} : { url: domain ? `https://${domain}` : undefined });
+      const result = outcome.kind === 'classified'
+        || outcome.kind === 'ambiguous'
+        || outcome.kind === 'newCategory'
+        ? outcome.result
+        : classifyToolDetailed(input.text);
+
+      let category = result.category;
+      if (outcome.kind === 'newCategory') {
+        const dynamic = makeDynamicCategory(outcome.suggestedName, allCategories);
+        category = dynamic.id;
+        setDynamicCategories((prev) => (prev.some((c) => c.id === dynamic.id) ? prev : [...prev, dynamic]));
+      }
+
       const tool: AddedTool = {
         id: slug,
         name,
-        category: result.category,
+        category,
         summary: result.reason,
         stage: result.stage,
         orbit: 2,
@@ -92,7 +116,7 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
       }
       return tool;
     },
-    [added],
+    [added, allCategories],
   );
 
   const iconUrlFor = useCallback(
@@ -101,8 +125,8 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ToolStore>(
-    () => ({ tools, toolById, addTool, iconUrlFor }),
-    [tools, toolById, addTool, iconUrlFor],
+    () => ({ tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor }),
+    [tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor],
   );
 
   return <ToolStoreContext.Provider value={value}>{children}</ToolStoreContext.Provider>;

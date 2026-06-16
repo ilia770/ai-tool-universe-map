@@ -22,4 +22,10 @@ describe('classifyIntake — confidence gating', () => {
     expect(out.kind).toBe('classified');
     if (out.kind === 'classified') expect(out.result.category).toBe('analytics');
   });
+
+  it('mints a newCategory when a URL fits no existing branch', () => {
+    const out = classifyIntake('QuantumKnitting', { url: 'https://quantumknitting.io' });
+    expect(out.kind).toBe('newCategory');
+    if (out.kind === 'newCategory') expect(out.suggestedName.length).toBeGreaterThan(0);
+  });
 });

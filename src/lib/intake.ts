@@ -24,10 +24,18 @@ export function classifyIntake(text: string, opts: IntakeOptions = {}): IntakeOu
   const result = classifyToolDetailed(source);
   const hasUrl = hasUrlLike(source);
 
+  const name = getDisplayName(source);
+
   // Unknown AND no URL to reason from → ask, do not guess.
   if (result.category === 'core' && result.confidence <= CONFIDENCE_FLOOR && !hasUrl) {
     return { kind: 'unsure', prompt: UNSURE_PROMPT, query: text.trim() };
   }
 
-  return { kind: 'classified', result, name: getDisplayName(source) };
+  // No rule fit even with a URL → mint a fresh branch instead of dumping
+  // the tool into the catch-all `core` bucket.
+  if (result.category === 'core' && result.confidence <= CONFIDENCE_FLOOR) {
+    return { kind: 'newCategory', suggestedName: name, result, name };
+  }
+
+  return { kind: 'classified', result, name };
 }
