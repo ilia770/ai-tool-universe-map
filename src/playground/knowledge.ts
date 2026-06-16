@@ -1,4 +1,5 @@
 import { toolById, type AITool } from '../data/ai-tool-universe';
+import { ENRICHED_DATA } from './knowledge.data';
 
 /* ------------------------------------------------------------------ *
  * Hyperbrain knowledge layer
@@ -44,7 +45,7 @@ export interface ToolKnowledge {
  * Web-researched knowledge, keyed by tool id. Populated by the
  * enrichment agents (P1). Empty entries fall back to interim derivation.
  */
-export const ENRICHED: Record<string, Omit<ToolKnowledge, 'enriched'>> = {};
+export const ENRICHED: Record<string, Omit<ToolKnowledge, 'enriched'>> = ENRICHED_DATA;
 
 function interim(tool: AITool): ToolKnowledge {
   return {
