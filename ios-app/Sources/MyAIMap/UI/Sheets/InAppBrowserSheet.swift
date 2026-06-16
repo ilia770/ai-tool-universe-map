@@ -4,6 +4,11 @@ import SwiftUI
 struct BrowserSheetItem: Identifiable {
     let url: URL
 
+    init?(url: URL) {
+        guard url.scheme?.lowercased() == "https" else { return nil }
+        self.url = url
+    }
+
     var id: String {
         url.absoluteString
     }

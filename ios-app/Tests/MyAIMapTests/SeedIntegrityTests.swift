@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import MyAIMap
 
@@ -58,5 +59,23 @@ struct SeedIntegrityTests {
             #expect(tool != nil, "expected tool \(id) to exist")
             #expect(!(tool?.summary.isEmpty ?? true), "tool \(id) has empty summary")
         }
+    }
+
+    @Test func toolURLsAreHTTPSOnly() {
+        for tool in UniverseSeed.tools {
+            if let url = tool.url {
+                #expect(url.scheme?.lowercased() == "https", "tool \(tool.id) has non-HTTPS URL \(url)")
+            }
+        }
+    }
+
+    @Test func browserSheetRejectsNonHTTPSURLs() throws {
+        let https = try #require(URL(string: "https://example.com"))
+        let http = try #require(URL(string: "http://example.com"))
+        let custom = try #require(URL(string: "myapp://example"))
+
+        #expect(BrowserSheetItem(url: https) != nil)
+        #expect(BrowserSheetItem(url: http) == nil)
+        #expect(BrowserSheetItem(url: custom) == nil)
     }
 }

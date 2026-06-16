@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verify (typecheck • lint • unit • build)
@@ -31,6 +34,9 @@ jobs:
 
       - name: Unit tests
         run: npm test -- --run
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Production build
         run: npm run build

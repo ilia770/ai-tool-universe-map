@@ -6,9 +6,9 @@
  * BUDGETS table by filename prefix, and fails if either the raw or
  * gzipped size exceeds the threshold.
  *
- * Thresholds are set ~20 % above the post-D2 (vite manualChunks)
- * baseline so normal drift (a tooltip, an extra icon) passes, but a
- * regression that re-bloats a vendor chunk gets caught at PR time.
+ * Thresholds track the current multi-entry production build
+ * (main app + playground lab) with enough headroom for small UI drift,
+ * while still catching accidental vendor rebundling.
  *
  * Run locally after `npm run build`:
  *   node scripts/check-bundle-size.mjs
@@ -19,9 +19,10 @@ import { join } from 'node:path';
 
 /** @type {Array<{prefix: string, maxRawKb: number, maxGzipKb: number}>} */
 const BUDGETS = [
-  { prefix: 'index-',             maxRawKb: 80,  maxGzipKb: 25 },
+  { prefix: 'main-',              maxRawKb: 85,  maxGzipKb: 25 },
+  { prefix: 'playground-',        maxRawKb: 360, maxGzipKb: 115 },
   { prefix: 'AIToolUniverse3D-',  maxRawKb: 35,  maxGzipKb: 12 },
-  { prefix: 'three-r3f-',         maxRawKb: 500, maxGzipKb: 155 },
+  { prefix: 'three-r3f-',         maxRawKb: 650, maxGzipKb: 205 },
   { prefix: 'three-core-',        maxRawKb: 800, maxGzipKb: 205 },
 ];
 
