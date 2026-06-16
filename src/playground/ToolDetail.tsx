@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { ArrowUpRight, X } from 'lucide-react';
+import { ArrowUpRight, Trash2, X } from 'lucide-react';
 import { useToolStore } from './useToolStore';
+import { t } from './i18n';
 import { categoryById } from '../data/ai-tool-universe';
 import { knowledgeFor } from './knowledge';
 import type { InferredEdge } from '../lib/relationship-intelligence.types';
@@ -75,7 +76,7 @@ interface Props {
  * on phones, right column on desktop. Liquid glass, App-Store-grade.
  */
 export function ToolDetail({ toolId, onClose, onSelect }: Props) {
-  const { toolById, iconUrlFor, edgesFor } = useToolStore();
+  const { toolById, iconUrlFor, edgesFor, removeTool, settings } = useToolStore();
   const { openInApp } = useInAppBrowser();
 
   // mounted + visible state so the panel animates IN, and animates OUT
@@ -127,6 +128,16 @@ export function ToolDetail({ toolId, onClose, onSelect }: Props) {
     onClose();
   }, [onClose]);
 
+  const lang = settings.language;
+  const onRemove = useCallback(() => {
+    const target = mountedId ? toolById.get(mountedId) : undefined;
+    if (!target?.userAdded) return;
+    if (typeof window !== 'undefined' && !window.confirm(`${t('tool.remove', lang)}?`)) return;
+    tap();
+    removeTool(target.id);
+    onClose();
+  }, [mountedId, toolById, removeTool, onClose, lang]);
+
   if (!mountedId) return null;
   const tool = toolById.get(mountedId);
   if (!tool) return null;
@@ -162,6 +173,8 @@ export function ToolDetail({ toolId, onClose, onSelect }: Props) {
       onSelect={onSelect}
       openInApp={openInApp}
       requestClose={requestClose}
+      onRemove={onRemove}
+      lang={lang}
     />
   );
 }
@@ -187,6 +200,8 @@ interface ViewProps {
   onSelect: (id: string) => void;
   openInApp: (url: string, name: string) => void;
   requestClose: () => void;
+  onRemove: () => void;
+  lang: ReturnType<typeof useToolStore>['settings']['language'];
 }
 
 function ToolDetailView({
@@ -206,6 +221,8 @@ function ToolDetailView({
   onSelect,
   openInApp,
   requestClose,
+  onRemove,
+  lang,
 }: ViewProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
@@ -575,6 +592,21 @@ function ToolDetailView({
           >
             Link coming soon
           </div>
+        )}
+        {tool.userAdded && (
+          <button
+            type="button"
+            data-no-drag
+            onClick={onRemove}
+            className={cx(
+              'mt-2 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 transition active:scale-[0.97]',
+              'text-red-200/90 [@media(hover:hover)]:hover:bg-red-400/10',
+              FOCUS_RING,
+            )}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+            <span className={TYPE.body}>{t('tool.remove', lang)}</span>
+          </button>
         )}
       </div>
     </div>
