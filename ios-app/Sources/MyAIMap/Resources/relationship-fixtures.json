@@ -1,0 +1,13 @@
+{
+  "universe": [
+    { "id": "google", "name": "Google", "category": "research", "stage": "research", "summary": "", "orbit": 1, "angle": 0, "logoDomain": "google.com", "relationIds": [] },
+    { "id": "cursor", "name": "Cursor", "category": "coding", "stage": "execution", "summary": "", "orbit": 1, "angle": 0, "logoDomain": "cursor.com", "relationIds": [] },
+    { "id": "figma", "name": "Figma", "category": "design", "stage": "planning", "summary": "", "orbit": 1, "angle": 0, "logoDomain": "figma.com", "relationIds": [] }
+  ],
+  "cases": [
+    { "candidate": { "id": "g-ext", "name": "Google Translate Chrome extension", "category": "research", "stage": "research", "summary": "A Chrome extension for Google.", "orbit": 2, "angle": 0, "relationIds": [] },
+      "expect": [{ "toId": "google", "kind": "extension-of" }], "forbid": ["figma"] },
+    { "candidate": { "id": "windsurf", "name": "Windsurf", "category": "coding", "stage": "execution", "summary": "", "orbit": 2, "angle": 0, "relationIds": [] },
+      "expect": [{ "toId": "cursor", "kind": "alternative-to" }], "forbid": ["google"] }
+  ]
+}

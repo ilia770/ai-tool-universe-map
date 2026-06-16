@@ -65,6 +65,14 @@ if ! diff -q "$ROOT_DIR/src/data/knowledge.json" \
   exit 1
 fi
 
+# Relationship fixtures must stay byte-identical across lanes (P9 contract):
+# the same cases drive both the TS and Swift inference engines.
+if ! diff -q "$ROOT_DIR/src/lib/relationship-fixtures.json" \
+             "$ROOT_DIR/ios-app/Sources/MyAIMap/Resources/relationship-fixtures.json" >/dev/null; then
+  echo "relationship-fixtures.json drift: copy src/lib/relationship-fixtures.json into ios-app/Sources/MyAIMap/Resources and commit both." >&2
+  exit 1
+fi
+
 echo "== Xcode =="
 xcodebuild -version
 
