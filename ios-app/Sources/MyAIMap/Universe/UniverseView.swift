@@ -10,6 +10,9 @@ import RealityKit
 /// proximity system's cooldown state, the ring spins, and the camera
 /// all survive a transition instead of rebuilding from black.
 struct UniverseView: View {
+    /// Live tool list from the view-model (seed minus deletions). The scene is
+    /// persistent, so deletions are applied by pruning entities in `update`.
+    let tools: [Tool]
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
     let onToolSelect: @MainActor (String) -> Void
@@ -89,7 +92,7 @@ struct UniverseView: View {
                     name: "link:core-\(category.id.rawValue)"
                 ))
 
-                let categoryTools = UniverseSeed.tools(in: category.id)
+                let categoryTools = tools.filter { $0.category == category.id }
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
                     let overviewPosition = Self.toolPosition(
@@ -153,8 +156,8 @@ struct UniverseView: View {
             // (fromId < toId) so a mutual A↔B edge isn't doubled.
             let inferredTint = UIColor(red: 0.79, green: 0.71, blue: 1.0, alpha: 1) // web #c9b4ff
             var drawnInferred = Set<String>()
-            for tool in UniverseSeed.tools {
-                for edge in RelationshipIntelligence.infer(candidate: tool, universe: UniverseSeed.tools) {
+            for tool in tools {
+                for edge in RelationshipIntelligence.infer(candidate: tool, universe: tools) {
                     let key = [edge.fromId, edge.toId].sorted().joined(separator: "->")
                     guard drawnInferred.insert(key).inserted else { continue }
                     guard let from = toolPositionById[edge.fromId],
@@ -242,7 +245,19 @@ struct UniverseView: View {
                   let state = universe.components[UniverseStateComponent.self] else { return }
             let categoryChanged = state.activeCategory != selectedCategory
             let toolChanged = state.activeToolId != selectedToolId
-            guard categoryChanged || toolChanged else { return }
+
+            // Prune entities for tools deleted since the last update. Done before
+            // the change guard so a delete that doesn't move selection still applies.
+            let liveIDs = Set(tools.map(\.id))
+            let prune = Self.entitiesToPrune(
+                entityNames: universe.children.map(\.name),
+                liveToolIDs: liveIDs
+            )
+            for name in prune {
+                universe.findEntity(named: name)?.removeFromParent()
+            }
+
+            guard categoryChanged || toolChanged || !prune.isEmpty else { return }
 
             universe.components.set(UniverseStateComponent(
                 activeCategory: selectedCategory,
@@ -269,11 +284,12 @@ struct UniverseView: View {
                 }
                 // Billboarded, distance-faded tool labels for the open pocket
                 // (backlog 26). Rebuilt on every category change.
-                Self.refreshToolLabels(universe: universe, selectedCategory: selectedCategory)
+                Self.refreshToolLabels(universe: universe, tools: tools, selectedCategory: selectedCategory)
             }
 
             Self.applyLayout(
                 universe: universe,
+                tools: tools,
                 selectedCategory: selectedCategory,
                 selectedToolId: selectedToolId,
                 animated: categoryChanged,
@@ -366,6 +382,58 @@ struct UniverseView: View {
 
     // MARK: - Persistent-scene layout
 
+    /// Names of entities that belong to a deleted tool, given the set of live
+    /// tool ids. Pure (no RealityKit) so it is unit-testable. Covers the
+    /// per-tool entity families built in `make`: the orb (`tool:<id>`), its
+    /// pocket label (`tool-label:<id>`), its inbound edge (`link:<category>-<id>`),
+    /// and any inferred edges touching it (`inferred:<from>-<to>-<kind>`).
+    /// Founder/category/ring/skybox entities are never matched because their
+    /// suffix is not a tool id.
+    ///
+    /// Tool ids may contain dashes (e.g. `claude-code`), so link names can't be
+    /// split on the last `-`. A tool inbound edge is `link:<categoryRaw>-<toolId>`;
+    /// the tool id is whatever follows the leading `<categoryRaw>-`. Core→category
+    /// links are `link:core-<categoryRaw>`, whose remainder is itself a category
+    /// raw — those are skipped so structural links survive.
+    static func entitiesToPrune(entityNames: [String], liveToolIDs: Set<String>) -> [String] {
+        let categoryRaws = Set(ToolCategoryId.allCases.map(\.rawValue))
+
+        /// The tool id a `link:`/`inferred:` name references, or nil for a
+        /// core→category structural link (no tool id involved).
+        func referencedToolID(in body: String) -> String? {
+            // Strip the leading "<categoryRaw>-" prefix.
+            guard let dash = body.firstIndex(of: "-") else { return nil }
+            let head = String(body[body.startIndex..<dash])
+            let rest = String(body[body.index(after: dash)...])
+            guard categoryRaws.contains(head) else { return nil }
+            // Core→category link: the remainder is a category raw, not a tool.
+            if categoryRaws.contains(rest) { return nil }
+            return rest
+        }
+
+        return entityNames.filter { name in
+            if name.hasPrefix("tool:") {
+                return !liveToolIDs.contains(String(name.dropFirst("tool:".count)))
+            }
+            if name.hasPrefix("tool-label:") {
+                return !liveToolIDs.contains(String(name.dropFirst("tool-label:".count)))
+            }
+            if name.hasPrefix("link:") {
+                guard let id = referencedToolID(in: String(name.dropFirst("link:".count))) else { return false }
+                return !liveToolIDs.contains(id)
+            }
+            if name.hasPrefix("inferred:") {
+                // inferred:<fromId>-<toId>-<kind>; prune if either endpoint is gone.
+                // Endpoints are tool ids, so match any non-live id as a dash-suffix.
+                let body = String(name.dropFirst("inferred:".count))
+                return UniverseSeed.tools.contains { tool in
+                    !liveToolIDs.contains(tool.id) && body.contains(tool.id)
+                }
+            }
+            return false
+        }
+    }
+
     private static func toolPosition(tool: Tool, category: ToolCategory, index: Int, count: Int, pocketed: Bool) -> SIMD3<Float> {
         pocketed
             ? UniverseLayout.pocketToolPosition(
@@ -386,6 +454,7 @@ struct UniverseView: View {
     /// (RealityKit can't tween them); transforms animate via Entity.move.
     private static func applyLayout(
         universe: Entity,
+        tools: [Tool],
         selectedCategory: ToolCategoryId,
         selectedToolId: String,
         animated: Bool,
@@ -412,7 +481,7 @@ struct UniverseView: View {
                 anchor.move(to: transform, relativeTo: anchor.parent, duration: duration, timingFunction: .easeInOut)
             }
 
-            let categoryTools = UniverseSeed.tools(in: category.id)
+            let categoryTools = tools.filter { $0.category == category.id }
             for (index, tool) in categoryTools.enumerated() {
                 guard let node = universe.findEntity(named: "tool:\(tool.id)") as? ModelEntity else { continue }
                 let selected = tool.id == selectedToolId
@@ -607,17 +676,17 @@ struct UniverseView: View {
     /// Removes any existing tool labels and, when a category pocket is open,
     /// adds a fresh label at each pocketed tool's position. Mirrors the
     /// pocket-shell lifecycle in the update closure.
-    private static func refreshToolLabels(universe: Entity, selectedCategory: ToolCategoryId) {
+    private static func refreshToolLabels(universe: Entity, tools: [Tool], selectedCategory: ToolCategoryId) {
         for child in universe.children where child.name.hasPrefix("tool-label:") {
             child.removeFromParent()
         }
         guard selectedCategory != .core else { return }
         let category = UniverseSeed.category(selectedCategory)
-        let tools = UniverseSeed.tools(in: selectedCategory)
-        for (index, tool) in tools.enumerated() {
+        let categoryTools = tools.filter { $0.category == selectedCategory }
+        for (index, tool) in categoryTools.enumerated() {
             let position = toolPosition(
                 tool: tool, category: category,
-                index: index, count: tools.count, pocketed: true
+                index: index, count: categoryTools.count, pocketed: true
             )
             universe.addChild(makeToolLabel(tool: tool, position: position))
         }
@@ -845,6 +914,7 @@ struct UniverseView: View {
 
 #Preview {
     UniverseView(
+        tools: UniverseSeed.tools,
         selectedCategory: .design,
         selectedToolId: "figma",
         onToolSelect: { _ in },

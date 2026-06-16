@@ -14,6 +14,15 @@ final class UniverseViewModel {
     var clarityMode: ClarityMode = .focus
     var searchQuery: String = ""
 
+    /// Ids the user has deleted. Soft-delete: the seed stays immutable and the
+    /// effective `tools` list filters these out. Re-adding the same id (future
+    /// add-tool flow) simply clears it from this set.
+    private(set) var removedToolIDs: Set<String> = []
+
+    /// P4 seam. Every confirmed deletion is handed to this sink so the history
+    /// store can log it. Defaults to a no-op so P2 stands alone; P4 assigns it.
+    var deletionSink: (ToolDeletion) -> Void = { _ in }
+
     /// Memoised inferred relationship edges per tool id (P9). Computed once
     /// per id via `RelationshipIntelligence.infer` over the seed universe and
     /// cached, so neither the detail sheet nor the link-drawing pass triggers
@@ -35,6 +44,16 @@ final class UniverseViewModel {
 
     // MARK: - Derived state
 
+    /// Seed minus anything the user deleted — the single list every other
+    /// derived property and the renderer read from.
+    var tools: [Tool] {
+        UniverseSeed.tools.filter { !removedToolIDs.contains($0.id) }
+    }
+
+    func tools(in category: ToolCategoryId) -> [Tool] {
+        tools.filter { $0.category == category }
+    }
+
     var selectedCategoryModel: ToolCategory {
         UniverseSeed.category(selection.activeCategory)
     }
@@ -42,12 +61,12 @@ final class UniverseViewModel {
     /// Tools for the active category, falling back to the core slice so
     /// the rail never renders empty (Phase 1 parity).
     var visibleTools: [Tool] {
-        let tools = UniverseSeed.tools(in: selection.activeCategory)
-        return tools.isEmpty ? UniverseSeed.tools.filter { $0.category == .core } : tools
+        let categoryTools = tools(in: selection.activeCategory)
+        return categoryTools.isEmpty ? tools.filter { $0.category == .core } : categoryTools
     }
 
     var selectedTool: Tool {
-        UniverseSeed.tools.first { $0.id == selection.selectedToolID }
+        tools.first { $0.id == selection.selectedToolID }
             ?? visibleTools.first
             ?? UniverseSeed.tools[0]
     }
@@ -57,7 +76,7 @@ final class UniverseViewModel {
     /// Whitespace-only queries return nothing so the search dock can
     /// treat "no text" and "no results" identically.
     var searchResults: [Tool] {
-        SearchCore.results(for: searchQuery, in: UniverseSeed.tools) { UniverseSeed.category($0).shortName }
+        SearchCore.results(for: searchQuery, in: tools) { UniverseSeed.category($0).shortName }
     }
 
     // MARK: - Intents
@@ -72,6 +91,29 @@ final class UniverseViewModel {
 
     func selectTool(_ id: String) {
         selection.selectedToolID = id
+    }
+
+    /// Removes a user tool. Rejects the founder core (the hero node is never
+    /// deletable) and unknown ids. When the deleted tool is selected, selection
+    /// falls back to its category neighbour, else the founder core. Emits a
+    /// `ToolDeletion` to `deletionSink` for the history store (P4).
+    func deleteTool(_ id: String) {
+        guard id != "founder-os",
+              let tool = UniverseSeed.tools.first(where: { $0.id == id }),
+              !removedToolIDs.contains(id) else { return }
+
+        let wasSelected = selection.selectedToolID == id
+        removedToolIDs.insert(id)
+
+        if wasSelected {
+            let neighbour = tools(in: tool.category).first ?? tools.first { $0.id == "founder-os" }
+            selection.selectedToolID = neighbour?.id ?? "founder-os"
+            if neighbour == nil || neighbour?.id == "founder-os" {
+                selection.activeCategory = .core
+            }
+        }
+
+        deletionSink(ToolDeletion(tool: tool))
     }
 
     /// Selects a tool from any surface that can name a tool id: node tap,
