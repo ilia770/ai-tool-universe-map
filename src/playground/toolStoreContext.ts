@@ -1,6 +1,7 @@
 import { createContext } from 'react';
 import type { AITool, ToolCategory } from '../data/ai-tool-universe';
 import type { IntakeOutcome } from '../lib/intake';
+import type { InferredEdge } from '../lib/relationship-intelligence.types';
 
 export interface AddToolInput {
   /** Raw text: a tool name or URL. */
@@ -14,6 +15,11 @@ export interface AddToolInput {
 export interface AddedTool extends AITool {
   /** True for user-added tools (so variants can badge them as "new"). */
   userAdded?: boolean;
+  /**
+   * Typed, explained, confidence-scored relationship edges inferred at
+   * intake time (P9). Additive to `relationIds`; never persisted.
+   */
+  inferredEdges?: InferredEdge[];
 }
 
 export interface ToolStore {
@@ -25,6 +31,8 @@ export interface ToolStore {
   dynamicCategories: ToolCategory[];
   /** Classify + place a new tool. Returns it (or an existing match). */
   addTool: (input: AddToolInput) => AddedTool;
+  /** Inferred relationship edges for a tool id (empty if none). */
+  edgesFor: (id: string) => InferredEdge[];
   /** Best icon URL for a tool: user image override, else logo.dev. */
   iconUrlFor: (tool: AITool, size?: number) => string | undefined;
 }

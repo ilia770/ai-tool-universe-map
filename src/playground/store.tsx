@@ -9,6 +9,9 @@ import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-
 import { classifyIntake } from '../lib/intake';
 import { makeDynamicCategory } from '../lib/dynamic-category';
 import { getToolLogoUrl } from '../lib/tool-logos';
+import { inferRelationships } from '../lib/relationship-intelligence';
+import type { InferredEdge } from '../lib/relationship-intelligence.types';
+import { knowledgeFor } from './knowledge';
 import {
   ToolStoreContext,
   type AddToolInput,
@@ -92,7 +95,7 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
         setDynamicCategories((prev) => (prev.some((c) => c.id === dynamic.id) ? prev : [...prev, dynamic]));
       }
 
-      const tool: AddedTool = {
+      const tool: AITool = {
         id: slug,
         name,
         category,
@@ -103,10 +106,15 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
         url: domain ? `https://${domain}` : undefined,
         logoDomain: domain,
         relationIds: result.relationIds.filter((id) => id !== slug),
-        userAdded: true,
       };
 
-      setAdded((prev) => (prev.some((t) => sameToolIdentity(t, slug, name, domain)) ? prev : [...prev, tool]));
+      // Pinpoint, explained relationship edges (P9): additive to the
+      // classifier's hub anchors above. Inferred against the current
+      // universe + P0 knowledge; derived at intake time, never persisted.
+      const inferredEdges = inferRelationships(tool, [...seedTools, ...added], knowledgeFor);
+      const stored: AddedTool = { ...tool, userAdded: true, inferredEdges };
+
+      setAdded((prev) => (prev.some((t) => sameToolIdentity(t, slug, name, domain)) ? prev : [...prev, stored]));
       if (input.imageDataUrl) {
         setIcons((prev) => {
           const next = new Map(prev);
@@ -114,9 +122,14 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
           return next;
         });
       }
-      return tool;
+      return stored;
     },
     [added, allCategories],
+  );
+
+  const edgesFor = useCallback(
+    (id: string): InferredEdge[] => toolById.get(id)?.inferredEdges ?? [],
+    [toolById],
   );
 
   const iconUrlFor = useCallback(
@@ -125,8 +138,8 @@ export function ToolStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ToolStore>(
-    () => ({ tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor }),
-    [tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor],
+    () => ({ tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor, edgesFor }),
+    [tools, toolById, allCategories, dynamicCategories, addTool, iconUrlFor, edgesFor],
   );
 
   return <ToolStoreContext.Provider value={value}>{children}</ToolStoreContext.Provider>;
