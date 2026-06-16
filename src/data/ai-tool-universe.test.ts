@@ -7,10 +7,26 @@ import {
   toolById,
   workflowLinks,
   workflowStages,
+  type ToolCategoryId,
 } from './ai-tool-universe';
 
 const allowedOrbits = new Set([0, 1, 2, 3]);
 const allowedStrengths = new Set(['primary', 'secondary']);
+
+describe('analytics category', () => {
+  it('exists as a distinct, non-social category', () => {
+    const analytics = categoryById.get('analytics' as ToolCategoryId);
+    expect(analytics).toBeDefined();
+    expect(analytics?.shortName).toBe('Analytics');
+    // Must NOT collide with distribution ("Social").
+    expect(analytics?.id).not.toBe('distribution');
+  });
+
+  it('keeps a stable, gap-free angle layout for all categories', () => {
+    const angles = categories.map((c) => c.angle);
+    expect(new Set(angles).size).toBe(angles.length); // no duplicate orbital slots
+  });
+});
 
 describe('ai tool universe data', () => {
   it('loads the production universe from the JSON seed', () => {

@@ -1008,7 +1008,7 @@ const STAGE_LABEL: Record<AITool['stage'], string> = {
 
 export function NeuralUniverse() {
   const { openInApp } = useInAppBrowser();
-  const { tools, toolById } = useToolStore();
+  const { tools, toolById, allCategories } = useToolStore();
   const graph = useMemo(() => buildGraph(tools, new Map()), [tools]);
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1229,7 +1229,7 @@ export function NeuralUniverse() {
             )}
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {categories.map((c) => {
+            {allCategories.map((c) => {
               const on = !activeCats || activeCats.has(c.id);
               return (
                 <button

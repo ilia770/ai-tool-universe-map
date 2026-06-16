@@ -43,6 +43,7 @@ struct ChromeSnapshotTests {
             view
         }
         .environment(model)
+        .environment(AppSettings(defaults: UserDefaults(suiteName: "ChromeSnapshotTests.\(UUID().uuidString)")!))
         .frame(width: size.width, height: size.height)
 
         let renderer = ImageRenderer(content: content)
@@ -146,6 +147,14 @@ struct ChromeSnapshotTests {
             ToolDetailSection(),
             size: CGSize(width: 360, height: 400),
             "ToolDetailSection"
+        )
+    }
+
+    @Test func accountButtonRenders() {
+        expectRenders(
+            AccountButton(action: {}),
+            size: CGSize(width: 56, height: 56),
+            "AccountButton"
         )
     }
 

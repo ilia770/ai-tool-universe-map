@@ -14,6 +14,7 @@ enum ToolCategoryId: String, CaseIterable, Codable, Sendable {
     case infrastructure
     case knowledge
     case core
+    case analytics
 }
 
 /// One category orbit in the universe. `angle` is degrees, matching the

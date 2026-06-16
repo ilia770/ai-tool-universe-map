@@ -8,7 +8,8 @@ export type ToolCategoryId =
   | 'distribution'
   | 'infrastructure'
   | 'knowledge'
-  | 'core';
+  | 'core'
+  | 'analytics';
 
 export type WorkflowStageId = 'research' | 'planning' | 'execution' | 'approval' | 'review';
 export type LinkStrength = 'primary' | 'secondary';

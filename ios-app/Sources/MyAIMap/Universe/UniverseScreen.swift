@@ -5,6 +5,18 @@ struct UniverseScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
+    @State private var settingsPresented = false
+    @State private var chatThread = ChatThreadStore(liveToolIds: Set(UniverseSeed.tools.map(\.id)))
+
+    /// "No active panel" gate for the ChatDock (web parity: the FindBar hides
+    /// when a tool window opens). On iPhone the detail sheet is always
+    /// presented, so the panel is "active" only once it is expanded past its
+    /// peek detent — collapsed at `.height(118)` means the canvas is clear and
+    /// the chat composer should show. Reuses the existing `sheetDetent` state
+    /// rather than adding a second source of truth.
+    private var isPanelActive: Bool {
+        sheetDetent != .height(118)
+    }
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -56,6 +68,12 @@ struct UniverseScreen: View {
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $settingsPresented) {
+            SettingsSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.disabled)
+        }
         .onAppear {
             sheetPresented = true
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
@@ -65,6 +83,7 @@ struct UniverseScreen: View {
     private var canvas: some View {
         ZStack {
             UniverseView(
+                tools: model.tools,
                 selectedCategory: model.selection.activeCategory,
                 selectedToolId: selectedTool.id,
                 onToolSelect: { toolId in
@@ -87,6 +106,8 @@ struct UniverseScreen: View {
                 header
                 SearchDock()
                     .padding(.top, 10)
+                HistoryStrip()
+                    .padding(.top, 10)
                 PocketReadout()
                     .padding(.top, 12)
                 Spacer(minLength: 0)
@@ -94,12 +115,23 @@ struct UniverseScreen: View {
                 // clarityMode (review NEW-6: a visible control that does
                 // nothing is worse than no control). Re-mount it with the
                 // focus/context/atlas dim-and-fade pass in Phase C.
+                // ChatDock shows only when no panel is active (web parity:
+                // the FindBar hides once a tool window opens). Gated on the
+                // expanded-sheet flag so the composer owns the clear canvas
+                // and never fights the detail panel for the bottom.
+                if !isPanelActive {
+                    ChatDock()
+                        .environment(chatThread)
+                        .padding(.top, 12)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 CategoryRail { id in
                     selectCategory(id)
                 }
                 // Keep the rail visible above the sheet's compact detent.
                 .padding(.bottom, 118)
             }
+            .brandAnimation(BrandMotion.entry, value: isPanelActive)
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 10)
@@ -118,15 +150,6 @@ struct UniverseScreen: View {
                     strokeStrength: 0.16
                 )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("My AI Map")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("Research → Plan → Build → Approve → Review")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-            }
-
             Spacer()
 
             Text("\(UniverseSeed.tools.count) tools")
@@ -135,6 +158,11 @@ struct UniverseScreen: View {
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
                 .liquidGlass(in: Capsule(), tint: selectedCategoryModel.color.swiftUIColor.opacity(0.5), strokeStrength: 0.08)
+
+            AccountButton {
+                BrandHaptics.fire(.medium)
+                settingsPresented = true
+            }
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
     }
@@ -171,7 +199,34 @@ struct UniverseScreen: View {
     }
 }
 
+/// Circular liquid-glass account/avatar button in the top bar. Opens the
+/// Settings sheet. Reuses `BouncyIconButtonStyle` press feedback and the
+/// shared `liquidGlass` material so it reads as one family with the
+/// header's sparkles tile and the tool-count pill.
+struct AccountButton: View {
+    @Environment(UniverseViewModel.self) private var model
+    @Environment(AppSettings.self) private var settings
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                .frame(width: 42, height: 42)
+                .liquidGlass(
+                    in: Circle(),
+                    tint: model.selectedCategoryModel.color.swiftUIColor,
+                    strokeStrength: 0.16
+                )
+        }
+        .buttonStyle(BouncyIconButtonStyle())
+        .accessibilityLabel(L10n.accountAccessibilityLabel(settings.language))
+    }
+}
+
 #Preview {
     UniverseScreen()
         .environment(UniverseViewModel())
+        .environment(AppSettings())
 }

@@ -23,12 +23,17 @@ import {
   FOCUS_RING,
   GLASS,
   HOVER_LIFT,
-  LONG_PRESS_MS,
-  LONG_PRESS_SLOP_PX,
   STAGGER,
   TEXT,
   TYPE,
 } from './designSystem';
+import {
+  fireHaptic,
+  LONG_PRESS_MS,
+  LONG_PRESS_SLOP_PX,
+  shouldDismiss,
+  useReducedMotion,
+} from './interactions';
 
 interface Turn {
   id: number;
@@ -53,28 +58,10 @@ const MAX_MATCH_IDS = 8;
 /** Seed example queries surfaced in the empty state (pre-fill the composer). */
 const EXAMPLE_QUERIES = ['build a database fast', 'edit video', 'research tool'] as const;
 
+/** Reduce-aware tick: gate on the caller's reduce flag, then fire shared. */
 const haptic = (ms = 8, reduce = false) => {
   if (reduce) return;
-  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-    navigator.vibrate(ms);
-  }
-};
-
-const usePrefersReducedMotion = (): boolean => {
-  const [reduced, setReduced] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      !!window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
+  fireHaptic(ms);
 };
 
 function loadTurns(tools: AITool[]): Turn[] {
@@ -163,7 +150,7 @@ export function FindBar({ onOpenTool, onAddToolQuery }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [undo, setUndo] = useState<Turn[] | null>(null);
   const nextId = useRef(1);
-  const reduce = usePrefersReducedMotion();
+  const reduce = useReducedMotion();
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const undoTimer = useRef<number | null>(null);
@@ -367,7 +354,7 @@ export function FindBar({ onOpenTool, onAddToolQuery }: Props) {
     const last = lastMove.current;
     const velocity = last ? (last.y - start.y) / Math.max(1, last.t - start.t) : 0;
     // Commit on distance OR a downward flick velocity.
-    if (dragY > DISMISS.distancePx || velocity > DISMISS.velocity) {
+    if (shouldDismiss(dragY, velocity)) {
       collapseThread();
     }
     setDragY(0);

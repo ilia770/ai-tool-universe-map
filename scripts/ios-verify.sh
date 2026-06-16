@@ -57,6 +57,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Knowledge JSON must stay byte-identical across lanes (P0 contract).
+# It is emitted from src/playground/knowledge.data.ts via `npm run gen:knowledge`.
+if ! diff -q "$ROOT_DIR/src/data/knowledge.json" \
+             "$ROOT_DIR/ios-app/Sources/MyAIMap/Resources/knowledge.json" >/dev/null; then
+  echo "knowledge.json drift: run 'npm run gen:knowledge' and commit both copies." >&2
+  exit 1
+fi
+
+# Relationship fixtures must stay byte-identical across lanes (P9 contract):
+# the same cases drive both the TS and Swift inference engines.
+if ! diff -q "$ROOT_DIR/src/lib/relationship-fixtures.json" \
+             "$ROOT_DIR/ios-app/Sources/MyAIMap/Resources/relationship-fixtures.json" >/dev/null; then
+  echo "relationship-fixtures.json drift: copy src/lib/relationship-fixtures.json into ios-app/Sources/MyAIMap/Resources and commit both." >&2
+  exit 1
+fi
+
 echo "== Xcode =="
 xcodebuild -version
 

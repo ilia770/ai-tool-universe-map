@@ -1,18 +1,9 @@
 import type { ToolCategoryId, WorkflowStageId } from '../data/ai-tool-universe';
-
-interface ClassifierRule {
-  category: ToolCategoryId;
-  stage: WorkflowStageId;
-  keywords: string[];
-  anchors: string[];
-}
-
-interface DomainRule {
-  category: ToolCategoryId;
-  stage: WorkflowStageId;
-  anchors: string[];
-  keyword: string;
-}
+import {
+  CATEGORY_RULES,
+  DOMAIN_RULES,
+  type DomainRule,
+} from '../data/classifier-taxonomy';
 
 export interface ClassificationResult {
   category: ToolCategoryId;
@@ -22,272 +13,6 @@ export interface ClassificationResult {
   relationIds: string[];
   reason: string;
 }
-
-const classifierRules: ClassifierRule[] = [
-  {
-    category: 'coding',
-    stage: 'execution',
-    keywords: [
-      'agent',
-      'app builder',
-      'bolt',
-      'claude',
-      'code',
-      'coder',
-      'codex',
-      'cursor',
-      'dev',
-      'github',
-      'github copilot',
-      'ide',
-      'lovable',
-      'replit',
-      'repo',
-      'stackblitz',
-      'v0',
-      'vscode',
-      'windsurf',
-      'zed',
-    ],
-    anchors: ['founder-os', 'codex', 'claude-code', 'cursor'],
-  },
-  {
-    category: 'design',
-    stage: 'planning',
-    keywords: [
-      'canva',
-      'design',
-      'dessn',
-      'figma',
-      'framer',
-      'interface',
-      'layout',
-      'mockup',
-      'paper',
-      'product',
-      'prototype',
-      'uizard',
-      'ui',
-      'ux',
-      'wireframe',
-    ],
-    anchors: ['founder-os', 'figma', 'framer', 'paper-design'],
-  },
-  {
-    category: 'research',
-    stage: 'research',
-    keywords: [
-      'api',
-      'browse',
-      'crawl',
-      'data',
-      'dataset',
-      'deer-flow',
-      'exa',
-      'firecrawl',
-      'intake',
-      'jina',
-      'kimi',
-      'notebooklm',
-      'perplexity',
-      'read',
-      'readwise',
-      'research',
-      'scrape',
-      'search',
-      'source',
-      'supadata',
-      'tavily',
-      'web',
-      'webbridge',
-    ],
-    anchors: ['founder-os', 'supadata', 'readwise', 'api-mega-list'],
-  },
-  {
-    category: 'media',
-    stage: 'execution',
-    keywords: [
-      'adobe',
-      'affinity',
-      'audio',
-      'avatar',
-      'blender',
-      'creative',
-      'elevenlabs',
-      'genmedia',
-      'heygen',
-      'higgsfield',
-      'image',
-      'kling',
-      'luma',
-      'media',
-      'midjourney',
-      'motion',
-      'pika',
-      'remotion',
-      'runway',
-      'sora',
-      'stable diffusion',
-      'video',
-      'voice',
-    ],
-    anchors: ['founder-os', 'remotion', 'hyperframes', 'genmedia'],
-  },
-  {
-    category: 'distribution',
-    stage: 'approval',
-    keywords: [
-      'beehiiv',
-      'buffer',
-      'campaign',
-      'distribution',
-      'hootsuite',
-      'hubspot',
-      'launch',
-      'linkedin',
-      'mailchimp',
-      'newsletter',
-      'omnisocials',
-      'post',
-      'publish',
-      'social',
-      'sproutsocial',
-      'twitter',
-      'x.com',
-    ],
-    anchors: ['founder-os', 'buffer', 'omnisocials', 'approval-gate'],
-  },
-  {
-    category: 'infrastructure',
-    stage: 'execution',
-    keywords: [
-      'auth',
-      'aws',
-      'cloud',
-      'cloudflare',
-      'database',
-      'db',
-      'deploy',
-      'docker',
-      'edge',
-      'firebase',
-      'fly.io',
-      'mcp',
-      'netlify',
-      'postgres',
-      'railway',
-      'render',
-      'runtime',
-      'server',
-      'storage',
-      'supabase',
-      'tauri',
-      'terminal',
-      'vercel',
-      'warp',
-      'worker',
-      'xterm',
-    ],
-    anchors: ['founder-os', 'vercel', 'docker', 'warp'],
-  },
-  {
-    category: 'knowledge',
-    stage: 'review',
-    keywords: [
-      'docs',
-      'knowledge',
-      'knowledge base',
-      'logseq',
-      'memory',
-      'mem',
-      'note',
-      'notion',
-      'obsidian',
-      'prompt',
-      'skill',
-      'skills',
-      'tana',
-      'wiki',
-      'workflow pack',
-    ],
-    anchors: ['founder-os', 'agent-skills', 'designer-skills', 'mattpocock-skills'],
-  },
-];
-
-const domainRules: Record<string, DomainRule> = {
-  'base44.com': {
-    category: 'coding',
-    stage: 'execution',
-    anchors: ['founder-os', 'lovable', 'vercel'],
-    keyword: 'base44.com',
-  },
-  'bolt.new': {
-    category: 'coding',
-    stage: 'execution',
-    anchors: ['founder-os', 'lovable', 'vercel'],
-    keyword: 'bolt.new',
-  },
-  'canva.com': {
-    category: 'design',
-    stage: 'planning',
-    anchors: ['founder-os', 'figma', 'framer'],
-    keyword: 'canva.com',
-  },
-  'elevenlabs.io': {
-    category: 'media',
-    stage: 'execution',
-    anchors: ['founder-os', 'remotion', 'hyperframes'],
-    keyword: 'elevenlabs.io',
-  },
-  'exa.ai': {
-    category: 'research',
-    stage: 'research',
-    anchors: ['founder-os', 'supadata', 'api-mega-list'],
-    keyword: 'exa.ai',
-  },
-  'firecrawl.dev': {
-    category: 'research',
-    stage: 'research',
-    anchors: ['founder-os', 'supadata', 'api-mega-list'],
-    keyword: 'firecrawl.dev',
-  },
-  'netlify.com': {
-    category: 'infrastructure',
-    stage: 'execution',
-    anchors: ['founder-os', 'vercel', 'docker'],
-    keyword: 'netlify.com',
-  },
-  'notion.so': {
-    category: 'knowledge',
-    stage: 'review',
-    anchors: ['founder-os', 'agent-skills', 'obsidian-skills'],
-    keyword: 'notion.so',
-  },
-  'perplexity.ai': {
-    category: 'research',
-    stage: 'research',
-    anchors: ['founder-os', 'supadata', 'readwise'],
-    keyword: 'perplexity.ai',
-  },
-  'runwayml.com': {
-    category: 'media',
-    stage: 'execution',
-    anchors: ['founder-os', 'remotion', 'genmedia'],
-    keyword: 'runwayml.com',
-  },
-  'render.com': {
-    category: 'infrastructure',
-    stage: 'execution',
-    anchors: ['founder-os', 'vercel', 'docker'],
-    keyword: 'render.com',
-  },
-  'supabase.com': {
-    category: 'infrastructure',
-    stage: 'execution',
-    anchors: ['founder-os', 'vercel', 'docker'],
-    keyword: 'supabase.com',
-  },
-};
 
 const fallbackResult: ClassificationResult = {
   category: 'core',
@@ -371,7 +96,7 @@ export const classifyToolDetailed = (value: string): ClassificationResult => {
     };
   }
 
-  const ranked = classifierRules
+  const ranked = CATEGORY_RULES
     .map((rule) => {
       const matchedKeywords = rule.keywords.filter((keyword) => normalized.includes(keyword));
       return {
@@ -428,7 +153,7 @@ const getDomainRule = (value: string) => {
       } satisfies DomainRule;
     }
 
-    return domainRules[hostname];
+    return DOMAIN_RULES[hostname];
   } catch {
     return undefined;
   }
