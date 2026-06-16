@@ -9,6 +9,8 @@ struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browserSheet: BrowserSheetItem?
+    /// Tool id armed for deletion; drives the confirmation dialog.
+    @State private var pendingDeleteID: String?
     /// Tool ids whose "Connected because …" caption is currently revealed.
     @State private var revealedReasons: Set<String> = []
     /// One-shot flag driving the killer-features stagger; reset on tool change.
@@ -158,6 +160,15 @@ struct ToolDetailSection: View {
                             .scaleEffect(isSelected ? 1.02 : 1)
                         }
                         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+                        .contextMenu {
+                            if Self.canDelete(toolID: tool.id) {
+                                Button(role: .destructive) {
+                                    requestDelete(tool.id)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -223,29 +234,66 @@ struct ToolDetailSection: View {
                 }
             }
 
-            if let openURL = ToolDetailModel.derivedURL(for: selectedTool) {
-                Button {
-                    BrandHaptics.fire(.light)
-                    browserSheet = BrowserSheetItem(url: openURL)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.caption.weight(.semibold))
-                        Text("Open \(selectedTool.name)")
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
+            HStack(spacing: 8) {
+                if let openURL = ToolDetailModel.derivedURL(for: selectedTool) {
+                    Button {
+                        BrandHaptics.fire(.light)
+                        browserSheet = BrowserSheetItem(url: openURL)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption.weight(.semibold))
+                            Text("Open \(selectedTool.name)")
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .liquidGlass(in: Capsule(), tint: selectedCategoryModel.color.swiftUIColor)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .liquidGlass(in: Capsule(), tint: selectedCategoryModel.color.swiftUIColor)
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+
+                if Self.canDelete(toolID: selectedTool.id) {
+                    Button {
+                        requestDelete(selectedTool.id)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                                .font(.caption.weight(.semibold))
+                            Text("Delete")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .liquidGlass(in: Capsule(), tint: .red, strokeStrength: 0.12)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
+                    .accessibilityLabel("Delete \(selectedTool.name)")
+                }
             }
         }
         .sheet(item: $browserSheet) { item in
             InAppBrowserSheet(url: item.url)
                 .ignoresSafeArea()
+        }
+        .confirmationDialog(
+            "Delete \(toolName(pendingDeleteID ?? ""))?",
+            isPresented: Binding(
+                get: { pendingDeleteID != nil },
+                set: { if !$0 { pendingDeleteID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDeleteID { performDelete(id) }
+                pendingDeleteID = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDeleteID = nil }
+        } message: {
+            Text("This removes it from your universe. You can add it back later.")
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
@@ -305,6 +353,30 @@ struct ToolDetailSection: View {
         withAnimation(BrandMotion.flow) {
             _ = model.focusTool(id)
         }
+    }
+
+    /// The founder core is the universe's hero and is never deletable; every
+    /// other tool is. Pure so the flow test can assert it directly.
+    static func canDelete(toolID: String) -> Bool { toolID != "founder-os" }
+
+    /// Arms the confirmation dialog for `id` with a `.warning` haptic.
+    private func requestDelete(_ id: String) {
+        guard Self.canDelete(toolID: id) else { return }
+        BrandHaptics.fire(.warning)
+        pendingDeleteID = id
+    }
+
+    /// Confirmed delete: `.heavy` haptic, then remove the tool through the VM
+    /// inside `flow` (Reduce Motion collapses the curve via BrandMotion).
+    private func performDelete(_ id: String) {
+        BrandHaptics.fire(.heavy)
+        withAnimation(reduceMotion ? nil : BrandMotion.flow) {
+            model.deleteTool(id)
+        }
+    }
+
+    private func toolName(_ id: String) -> String {
+        UniverseSeed.tools.first { $0.id == id }?.name ?? "this tool"
     }
 }
 
