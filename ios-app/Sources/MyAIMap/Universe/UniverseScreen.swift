@@ -72,6 +72,7 @@ struct UniverseScreen: View {
     private var canvas: some View {
         ZStack {
             UniverseView(
+                tools: model.tools,
                 selectedCategory: model.selection.activeCategory,
                 selectedToolId: selectedTool.id,
                 onToolSelect: { toolId in
