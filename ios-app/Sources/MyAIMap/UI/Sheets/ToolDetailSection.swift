@@ -11,6 +11,19 @@ struct ToolDetailSection: View {
     @State private var browserSheet: BrowserSheetItem?
     /// Tool ids whose "Connected because …" caption is currently revealed.
     @State private var revealedReasons: Set<String> = []
+    /// One-shot flag driving the killer-features stagger; reset on tool change.
+    @State private var appeared = false
+
+    /// Rich web-researched knowledge for the selected tool, or `nil` when the
+    /// tool is un-enriched (only "What it does" shows in that case).
+    private var knowledge: Knowledge? {
+        KnowledgeStore.knowledge(for: selectedTool.id)
+    }
+
+    /// Which knowledge sections render (P5 gating, parity with ToolDetail.tsx).
+    private var gating: ToolDetailModel.Gating {
+        ToolDetailModel.gating(for: knowledge)
+    }
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -81,6 +94,38 @@ struct ToolDetailSection: View {
 
             Divider()
                 .overlay(.white.opacity(0.14))
+
+            // ── Knowledge sections (parity with web ToolDetail.tsx) ──
+            DetailSection(title: "What it does") {
+                ClampText(text: (knowledge?.whatFor).flatMap { $0.isEmpty ? nil : $0 } ?? selectedTool.summary)
+            }
+
+            if gating.showsKillerFeatures, let features = knowledge?.killerFeatures {
+                DetailSection(title: "Killer features") {
+                    KillerFeaturesList(
+                        features: features,
+                        accent: selectedCategoryModel.color.swiftUIColor,
+                        appeared: appeared
+                    )
+                }
+            }
+
+            if gating.showsStrengthsWatchouts, let k = knowledge {
+                StrengthsWatchouts(advantages: k.advantages, weaknesses: k.weaknesses)
+            }
+
+            if gating.showsWhoUses, let whoUses = knowledge?.whoUses {
+                DetailSection(title: "Who uses it") {
+                    Text(whoUses)
+                        .font(BrandTypography.body)
+                        .foregroundStyle(BrandColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if gating.showsPricing, let pricing = knowledge?.pricing {
+                DetailSection(title: "Pricing") { PricingCard(pricing: pricing) }
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -178,16 +223,17 @@ struct ToolDetailSection: View {
                 }
             }
 
-            if let url = selectedTool.url {
+            if let openURL = ToolDetailModel.derivedURL(for: selectedTool) {
                 Button {
                     BrandHaptics.fire(.light)
-                    browserSheet = BrowserSheetItem(url: url)
+                    browserSheet = BrowserSheetItem(url: openURL)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption.weight(.semibold))
-                        Text("Open")
+                        Text("Open \(selectedTool.name)")
                             .font(.caption.weight(.semibold))
+                            .lineLimit(1)
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
@@ -203,6 +249,14 @@ struct ToolDetailSection: View {
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
+        .onAppear {
+            BrandHaptics.prepare(.light)
+            withAnimation(reduceMotion ? nil : BrandMotion.entry) { appeared = true }
+        }
+        .onChange(of: model.selection.selectedToolID) { _, _ in
+            appeared = false
+            withAnimation(reduceMotion ? nil : BrandMotion.entry) { appeared = true }
+        }
     }
 
     private func stageLabel(_ stage: WorkflowStageId) -> String {
