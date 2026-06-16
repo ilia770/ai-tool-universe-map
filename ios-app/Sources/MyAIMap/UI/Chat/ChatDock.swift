@@ -30,6 +30,14 @@ struct ChatDock: View {
     private var accent: Color { model.selectedCategoryModel.color.swiftUIColor }
     private var showThread: Bool { !collapsed && !thread.turns.isEmpty }
 
+    /// Scroll-to-bottom trigger. Changes on a new turn AND on the last turn's
+    /// content growing (answer + match cards stream in after the row mounts),
+    /// so the thread re-scrolls once the answer/cards have laid out — not only
+    /// when the turn count changes. Pure + static so it is unit-testable.
+    static func scrollAnchorKey(turns: [ChatTurn]) -> String {
+        "\(turns.count):\(turns.last?.answer.count ?? 0):\(turns.last?.matchIds.count ?? 0)"
+    }
+
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: BrandSpacing.s.value) {
@@ -62,6 +70,10 @@ struct ChatDock: View {
                         ForEach(thread.turns) { turn in
                             turnRow(turn).id(turn.id)
                         }
+                        // Dedicated bottom anchor: scrolling to this (not the
+                        // last turn's id) lands the viewport at the very end
+                        // even as the answer + cards grow the final row.
+                        Color.clear.frame(height: 1).id("bottom")
                     }
                 }
                 .padding(BrandSpacing.m.value)
@@ -73,11 +85,19 @@ struct ChatDock: View {
                 strokeStrength: 0.12
             )
             .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 10)
-            .onChange(of: thread.turns.map(\.id)) { _, ids in
-                guard let last = ids.last else { return }
-                withAnimation(BrandMotion.resolved(BrandMotion.flow, reduceMotion: reduceMotion)) {
-                    scroller.scrollTo(last, anchor: .bottom)
-                }
+            .onChange(of: Self.scrollAnchorKey(turns: thread.turns)) { _, _ in
+                scrollToBottom(scroller)
+            }
+            .onAppear { scrollToBottom(scroller) }
+        }
+    }
+
+    /// Scroll the thread to its bottom anchor post-layout, so a turn whose
+    /// answer/cards are still streaming in re-scrolls after they settle.
+    private func scrollToBottom(_ scroller: ScrollViewProxy) {
+        Task { @MainActor in
+            withAnimation(BrandMotion.resolved(BrandMotion.flow, reduceMotion: reduceMotion)) {
+                scroller.scrollTo("bottom", anchor: .bottom)
             }
         }
     }
