@@ -99,7 +99,7 @@ function ToolNodeImpl({
       ? targetScale
       : currentScale + (targetScale - currentScale) * 0.055;
     meshRef.current.scale.setScalar(next);
-    const mat = meshRef.current.material as THREE.MeshStandardMaterial;
+    const mat = meshRef.current.material as THREE.MeshPhysicalMaterial;
     const targetEmissive = activeFocus ? 1.35 : selected ? 0.72 : relationDepth === 1 ? 0.55 : relationDepth === 2 ? 0.28 : 0.16;
     mat.emissiveIntensity = reducedMotion || Math.abs(targetEmissive - mat.emissiveIntensity) < 0.002
       ? targetEmissive
@@ -108,6 +108,13 @@ function ToolNodeImpl({
     mat.opacity = reducedMotion || Math.abs(targetOpacity - mat.opacity) < 0.002
       ? targetOpacity
       : mat.opacity + (targetOpacity - mat.opacity) * 0.06;
+    // Glossy clearcoat shell on the focused/selected node — parity with the
+    // iOS PBR "lit from within" treatment (clearcoat 0.6). Ramped so the
+    // sheen eases in with selection rather than popping.
+    const targetClearcoat = activeFocus || selected ? 0.6 : 0;
+    mat.clearcoat = reducedMotion || Math.abs(targetClearcoat - mat.clearcoat) < 0.002
+      ? targetClearcoat
+      : mat.clearcoat + (targetClearcoat - mat.clearcoat) * 0.06;
 
     if (auraRef.current) {
       const auraMaterial = auraRef.current.material as THREE.MeshBasicMaterial;
@@ -172,10 +179,14 @@ function ToolNodeImpl({
         />
       </mesh>
       <mesh ref={meshRef} geometry={CORE_GEOM}>
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           color={color}
           emissive={color}
           emissiveIntensity={0.3}
+          roughness={0.5}
+          metalness={0.05}
+          clearcoat={0}
+          clearcoatRoughness={0.2}
           transparent
           opacity={0.74}
         />
