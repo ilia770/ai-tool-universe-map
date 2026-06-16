@@ -8,7 +8,13 @@ import Testing
 struct SeedIntegrityTests {
     @Test func decodesExpectedCounts() {
         #expect(UniverseSeed.tools.count == 49)
-        #expect(UniverseSeed.categories.count == 8)
+        #expect(UniverseSeed.categories.count == 9) // was 8 — analytics added in P8
+    }
+
+    @Test func analyticsCategoryExists() {
+        let analytics = UniverseSeed.category(.analytics)
+        #expect(analytics.id == .analytics)
+        #expect(analytics.shortName == "Analytics")
     }
 
     @Test func founderOSIsTheCoreNode() {
