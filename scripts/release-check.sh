@@ -14,6 +14,7 @@ run_step() {
 run_step "typecheck" npm run typecheck
 run_step "lint" npm run lint
 run_step "unit tests" npm test -- --run
+run_step "production dependency audit" npm audit --omit=dev --audit-level=high
 run_step "production build" npm run build
 run_step "bundle size budget" npm run size:check
 

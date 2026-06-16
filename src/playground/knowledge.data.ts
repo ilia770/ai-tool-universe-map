@@ -1,0 +1,1139 @@
+import type { PricingModel } from './knowledge';
+
+interface RawKnowledge {
+  killerFeatures: string[];
+  whatFor: string;
+  advantages: string[];
+  weaknesses: string[];
+  whoUses: string;
+  pricing: { model: PricingModel; summary: string };
+}
+
+// Web-researched (P1 enrichment agents, 2026-06-16). One entry per tool id.
+export const ENRICHED_DATA: Record<string, RawKnowledge> = {
+  "codex": {
+    "killerFeatures": [
+      "Cloud-based autonomous agent runs multi-step tasks in isolated sandboxes",
+      "Parallel work across many projects/tasks simultaneously",
+      "GPT-5-Codex models with top-tier SWE-bench scores (~85%)",
+      "Available as CLI, VS Code extension, web, and iOS app"
+    ],
+    "whatFor": "OpenAI's autonomous AI software-engineering agent that plans, writes, tests, and ships code across multiple steps and projects.",
+    "advantages": [
+      "Bundled into every ChatGPT plan, so existing subscribers get it at no extra cost",
+      "Strong autonomous task-completion benchmarks vs. Copilot and Cursor",
+      "Works across terminal, IDE, web, and mobile surfaces plus Amazon Bedrock"
+    ],
+    "weaknesses": [
+      "April 2026 shift to token-aligned usage billing means heavy users can hit limits or higher costs",
+      "Cloud-sandbox model is less interactive than in-editor pair-programming tools"
+    ],
+    "whoUses": "Developers and engineering teams already on ChatGPT who want to delegate whole tasks to an autonomous agent rather than pair-program line by line.",
+    "pricing": {
+      "model": "mixed",
+      "summary": "Included in ChatGPT plans: Free $0, Go $8/mo, Plus $20/mo, Pro from $100/mo; API usage-based (gpt-5.3-codex ~$1.75/1M input, $14/1M output tokens); Business per-seat, Enterprise custom"
+    }
+  },
+  "claude-code": {
+    "killerFeatures": [
+      "Terminal-native agent that reads and edits files across your whole codebase",
+      "Runs shell commands and commits to git autonomously",
+      "Reasons over an entire project rather than copy-pasted snippets",
+      "Deep integration with Claude Opus/Sonnet frontier models"
+    ],
+    "whatFor": "Anthropic's terminal-based AI coding agent that autonomously reads, writes, and refactors code across a full project and runs commands.",
+    "advantages": [
+      "Strong multi-file, whole-repo reasoning powered by leading Claude models",
+      "Works directly in the terminal where developers already operate",
+      "2026 updates doubled rate limits and removed peak-hour throttling at the same price"
+    ],
+    "weaknesses": [
+      "No free tier — requires at least a $20/mo Pro subscription or API billing",
+      "Token/usage limits can throttle heavy agentic sessions on lower plans"
+    ],
+    "whoUses": "Professional developers who live in the terminal and want an autonomous agent to handle real multi-file engineering work.",
+    "pricing": {
+      "model": "mixed",
+      "summary": "No free tier; Pro $20/mo; Max 5x $100/mo; Max 20x $200/mo; or pay-per-token via Anthropic API"
+    }
+  },
+  "cursor": {
+    "killerFeatures": [
+      "AI-native fork of VS Code with deep agent + chat integration",
+      "Unlimited fast Tab autocompletion",
+      "Agent mode with frontier models, MCP, skills, hooks, and cloud agents",
+      "Monthly credit pool with Auto mode for unlimited model usage"
+    ],
+    "whatFor": "An AI-first code editor (VS Code fork) that combines autocomplete, chat, and autonomous agents to write and edit code in-context.",
+    "advantages": [
+      "Familiar VS Code UX with far deeper AI integration",
+      "Flexible access to OpenAI, Claude, and Gemini frontier models",
+      "Tiered plans scale usage from hobbyist to power user (up to 20x)"
+    ],
+    "weaknesses": [
+      "Manually selecting frontier models burns credits quickly beyond the plan's pool",
+      "Pricing/credit model has changed repeatedly and can be confusing"
+    ],
+    "whoUses": "Individual developers and engineering teams who want a full-featured AI editor for day-to-day in-IDE coding.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Hobby free; Pro $20/mo (incl. ~$20 model credits); Pro+ $60/mo (3x usage); Ultra $200/mo (20x usage); Teams $40/user/mo"
+    }
+  },
+  "coderabbit": {
+    "killerFeatures": [
+      "Automated line-by-line AI PR reviews with plain-English walkthroughs",
+      "Sequence diagrams visualizing code flow in each PR",
+      "40+ integrated static-analysis, SAST, and secrets-detection tools",
+      "Issue Planner generates coding plans from Linear/Jira/GitHub/GitLab issues"
+    ],
+    "whatFor": "An AI code-review tool that automatically reviews pull requests, flags bugs and security issues, and suggests one-click fixes.",
+    "advantages": [
+      "Only AI reviewer supporting all four major Git platforms (GitHub, GitLab, Azure DevOps, Bitbucket)",
+      "Combines LLM reasoning with deterministic static-analysis tooling",
+      "Free forever for public repos"
+    ],
+    "weaknesses": [
+      "Per-developer pricing adds up for larger teams",
+      "Review noise/false positives can require tuning"
+    ],
+    "whoUses": "Software teams that want automated AI-assisted pull-request reviews layered onto their existing Git workflow.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free for public repos; Lite $12/dev/mo; Pro $24/dev/mo (annual); Pro Plus $48/user/mo; Enterprise custom"
+    }
+  },
+  "cubic": {
+    "killerFeatures": [
+      "AI PR reviews that read complex codebases and surface real bugs",
+      "Enforces team rules written in plain English",
+      "One-click commit of suggested fixes",
+      "Reviews happen in GitHub and the IDE where you already work"
+    ],
+    "whatFor": "An AI code-review tool that reviews pull requests, finds bugs, and enforces plain-English team rules directly in GitHub and the IDE.",
+    "advantages": [
+      "Strong fit for complex codebases and infra/dev-experience teams",
+      "Custom plain-English rule enforcement reduces repetitive review feedback",
+      "Free for open-source/public repositories"
+    ],
+    "weaknesses": [
+      "Top tier at $40/dev/mo is pricey relative to some competitors",
+      "Primarily GitHub-centric, narrower platform coverage than rivals"
+    ],
+    "whoUses": "Engineering and dev-experience teams on GitHub wanting automated, rule-aware AI review of complex pull requests.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free for public/open-source repos (14-day private trial); Lite $12/user/mo; Pro $24/user/mo; top tier $40/dev/mo; Enterprise custom"
+    }
+  },
+  "zed": {
+    "killerFeatures": [
+      "GPU-accelerated, Rust-built editor with near-instant performance",
+      "Built-in agentic AI panel (Claude, GPT, Gemini, MCP, CLI agents) via Agent Client Protocol",
+      "Real-time collaboration with shared cursors, voice, and terminal",
+      "Open-weight Zeta2 edit-prediction and local Ollama support"
+    ],
+    "whatFor": "A blazing-fast, Rust-built, AI-native code editor with built-in collaboration and a flexible multi-model agent runtime.",
+    "advantages": [
+      "Exceptional native performance, opening large files instantly",
+      "Open standards (ACP, MCP) plus local-model support for flexibility/privacy",
+      "Generous free tier and affordable Pro pricing"
+    ],
+    "weaknesses": [
+      "Smaller extension/plugin ecosystem than VS Code",
+      "Pricing/credit details have shifted and vary across sources"
+    ],
+    "whoUses": "Performance-conscious developers and remote teams wanting a fast, AI-native editor with first-class collaboration.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free (full editor + 50 hosted AI prompts/mo + unlimited local Ollama); Pro ~$10–20/mo with hosted AI prompts/credits; Business $30/seat/mo"
+    }
+  },
+  "lovable": {
+    "killerFeatures": [
+      "Generates editable full-stack web apps from natural-language prompts",
+      "Built-in Supabase (DB + auth) and Stripe payments integration",
+      "Chat-mode agent for planning and debugging",
+      "Multiplayer workspaces and visual editing"
+    ],
+    "whatFor": "An AI app builder that turns prompts into complete, editable full-stack web applications refined through chat.",
+    "advantages": [
+      "End-to-end app generation (frontend, backend, DB, auth, payments) with minimal setup",
+      "Real-time multiplayer collaboration on projects",
+      "Fast path from idea to working MVP for non-deep-coders"
+    ],
+    "weaknesses": [
+      "Credit-based pricing means complex features consume credits quickly",
+      "Generated apps can require manual cleanup for production-grade complexity"
+    ],
+    "whoUses": "Founders, product builders, and small teams who want to ship full-stack web apps fast without deep coding.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free $0 (5 daily credits); Pro $25/mo (100 credits, private projects); Business $50/mo (SSO, data opt-out); Enterprise custom"
+    }
+  },
+  "bolt": {
+    "killerFeatures": [
+      "In-browser full-stack app generation via WebContainer (Node.js in the browser)",
+      "Live previews as the AI builds React/Vite code",
+      "Figma design-to-code import and AI image editing",
+      "Full codebase export or GitHub sync"
+    ],
+    "whatFor": "StackBlitz's in-browser AI app builder that generates and previews full-stack web apps from prompts with no local setup.",
+    "advantages": [
+      "Runs entirely in the browser with no backend servers or local environment",
+      "Real-time code generation with instant live preview",
+      "Easy export/GitHub sync for continuing development locally"
+    ],
+    "weaknesses": [
+      "Token-based limits can be consumed quickly on iterative builds",
+      "Browser-based WebContainer constrains some heavier or native workloads"
+    ],
+    "whoUses": "Developers and makers who want to prototype and build full-stack web apps quickly in the browser.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free $0 (1M tokens/mo); Pro $25/mo (10M+ tokens, rollover); Teams $30/member/mo; Enterprise custom"
+    }
+  },
+  "base44": {
+    "killerFeatures": [
+      "No-code conversational app building in plain English",
+      "Automatically handles database, auth, hosting, and deployment",
+      "One-click deploy/hosting on Wix infrastructure",
+      "25+ third-party integrations (Salesforce, Slack, Google Workspace, etc.)"
+    ],
+    "whatFor": "A no-code, AI-powered app builder (acquired by Wix) that creates fully functional custom apps from natural-language descriptions.",
+    "advantages": [
+      "Truly no-code — non-developers can ship working apps",
+      "Managed infrastructure removes deployment and hosting burden",
+      "Choice of underlying models (Claude, GPT) on paid tiers"
+    ],
+    "weaknesses": [
+      "Separate message vs. integration credits can be confusing and limiting",
+      "Less code control/portability than developer-focused builders"
+    ],
+    "whoUses": "Non-technical founders and business users who want to build custom internal tools and apps without writing code.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Forever Free (25 message + 100 integration credits, unlimited apps); paid plans ~$16–$160/mo (billed annually)"
+    }
+  },
+  "terax": {
+    "killerFeatures": [
+      "Ultra-lightweight 7MB AI terminal with ~300ms cold start",
+      "Built-in CodeMirror 6 editor, live web preview, and voice input",
+      "Agent personas (Coder, Architect, Code Reviewer) plus multi/sub-agents",
+      "Every edit lands in a reviewable diff before touching disk"
+    ],
+    "whatFor": "A lightweight, terminal-first AI-native dev workspace combining an editor, live preview, and built-in coding agents.",
+    "advantages": [
+      "Free and open source with bring-your-own-key or fully local (LM Studio) operation",
+      "Tiny footprint and fast startup vs. heavier Electron tools like Warp",
+      "Agents have direct access to files, project structure, and terminal session"
+    ],
+    "weaknesses": [
+      "Newer/niche tool with a smaller ecosystem and community",
+      "Relies on your own API keys or local models, so no managed AI out of the box"
+    ],
+    "whoUses": "Developers who want a fast, lightweight, open-source AI terminal workspace and prefer BYO-key or local models.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open source; no subscription — bring-your-own API key (OpenAI/Anthropic) or run fully local via LM Studio"
+    }
+  },
+  "vscode": {
+    "killerFeatures": [
+      "The de-facto standard extensible code editor with a massive ecosystem",
+      "Deep GitHub Copilot integration (chat, edits, agent mode)",
+      "Agent 'Autopilot' on by default with background agent sessions (2026)",
+      "Cross-language support via Language Server Protocol and extensions"
+    ],
+    "whatFor": "Microsoft's free, extensible code editor that, with GitHub Copilot, becomes a full AI-assisted coding environment.",
+    "advantages": [
+      "Free and open-source core with the largest extension marketplace",
+      "Copilot's free tier offers real AI assistance at no cost",
+      "Ubiquitous, well-documented, and runs everywhere"
+    ],
+    "weaknesses": [
+      "AI features depend on the separately-priced Copilot, moving to usage-based billing in June 2026",
+      "Less AI-native than purpose-built editors like Cursor or Zed"
+    ],
+    "whoUses": "Developers of every kind and team size who want a free, extensible editor with optional AI via GitHub Copilot.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "VS Code editor free/open-source; GitHub Copilot: Free $0 (2,000 completions, 50 premium req), Pro $10/mo, Pro+ $39/mo, Business $19/user/mo, Enterprise $39/user/mo (usage-based AI credits from June 2026)"
+    }
+  },
+  "figma": {
+    "killerFeatures": [
+      "Figma Make: prompt-to-UI generation that produces editable, functional designs",
+      "Real-time multiplayer canvas with unlimited version history",
+      "MCP integration so Cursor/Claude/VS Code/Windsurf read Figma layouts and generate matching code",
+      "Dev Mode for structured design-to-dev handoff"
+    ],
+    "whatFor": "Collaborative design platform whose Make feature turns text prompts and Figma frames into working UI screens and functional prototypes.",
+    "advantages": [
+      "Industry-standard with the deepest plugin/community ecosystem and team adoption",
+      "Make and MCP keep design and generated code in sync, shrinking handoff friction",
+      "Browser-based, no-install collaboration across designers, PMs, and engineers"
+    ],
+    "weaknesses": [
+      "AI usage is credit-gated and you cannot buy Make standalone (it is bundled into seat plans)",
+      "Pricing has grown complex and pricey at scale with multiple seat types"
+    ],
+    "whoUses": "Product designers, PMs, and engineering teams at startups through enterprises who need a shared design system and design-to-code workflow.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free starter tier; Professional Full seat ~$16/editor/mo annual ($20 monthly); seats range $3-$90/user/mo up to Enterprise; Figma Make included in Full tier with credit-limited AI usage"
+    }
+  },
+  "dessn": {
+    "killerFeatures": [
+      "One-click connect to a real codebase, run in the cloud with no setup",
+      "Prompt-to-design on top of your actual app, components, and design system",
+      "Pull-only (never push) code access with mandatory security checks",
+      "Production-context prototypes that simplify developer handoff"
+    ],
+    "whatFor": "AI design-in-production tool that lets product teams design and prototype directly on top of their real codebase and design system.",
+    "advantages": [
+      "Designs use real components so prototypes are far closer to shippable than static mockups",
+      "Coexists with Figma rather than forcing a full migration",
+      "Backed by a fresh $6M raise (May 2026), production-focused and actively developed"
+    ],
+    "weaknesses": [
+      "Best suited to teams with an existing product/codebase, not greenfield ideation",
+      "Early-stage tool; free tier is limited (one repo, ~5 prompts/week)"
+    ],
+    "whoUses": "Product teams (designers and PMs) at companies with a live product who want to iterate fast inside their real app.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free: one repo, ~5 prompts/week; paid plans from ~$39/user/mo with more prompts and shareable links at higher tiers"
+    }
+  },
+  "paper-design": {
+    "killerFeatures": [
+      "Free-form canvas using real web elements (flexbox, CSS, fonts) rendered as HTML/CSS",
+      "Code export with no conversion step (JSX / Tailwind output per node)",
+      "Granular MCP tools letting AI agents create frames, set styles/text, and pull code",
+      "Components, shared styles, and design-system libraries"
+    ],
+    "whatFor": "Browser-based, AI-ready design tool with a Figma-like canvas where every element is real HTML/CSS that exports straight to code.",
+    "advantages": [
+      "Designs are literally web code, eliminating the design-to-code translation gap",
+      "Strong MCP/agent integration for AI-driven design workflows",
+      "Familiar Figma-style UX lowers the learning curve"
+    ],
+    "weaknesses": [
+      "Younger product with a smaller ecosystem and community than Figma",
+      "Web-element-first model can constrain free-form illustration/vector-heavy work"
+    ],
+    "whoUses": "Designers and design engineers building product UIs who want pixel work that is already production HTML/CSS and AI-agent friendly.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free tier to start; Pro ~$16/mo billed annually (~$20/mo monthly); team plans for advanced features"
+    }
+  },
+  "framer": {
+    "killerFeatures": [
+      "AI Wireframer that generates page layouts, sections, and content in seconds",
+      "On-Page Editing of live pages directly in the browser",
+      "Built-in CMS, localization, SEO tools, and fast global hosting",
+      "Design-grade visual canvas with publish in one click"
+    ],
+    "whatFor": "Visual no-code website builder that combines design, AI generation, CMS, and global hosting to publish responsive marketing sites.",
+    "advantages": [
+      "Design-quality, highly polished sites without code",
+      "All-in-one: design, hosting, CMS, and publishing in one platform",
+      "Free custom domain on annual billing and strong template marketplace"
+    ],
+    "weaknesses": [
+      "Editor seats add up ($20/mo each) and costs scale with team size",
+      "Best for marketing/launch sites; less suited to complex web apps or heavy custom logic"
+    ],
+    "whoUses": "Founders, marketers, and designers shipping landing pages and marketing/product sites without engineering.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free $0 tier; Basic $10/mo, Pro $30/mo, Scale $100/mo (billed annually; monthly is higher); editor seats ~$20/mo each, Content Editor seat ~$10/mo"
+    }
+  },
+  "opendesign": {
+    "killerFeatures": [
+      "Local-first and Apache-2.0 open source (BYO agent, credentials, and design system)",
+      "Bring-your-own-model: 16+ CLI adapters (Claude Code, Codex, Cursor, Gemini, OpenCode, Qwen) or any OpenAI/Azure/Google endpoint",
+      "Three surfaces: Electron desktop app, local HTTP daemon/CLI, and forkable Skills + Systems Markdown bundles"
+    ],
+    "whatFor": "Open-source, local-first alternative to Claude Design that generates decks, landing pages, dashboards, and brand systems using your own coding agent.",
+    "advantages": [
+      "Free and self-hosted with full data/privacy control (local-first, BYOK)",
+      "Model-agnostic, so you avoid lock-in to a single vendor's model",
+      "Forkable skills and design systems for customization"
+    ],
+    "weaknesses": [
+      "Requires bringing your own agent/keys and more technical setup than a hosted tool",
+      "Community project without the polish or support of a commercial product"
+    ],
+    "whoUses": "Developers and technical teams who want Claude-Design-style generation but open source, self-hosted, and model-agnostic.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free, Apache-2.0 open source; BYO model API keys (you pay your own LLM/agent usage costs)"
+    }
+  },
+  "claude-design": {
+    "killerFeatures": [
+      "Prompt-to-prototype: describe an idea and get a first visual version instantly",
+      "Refine via chat, inline comments, direct edits, and auto-generated adjustment sliders",
+      "Powered by Claude Opus vision model, built into the Claude.ai sidebar",
+      "Aimed at non-designers (founders, PMs) to share ideas visually"
+    ],
+    "whatFor": "Anthropic's AI-native tool inside Claude.ai that turns prompts into visuals — prototypes, slides, one-pagers, and landing pages.",
+    "advantages": [
+      "No design skill or separate app needed — lives where Claude users already work",
+      "Conversational, iterative editing lowers the barrier for non-designers",
+      "Strong underlying vision model for layout quality"
+    ],
+    "weaknesses": [
+      "Research preview, closed-source, cloud-only, and locked to Anthropic's model",
+      "Paid-subscriber only; not a standalone app and not a deep production design tool"
+    ],
+    "whoUses": "Founders, PMs, and other non-designers on Claude paid plans who need quick visuals and prototypes to communicate ideas.",
+    "pricing": {
+      "model": "subscription",
+      "summary": "No standalone price; included with Claude paid plans (Pro ~$20/mo, plus Max/Team/Enterprise); not on the free tier"
+    }
+  },
+  "paperclip": {
+    "killerFeatures": [
+      "Visual designer that compiles to plain HTML/CSS importable as normal code modules",
+      "Simple DSL covering HTML, CSS, and primitive components",
+      "Works alongside existing codebases and CSS frameworks like Tailwind",
+      "CLI and Webpack loader to compile .pc files into production assets"
+    ],
+    "whatFor": "Open-source UI builder and DSL for styled components and design systems, where visually built UIs compile straight to HTML/CSS code.",
+    "advantages": [
+      "Free and open source with no design-to-code translation step",
+      "Complements rather than replaces an existing codebase (just the visual layer)",
+      "Outputs framework-friendly code that drops into real projects"
+    ],
+    "weaknesses": [
+      "Niche, developer-oriented tool with a small community and learning curve for the DSL",
+      "Scope is intentionally narrow (presentational HTML/CSS components), not full app design"
+    ],
+    "whoUses": "Developers and design-engineers who want a code-first, version-controllable way to build reusable styled components and design systems.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open source (self-hosted/local tooling); no paid tiers"
+    }
+  },
+  "supadata": {
+    "killerFeatures": [
+      "Only YouTube transcript API with AI fallback that works even when no captions exist",
+      "Unified API for video (YouTube, TikTok, Instagram, X) and web scraping/crawling",
+      "Clean JSON output with Python and JS SDKs plus MCP server",
+      "Predictable credit-based pricing with no per-character billing"
+    ],
+    "whatFor": "An API that turns videos and web pages into structured, LLM-ready text and metadata.",
+    "advantages": [
+      "Single endpoint covers transcripts, web scrape, crawl, and sitemap discovery",
+      "AI fallback retrieves transcripts that other APIs fail on",
+      "Generous free tier and simple, predictable usage pricing"
+    ],
+    "weaknesses": [
+      "Credit consumption can scale quickly on heavy crawling/transcript workloads",
+      "Quality of AI-fallback transcripts depends on source audio and can vary"
+    ],
+    "whoUses": "Indie makers, AI app builders, and developers who need to feed video/web content into RAG or agent pipelines.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free tier 100 credits/mo; paid plans roughly $5 to $297/mo scaling with credits/features; usage-based credits, no per-character fees"
+    }
+  },
+  "readwise": {
+    "killerFeatures": [
+      "API-first Reader access to documents and highlights for scripting/automation",
+      "Markdown/plain-text export with editable Jinja2 templates",
+      "Centralizes highlights from Kindle, articles, PDFs, tweets, and more",
+      "Syncs to Obsidian/Notion and feeds notes into agent workflows"
+    ],
+    "whatFor": "Captures and exports reading highlights and saved articles into agent- and PKM-usable notes.",
+    "advantages": [
+      "Strong export/automation surface via official Reader API",
+      "Aggregates highlights across many reading sources in one place",
+      "Plays well with note tools like Obsidian for downstream agent use"
+    ],
+    "weaknesses": [
+      "Official CLI tooling is thin; many command-line clients are unofficial community projects",
+      "No standalone Reader-only or free tier beyond the trial"
+    ],
+    "whoUses": "Power readers, researchers, and PKM enthusiasts who want their reading highlights queryable by agents and note systems.",
+    "pricing": {
+      "model": "subscription",
+      "summary": "30-day free trial; Reader bundled in Full plan ~$9.99/mo billed annually ($119.88/yr) or $12.99/mo monthly; 50% academic discount; Lite $5.59/mo excludes Reader"
+    }
+  },
+  "deer-flow": {
+    "killerFeatures": [
+      "Open-source long-horizon 'SuperAgent' harness built on LangGraph/LangChain",
+      "Each agent gets its own sandboxed Docker computer with filesystem, bash, and package install",
+      "Supervisor orchestration with checkpointing, memory, skills, and sub-agents",
+      "Goes beyond research to coding, dashboards, slide decks, and data pipelines"
+    ],
+    "whatFor": "An open-source agent harness that researches, codes, and creates across multi-step tasks taking minutes to hours.",
+    "advantages": [
+      "Free and fully self-hostable with no vendor lock-in",
+      "Batteries-included: sandboxes, memory, tools, and sub-agents out of the box",
+      "Stateful checkpointing makes long-running autonomous tasks resilient"
+    ],
+    "weaknesses": [
+      "Requires Docker and engineering setup; heavier to run than a hosted tool",
+      "You supply and pay for the underlying LLM API costs and infrastructure"
+    ],
+    "whoUses": "Developers and AI engineers self-hosting autonomous research/coding agents for complex, long-running workflows.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open-source (ByteDance, ~25k GitHub stars); self-hosted — you pay only for LLM API tokens and compute/infrastructure"
+    }
+  },
+  "api-mega-list": {
+    "killerFeatures": [
+      "Large curated catalog of ready-to-use APIs across AI, automation, business, and dev tools",
+      "Organized by category (AI, agents, MCP servers, ecommerce, lead-gen, news, etc.)",
+      "Community-maintained on GitHub with strong traction (~6.6k stars)"
+    ],
+    "whatFor": "A curated GitHub directory for discovering APIs to integrate into automations and applications.",
+    "advantages": [
+      "Free, browsable reference for fast API discovery",
+      "Broad category coverage including agent/MCP-relevant integrations",
+      "Open repo anyone can search, fork, or contribute to"
+    ],
+    "weaknesses": [
+      "Static list quality depends on maintainer updates; entries can go stale",
+      "No API testing, auth handling, or tooling — just a catalog of links"
+    ],
+    "whoUses": "Developers and builders scouting integration options when starting a new automation or app project.",
+    "pricing": {
+      "model": "free",
+      "summary": "Free, open GitHub repository (cporter202/API-mega-list); no cost, no account required"
+    }
+  },
+  "kimi-webbridge": {
+    "killerFeatures": [
+      "Lets AI agents drive your real logged-in browser (cookies/sessions) to act on your behalf",
+      "Local-first: clicking, scrolling, typing, and data extraction processed on-device, not the cloud",
+      "Chrome/Edge extension that plugs into Claude Code, Cursor, Codex, Kimi Code, and Hermes",
+      "Privacy-preserving browser automation without uploading session data"
+    ],
+    "whatFor": "A browser extension that lets AI agents operate your browser locally to automate web tasks and capture context.",
+    "advantages": [
+      "Strong privacy posture — data stays on the device",
+      "Uses your authenticated sessions so agents reach gated/logged-in content",
+      "Works across mainstream AI coding/agent tools, not just Kimi"
+    ],
+    "weaknesses": [
+      "Granting agents full browser identity carries real security/abuse risk",
+      "New (launched May 2026) and limited to Chromium browsers"
+    ],
+    "whoUses": "Developers and power users running AI coding/agent tools who want privacy-preserving, authenticated web automation.",
+    "pricing": {
+      "model": "free",
+      "summary": "Free browser extension from Moonshot AI (Chrome Web Store / Kimi site); LLM usage billed separately by whichever Kimi/agent model you connect"
+    }
+  },
+  "lazyweb": {
+    "killerFeatures": [
+      "MCP server giving AI agents access to 257k+ real app/web screens for design research",
+      "Six opinionated agent skills for competitive analysis and structured design reports",
+      "Connects agents to inspiration libraries like Mobbin, Savee, Dribbble, and Behance",
+      "Works inside Claude Code, Codex, and Cursor with no login or rate limits"
+    ],
+    "whatFor": "A design-research MCP that feeds AI coding agents real product screens and UI patterns before they build or critique interfaces.",
+    "advantages": [
+      "Free with no subscription, rate limits, or signup",
+      "Grounds agent design decisions in real-world UI references and anti-patterns",
+      "Plugs directly into popular agent IDEs via MCP"
+    ],
+    "weaknesses": [
+      "Scope is design/UI research, not general web intake — narrower than its generic 'research' framing",
+      "Depends on third-party inspiration libraries for some references"
+    ],
+    "whoUses": "Developers and designers using AI coding agents who want real design context and competitive UI analysis from the terminal.",
+    "pricing": {
+      "model": "free",
+      "summary": "Free forever — MCP, 6 skills, and 257k+ screen library at no cost; an optional paid 20k+ A/B Test Agent tier is referenced but current tools are free"
+    }
+  },
+  "remotion": {
+    "killerFeatures": [
+      "Build videos as React components with full JSX/CSS/animation control",
+      "Parametrized, data-driven video templates rendered at scale",
+      "Cloud rendering via Remotion Lambda for parallel, fast renders",
+      "Remotion Player to preview compositions live in the browser"
+    ],
+    "whatFor": "A React framework for creating real MP4 videos programmatically using web code and components.",
+    "advantages": [
+      "Reuses existing React/web skills and ecosystem for video",
+      "Fully programmatic and reproducible — ideal for automated/personalized video at scale",
+      "Free for individuals and companies of 3 or fewer people"
+    ],
+    "weaknesses": [
+      "Paid Company license required once a team exceeds 3 employees (min ~$100/mo)",
+      "Cloud rendering adds separate AWS/Lambda usage costs and a real coding learning curve"
+    ],
+    "whoUses": "Developers and dev-leaning teams generating templated, data-driven, or personalized videos (marketing, dashboards, social clips) in code.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free for individuals/companies <=3 people; Company license from ~$100/mo (4 seats @ $25/seat); Editor Starter one-time $600; Enterprise min ~$500/mo; cloud render compute billed separately (e.g. AWS)."
+    }
+  },
+  "hyperframes": {
+    "killerFeatures": [
+      "Write plain HTML/CSS/JS and render production MP4 video",
+      "Agent-first design — LLMs already know HTML, so coding agents author videos easily",
+      "Deterministic, seekable rendering via CLI or as a hosted rendering core",
+      "Pairs with HeyGen avatars/scripts for full AI-generated video pipelines"
+    ],
+    "whatFor": "An open-source framework that turns HTML, CSS, and seekable animations into deterministic MP4 videos, built for AI agents.",
+    "advantages": [
+      "Open source under Apache 2.0 — free to self-host and modify",
+      "Lower learning curve than React-based tools since it uses ubiquitous HTML/CSS",
+      "Well-suited for automated, agent-driven video generation workflows"
+    ],
+    "weaknesses": [
+      "New (2026) and smaller ecosystem/community than Remotion",
+      "Developer/agent-focused — not a friendly GUI editor for non-coders"
+    ],
+    "whoUses": "Developers and AI coding agents (Claude Code, Codex) that need to programmatically generate MP4 videos, often alongside HeyGen avatar video.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open source (Apache 2.0); self-host the framework/CLI at no cost. Hosted HeyGen authoring/avatar features billed separately under HeyGen plans."
+    }
+  },
+  "genmedia": {
+    "killerFeatures": [
+      "Search models, inspect schemas, run generations, and poll jobs from the shell",
+      "Built for coding agents — returns parseable JSON, request IDs, and local files",
+      "Installable style profiles that lock in a consistent creative look",
+      "Keeps the generate→download→reuse-as-reference loop entirely in the terminal"
+    ],
+    "whatFor": "An agent-first command-line tool for generating images and video through fal.ai models directly from the terminal.",
+    "advantages": [
+      "Eliminates manual handoff between image/video models and file management",
+      "Native fit for Claude Code / Codex agent loops",
+      "Access to fal.ai's broad catalog of image and video models in one CLI"
+    ],
+    "weaknesses": [
+      "Terminal-only; no GUI for non-technical creators",
+      "Generation costs depend on underlying fal.ai usage-based model pricing"
+    ],
+    "whoUses": "Developers and AI coding agents that want to generate and chain image/video media programmatically from the command line via fal.ai.",
+    "pricing": {
+      "model": "usage-based",
+      "summary": "CLI itself is free; generations bill through fal.ai on a usage/pay-per-generation basis (cost varies by model, resolution, and length)."
+    }
+  },
+  "higgsfield": {
+    "killerFeatures": [
+      "70+ camera/motion presets (Bullet Time, Crash Zoom, 360 Rotation) for directorial control",
+      "Access to 15+ models (Sora 2, Veo 3.1, Kling 3.0, Seedance, WAN, Hailuo) in one place",
+      "Single subscription instead of juggling multiple model providers",
+      "Strong fit for short-form social and ad/UGC-style AI video"
+    ],
+    "whatFor": "An AI video creation platform that aggregates many top video models with cinematic camera-control presets under one subscription.",
+    "advantages": [
+      "One subscription unlocks many premium video models at once",
+      "Cinematic presets give more directorial/motion control than raw text-to-video",
+      "Tiered plans scale from solo creators to teams/enterprise"
+    ],
+    "weaknesses": [
+      "Credit system burns fast — premium clips (Sora 2/Veo 3.1) cost 40-70 credits each, so entry plans yield few high-quality videos",
+      "Costs escalate quickly for high-volume or high-resolution output"
+    ],
+    "whoUses": "Content creators, marketers, and short-form/ad video makers who want cinematic AI video from multiple models without separate subscriptions.",
+    "pricing": {
+      "model": "subscription",
+      "summary": "Credit-based subscription (2026): Starter ~$15/mo (~200 credits), Plus ~$34/mo, Ultra ~$84/mo, Business ~$49/seat/mo; credits consumed per render (Kling 3.0 ~6, Sora 2/Veo 3.1 ~40-70); enterprise via contact."
+    }
+  },
+  "affinity-adobe-blender": {
+    "killerFeatures": [
+      "Natural-language control of Blender's Python API for setup, edits, and docs",
+      "Affinity automation of repetitive production tasks (batch adjustments, layer renaming, exports)",
+      "Adobe Creative Cloud connector spanning 50+ tools (Photoshop, Premiere, Express)",
+      "In-context agentic control without switching tabs or moving files manually"
+    ],
+    "whatFor": "Claude AI connectors/skills that let the assistant operate inside creative apps like Adobe Creative Cloud, Affinity, and Blender via natural language.",
+    "advantages": [
+      "Brings AI agentic automation directly into pro creative workflows",
+      "Reduces tedious, repetitive production work across image, video, and 3D",
+      "Underlying creative apps span free (Affinity, Blender) to subscription (Adobe)"
+    ],
+    "weaknesses": [
+      "Connectors are new (announced April 2026) and capabilities/coverage are still maturing",
+      "Adobe/Fusion integrations still require paid app subscriptions to use"
+    ],
+    "whoUses": "Designers, 3D artists, and creative professionals who want Claude to automate and assist tasks inside Adobe, Affinity, and Blender.",
+    "pricing": {
+      "model": "mixed",
+      "summary": "Claude connectors come with Claude plans; underlying apps vary: Blender free/open-source, Affinity (by Canva) free as of April 2026, Adobe Creative Cloud subscription ~$9.99-$69.99/mo (e.g. Pro ~$69.99/mo, Photography ~$19.99/mo)."
+    }
+  },
+  "buffer": {
+    "killerFeatures": [
+      "Genuinely usable free plan (up to 3 channels, 10 queued posts each)",
+      "Built-in AI Assistant (GPT-4) for ideas, rewriting, hashtags and per-platform repurposing",
+      "Per-channel pricing instead of per-seat, so teams collaborate without seat fees",
+      "Schedule to 9-11 platforms incl. Bluesky, Threads, Mastodon from one queue"
+    ],
+    "whatFor": "A simple social media scheduling and publishing tool for planning, queuing, and analyzing posts across multiple networks.",
+    "advantages": [
+      "Very low barrier to entry: free tier plus paid plans starting at only $5/channel/mo",
+      "Clean, beginner-friendly UI that's faster to learn than Hootsuite/Sprout",
+      "Unlimited AI assistant included even on lower tiers; 50% nonprofit discount"
+    ],
+    "weaknesses": [
+      "Per-channel pricing gets expensive once you manage more than ~5 accounts",
+      "Lacks social listening and the deep/advanced analytics that enterprise suites offer"
+    ],
+    "whoUses": "Solopreneurs, creators, and small marketing teams who want straightforward multi-platform scheduling without enterprise complexity.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free plan (3 channels, 10 queued posts/channel); Essentials ~$5/channel/mo; Team ~$10/channel/mo; per-channel pricing, cheaper per channel beyond 10; 50% nonprofit discount"
+    }
+  },
+  "omnisocials": {
+    "killerFeatures": [
+      "AI-native: connect Claude, Cursor, or any AI agent via MCP to draft, schedule and analyze posts",
+      "Open API with full social management exposed for AI/automation access",
+      "Cross-post to 10+ platforms simultaneously (IG, LinkedIn, TikTok, YouTube, X, FB, Pinterest, Bluesky, Threads, Mastodon)",
+      "Custom roles plus approval workflows for team review before publishing"
+    ],
+    "whatFor": "An AI-friendly social media management platform designed to be driven by AI assistants/agents to schedule, post, reply, and track analytics across networks.",
+    "advantages": [
+      "Flat, very cheap pricing ($10-12/mo per workspace) versus per-channel competitors",
+      "Purpose-built MCP/API integration makes agentic automation a first-class workflow",
+      "Mobile app for scheduling, message replies, and analytics on the go"
+    ],
+    "weaknesses": [
+      "Newer/smaller player with limited public track record and ecosystem versus Buffer/Hootsuite",
+      "Value is strongest only if you actually use AI-agent/MCP automation; analytics are basic"
+    ],
+    "whoUses": "Indie makers, AI-forward marketers, and small teams who want to run their social presence through AI agents and automation rather than manual dashboards.",
+    "pricing": {
+      "model": "subscription",
+      "summary": "~$10/mo per workspace billed annually (or ~$12/mo monthly); 14-day free trial, no credit card; AI/MCP access included"
+    }
+  },
+  "distribution-loop": {
+    "killerFeatures": [
+      "Post-execution amplification stage that fans approved content out across every channel",
+      "Approval gate before broadcast so nothing ships without sign-off",
+      "Closes the loop: distribution feeds analytics back into the next content cycle",
+      "Connects upstream creation (e.g. GenMedia) to publishing tools like Buffer"
+    ],
+    "whatFor": "A conceptual workflow stage in the pipeline that handles post-execution distribution and launch amplification of finished content across channels.",
+    "advantages": [
+      "Centralizes the final 'ship and amplify' step so launches reach all channels consistently",
+      "Built-in approval stage reduces the risk of publishing unvetted content",
+      "Creates a feedback flywheel where distribution results inform future content"
+    ],
+    "weaknesses": [
+      "Not a standalone commercial product — it's a pipeline node, so it relies on connected tools (Buffer, GenMedia) for actual publishing",
+      "No independent feature set or pricing; value depends entirely on the surrounding stack"
+    ],
+    "whoUses": "Teams modeling a content pipeline who need a defined amplification/launch stage after content is approved, typically orchestrated alongside scheduling and creation tools.",
+    "pricing": {
+      "model": "free",
+      "summary": "No standalone pricing — it is a workflow/pipeline stage rather than a sold product; cost is whatever connected distribution tools (e.g. Buffer) charge"
+    }
+  },
+  "vercel": {
+    "killerFeatures": [
+      "Zero-config Git-push deployments with automatic framework detection",
+      "Per-PR preview deployments (unique live URL for every pull request)",
+      "Global Edge Functions and Fluid Compute (pay only for active CPU time)",
+      "First-party Next.js integration (ISR, Server Actions, Edge Middleware) plus v0 AI app generation"
+    ],
+    "whatFor": "A frontend cloud platform for deploying, previewing, and scaling web apps (especially Next.js) with zero infrastructure config.",
+    "advantages": [
+      "Fastest path from Git repo to a globally deployed, CDN-backed app with no DevOps",
+      "Preview URLs collapse review/staging into one shareable link, speeding team workflows",
+      "Deep Next.js optimization means advanced rendering features work out of the box"
+    ],
+    "weaknesses": [
+      "Usage-based Fast Data Transfer and Edge Request overages can make bills spike unpredictably at scale",
+      "Most optimized for Next.js/frontend; heavy backend or non-JS workloads fit other platforms better"
+    ],
+    "whoUses": "Frontend and full-stack web teams, agencies, and startups shipping Next.js/React apps who want fast deploys and preview-driven review.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Hobby free (non-commercial); Pro $20/developer/mo (incl. $20 usage credit) plus usage-based Fast Data Transfer/Edge Requests; Enterprise custom (~$45k/yr+) with SSO and 99.99% SLA"
+    }
+  },
+  "docker": {
+    "killerFeatures": [
+      "OS-level containers for reproducible 'works the same everywhere' environments",
+      "Docker Desktop with one-click local Kubernetes and a GUI for images/containers",
+      "Docker Hub registry for sharing and pulling prebuilt images",
+      "Docker Compose for defining multi-container stacks in a single YAML file"
+    ],
+    "whatFor": "A container platform that packages apps and dependencies into portable, reproducible images that run identically across local dev and production.",
+    "advantages": [
+      "Eliminates 'works on my machine' drift by shipping dependencies inside the image",
+      "Huge ecosystem of prebuilt official images on Docker Hub speeds setup",
+      "Industry-standard tooling that integrates with virtually all CI/CD and cloud platforms"
+    ],
+    "weaknesses": [
+      "Docker Desktop now requires paid licenses for larger commercial orgs (>250 employees or >$10M revenue)",
+      "Resource overhead and networking/volume complexity can be a learning curve on macOS/Windows"
+    ],
+    "whoUses": "Developers, DevOps, and platform teams of all sizes who need consistent dev environments and containerized deployment pipelines.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Personal free (incl. small/non-commercial use); Pro $11/user/mo (~$5/mo billed yearly); Team $16/user/mo; Business $24/user/mo"
+    }
+  },
+  "warp": {
+    "killerFeatures": [
+      "Built-in AI agents that generate, review, and run commands from natural language",
+      "Block-based output (each command + result is a selectable, shareable block)",
+      "Codebase indexing (up to ~40 repos) for context-aware agentic workflows",
+      "Multi-agent orchestration plus Bring-Your-Own-Key (OpenAI/Anthropic/Google)"
+    ],
+    "whatFor": "An AI-native terminal that turns the command line into a coding-agent workspace with natural-language commands and modern editing.",
+    "advantages": [
+      "Modern IDE-like editing (cursor positioning, autocomplete, blocks) in a terminal",
+      "Lowers the barrier to complex shell commands via plain-English prompts",
+      "AI agents run full dev loops in-terminal without context-switching to another tool"
+    ],
+    "weaknesses": [
+      "AI features are credit-metered and gated behind paid plans once free credits run out",
+      "Cloud/account sign-in and data handling raise privacy concerns for some security-sensitive teams"
+    ],
+    "whoUses": "Developers and AI engineers who live in the terminal and want agentic, natural-language-driven command and coding workflows.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free (~150 AI credits/mo first two months, then ~75); Build $20/mo (1,500 credits, repo indexing, BYOK); Business $50/user/mo (SSO, Zero Data Retention, shared credits)"
+    }
+  },
+  "react-tauri-xterm": {
+    "killerFeatures": [
+      "Tauri 2.0 produces tiny bundles (~under 10MB) using the OS native webview instead of bundling Chromium",
+      "Rust backend with compile-time-checked, least-privilege native API access (sandboxed frontend)",
+      "Xterm.js embeds a fast, GPU-accelerated VT100/xterm terminal (the same lib VS Code uses)",
+      "React frontend plus Tauri 2.0 stable Android/iOS support for cross-platform reach"
+    ],
+    "whatFor": "A native-app runtime stack for building lightweight, secure desktop AI and terminal-centric tools (Rust backend, Tauri shell, React UI, Xterm.js terminal).",
+    "advantages": [
+      "Far smaller and lighter than Electron (roughly 10x smaller, ~5x less RAM, faster cold start)",
+      "Security-first design with sandboxed frontend and explicit Rust-gated system access",
+      "Xterm.js gives production-grade terminal emulation (bash/vim/tmux, mouse, Unicode) for free"
+    ],
+    "weaknesses": [
+      "Less mature ecosystem and packaging/auto-update tooling than Electron",
+      "Native-webview rendering differences across OSes and Rust learning curve add friction"
+    ],
+    "whoUses": "Engineers building desktop AI agents and terminal-style apps (e.g. local coding tools) who need native performance, small footprint, and strong security.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open-source (Tauri, Rust, React, Xterm.js are all MIT/Apache-licensed); cost is only developer time and any cloud services you add"
+    }
+  },
+  "terminal": {
+    "killerFeatures": [
+      "Universal text interface to the OS, package managers, and any CLI tool",
+      "Scriptable and pipeable (compose commands, automate via shell scripts)",
+      "Direct host for running build, test, deploy, and AI-agent commands",
+      "Ships built-in on every OS with no install or account required"
+    ],
+    "whatFor": "The command-line surface for installing, running, verifying, and orchestrating local tools, scripts, and agent workflows.",
+    "advantages": [
+      "Most direct, low-overhead way to install and orchestrate local tooling",
+      "Fully scriptable and automatable for reproducible dev and CI workflows",
+      "Universally available and the lowest common denominator across machines"
+    ],
+    "weaknesses": [
+      "Steep learning curve and unforgiving syntax for newcomers",
+      "Bare terminals lack modern niceties (AI, rich output, blocks) found in tools like Warp"
+    ],
+    "whoUses": "Developers, sysadmins, and AI agents who install, run, and verify local tools and orchestrate dev loops from the command line.",
+    "pricing": {
+      "model": "free",
+      "summary": "Free; built into every operating system (macOS Terminal, Windows Terminal, Linux shells) at no cost"
+    }
+  },
+  "agent-skills": {
+    "killerFeatures": [
+      "Production-grade engineering skills (spec → test → review → ship) packaged as SKILL.md files",
+      "Bakes in Google-style engineering discipline (Hyrum's Law, test pyramid, trunk-based dev)",
+      "One-command install as a Claude Code plugin marketplace; also works in Cursor/Copilot",
+      "Portable, MIT-licensed, tool-agnostic Markdown skills"
+    ],
+    "whatFor": "A free open-source library of reusable engineering 'skills' that give AI coding agents structured, senior-level workflows for specs, testing, review, and shipping.",
+    "advantages": [
+      "Free and MIT-licensed with zero lock-in; just Markdown files",
+      "Drop-in install via Claude Code plugin marketplace (addyosmani/agent-skills)",
+      "Cross-agent: usable in Claude Code, Cursor (.cursor/rules), and GitHub Copilot (.github/skills)"
+    ],
+    "weaknesses": [
+      "Opinionated toward one engineering culture's practices, which may not fit every team",
+      "Value depends on the agent actually invoking the right skill at the right moment"
+    ],
+    "whoUses": "Software engineers and teams using AI coding agents who want consistent, disciplined production workflows instead of shortest-path 'vibe coding'.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free, MIT-licensed (GitHub: addyosmani/agent-skills); no paid tiers"
+    }
+  },
+  "mattpocock-skills": {
+    "killerFeatures": [
+      "/tdd skill enforces strict red-green-refactor with failing tests first",
+      "/grill-me blocks code until every design decision is resolved",
+      "/to-prd turns a conversation into a product requirements doc; /git-guardrails blocks force pushes",
+      "Configurable setup wired to GitHub, Linear, or local-file issue trackers"
+    ],
+    "whatFor": "A public copy of Matt Pocock's personal .claude/skills folder — composable agent skills that enforce real engineering discipline in Claude Code.",
+    "advantages": [
+      "Small, composable, easy-to-adapt skills based on real engineering practice",
+      "Free MIT license with no paywall; battle-tested reference set (~48k+ GitHub stars)",
+      "Guided /setup flow integrates with your existing issue tracker and triage labels"
+    ],
+    "weaknesses": [
+      "Primarily tuned for Claude Code; less turnkey on other agents",
+      "Reflects one author's TypeScript-leaning workflow opinions"
+    ],
+    "whoUses": "Developers (especially in the TypeScript/JS world) running Claude Code who want workflow-enforcing skills like TDD and PRD generation.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free, MIT-licensed (GitHub: mattpocock/skills); no paid tiers"
+    }
+  },
+  "designer-skills": {
+    "killerFeatures": [
+      "97 skills + 30 commands across 9 plugins spanning research, systems, UI, interaction, and delivery",
+      "Design-research skills: personas, empathy/journey maps, interview scripts, usability tests, card sorting",
+      "Design-systems skills for tokens, components, accessibility, and theming",
+      "No-terminal install via Claude Code plugin marketplace"
+    ],
+    "whatFor": "A large open-source collection of agentic skills, commands, and plugins that bring end-to-end product-design workflows into AI coding agents.",
+    "advantages": [
+      "Broad coverage of the whole design lifecycle, not just UI generation",
+      "Three-step, no-terminal install (/plugin marketplace add Owl-Listener/designer-skills)",
+      "Pairs naturally with Claude Code and Figma workflows"
+    ],
+    "weaknesses": [
+      "Large surface area can be overwhelming to navigate and curate",
+      "Quality/maintenance varies across a community-driven skill set"
+    ],
+    "whoUses": "Product designers, UX researchers, and design-system maintainers who use Claude Code to run design workflows alongside engineering.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free, open-source (GitHub: Owl-Listener/designer-skills); no paid tiers"
+    }
+  },
+  "chorus-skills": {
+    "killerFeatures": [
+      "Downloadable SKILL.md files that work with any MCP-compatible agent",
+      "Plugin-free: point your agent at a skill URL — no install or marketplace required",
+      "Cross-agent support for Cursor, OpenCode, Kiro, and more",
+      "Composable skills aimed at building larger AI-human collaboration workflows"
+    ],
+    "whatFor": "A directory of portable, MCP-compatible agent skills (chorus-ai.dev) for composing reusable capabilities into larger agent workflows.",
+    "advantages": [
+      "Vendor-neutral: works with any MCP-compatible agent, not tied to one IDE",
+      "Zero-install distribution model — reference a skill by URL",
+      "Focused on composing capabilities rather than single one-shot tasks"
+    ],
+    "weaknesses": [
+      "Early/concept-stage directory with limited breadth versus established skill packs",
+      "Name collides with the unrelated Chorus.sh Mac multi-model chat app, causing confusion"
+    ],
+    "whoUses": "Developers and AI builders who want portable, MCP-based skills usable across multiple agents (Cursor, OpenCode, Kiro).",
+    "pricing": {
+      "model": "free",
+      "summary": "Free skill directory (chorus-ai.dev); skills downloadable at no cost"
+    }
+  },
+  "obsidian-skills": {
+    "killerFeatures": [
+      "Local-first plain-text Markdown vault with bidirectional links and graph view",
+      "New Bases database feature plus Canvas, all in the free core app",
+      "Pairing the personal knowledge base with reusable agent skills/instructions across projects",
+      "No account or cloud dependency — full data ownership and portability"
+    ],
+    "whatFor": "Using Obsidian's local-first Markdown knowledge base as a personal memory layer combined with reusable agent skills so AI agents share durable context across projects.",
+    "advantages": [
+      "Plain .md files: no lock-in, fully portable, easy for agents to read/write",
+      "Free core app (now free for commercial use as of Feb 2026); scales to 50k+ notes",
+      "Rich plugin ecosystem plus optional encrypted Sync"
+    ],
+    "weaknesses": [
+      "The 'agent skills' layer is a setup pattern, not a packaged product — requires manual wiring",
+      "Optional Sync/Publish are paid add-ons, and there's a learning curve to building a good vault"
+    ],
+    "whoUses": "Knowledge workers, researchers, and developers who keep a personal Obsidian vault and want AI agents to reuse that knowledge plus shared instructions across projects.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "App free (incl. commercial use as of Feb 2026); optional Sync ~$4/mo, Publish ~$8/mo"
+    }
+  },
+  "founder-os": {
+    "killerFeatures": [
+      "Single hub connecting research -> planning -> execution -> approval -> review",
+      "Orchestrates the rest of the stack (Codex, Claude Code, Cursor, Figma, Vercel) as one loop",
+      "Stage-driven workflow where finishing one task advances the next",
+      "Agent teams auto-capture their own work output"
+    ],
+    "whatFor": "The central operating layer of the AI core that unifies research, planning, execution, approval, and AI review into one founder workflow.",
+    "advantages": [
+      "Lets a solo founder operate at the throughput of a small team",
+      "Removes context-switching between disconnected tools",
+      "Keeps a human-in-the-loop approval stage built into the flow"
+    ],
+    "weaknesses": [
+      "Conceptual orchestration layer rather than a standalone purchasable product",
+      "Value depends entirely on the underlying tools it routes work to"
+    ],
+    "whoUses": "Solo founders and one-person companies who want to run every business function and AI agent from a single operating layer.",
+    "pricing": {
+      "model": "mixed",
+      "summary": "Internal/composite operating layer; cost is the sum of the underlying tools it orchestrates (Claude Code, Codex, Cursor, Vercel, etc.) rather than a single SKU"
+    }
+  },
+  "openswarm": {
+    "killerFeatures": [
+      "Routes and hands off tasks across specialized agents",
+      "Lightweight agents + handoffs orchestration primitives",
+      "Parallel fan-out of work to multiple workers",
+      "Coordinates with control layers like OpenClaw"
+    ],
+    "whatFor": "A multi-agent coordination layer that routes work across specialized worker agents.",
+    "advantages": [
+      "Breaks large tasks into parallel agent workstreams",
+      "Keeps each agent focused and testable rather than one monolithic prompt",
+      "Composable with the rest of the core (Founder OS, OpenClaw)"
+    ],
+    "weaknesses": [
+      "Orchestration glue requires solid task decomposition to be useful",
+      "Name overlaps with several similarly-named OSS frameworks (OpenAI Swarm, swarms), creating ambiguity"
+    ],
+    "whoUses": "Builders running multi-agent automations who need to distribute work across many specialized AI workers at once.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Open-source orchestration layer; free to run, you pay only the underlying model/API token usage"
+    }
+  },
+  "approval-gate": {
+    "killerFeatures": [
+      "Human-in-the-loop gate before irreversible/costly actions",
+      "Wraps merge, deploy, and publish steps (CodeRabbit, Vercel, Buffer)",
+      "Blocks automation until a person signs off",
+      "Single approval point across code, infra, and social"
+    ],
+    "whatFor": "A human review checkpoint that sits before merge, deploy, publish, or expensive automation.",
+    "advantages": [
+      "Prevents bad agent output from shipping to production or audiences",
+      "Caps spend on expensive automations until approved",
+      "Centralizes sign-off across multiple downstream tools"
+    ],
+    "weaknesses": [
+      "Adds latency / a manual bottleneck to otherwise autonomous flows",
+      "Conceptual gate, not a standalone product — relies on the tools it fronts"
+    ],
+    "whoUses": "Founders and teams running agentic automation who want a final human sign-off before anything merges, deploys, or goes public.",
+    "pricing": {
+      "model": "free",
+      "summary": "Workflow checkpoint within the core; no direct cost beyond the connected tools (CodeRabbit, Vercel, Buffer)"
+    }
+  },
+  "wisprflow": {
+    "killerFeatures": [
+      "Real-time dictation ~4x faster than typing",
+      "Auto-removes filler words and fixes grammar/formatting via LLM",
+      "Command Mode: voice edits like 'make this more formal' or 'summarize in bullets'",
+      "Works system-wide across Mac, Windows, iPhone, and Android"
+    ],
+    "whatFor": "AI voice dictation that turns natural speech into clean, formatted text and structured prompts across any app.",
+    "advantages": [
+      "Captures thoughts hands-free and outputs app-aware formatted text",
+      "Shared dictionary and snippets for consistent terminology",
+      "Enterprise compliance options (SOC 2 Type II, ISO 27001, HIPAA, Zero Data Retention)"
+    ],
+    "weaknesses": [
+      "Free tier capped at ~2,000 words/week",
+      "Cloud LLM processing raises privacy considerations for sensitive text"
+    ],
+    "whoUses": "Founders, writers, and knowledge workers who prefer dictating prompts, notes, and messages instead of typing.",
+    "pricing": {
+      "model": "freemium",
+      "summary": "Free tier (~2,000 words/week) + 14-day trial; Pro $15/mo monthly or $12/mo billed annually; Enterprise (SSO/SAML, HIPAA, ZDR) via sales"
+    }
+  },
+  "openclaw": {
+    "killerFeatures": [
+      "Runs shell commands, controls the browser, reads/writes files, manages calendar and email",
+      "Persistent memory across sessions, triggered via Telegram/Signal/WhatsApp messages",
+      "Model-agnostic: Claude, GPT, DeepSeek, or self-hosted open-weight models",
+      "100+ community-built skills (news, semantic memory, browser automation, CI/CD)"
+    ],
+    "whatFor": "An open-source personal AI agent (formerly Clawdbot/Moltbot) that runs locally, keeps memory, and actually performs actions on your machine.",
+    "advantages": [
+      "Bring-your-own-API-key with no subscription",
+      "Works autonomously in the background while you do other things",
+      "Local-first execution with full machine control and open-source transparency"
+    ],
+    "weaknesses": [
+      "Local agent with shell/browser/file access carries real security risk if misconfigured",
+      "Requires self-hosting and technical setup; you absorb the model API costs"
+    ],
+    "whoUses": "Developers and power users (68k+ GitHub stars) who want a self-hosted, action-taking personal agent driven from chat apps.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Free and open-source; bring your own LLM API key, so you only pay usage-based model/token costs"
+    }
+  },
+  "shannon": {
+    "killerFeatures": [
+      "'No exploit, no report' policy — every finding validated with a reproducible PoC",
+      "Combines white-box source analysis with black-box dynamic exploitation",
+      "Multi-agent orchestrator across five phases on Anthropic's Claude Agent SDK",
+      "96.15% success on the hint-free XBOW benchmark; targets injection, XSS, SSRF, broken auth"
+    ],
+    "whatFor": "An autonomous white-box AI pentester that reads your source code, finds attack vectors, and executes real exploits to prove vulnerabilities before production.",
+    "advantages": [
+      "Near-zero false positives because vulns are proven by real exploitation",
+      "Open-source CLI (Shannon Lite) you can run on code you own",
+      "Pro tier adds SAST, SCA with reachability, secrets detection, and CI/CD integration"
+    ],
+    "weaknesses": [
+      "Lite is white-box only and limited to apps you're authorized to test",
+      "Burns LLM tokens via the Claude Agent SDK, so runs can get costly"
+    ],
+    "whoUses": "Security engineers and developers who want autonomous, proof-driven pentesting of their own web apps and APIs.",
+    "pricing": {
+      "model": "open-source",
+      "summary": "Shannon Lite free/open-source (AGPL-3.0 CLI), plus model token costs; Shannon Pro is a paid all-in-one AppSec platform (contact Keygraph)"
+    }
+  },
+  "planning-loop": {
+    "killerFeatures": [
+      "Turns raw research into scoped, actionable plans",
+      "Defines data model and implementation route before any code",
+      "Feeds directly from research tools (Deer Flow) into Founder OS execution",
+      "Iterative loop that refines scope before execution"
+    ],
+    "whatFor": "The structured planning stage that converts research findings into a gameplan, scope, data model, and implementation route.",
+    "advantages": [
+      "Forces think-before-coding, reducing wasted execution cycles",
+      "Bridges fuzzy research and concrete build steps",
+      "Keeps scope explicit so agents don't over-build"
+    ],
+    "weaknesses": [
+      "A workflow stage, not a standalone product",
+      "Plan quality is only as good as the upstream research it consumes"
+    ],
+    "whoUses": "Founders and builders who want research distilled into a clear, scoped implementation plan before handing work to execution agents.",
+    "pricing": {
+      "model": "free",
+      "summary": "Internal planning stage of the core; no standalone price, runs on the upstream research/LLM tools it draws from"
+    }
+  }
+};

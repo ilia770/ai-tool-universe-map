@@ -29,6 +29,7 @@ import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-
 import { usePrefersReducedMotion } from '../lib/use-prefers-reduced-motion';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
+import { useInAppBrowser } from './useInAppBrowser';
 
 const AIToolUniverse3D = lazy(() =>
   import('./AIToolUniverse3D').then((m) => ({ default: m.Scene })),
@@ -116,6 +117,7 @@ const readStoredCustomTools = (): AITool[] => {
 };
 
 export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
+  const { openInApp } = useInAppBrowser();
   const dialogRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState('founder-os');
@@ -162,6 +164,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
           setActiveStage('all');
           setRelationLens('direct');
           setMapClarity('focus');
+          setSelectedId('founder-os');
           setCameraVersion((version) => version + 1);
           return;
         }
@@ -280,9 +283,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     : (categoryById.get(activeCategory)?.name ?? 'Unknown group');
   const pocketWorldLabel = activeCategory !== 'all'
     ? categoryById.get(activeCategory)?.shortName ?? 'Group'
-    : selectedTool.id !== 'founder-os' && selectedTool.category !== 'core'
-      ? selectedCategory.shortName
-      : null;
+    : null;
   const stageLabel = activeStage === 'all'
     ? 'All workflow stages'
     : workflowStages[activeStage].name;
@@ -1013,15 +1014,14 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
                 Recenter
               </button>
               {selectedTool.url ? (
-                <a
-                  href={selectedTool.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openInApp(selectedTool.url!, selectedTool.name)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-text-secondary transition hover:bg-white/10 hover:text-white"
                 >
                   <Globe className="h-4 w-4" />
                   Open
-                </a>
+                </button>
               ) : (
                 <div className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-center text-sm text-text-muted">
                   No public link

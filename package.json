@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "npm@11.12.1",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5177",
     "build": "tsc -b && vite build",

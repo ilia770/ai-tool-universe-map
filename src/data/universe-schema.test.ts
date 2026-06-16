@@ -50,6 +50,10 @@ describe('universe schema helpers', () => {
     expect(isValidCustomToolPayload(makeTool({ orbit: 4 }))).toBe(false);
     expect(isValidCustomToolPayload(makeTool({ angle: Number.NaN }))).toBe(false);
     expect(isValidCustomToolPayload(makeTool({ url: 'not a url' }))).toBe(false);
+    expect(isValidCustomToolPayload(makeTool({ url: 'http://example.com' }))).toBe(false);
+    expect(isValidCustomToolPayload(makeTool({ url: 'javascript:alert(1)' }))).toBe(false);
+    expect(isValidCustomToolPayload(makeTool({ url: 'data:text/html,<script>alert(1)</script>' }))).toBe(false);
+    expect(isValidCustomToolPayload(makeTool({ url: 'file:///etc/passwd' }))).toBe(false);
     expect(isValidCustomToolPayload(makeTool({ classification: { confidence: 2, matchedKeywords: [], reason: 'bad' } }))).toBe(false);
   });
 

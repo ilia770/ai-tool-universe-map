@@ -7,7 +7,7 @@ import SwiftUI
 /// animation) now belongs to the presenting sheet.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
-    @Environment(\.openURL) private var openURL
+    @State private var browserSheet: BrowserSheetItem?
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -138,7 +138,7 @@ struct ToolDetailSection: View {
             if let url = selectedTool.url {
                 Button {
                     BrandHaptics.fire(.light)
-                    openURL(url)
+                    browserSheet = BrowserSheetItem(url: url)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.up.right.square")
@@ -153,6 +153,10 @@ struct ToolDetailSection: View {
                 }
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
             }
+        }
+        .sheet(item: $browserSheet) { item in
+            InAppBrowserSheet(url: item.url)
+                .ignoresSafeArea()
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)

@@ -20,6 +20,9 @@ on:
       - 'scripts/ios-verify.sh'
       - '.github/workflows/ios.yml'
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: iOS verify (xcodegen • build • build-for-testing)
