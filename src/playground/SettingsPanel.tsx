@@ -11,7 +11,6 @@ import type { Language } from './toolStoreContext';
 import {
   ACCENT,
   cx,
-  DISMISS,
   DURATION,
   EASE,
   FOCUS_RING,
@@ -19,6 +18,12 @@ import {
   TEXT,
   TYPE,
 } from './designSystem';
+import {
+  fireHaptic,
+  prefersReducedMotion,
+  rubberBand,
+  shouldDismiss,
+} from './interactions';
 
 export interface VariantOption {
   id: string;
@@ -33,17 +38,10 @@ interface Props {
   onSelectVariant: (id: string) => void;
 }
 
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    !!window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-}
-
+/** Reduce-aware tick — skip when the user asked for reduced motion. */
 function haptic(ms = 8): void {
   if (prefersReducedMotion()) return;
-  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms);
+  fireHaptic(ms);
 }
 
 export function SettingsPanel({ open, onClose, variants, activeVariantId, onSelectVariant }: Props) {
@@ -88,7 +86,7 @@ export function SettingsPanel({ open, onClose, variants, activeVariantId, onSele
   const onHandlePointerMove = (e: ReactPointerEvent) => {
     if (!dragStart.current || dragStart.current.id !== e.pointerId) return;
     const dy = e.clientY - dragStart.current.y;
-    setDrag(dy > 0 ? dy : dy * DISMISS.resistance);
+    setDrag(rubberBand(dy));
   };
   const onHandlePointerUp = (e: ReactPointerEvent) => {
     if (!dragStart.current || dragStart.current.id !== e.pointerId) return;
@@ -97,7 +95,7 @@ export function SettingsPanel({ open, onClose, variants, activeVariantId, onSele
     const v = dt > 0 ? dy / dt : 0;
     dragStart.current = null;
     setDragging(false);
-    if (dy > DISMISS.distancePx || v > DISMISS.velocity) {
+    if (shouldDismiss(dy, v)) {
       haptic();
       onClose();
     } else {

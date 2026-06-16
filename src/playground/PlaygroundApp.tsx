@@ -24,6 +24,7 @@ import { GlobeSwitch } from './variants/GlobeSwitch';
 import { Force3D } from './variants/Force3D';
 import { NeuralUniverse } from './variants/NeuralUniverse';
 import { cx, EASE, FOCUS_RING, GLASS, TEXT, TYPE } from './designSystem';
+import { fireHaptic, useReducedMotion } from './interactions';
 
 interface Variant {
   id: string;
@@ -60,23 +61,6 @@ function initialId(): string {
   if (typeof window === 'undefined') return 'A';
   const fromHash = window.location.hash.replace('#', '').toUpperCase();
   return VARIANTS.some((v) => v.id === fromHash) ? fromHash : 'A';
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      !!window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
 }
 
 /** Variant nav tab — 44px, cyan-tinted active, tactile press, focus ring. */
@@ -129,7 +113,7 @@ function PlaygroundShell() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const reduced = usePrefersReducedMotion();
+  const reduced = useReducedMotion();
   const { tools, settings, setSettings } = useToolStore();
 
   const active = VARIANTS.find((v) => v.id === activeId) ?? VARIANTS[0];
@@ -292,7 +276,7 @@ function PlaygroundShell() {
           <button
             type="button"
             onClick={() => {
-              if (typeof navigator !== 'undefined' && navigator.vibrate && !reduced) navigator.vibrate(8);
+              if (!reduced) fireHaptic(8);
               setSettingsOpen(true);
             }}
             aria-label={t('account.open', settings.language)}

@@ -24,18 +24,16 @@ import {
   categoryColor,
   categoryTint,
 } from './designSystem';
+import { fireHaptic, prefersReducedMotion, rubberBand } from './interactions';
 
 function initials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
+/** Reduce-aware tap tick — skip when the user asked for reduced motion. */
 function tap(): void {
   if (prefersReducedMotion()) return;
-  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(8);
+  fireHaptic(8);
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -316,7 +314,7 @@ function ToolDetailView({
       if (!start) return;
       const dy = e.clientY - start.y;
       // down-only: resist (rubber-band) any upward pull.
-      const ry = dy > 0 ? dy : dy * DISMISS.resistance;
+      const ry = rubberBand(dy);
       const last = lastRef.current;
       if (last) {
         const dt = e.timeStamp - last.t;

@@ -16,7 +16,6 @@ import { classifyToolDetailed, getDisplayName } from '../lib/classify-ai-tool';
 import { getToolLogoUrl } from '../lib/tool-logos';
 import {
   ACCENT,
-  DISMISS,
   DURATION,
   EASE,
   FOCUS_RING,
@@ -29,6 +28,13 @@ import {
   TYPE,
   cx,
 } from './designSystem';
+import {
+  fireHaptic,
+  prefersReducedMotion,
+  rubberBand,
+  shouldDismiss,
+  useReducedMotion,
+} from './interactions';
 
 const MAX_ICON_BYTES = 1_500_000;
 const ALLOWED_ICON_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -41,13 +47,10 @@ function initials(name: string): string {
     .join('');
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
+/** Reduce-aware tap tick — skip when the user asked for reduced motion. */
 function haptic(): void {
   if (prefersReducedMotion()) return;
-  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(8);
+  fireHaptic(8);
 }
 
 interface Props {
@@ -74,7 +77,7 @@ export function AddToolModal({ open, initialText, onClose, onAdded }: Props) {
   // Mount/visibility lifecycle so the panel animates IN and OUT (not pop).
   const [mounted, setMounted] = useState(open);
   const [visible, setVisible] = useState(false);
-  const [reduced, setReduced] = useState(prefersReducedMotion);
+  const reduced = useReducedMotion();
 
   // Celebration bloom flare fired at submit (the milestone delight moment).
   const [celebrating, setCelebrating] = useState(false);
@@ -121,15 +124,6 @@ export function AddToolModal({ open, initialText, onClose, onAdded }: Props) {
     const timer = window.setTimeout(() => setCelebrating(false), 0);
     return () => window.clearTimeout(timer);
   }, [open]);
-
-  // Subscribe to the reduced-motion media query (external system).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
 
   // Drive enter/exit transitions from the `open` prop.
   useEffect(() => {
@@ -338,7 +332,7 @@ export function AddToolModal({ open, initialText, onClose, onAdded }: Props) {
     const dy = e.clientY - dragStart.current.y;
     lastMove.current = { y: e.clientY, t: e.timeStamp };
     // Follow downward 1:1; rubber-band any upward over-drag.
-    setDrag(dy > 0 ? dy : dy * DISMISS.resistance);
+    setDrag(rubberBand(dy));
   };
 
   const onHandlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -350,7 +344,7 @@ export function AddToolModal({ open, initialText, onClose, onAdded }: Props) {
     lastMove.current = null;
     setDragging(false);
     // Dismiss if dragged down past distance OR a downward flick over velocity.
-    if (dy > DISMISS.distancePx || velocity > DISMISS.velocity) {
+    if (shouldDismiss(dy, velocity)) {
       haptic();
       setDrag(window.innerHeight);
       requestClose();
