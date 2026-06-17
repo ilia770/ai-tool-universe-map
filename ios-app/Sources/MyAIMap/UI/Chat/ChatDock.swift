@@ -63,6 +63,9 @@ struct ChatDock: View {
                             turnRow(turn).id(turn.id)
                         }
                     }
+                    // Zero-height anchor so scrollTo always lands below the last
+                    // row, even when that row is taller than the viewport.
+                    Color.clear.frame(height: 1).id(Self.bottomAnchorID)
                 }
                 .padding(BrandSpacing.m.value)
             }
@@ -73,11 +76,26 @@ struct ChatDock: View {
                 strokeStrength: 0.12
             )
             .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 10)
-            .onChange(of: thread.turns.map(\.id)) { _, ids in
-                guard let last = ids.last else { return }
-                withAnimation(BrandMotion.resolved(BrandMotion.flow, reduceMotion: reduceMotion)) {
-                    scroller.scrollTo(last, anchor: .bottom)
-                }
+            // Cover the first-ask race: ScrollView just mounted → onAppear
+            // fires after layout so the reader is ready.
+            .onAppear { scrollToBottom(scroller) }
+            // New turn appended (id list changed).
+            .onChange(of: thread.turns.map(\.id)) { _, _ in
+                scrollToBottom(scroller)
+            }
+            // Existing turn's answer grew (answer text/cards inflated height).
+            .onChange(of: thread.turns.last?.answer) { _, _ in
+                scrollToBottom(scroller)
+            }
+        }
+    }
+
+    /// Hops past the current layout pass so the scroll target has settled
+    /// its final height before `scrollTo` is called.
+    private func scrollToBottom(_ scroller: ScrollViewProxy) {
+        Task { @MainActor in
+            withAnimation(BrandMotion.resolved(BrandMotion.flow, reduceMotion: reduceMotion)) {
+                scroller.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             }
         }
     }
@@ -267,6 +285,10 @@ struct ChatDock: View {
                 }
             }
     }
+}
+
+extension ChatDock {
+    static var bottomAnchorID: String { "chatdock.bottom" }
 }
 
 #Preview {
