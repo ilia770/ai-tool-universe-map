@@ -14,6 +14,7 @@ struct APIKeyScreen: View {
     @State private var draft = ""
     @State private var isSet = false
     @State private var showClearConfirm = false
+    @State private var saveFailed = false
 
     var body: some View {
         ScrollView {
@@ -42,6 +43,11 @@ struct APIKeyScreen: View {
                 draft = ""
                 isSet = false
             }
+        }
+        .alert("Could not save key", isPresented: $saveFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Keychain write failed. Check device settings and try again.")
         }
         .onAppear { isSet = store.hasKey }
     }
@@ -113,9 +119,13 @@ struct APIKeyScreen: View {
                         let trimmed = draft.trimmingCharacters(in: .whitespaces)
                         guard !trimmed.isEmpty else { return }
                         BrandHaptics.fire(.medium)
-                        try? store.save(trimmed)
-                        draft = ""
-                        isSet = true
+                        do {
+                            try store.save(trimmed)
+                            draft = ""
+                            isSet = true
+                        } catch {
+                            saveFailed = true
+                        }
                     } label: {
                         Text(L10n.save(language))
                             .font(.subheadline.weight(.semibold))

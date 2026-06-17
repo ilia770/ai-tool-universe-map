@@ -16,7 +16,7 @@ struct APIKeyStore {
 
     /// Upsert the key. Throws if Keychain returns an unexpected status.
     func save(_ key: String) throws {
-        guard let data = key.data(using: .utf8) else { return }
+        guard let data = key.data(using: .utf8) else { throw KeychainError(status: errSecParam) }
 
         // Try add first; if duplicate, fall through to update.
         let addQuery: [CFString: Any] = [
