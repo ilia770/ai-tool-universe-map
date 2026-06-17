@@ -16,6 +16,11 @@ struct L10nTests {
             #expect(!L10n.about(language).isEmpty)
             #expect(!L10n.accountAccessibilityLabel(language).isEmpty)
             #expect(!L10n.done(language).isEmpty)
+            // API key strings
+            #expect(!L10n.apiKey(language).isEmpty)
+            #expect(!L10n.apiKeyHelp(language).isEmpty)
+            #expect(!L10n.save(language).isEmpty)
+            #expect(!L10n.delete(language).isEmpty)
         }
     }
 

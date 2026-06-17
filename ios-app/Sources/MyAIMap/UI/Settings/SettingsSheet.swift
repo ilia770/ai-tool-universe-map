@@ -11,6 +11,7 @@ struct SettingsSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showResetConfirm = false
+    @State private var showAPIKeyScreen = false
 
     private var language: AppLanguage { settings.language }
     private var tint: Color { model.selectedCategoryModel.color.swiftUIColor }
@@ -23,6 +24,7 @@ struct SettingsSheet: View {
                 visualizationSection(settings: settings)
                 languageSection(settings: settings)
                 historySection
+                apiKeySection
                 dataSection
                 aboutSection
             }
@@ -35,6 +37,12 @@ struct SettingsSheet: View {
                 Rectangle().fill(.ultraThinMaterial)
                 tint.opacity(0.07)
             }
+        }
+        .sheet(isPresented: $showAPIKeyScreen) {
+            APIKeyScreen()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .environment(settings)
         }
         .confirmationDialog(
             L10n.resetData(language),
@@ -161,6 +169,30 @@ struct SettingsSheet: View {
                 HStack {
                     Image(systemName: "clock.arrow.circlepath")
                     Text(L10n.history(language))
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.3))
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .padding(.vertical, 11)
+                .padding(.horizontal, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableButtonStyle(haptic: nil, pressedOpacity: 0.9))
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous), strokeStrength: 0.1)
+        }
+    }
+
+    private var apiKeySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel(L10n.apiKey(language))
+            Button {
+                BrandHaptics.fire(.light)
+                showAPIKeyScreen = true
+            } label: {
+                HStack {
+                    Image(systemName: "key")
+                    Text(L10n.apiKey(language))
                     Spacer()
                     Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.3))
                 }

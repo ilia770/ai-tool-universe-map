@@ -49,4 +49,13 @@ struct AppSettingsTests {
         #expect(json.contains("\"language\""))
         #expect(json.contains("ru"))
     }
+
+    @Test func exportDoesNotContainAPIKey() throws {
+        let defaults = freshDefaults()
+        let s = AppSettings(defaults: defaults)
+        let data = try s.exportJSON()
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("apiKey"))
+        #expect(!json.contains("sk-ant"))
+    }
 }
