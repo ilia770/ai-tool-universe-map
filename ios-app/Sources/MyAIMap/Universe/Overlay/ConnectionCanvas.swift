@@ -74,12 +74,17 @@ struct ConnectionCanvas: View {
 
     private func handleTap(at location: CGPoint) {
         // Find the closest tappable edge within the threshold.
+        // Skip invisible edges — mirrors the draw guard in body.
+        let focused = anyFocused
         var bestIndex: Int? = nil
         var bestDist = CGFloat.greatestFiniteMagnitude
 
         for (i, edge) in edges.enumerated() {
+            guard EdgeOpacity.resolved(edge, focused: focused) > 0.005 else { continue }
             let ctrl = controlPoint(a: edge.a, b: edge.b)
-            let dist = approximateBezierDistance(point: location, a: edge.a, ctrl: ctrl, b: edge.b)
+            let dist = EdgeHitTest.distanceToQuadCurve(
+                point: location, a: edge.a, b: edge.b, sag: ctrl
+            )
             if dist < bestDist {
                 bestDist = dist
                 bestIndex = i
@@ -108,26 +113,4 @@ struct ConnectionCanvas: View {
         return CGPoint(x: mx + px * sag, y: my + py * sag)
     }
 
-    /// Approximate distance from `point` to a quadratic Bézier by sampling
-    /// several points along the curve — sufficient for 10 pt tap accuracy.
-    private func approximateBezierDistance(
-        point: CGPoint,
-        a: CGPoint,
-        ctrl: CGPoint,
-        b: CGPoint
-    ) -> CGFloat {
-        let steps = 8
-        var minDist = CGFloat.greatestFiniteMagnitude
-        for i in 0...steps {
-            let t = CGFloat(i) / CGFloat(steps)
-            let s = 1 - t
-            let bx = s * s * a.x + 2 * s * t * ctrl.x + t * t * b.x
-            let by = s * s * a.y + 2 * s * t * ctrl.y + t * t * b.y
-            let ex = point.x - bx
-            let ey = point.y - by
-            let dist = (ex * ex + ey * ey).squareRoot()
-            if dist < minDist { minDist = dist }
-        }
-        return minDist
-    }
 }

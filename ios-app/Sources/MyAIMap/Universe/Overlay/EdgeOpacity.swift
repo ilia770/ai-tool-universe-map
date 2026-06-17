@@ -96,7 +96,10 @@ enum EdgeOpacity {
         } else {
             b = base(edge.kind, confidence: edge.confidence)
         }
-        let depth = min(max(edge.depthScale, 0), 1)
+        // Only floor at 0; do NOT clamp the upper bound here.
+        // depthScale > 1 (near edges) is allowed to push opacity above the
+        // un-boosted base — the final clamp below caps the result at 1.
+        let depth = max(edge.depthScale, 0)
         return min(max(b * depth, 0), 1)
     }
 }
@@ -130,5 +133,45 @@ enum EdgeHitTest {
     /// Returns `true` when `point` is within `threshold` pts of segment [a, b].
     static func hits(point: CGPoint, a: CGPoint, b: CGPoint, threshold: CGFloat = 10) -> Bool {
         distance(point: point, a: a, b: b) <= threshold
+    }
+
+    /// Approximate minimum distance from `point` to a quadratic Bézier curve
+    /// defined by endpoints `a`, `b` and control point `sag`.
+    ///
+    /// The curve is sampled at `samples` evenly-spaced parameter values
+    /// (inclusive of t=0 and t=1), giving `samples` total evaluations.
+    /// 9 samples is sufficient for 10 pt tap accuracy at typical edge lengths.
+    ///
+    /// - Parameters:
+    ///   - point: The test point in screen coordinates.
+    ///   - a: Bézier start endpoint.
+    ///   - b: Bézier end endpoint.
+    ///   - sag: Quadratic control point (the off-curve apex).
+    ///   - samples: Number of curve samples (default 9).
+    /// - Returns: Approximate minimum distance in screen points.
+    static func distanceToQuadCurve(
+        point: CGPoint,
+        a: CGPoint,
+        b: CGPoint,
+        sag: CGPoint,
+        samples: Int = 9
+    ) -> CGFloat {
+        guard samples > 1 else {
+            // Degenerate: treat as straight segment.
+            return distance(point: point, a: a, b: b)
+        }
+        var minDist = CGFloat.greatestFiniteMagnitude
+        let steps = samples - 1
+        for i in 0...steps {
+            let t = CGFloat(i) / CGFloat(steps)
+            let s = 1 - t
+            let bx = s * s * a.x + 2 * s * t * sag.x + t * t * b.x
+            let by = s * s * a.y + 2 * s * t * sag.y + t * t * b.y
+            let ex = point.x - bx
+            let ey = point.y - by
+            let dist = (ex * ex + ey * ey).squareRoot()
+            if dist < minDist { minDist = dist }
+        }
+        return minDist
     }
 }
