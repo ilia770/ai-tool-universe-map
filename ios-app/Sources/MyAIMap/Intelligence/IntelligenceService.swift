@@ -97,9 +97,14 @@ actor IntelligenceService {
         switch error {
         case .authFailed:
             return .offline(reason: .authFailed)
-        case .transient, .decode, .badRequest:
-            // `.badRequest` is our own bug; surface as transient so the UI
-            // stays usable rather than crashing or implying user fault.
+        case .transient, .decode:
+            return .offline(reason: .transient)
+        case .badRequest(let detail):
+            // This is our own bug (we built a malformed request). Trip the
+            // assert in DEBUG/test builds so the mistake is caught early;
+            // in release builds `assertionFailure` is a no-op and the UI
+            // stays usable via the same `.transient` fallback.
+            assertionFailure("IntelligenceService built a malformed (400) request: \(detail)")
             return .offline(reason: .transient)
         }
     }
