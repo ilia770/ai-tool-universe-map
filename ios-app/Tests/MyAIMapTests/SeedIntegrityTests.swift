@@ -75,6 +75,14 @@ struct SeedIntegrityTests {
         }
     }
 
+    @Test func seedToolsAreNotUserAdded() {
+        // All seed tools must decode with userAdded == false (the JSON has no
+        // such key, so the custom Decodable init backfills false).
+        for tool in UniverseSeed.tools {
+            #expect(tool.userAdded == false, "seed tool \(tool.id) must have userAdded == false")
+        }
+    }
+
     @Test func browserSheetRejectsNonHTTPSURLs() throws {
         let https = try #require(URL(string: "https://example.com"))
         let http = try #require(URL(string: "http://example.com"))

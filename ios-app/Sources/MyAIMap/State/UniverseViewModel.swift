@@ -171,6 +171,15 @@ final class UniverseViewModel {
         historyStore?.save(history)
     }
 
+    /// Restores a previously soft-deleted tool by clearing its id from
+    /// `removedToolIDs`, then records an `.added` event so history reflects the
+    /// round-trip. No-ops when the id was never removed.
+    func restoreTool(_ id: String) {
+        guard removedToolIDs.contains(id) else { return }
+        removedToolIDs.remove(id)
+        recordAdded(id)
+    }
+
     /// Enter-to-focus parity with the web build ([C3], `focusTool` in
     /// AIToolUniverseMap.tsx): selects the first search match, jumps to
     /// its category, snaps clarity to focus, and clears the query.

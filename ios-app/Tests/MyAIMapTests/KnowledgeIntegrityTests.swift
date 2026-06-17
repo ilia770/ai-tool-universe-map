@@ -31,4 +31,13 @@ struct KnowledgeIntegrityTests {
         // would have thrown during decode and crashed the lazy initializer).
         #expect(KnowledgeStore.all.values.allSatisfy { PricingModel.allCases.contains($0.pricing.model) })
     }
+
+    @Test func sampledSeedToolsAreNotUserAdded() {
+        // Spot-check that representative seed tools have userAdded == false.
+        let checkIDs = ["founder-os", "figma", "cursor"]
+        let byID = Dictionary(uniqueKeysWithValues: UniverseSeed.tools.map { ($0.id, $0) })
+        for id in checkIDs {
+            #expect(byID[id]?.userAdded == false, "\(id) must have userAdded == false after decode")
+        }
+    }
 }

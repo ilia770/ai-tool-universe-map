@@ -30,6 +30,7 @@ struct SettingsSheet: View {
                     visualizationSection(settings: settings)
                     languageSection(settings: settings)
                     historySection
+                    manageToolsRow
                     apiKeyRow
                     dataSection
                     aboutSection
@@ -197,6 +198,32 @@ struct SettingsSheet: View {
                 HStack {
                     Image(systemName: "clock.arrow.circlepath")
                     Text(L10n.history(language))
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.3))
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .padding(.vertical, 11)
+                .padding(.horizontal, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableButtonStyle(haptic: nil, pressedOpacity: 0.9))
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous), strokeStrength: 0.1)
+        }
+    }
+
+    // MARK: - Manage tools row (NavigationLink)
+
+    private var manageToolsRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink {
+                ManageToolsScreen()
+                    .environment(model)
+                    .environment(settings)
+            } label: {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                    Text(L10n.manageTools(language))
                     Spacer()
                     Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.3))
                 }

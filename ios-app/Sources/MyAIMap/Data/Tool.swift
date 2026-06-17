@@ -31,11 +31,40 @@ struct Tool: Identifiable, Codable, Sendable {
     let logoDomain: String?
     let relationIds: [String]
     let classification: Classification?
+    /// `true` when the tool was added by the user at runtime; `false` for every
+    /// seed tool. The seed JSON carries no such key, so the custom Decodable init
+    /// below backfills it to `false` via `decodeIfPresent`.
+    var userAdded: Bool = false
 
     struct Classification: Codable, Sendable {
         let confidence: Double
         let matchedKeywords: [String]
         let reason: String
+    }
+}
+
+// MARK: - Custom Decodable (backfill userAdded)
+
+/// The custom `init(from:)` lives in an extension so Swift still generates the
+/// memberwise initialiser — existing call sites that construct Tool literals
+/// (tests, fixtures) continue to compile unchanged; `userAdded` is appended as
+/// a parameter with its default value of `false`.
+extension Tool {
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id            = try c.decode(String.self,           forKey: .id)
+        name          = try c.decode(String.self,           forKey: .name)
+        category      = try c.decode(ToolCategoryId.self,   forKey: .category)
+        summary       = try c.decode(String.self,           forKey: .summary)
+        stage         = try c.decode(WorkflowStageId.self,  forKey: .stage)
+        orbit         = try c.decode(OrbitRing.self,        forKey: .orbit)
+        angle         = try c.decode(Float.self,            forKey: .angle)
+        url           = try c.decodeIfPresent(URL.self,     forKey: .url)
+        logoDomain    = try c.decodeIfPresent(String.self,  forKey: .logoDomain)
+        relationIds   = try c.decode([String].self,         forKey: .relationIds)
+        classification = try c.decodeIfPresent(Classification.self, forKey: .classification)
+        // Seed JSON has no `userAdded` key → backfill to false.
+        userAdded     = try c.decodeIfPresent(Bool.self,    forKey: .userAdded) ?? false
     }
 }
 
