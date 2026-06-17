@@ -12,11 +12,11 @@
 
 ---
 
-## Open decisions to confirm before execution
+## Decisions (locked 2026-06-17)
 
-1. **Claude model for the app.** Task specs default to `claude-opus-4-8`. Recommendation: **Sonnet (`claude-sonnet-4-6`) for identify/place/connect** (cheap, fast, high-volume), **Opus (`claude-opus-4-8`) for chatCreate** (reasoning-heavy). Lock per-call in `IntelligenceConfig`.
-2. **Anti-blanket clamp values.** `inferConnections` reuses the existing `RelationshipIntelligence` guards (`confidenceThreshold = 0.4`, `maxEdgesPerKind = 4`). Keep or tune.
-3. **"User-added" tracking.** No `userAdded` flag on `Tool` today (delete is soft-delete via `removedToolIDs`). S-manage-delete-tools scopes to all deletable tools unless we add a flag — confirm.
+1. **Model split.** `IntelligenceConfig` defines per-job models: **`claude-sonnet-4-6`** for identify / place / infer-connections (cheap, high-volume); **`claude-opus-4-8`** for chat-create (reasoning-heavy). No single hardcoded model.
+2. **Clamp kept.** `inferConnections` reuses `RelationshipIntelligence` guards as-is: `confidenceThreshold = 0.4`, `maxEdgesPerKind = 4`.
+3. **`userAdded` flag added.** Add a real `userAdded: Bool` to `Tool` (default false; seed tools false). Add-tool/intake flow sets it true. S-manage-delete-tools filters the manage list to `userAdded` tools (still excludes `founder-os`). Requires seed-model migration + `SeedIntegrityTests` update.
 
 ## File structure (new dirs)
 

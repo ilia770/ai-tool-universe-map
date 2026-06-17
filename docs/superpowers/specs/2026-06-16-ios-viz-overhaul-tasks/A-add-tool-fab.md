@@ -17,7 +17,7 @@ A liquid-glass circular "+" FAB on the canvas opens an AddToolSheet, giving user
 ## Approach (bullet steps)
 - FAB: circular `liquidGlass(in: Circle())` "+" using `BouncyIconButtonStyle` + tint `model.selectedCategoryModel.color` (one family with `AccountButton`, `UniverseScreen.swift:206-226`). Pin bottom-trailing, clear of the CategoryRail/ChatDock; respect safe area + the `.padding(.bottom, 118)` sheet detent (`:132`).
 - Sheet: a Liquid-Glass intake `TextField` (URL or name); on submit run the existing classifier path, show the `ShimmerLoader`/`ProgressOrb` while classifying, fire `classifySuccess` haptic on landing (`CoreHapticsEngine.swift`).
-- On confirm, call `model.recordAdded(toolId)` and `model.focusTool(toolId)` so the new tool lands in History + opens. Present via `.sheet` mirroring the `SettingsSheet` recipe (`UniverseScreen.swift:71-76`).
+- On confirm, the committed tool is created with `userAdded = true` (flag added in `S-manage-delete-tools`); then call `model.recordAdded(toolId)` and `model.focusTool(toolId)` so it lands in History + opens and appears in Settings → Manage. Present via `.sheet` mirroring the `SettingsSheet` recipe (`UniverseScreen.swift:71-76`).
 - Accessibility label via `L10n` (RU/EN), like `AccountButton`.
 
 ## Interface / contract

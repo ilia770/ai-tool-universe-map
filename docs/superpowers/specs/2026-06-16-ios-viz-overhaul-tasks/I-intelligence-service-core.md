@@ -18,7 +18,8 @@ A single `IntelligenceService` that wraps the Claude Messages API (raw `URLSessi
 - Map HTTP status via the migration/error tables: 401/403 → `.offline` + actionable message (bad/absent key); 429/5xx/529 → `.offline` (transient, retry hint); 400 → `IntelligenceError.badRequest` (developer bug, surfaced in debug only).
 - `stop_reason == "refusal"` → `.refused` (not `.ok`); never read `content[0]` before checking `stop_reason`.
 - Decode the single text block as JSON-schema-constrained output; on decode failure → `.offline` (treat as unknown, never fabricate).
-- No `temperature`/`top_p`/`budget_tokens` (removed on `claude-opus-4-8` → 400).
+- No `temperature`/`top_p`/`budget_tokens` (removed on Claude 4.x → 400).
+- **Model split (locked):** `IntelligenceConfig` exposes `model(for job: IntelligenceJob) -> String`. `claude-sonnet-4-6` for `.identify`/`.place`/`.infer`; `claude-opus-4-8` for `.chatCreate`. `ClaudeRequest` carries the model per call — no single hardcoded id in the body builder.
 
 ## Prompt / contract
 - **System (shared base):** "You are the classification brain for My AI Map, a curated universe of real AI tools for founders. Only describe tools you actually know. If unsure a tool exists, return found=false. Never invent. Respond with JSON matching the schema." Task-specific tails are appended by `identifyTool` / `inferConnections` / `placeCategory` / `chatCreate`.
