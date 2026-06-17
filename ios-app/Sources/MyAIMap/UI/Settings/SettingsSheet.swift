@@ -1,9 +1,14 @@
 import SwiftUI
 
 /// Liquid-glass Settings sheet opened from the account button. Sections:
-/// visualization picker, RU/EN language toggle, History entry,
-/// data reset/export, About/version. Mirrors the `RootSheet`
-/// presentation recipe so its glass matches the tool-detail sheet.
+/// account header, visualization picker, RU/EN language toggle, History entry,
+/// Anthropic API key (NavigationLink), data reset/export, About/version.
+/// Mirrors the `RootSheet` presentation recipe so its glass matches the
+/// tool-detail sheet.
+///
+/// The sheet's `.presentationDetents([.medium, .large])` are applied at the
+/// `UniverseScreen` call site — `NavigationStack` inside the sheet content
+/// is correct and must not break the detents.
 struct SettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(AppSettings.self) private var settings
@@ -11,38 +16,34 @@ struct SettingsSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showResetConfirm = false
-    @State private var showAPIKeyScreen = false
 
     private var language: AppLanguage { settings.language }
     private var tint: Color { model.selectedCategoryModel.color.swiftUIColor }
 
     var body: some View {
         @Bindable var settings = settings
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                visualizationSection(settings: settings)
-                languageSection(settings: settings)
-                historySection
-                apiKeySection
-                dataSection
-                aboutSection
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    accountHeader
+                    visualizationSection(settings: settings)
+                    languageSection(settings: settings)
+                    historySection
+                    apiKeyRow
+                    dataSection
+                    aboutSection
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .presentationBackground {
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
                 tint.opacity(0.07)
             }
-        }
-        .sheet(isPresented: $showAPIKeyScreen) {
-            APIKeyScreen()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .environment(settings)
         }
         .confirmationDialog(
             L10n.resetData(language),
@@ -56,7 +57,7 @@ struct SettingsSheet: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Sheet header (title + Done)
 
     private var header: some View {
         HStack {
@@ -74,6 +75,33 @@ struct SettingsSheet: View {
             }
             .buttonStyle(PressableButtonStyle(haptic: nil))
         }
+    }
+
+    // MARK: - Account header
+
+    var accountHeader: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.18))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 26))
+                    .foregroundStyle(tint)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.account(language))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("My AI Map")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.46))
+            }
+            Spacer()
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous), tint: tint, strokeStrength: 0.1)
     }
 
     // MARK: - Sections
@@ -183,12 +211,14 @@ struct SettingsSheet: View {
         }
     }
 
-    private var apiKeySection: some View {
+    // MARK: - API key row (NavigationLink)
+
+    var apiKeyRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel(L10n.apiKey(language))
-            Button {
-                BrandHaptics.fire(.light)
-                showAPIKeyScreen = true
+            NavigationLink {
+                APIKeyScreen()
+                    .environment(settings)
             } label: {
                 HStack {
                     Image(systemName: "key")

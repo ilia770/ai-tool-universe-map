@@ -21,6 +21,9 @@ struct L10nTests {
             #expect(!L10n.apiKeyHelp(language).isEmpty)
             #expect(!L10n.save(language).isEmpty)
             #expect(!L10n.delete(language).isEmpty)
+            // Account / manage-tools strings
+            #expect(!L10n.account(language).isEmpty)
+            #expect(!L10n.manageTools(language).isEmpty)
         }
     }
 
@@ -29,6 +32,7 @@ struct L10nTests {
         // same string (catches a copy-paste that left RU == EN).
         #expect(L10n.settingsTitle(.ru) != L10n.settingsTitle(.en))
         #expect(L10n.history(.ru) != L10n.history(.en))
+        #expect(L10n.account(.ru) != L10n.account(.en))
     }
 
     @Test func systemDefaultPrefersRussianForRuLocale() {

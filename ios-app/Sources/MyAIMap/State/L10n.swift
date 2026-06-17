@@ -54,4 +54,10 @@ enum L10n {
     static func delete(_ l: AppLanguage) -> String {
         switch l { case .en: "Delete key"; case .ru: "Удалить ключ" }
     }
+    static func account(_ l: AppLanguage) -> String {
+        switch l { case .en: "Account"; case .ru: "Аккаунт" }
+    }
+    static func manageTools(_ l: AppLanguage) -> String {
+        switch l { case .en: "Manage tools"; case .ru: "Управление инструментами" }
+    }
 }

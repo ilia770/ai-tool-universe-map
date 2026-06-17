@@ -29,6 +29,14 @@ struct SettingsSheetTests {
         #expect((image?.size.width ?? 0) > 0)
     }
 
+    /// Verifies the NavigationStack hub still renders at a .medium detent
+    /// height (≈ 400 pt — half of 844 pt iPhone 14 height).
+    @Test func rendersAtMediumDetentHeight() {
+        let image = render(SettingsSheet(), size: CGSize(width: 390, height: 400))
+        #expect(image != nil)
+        #expect((image?.size.width ?? 0) > 0)
+    }
+
     @Test func languageToggleMutatesSettings() {
         let settings = AppSettings(defaults: isolatedDefaults())
         #expect(settings.language == AppSettings.defaultLanguage)
