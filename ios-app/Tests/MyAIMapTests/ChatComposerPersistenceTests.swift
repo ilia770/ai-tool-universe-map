@@ -44,6 +44,35 @@ struct ChatComposerPersistenceTests {
         #expect((image?.size.width ?? 0) > 0)
     }
 
+    /// Verifies that `ChatDock` rendered with `isPanelActive == true` modifiers
+    /// (`.frame(height: 0).clipped()`) produces a non-nil image and does not
+    /// crash — proving the footprint-collapse path is structurally sound.
+    ///
+    /// Note: `sheetDetent` is `@State private` in `UniverseScreen`, so we cannot
+    /// inject an active-panel state directly into `UniverseScreen` from a test.
+    /// Instead, we exercise the same modifier stack on `ChatDock` in isolation.
+    /// Always-mountedness itself is structurally guaranteed: there is no `if`
+    /// guard around the `ChatDock()` call in `UniverseScreen.canvas` — grep for
+    /// "ChatDock()" shows one unconditional site.
+    @Test func chatDockActivePanelFootprintCollapsesWithoutCrash() {
+        let thread = ChatThreadStore(
+            defaults: isolatedDefaults(),
+            liveToolIds: Set(UniverseSeed.tools.map(\.id))
+        )
+        // Mirror the exact modifier stack UniverseScreen applies when isPanelActive == true.
+        let image = render(
+            ChatDock()
+                .environment(thread)
+                .padding(.top, 12)
+                .frame(height: 0)
+                .clipped()
+                .opacity(0)
+                .allowsHitTesting(false)
+        )
+        #expect(image != nil)
+        #expect((image?.size.width ?? 0) > 0)
+    }
+
     /// `ChatDock` itself renders to a non-nil image when given environments,
     /// confirming the component is structurally sound when always mounted.
     @Test func chatDockAlwaysRendersNonNil() {

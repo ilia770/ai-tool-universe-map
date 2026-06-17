@@ -123,6 +123,8 @@ struct UniverseScreen: View {
                 ChatDock()
                     .environment(chatThread)
                     .padding(.top, 12)
+                    .frame(height: isPanelActive ? 0 : nil)   // collapse layout footprint while hidden; view stays in tree so @State survives
+                    .clipped()                                 // prevent the inner GeometryReader from bleeding outside the 0-height frame
                     .opacity(isPanelActive ? 0 : 1)
                     .allowsHitTesting(!isPanelActive)
                 CategoryRail { id in
