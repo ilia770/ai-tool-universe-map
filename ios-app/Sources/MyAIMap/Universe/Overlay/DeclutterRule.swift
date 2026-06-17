@@ -57,23 +57,22 @@ enum DeclutterRule {
     /// - Parameters:
     ///   - mode: Current camera framing mode.
     ///   - nodes: All visible-candidate nodes with their projected attributes.
+    ///     Open-pocket membership is conveyed by `NodeVisibilityInput.inOpenPocket`.
     ///   - collisionRadiusPt: Screen-space radius (pts) for overlap detection.
-    ///   - openCategoryID: The category whose pocket is currently open
-    ///     (non-nil only when `mode == .pocket`).  When `nil` in pocket mode
-    ///     the open-pocket check falls back to `node.inOpenPocket`.
+    ///     Overlap reduction compounds per higher-priority overlapping neighbor
+    ///     (0.25 per pair).
     ///
     /// - Returns: `[id: opacity]` mapping for every input node, clamped [0, 1].
     static func decide(
         mode: ViewMode,
         nodes: [NodeVisibilityInput],
-        collisionRadiusPt: CGFloat = 36,
-        openCategoryID: String? = nil
+        collisionRadiusPt: CGFloat = 36
     ) -> [String: CGFloat] {
 
         // 1. Compute base opacity for each node.
         var result: [String: CGFloat] = [:]
         for node in nodes {
-            result[node.id] = baseOpacity(node: node, mode: mode, openCategoryID: openCategoryID)
+            result[node.id] = baseOpacity(node: node, mode: mode)
         }
 
         // 2. Screen-space collision arbitration on the emitted set.
@@ -91,8 +90,7 @@ enum DeclutterRule {
 
     private static func baseOpacity(
         node: NodeVisibilityInput,
-        mode: ViewMode,
-        openCategoryID: String?
+        mode: ViewMode
     ) -> CGFloat {
 
         // The selected node is always visible regardless of mode.
@@ -108,14 +106,13 @@ enum DeclutterRule {
             return 1.0
 
         case .tool:
-            return toolOpacity(node: node, mode: mode, openCategoryID: openCategoryID)
+            return toolOpacity(node: node, mode: mode)
         }
     }
 
     private static func toolOpacity(
         node: NodeVisibilityInput,
-        mode: ViewMode,
-        openCategoryID: String?
+        mode: ViewMode
     ) -> CGFloat {
         switch mode {
         case .overview, .node:
