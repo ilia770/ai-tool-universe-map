@@ -15,7 +15,7 @@ enum BadgeRole {
 // MARK: - NodeBadgeMetrics
 
 /// Pure, testable constants for badge geometry per role.
-/// All values are in points (logical pixels). No SwiftUI dependency.
+/// All values are in points (logical pixels). No SwiftUI View dependency (uses Font/CGFloat).
 enum NodeBadgeMetrics {
 
     // MARK: Plate height
@@ -101,16 +101,15 @@ struct NodeBadge: View {
 
     var body: some View {
         Button(action: {
-            BrandHaptics.fire(.light)
             onTap()
         }) {
             pillContent
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.88))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light, pressedOpacity: 0.88))
         .opacity(appeared ? Double(opacity) : 0)
         .scaleEffect(appeared ? 1 : (reduceMotion ? 1 : 0.85))
         .onAppear {
-            withAnimation(UniverseMotion.transition(reduceMotion: reduceMotion).delay(0)) {
+            withAnimation(UniverseMotion.transition(reduceMotion: reduceMotion)) {
                 appeared = true
             }
         }
@@ -218,28 +217,6 @@ struct NodeBadge: View {
     /// Height scaled proportionally with Dynamic Type.
     private var pillHeight: CGFloat {
         NodeBadgeMetrics.height(for: role) * scaledBase
-    }
-}
-
-// MARK: - Color mix helper
-
-private extension Color {
-    /// Linear interpolation between two colors in sRGB.
-    func mix(with other: Color, by fraction: Double) -> Color {
-        let f = max(0, min(1, fraction))
-        // Resolve both colors to RGBA components for mixing.
-        var (r1, g1, b1, a1): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
-        var (r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
-        #if canImport(UIKit)
-        UIColor(self).getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
-        UIColor(other).getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
-        #endif
-        return Color(
-            red:   Double(r1) + (Double(r2) - Double(r1)) * f,
-            green: Double(g1) + (Double(g2) - Double(g1)) * f,
-            blue:  Double(b1) + (Double(b2) - Double(b1)) * f,
-            opacity: Double(a1) + (Double(a2) - Double(a1)) * f
-        )
     }
 }
 
