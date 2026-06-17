@@ -1,12 +1,14 @@
 import SwiftUI
 
 struct UniverseScreen: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sheetPresented = false
     @State private var sheetDetent: PresentationDetent = .height(118)
     @State private var settingsPresented = false
     @State private var chatThread = ChatThreadStore(liveToolIds: Set(UniverseSeed.tools.map(\.id)))
+    @State private var sceneReady = false
 
     /// "No active panel" gate for the ChatDock (web parity: the FindBar hides
     /// when a tool window opens). On iPhone the detail sheet is always
@@ -98,9 +100,21 @@ struct UniverseScreen: View {
                     case .exit:
                         selectCategory(.core)
                     }
+                },
+                onSceneReady: {
+                    withAnimation(BrandMotion.resolved(BrandMotion.entry, reduceMotion: reduceMotion)) {
+                        sceneReady = true
+                    }
                 }
             )
                 .ignoresSafeArea()
+
+            // Branded cold-launch overlay: sits above the canvas until the
+            // RealityKit make closure signals readiness. Cross-fades out via
+            // BrandMotion.entry (instant under Reduce Motion).
+            if !sceneReady {
+                bootOverlay
+            }
 
             VStack(spacing: 0) {
                 header
@@ -138,6 +152,26 @@ struct UniverseScreen: View {
             .padding(.top, 14)
             .padding(.bottom, 10)
         }
+    }
+
+    /// Full-bleed boot overlay shown from launch until the RealityKit scene
+    /// is ready. Radial gradient mirrors the UniverseView background so there
+    /// is no jarring color shift when the overlay fades out.
+    private var bootOverlay: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    selectedCategoryModel.color.swiftUIColor.opacity(0.18),
+                    Color(red: 0.01, green: 0.015, blue: 0.035),
+                    .black
+                ],
+                center: .center,
+                startRadius: 80,
+                endRadius: 560
+            )
+            ProgressOrb()
+        }
+        .ignoresSafeArea()
     }
 
     private var header: some View {

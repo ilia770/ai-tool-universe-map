@@ -17,6 +17,7 @@ struct UniverseView: View {
     let selectedToolId: String
     let onToolSelect: @MainActor (String) -> Void
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
+    let onSceneReady: @MainActor () -> Void
 
     @State private var cameraController = CameraController()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -240,6 +241,10 @@ struct UniverseView: View {
                 // Receiver on the root cascades to every PBR node below it.
                 universe.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl))
             }
+
+            // Signal that the scene graph is fully assembled. Fired once — the
+            // make closure runs exactly once per RealityView lifetime.
+            onSceneReady()
         } update: { content in
             guard let universe = content.entities.first(where: { $0.name == "universe" }),
                   let state = universe.components[UniverseStateComponent.self] else { return }
@@ -918,6 +923,7 @@ struct UniverseView: View {
         selectedCategory: .design,
         selectedToolId: "figma",
         onToolSelect: { _ in },
-        onProximityEvent: { _ in }
+        onProximityEvent: { _ in },
+        onSceneReady: {}
     )
 }
