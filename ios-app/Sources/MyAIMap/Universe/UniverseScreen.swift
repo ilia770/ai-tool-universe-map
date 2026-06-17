@@ -115,16 +115,16 @@ struct UniverseScreen: View {
                 // clarityMode (review NEW-6: a visible control that does
                 // nothing is worse than no control). Re-mount it with the
                 // focus/context/atlas dim-and-fade pass in Phase C.
-                // ChatDock shows only when no panel is active (web parity:
-                // the FindBar hides once a tool window opens). Gated on the
-                // expanded-sheet flag so the composer owns the clear canvas
-                // and never fights the detail panel for the bottom.
-                if !isPanelActive {
-                    ChatDock()
-                        .environment(chatThread)
-                        .padding(.top, 12)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                // ChatDock is ALWAYS in the tree so SwiftUI preserves its
+                // @State (draft text, collapsed flag). When a panel is
+                // active it becomes visually subdued and non-interactive
+                // (web parity: FindBar hides once a tool window opens),
+                // but is NOT unmounted — that would destroy the draft.
+                ChatDock()
+                    .environment(chatThread)
+                    .padding(.top, 12)
+                    .opacity(isPanelActive ? 0 : 1)
+                    .allowsHitTesting(!isPanelActive)
                 CategoryRail { id in
                     selectCategory(id)
                 }
