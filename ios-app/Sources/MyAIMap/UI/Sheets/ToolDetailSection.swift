@@ -8,6 +8,7 @@ import SwiftUI
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
     @State private var isShowingRemoveConfirmation = false
+    @State private var browserSheet: BrowserSheetItem?
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -60,6 +61,10 @@ struct ToolDetailSection: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes the tool from your map. The action cannot be undone from this sheet.")
+        }
+        .sheet(item: $browserSheet) { item in
+            InAppBrowserSheet(url: item.url)
+                .ignoresSafeArea()
         }
     }
 
@@ -213,8 +218,10 @@ struct ToolDetailSection: View {
 
     private var actionRow: some View {
         HStack(spacing: BrandSpacing.s.value) {
-            if let url = selectedTool.url {
-                Link(destination: url) {
+            if let url = selectedTool.url, let item = BrowserSheetItem(url: url) {
+                Button {
+                    browserSheet = item
+                } label: {
                     actionLabel("Open", systemImage: "safari", foreground: .black.opacity(0.84))
                         .liquidGlass(
                             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
