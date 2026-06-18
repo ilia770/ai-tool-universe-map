@@ -1,5 +1,6 @@
 import Testing
 import simd
+import CoreGraphics
 @testable import MyAIMap
 
 @Suite("CameraController — drei parity math")
@@ -127,5 +128,26 @@ struct CameraRigInteractingTests {
         #expect(rig.isInteracting == false)
         rig.beginInteraction()
         #expect(rig.isInteracting)
+    }
+
+    @Test func projectionHidesObjectsBehindTheCamera() {
+        // The target is in front and must project visibly; a point far past the
+        // target (negative raw depth) is behind the camera and must NOT be
+        // marked visible even though the clamped point lands on-screen.
+        let rig = CameraRigController()
+        let size = CGSize(width: 390, height: 844)
+
+        let front = rig.projection(for: .zero, in: size)
+        #expect(front.isVisible)
+
+        let behind = rig.projection(for: SIMD3<Float>(0, 0, -25), in: size)
+        #expect(behind.isVisible == false)
+    }
+
+    @Test func projectionKeepsNearbyInFrontObjectsVisible() {
+        let rig = CameraRigController()
+        let size = CGSize(width: 390, height: 844)
+        let nearby = rig.projection(for: SIMD3<Float>(3, 0, 3), in: size)
+        #expect(nearby.isVisible)
     }
 }

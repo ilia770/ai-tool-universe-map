@@ -222,7 +222,13 @@ final class CameraRigController {
             yawed.y * pitchSin + yawed.z * pitchCos
         )
 
-        let depth = max(1.8, distance + cameraSpace.z)
+        // Raw depth can go <= 0 for objects behind the camera (or far past the
+        // focus target). Clamping it to a positive value for the perspective
+        // divide keeps the math finite, but such an object must NOT count as
+        // visible — otherwise its label projects forward and clamps on-screen
+        // for something the user cannot see.
+        let rawDepth = distance + cameraSpace.z
+        let depth = max(1.8, rawDepth)
         let focal = min(size.width, size.height) * 0.86
         let perspective = CGFloat(focal / CGFloat(depth))
         let point = CGPoint(
@@ -230,11 +236,12 @@ final class CameraRigController {
             y: size.height * 0.40 - CGFloat(cameraSpace.y) * perspective
         )
         let normalizedDepth = Self.clamp((Self.maxDistance - depth) / Self.maxDistance, min: 0, max: 1)
+        let inFront = rawDepth > 0.35
         return UniverseLabelProjection(
             point: point,
             scale: CGFloat(0.68 + normalizedDepth * 0.42),
             opacity: Double(0.22 + normalizedDepth * 0.78),
-            isVisible: point.x > -120 && point.x < size.width + 120 && point.y > -80 && point.y < size.height + 80
+            isVisible: inFront && point.x > -120 && point.x < size.width + 120 && point.y > -80 && point.y < size.height + 80
         )
     }
 
