@@ -33,6 +33,11 @@ struct SearchDock: View {
         !model.assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Send is enabled when there is text OR an attachment.
+    private var canSend: Bool {
+        ComposerLogic.canSend(hasText: hasQuery, hasAttachment: selectedAttachment != nil)
+    }
+
     private var showsConversation: Bool {
         !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
     }
@@ -126,7 +131,7 @@ struct SearchDock: View {
                 }
             }
 
-            if selectedAttachment != nil {
+            if ComposerLogic.showsRemoveAttachment(hasAttachment: selectedAttachment != nil) {
                 Button(role: .destructive) {
                     BrandHaptics.fire(.light)
                     selectedAttachment = nil
@@ -135,7 +140,7 @@ struct SearchDock: View {
                 }
             }
         } label: {
-            Image(systemName: selectedAttachment?.icon ?? "paperclip")
+            Image(systemName: ComposerLogic.attachmentTriggerIcon(hasAttachment: selectedAttachment != nil))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(selectedAttachment == nil ? .white.opacity(0.74) : model.selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 36, height: 36)
@@ -157,16 +162,16 @@ struct SearchDock: View {
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(hasQuery ? .black.opacity(0.86) : .white.opacity(0.34))
+                        .foregroundStyle(canSend ? .black.opacity(0.86) : .white.opacity(0.34))
                         .frame(width: 44, height: 44)
-                        .background(hasQuery ? model.selectedCategoryModel.color.swiftUIColor : .white.opacity(0.08), in: Circle())
+                        .background(canSend ? model.selectedCategoryModel.color.swiftUIColor : .white.opacity(0.08), in: Circle())
                         .overlay {
-                            Circle().stroke(.white.opacity(hasQuery ? 0.18 : 0.10), lineWidth: 1)
+                            Circle().stroke(.white.opacity(canSend ? 0.18 : 0.10), lineWidth: 1)
                         }
                 }
                 .buttonStyle(BouncyIconButtonStyle())
-                .disabled(!hasQuery)
-                .accessibilityLabel(hasQuery ? "Send" : "Send unavailable")
+                .disabled(!canSend)
+                .accessibilityLabel(canSend ? "Send" : "Send unavailable")
             } else {
                 Button {
                     onAddTool()
@@ -372,26 +377,10 @@ struct SearchDock: View {
                 actionStrip(for: matches)
                 nextHint("Next: open one, or ask me to compare them by price, stage, and daily use.")
             } else if needsAccessActions(message) {
-                HStack(spacing: BrandSpacing.s.value) {
-                    Button {
-                        BrandHaptics.fire(.medium)
-                        onAddTool()
-                    } label: {
-                        accessActionLabel(title: "Add tool", icon: "plus")
-                    }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
-
-                    Button {
-                        BrandHaptics.fire(.light)
-                        selectedAttachment = .files
-                        fieldFocused = true
-                    } label: {
-                        accessActionLabel(title: "Attach files", icon: "paperclip")
-                    }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
-                }
-
-                nextHint("Next: paste the URL, attach files, or add it manually.")
+                // Single home for Attach / Add-tool is the composer below. The
+                // message only guides the user there — rendering duplicate
+                // buttons here would show the same action twice. (Spec §4.)
+                nextHint("Next: paste the URL, attach files (paperclip), or add it manually (+).")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -508,24 +497,6 @@ struct SearchDock: View {
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
-    }
-
-    private func accessActionLabel(title: String, icon: String) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(.white.opacity(0.86))
-        .padding(.horizontal, 11)
-        .padding(.vertical, 7)
-        .liquidGlass(
-            in: Capsule(),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.48),
-            strokeStrength: 0.08
-        )
     }
 
     private func needsAccessActions(_ message: AssistantMessage) -> Bool {

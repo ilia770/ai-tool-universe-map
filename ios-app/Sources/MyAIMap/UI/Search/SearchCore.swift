@@ -56,3 +56,34 @@ enum SearchCore {
         string.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 }
+
+/// Pure composer-state decisions for `SearchDock`. Foundation-only so the
+/// rules in `INPUT_CHAT_SPEC.md` (send enablement, the single attachment
+/// trigger glyph, remove availability, and access-action de-duplication) are
+/// unit-testable without SwiftUI.
+enum ComposerLogic {
+    /// Send is enabled when there is text OR an attachment; disabled only when
+    /// neither exists. (Spec: "Disabled only when no text AND no attachment".)
+    static func canSend(hasText: Bool, hasAttachment: Bool) -> Bool {
+        hasText || hasAttachment
+    }
+
+    /// The attachment menu trigger is a single control with a stable glyph: it
+    /// stays a paperclip whether empty or attached. The attached state is shown
+    /// by a separate pill, never by flipping this glyph to the file/photo icon.
+    /// (Spec: "No random flipping between plus / file / paperclip".)
+    static func attachmentTriggerIcon(hasAttachment: Bool) -> String {
+        "paperclip"
+    }
+
+    /// "Remove attachment" is offered only when an attachment exists.
+    static func showsRemoveAttachment(hasAttachment: Bool) -> Bool {
+        hasAttachment
+    }
+
+    /// Attach / Add-tool have a single home: the composer. Assistant messages
+    /// never render their own duplicate access buttons; they only guide the
+    /// user toward the composer controls via text. (Spec: "the SAME action
+    /// never appears twice on screen at once".)
+    static let rendersInMessageAccessButtons = false
+}
