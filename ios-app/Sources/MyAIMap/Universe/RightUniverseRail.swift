@@ -15,8 +15,9 @@ struct UniverseRailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var gestureState = UniverseRailGestureState()
 
-    private let hitWidth: CGFloat = 32
-    private let inactiveVisibleWidth: CGFloat = 8
+    private let inactiveHitWidth = UniverseRailMetrics.inactiveHitWidth
+    private let activeHitWidth = UniverseRailMetrics.activeHitWidth
+    private let inactiveVisibleWidth = UniverseRailMetrics.inactiveVisibleWidth
     private let inactiveHeight: CGFloat = 204
     private let inactiveDotsHeight: CGFloat = 188
     private let activeListWidth: CGFloat = 184
@@ -51,7 +52,7 @@ struct UniverseRailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
         .frame(
-            width: gestureState.isActive ? activeListWidth : hitWidth,
+            width: gestureState.isActive ? activeListWidth : inactiveHitWidth,
             height: gestureState.isActive ? activeHeight : inactiveHeight
         )
         .brandAnimation(
@@ -65,7 +66,7 @@ struct UniverseRailView: View {
 
     private func railHitZone(height: CGFloat) -> some View {
         Color.clear
-            .frame(width: hitWidth, height: height)
+            .frame(width: gestureState.isActive ? activeHitWidth : inactiveHitWidth, height: height)
             .contentShape(Rectangle())
             .gesture(railGesture(height: height))
     }
@@ -197,6 +198,16 @@ struct UniverseRailView: View {
 
 typealias RightUniverseRail = UniverseRailView
 
+enum UniverseRailMetrics {
+    /// Keep the inactive edge recognizer narrow so ordinary near-edge map pans
+    /// still reach the RealityKit drag gesture. The visible dots are 8pt wide;
+    /// this leaves a small forgiving strip without turning the rail into a
+    /// 32pt invisible panel.
+    static let inactiveHitWidth: CGFloat = 12
+    static let activeHitWidth: CGFloat = 32
+    static let inactiveVisibleWidth: CGFloat = 8
+}
+
 struct UniverseRailGestureState {
     enum Phase {
         case inactive
@@ -228,12 +239,14 @@ struct UniverseRailGestureState {
 
     static func resignFirstResponder() {
         #if canImport(UIKit)
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
+        _ = MainActor.assumeIsolated {
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
+        }
         #endif
     }
 

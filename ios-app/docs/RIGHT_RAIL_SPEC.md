@@ -67,3 +67,37 @@ in tests).
 - Rail remains `.accessibilityHidden(true)`; no `accessibilityAdjustableAction`
   added (CategoryRail remains the accessible control).
 - Simulator visual QA per QA_REGRESSION_CHECKLIST.md not run.
+
+### Agent 3b — inactive rail hit zone narrowed (landed)
+
+**Changed files**
+- `Universe/RightUniverseRail.swift` — split the rail geometry into explicit
+  `UniverseRailMetrics`: inactive hit zone is now 12pt, active hit zone remains
+  32pt, and visible inactive dots remain 8pt. The rail no longer leaves a 32pt
+  invisible panel over the map before the hold gesture activates. Also wrapped
+  UIKit keyboard resignation in `MainActor.assumeIsolated` to keep Swift 6
+  strict-concurrency builds warning-clean.
+- `Tests/MyAIMapTests/UniverseRailGestureStateTests.swift` — added a guard test
+  that the inactive hit zone stays narrow and remains smaller than the active
+  drag zone.
+
+**Why** — `rail-edge-swallows-map-pan` came from the inactive `Color.clear`
+hit area occupying 32pt at the right edge. Even when the long press does not
+activate, that invisible panel can win SwiftUI gesture arbitration against
+ordinary near-edge map drags. The rail should be forgiving enough to hold, but
+not broad enough to behave like a hidden side panel.
+
+**QA done**
+- `npm run ios:verify` passed outside sandbox after Xcode macro sandboxing
+  blocked the same command inside sandbox. Result: `TEST BUILD SUCCEEDED`.
+- Swift Testing via XcodeBuildMCP passed on iPhone 17 Pro:
+  `passedTests = 131`, `failedTests = 0`.
+- UI smoke passed via direct `xcodebuild test-without-building` after the MCP
+  wrapper timed out and killed the first run:
+  `UniverseUISmokeTests/testCaptureKeyStates`, 1 test, 0 failures.
+
+**Remaining issues**
+- Manual device QA is still required for the actual gesture-priority feel:
+  drag the map starting near the right edge and separately hold+drag the rail.
+  The automated smoke covers the rail path, but cannot prove the subtle
+  SwiftUI/RealityKit gesture arbitration on real touch hardware.

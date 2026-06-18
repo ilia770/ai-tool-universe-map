@@ -44,4 +44,10 @@ struct UniverseRailGestureStateTests {
         #expect(state.hoveredCategory == nil)
         #expect(state.holdStartIndex == 0)
     }
+
+    @Test func inactiveHitZoneStaysNarrowSoMapPanCanStartNearEdge() {
+        #expect(UniverseRailMetrics.inactiveVisibleWidth == 8)
+        #expect(UniverseRailMetrics.inactiveHitWidth <= 12)
+        #expect(UniverseRailMetrics.inactiveHitWidth < UniverseRailMetrics.activeHitWidth)
+    }
 }
