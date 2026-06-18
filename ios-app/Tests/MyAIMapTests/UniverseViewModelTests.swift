@@ -35,6 +35,31 @@ struct UniverseViewModelTests {
         #expect(model.loadSampleUniverse() == false)
     }
 
+    @Test func loadSampleUnhidesPreviouslyDeletedSampleTool() {
+        // F1: re-loading the sample restores a sample tool the user deleted,
+        // even though it's still in customTools (so it was being skipped).
+        let model = makeModel(sample: true)
+        #expect(model.deleteTool("posthog"))
+        #expect(model.removedTools.contains { $0.id == "posthog" })
+
+        #expect(model.loadSampleUniverse())
+        #expect(!model.removedTools.contains { $0.id == "posthog" })
+    }
+
+    @Test func hasStoredDataReflectsPersistenceNotMapEmptiness() {
+        // F2: hiding the only tool makes the map empty while data persists, so
+        // hasStoredData (which gates Reset) must stay true.
+        let model = makeModel()
+        #expect(!model.hasStoredData)
+
+        #expect(model.addCustomTool(name: "Solo Tool", urlString: "example.com", category: .analytics))
+        let id = model.allTools.first { $0.name == "Solo Tool" }!.id
+        #expect(model.deleteTool(id))
+
+        #expect(model.isUniverseEmpty)
+        #expect(model.hasStoredData)
+    }
+
     @Test func resetUniverseClearsEverything() {
         let model = makeModel(sample: true)
         #expect(!model.isUniverseEmpty)

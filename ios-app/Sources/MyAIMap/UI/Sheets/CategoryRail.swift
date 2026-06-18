@@ -10,10 +10,18 @@ struct CategoryRail: View {
 
     let onSelect: (ToolCategoryId) -> Void
 
+    /// Only categories that currently have at least one visible tool, so a
+    /// sparse (empty-start) universe never shows chips that dead-end on tap.
+    private var presentCategories: [ToolCategory] {
+        UniverseSeed.categories.filter { category in
+            model.visibleAllTools.contains { $0.category == category.id }
+        }
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 6) {
-                ForEach(UniverseSeed.categories) { category in
+                ForEach(presentCategories) { category in
                     Button {
                         onSelect(category.id)
                     } label: {

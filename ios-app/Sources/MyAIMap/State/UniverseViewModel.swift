@@ -132,18 +132,29 @@ final class UniverseViewModel {
     @discardableResult
     func loadSampleUniverse() -> Bool {
         let existingIDs = Set(customTools.map(\.id))
-        let sample = UniverseSeed.tools.filter { !existingIDs.contains($0.id) }
-        guard !sample.isEmpty else { return false }
-        customTools.append(contentsOf: sample)
-        hiddenToolIDs.subtract(sample.map(\.id))
+        let sampleIDs = Set(UniverseSeed.tools.map(\.id))
+        let newTools = UniverseSeed.tools.filter { !existingIDs.contains($0.id) }
+        // Loading the sample also un-hides any sample tool the user previously
+        // deleted (otherwise a re-load silently leaves it hidden — F1).
+        let willUnhide = !hiddenToolIDs.isDisjoint(with: sampleIDs)
+        guard !newTools.isEmpty || willUnhide else { return false }
+        customTools.append(contentsOf: newTools)
+        hiddenToolIDs.subtract(sampleIDs)
         persist()
         recordActivity(
             kind: .added,
             title: "Loaded sample universe",
-            detail: "\(sample.count) tools added",
+            detail: newTools.isEmpty ? "Restored sample tools" : "\(newTools.count) tools added",
             toolID: nil
         )
         return true
+    }
+
+    /// Whether anything is persisted (added or hidden). Distinct from
+    /// `isUniverseEmpty`: hiding every tool makes the map empty while data
+    /// still sits in storage, so Reset must gate on this, not emptiness (F2).
+    var hasStoredData: Bool {
+        !customTools.isEmpty || !hiddenToolIDs.isEmpty
     }
 
     /// Wipes the user's universe back to empty (custom tools + hidden ids).

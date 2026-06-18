@@ -257,12 +257,12 @@ final class CameraRigController {
         transitionGeneration += 1
         let generation = transitionGeneration
         camera.stopAllAnimations()
+        // A fly-to (animated OR instant under Reduce Motion / -uitestStatic) can
+        // interrupt an in-flight pinch. Drop the captured pinch base so the next
+        // zoom samples the post-transition distance instead of the stale one.
+        zoomBaseDistance = nil
         if animated {
             isTransitioning = true
-            // A fly-to can interrupt an in-flight pinch. Drop the captured pinch
-            // base so the next zoom samples the post-transition distance instead
-            // of jumping back to the stale pre-transition one.
-            zoomBaseDistance = nil
             let landingTransform = transform
             let currentTransform = camera.transform
             let currentOffset = currentTransform.translation - target

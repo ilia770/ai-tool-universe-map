@@ -455,8 +455,11 @@ struct UniverseOverlayView: View {
     }
 
     private var railCategories: [ToolCategory] {
-        let core = UniverseSeed.categories.filter { $0.id == .core }
-        let branches = UniverseSeed.categories.filter { $0.id != .core }
+        // Only categories that actually have a planet (>=1 tool). Otherwise a
+        // sparse universe exposes empty chips that dead-end on tap (ES-1).
+        let present = Set(planets.map(\.id))
+        let core = UniverseSeed.categories.filter { $0.id == .core && present.contains(.core) }
+        let branches = UniverseSeed.categories.filter { $0.id != .core && present.contains($0.id) }
         return core + branches
     }
 
@@ -564,11 +567,13 @@ struct UniverseOverlayView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(.white.opacity(0.92))
+                .accessibilityHidden(true)
 
             VStack(spacing: 7) {
                 Text("Your universe is empty")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
+                    .accessibilityAddTraits(.isHeader)
                 Text("Add the AI tools you use — each one becomes a planet you can fly between.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.66))

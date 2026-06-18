@@ -121,7 +121,7 @@ struct AccountSettingsSheet: View {
                         universeActionRow("Reset universe", systemImage: "trash", destructive: true)
                     }
                     .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
-                    .disabled(model.isUniverseEmpty)
+                    .disabled(!model.hasStoredData)
                 }
             }
             .confirmationDialog("Reset universe?", isPresented: $showResetConfirm, titleVisibility: .visible) {
