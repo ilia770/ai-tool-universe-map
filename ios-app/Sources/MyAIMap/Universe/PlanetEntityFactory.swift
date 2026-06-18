@@ -174,6 +174,45 @@ enum PlanetEntityFactory {
         return link
     }
 
+    static let founderHaloRadius: Float = 1.2
+    static let founderHaloOpacity: Float = 0.12
+    static let founderHaloBreathScale: Float = 0.06
+    static let founderHaloBreathDuration: TimeInterval = 2.6
+
+    /// Frosted translucent PBR shell around the central Founder OS core so it
+    /// reads as the scene's hero. Slow breathing scale unless Reduce Motion.
+    static func makeFounderHalo(reduceMotion: Bool) -> ModelEntity {
+        let coreColor = UniverseSeed.category(.core).color.uiColor
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: coreColor)
+        material.roughness = .init(floatLiteral: 0.85)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.blending = .transparent(opacity: .init(floatLiteral: founderHaloOpacity))
+        material.emissiveColor = .init(color: coreColor)
+        material.emissiveIntensity = 0.4
+
+        let halo = ModelEntity(mesh: .generateSphere(radius: founderHaloRadius), materials: [material])
+        halo.name = "founder-halo"
+        halo.position = .zero
+
+        if !reduceMotion {
+            var peak = halo.transform
+            peak.scale = SIMD3<Float>(repeating: 1 + founderHaloBreathScale)
+            let breathe = FromToByAnimation<Transform>(
+                from: halo.transform,
+                to: peak,
+                duration: founderHaloBreathDuration,
+                timing: .easeInOut,
+                bindTarget: .transform,
+                repeatMode: .autoReverse
+            )
+            if let resource = try? AnimationResource.generate(with: breathe) {
+                halo.playAnimation(resource)
+            }
+        }
+        return halo
+    }
+
     static func makeStar(index: Int) -> ModelEntity {
         let radius = Float(0.008 + Double(index % 4) * 0.004)
         let color: UIColor = index.isMultiple(of: 9)

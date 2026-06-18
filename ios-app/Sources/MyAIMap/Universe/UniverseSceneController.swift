@@ -120,6 +120,14 @@ final class UniverseSceneController {
             )
             entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
             planetRoot.addChild(entity)
+
+            // Frosted hero halo around the central Founder OS core (only when a
+            // core planet exists). Breathing pauses with the rest of the scene.
+            if planet.id == .core {
+                let halo = PlanetEntityFactory.makeFounderHalo(reduceMotion: pauseMotion)
+                halo.components.set(OpacityComponent(opacity: mode.planetOpacity(for: .core)))
+                planetRoot.addChild(halo)
+            }
         }
 
         // Structural graph edges: founder core (origin) → each category planet
