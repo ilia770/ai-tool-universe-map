@@ -113,7 +113,10 @@ enum UniverseMode: Equatable, Sendable {
         case .detail:
             return 0.18
         case .chatOpen:
-            return 0.22
+            // Chat is a secondary input layer, not a takeover: the universe
+            // stays visible/atmospheric so focusing the input never blacks out
+            // the app (see docs/UI_STATE_MACHINE.md, INPUT_CHAT_SPEC.md).
+            return 0.55
         }
     }
 
@@ -124,7 +127,7 @@ enum UniverseMode: Equatable, Sendable {
         case .detail:
             return 1.8
         case .chatOpen:
-            return 1.4
+            return 1.0
         }
     }
 
@@ -135,7 +138,8 @@ enum UniverseMode: Equatable, Sendable {
         case .detail:
             return 0.64
         case .chatOpen:
-            return 0.58
+            // Light scrim only — keep the universe readable behind chat.
+            return 0.32
         }
     }
 

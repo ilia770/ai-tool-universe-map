@@ -9,7 +9,13 @@ import Observation
 @MainActor
 @Observable
 final class UniverseViewModel {
-    private(set) var selection = UniverseSelection()
+    /// SINGLE SOURCE OF TRUTH for navigation (see docs/UI_STATE_MACHINE.md).
+    /// `selectedCategory` and `selectedTool` are projected from this — nothing
+    /// else stores them, so map / chips / rail / card can never desync.
+    var universeMode: UniverseMode = .overview
+
+    /// Hover is independent of the navigation mode.
+    private(set) var hoveredToolID: String?
     // Web parity: AIToolUniverseMap.tsx:150 initialises mapClarity to 'focus'.
     var clarityMode: ClarityMode = .focus
     var searchQuery: String = ""
@@ -23,6 +29,24 @@ final class UniverseViewModel {
     private(set) var customTools: [Tool] = []
 
     // MARK: - Derived state
+
+    /// Read-only projection of `universeMode` for surfaces that think in terms
+    /// of "current category + current tool" (rail, chips, detail card). When no
+    /// tool is explicitly selected (overview / branchFocus), the selected tool
+    /// defaults to the focused category's first tool — preserving the Phase 1
+    /// "always-a-tool" behaviour the detail card relies on.
+    var selection: UniverseSelection {
+        let category = universeMode.focusedCategory
+        let toolID = universeMode.selectedToolID
+            ?? tools(in: category).first?.id
+            ?? tools(in: .core).first?.id
+            ?? PlanetData.centralCoreToolID
+        return UniverseSelection(
+            activeCategory: category,
+            selectedToolID: toolID,
+            hoveredToolID: hoveredToolID
+        )
+    }
 
     var allTools: [Tool] {
         UniverseSeed.tools + customTools
@@ -79,17 +103,16 @@ final class UniverseViewModel {
     // MARK: - Intents
 
     func selectCategory(_ id: ToolCategoryId) {
-        // Phase 1 parity: .onChange(of:) was equality-gated, so re-tapping
-        // the active category chip must not reset the tool selection.
-        guard selection.activeCategory != id else { return }
-        selection.activeCategory = id
-        selection.selectedToolID = tools(in: id).first?.id ?? tools(in: .core).first?.id ?? "founder-os"
+        // Re-tapping the active category is a no-op so it never resets the
+        // current tool selection (Phase 1 parity). The "first tool of the
+        // category" default is applied by the `selection` projection.
+        guard universeMode.focusedCategory != id else { return }
+        universeMode = id == .core ? .overview : .branchFocus(id)
     }
 
     func selectTool(_ id: String) {
         guard let tool = visibleAllTools.first(where: { $0.id == id }) else { return }
-        selection.activeCategory = tool.category
-        selection.selectedToolID = tool.id
+        universeMode = .toolSelected(tool.category, tool.id)
     }
 
     /// Selects a tool from any surface that can name a tool id: node tap,
@@ -98,8 +121,7 @@ final class UniverseViewModel {
     @discardableResult
     func focusTool(_ id: String) -> Bool {
         guard let tool = visibleAllTools.first(where: { $0.id == id }) else { return false }
-        selection.activeCategory = tool.category
-        selection.selectedToolID = tool.id
+        universeMode = .toolSelected(tool.category, tool.id)
         clarityMode = .focus
         recordActivity(
             kind: .focused,
@@ -111,7 +133,7 @@ final class UniverseViewModel {
     }
 
     func setHover(_ id: String?) {
-        selection.hoveredToolID = id
+        hoveredToolID = id
     }
 
     /// Enter-to-focus parity with the web build ([C3], `focusTool` in
@@ -121,8 +143,7 @@ final class UniverseViewModel {
     @discardableResult
     func focusFirstSearchMatch() -> Bool {
         guard let match = searchResults.first else { return false }
-        selectCategory(match.category)
-        selection.selectedToolID = match.id
+        universeMode = .toolSelected(match.category, match.id)
         clarityMode = .focus
         searchQuery = ""
         return true
@@ -160,11 +181,11 @@ final class UniverseViewModel {
             toolID: id
         )
 
-        if selection.selectedToolID == id {
-            selection.selectedToolID = tools(in: selection.activeCategory).first?.id
-                ?? tools(in: .core).first?.id
-                ?? "founder-os"
-            selection.activeCategory = selectedTool.category
+        // If the deleted tool was the selected one, drop back to the focused
+        // category (the projection re-picks that category's first tool).
+        if universeMode.selectedToolID == id {
+            let category = universeMode.focusedCategory
+            universeMode = category == .core ? .overview : .branchFocus(category)
         }
         return true
     }

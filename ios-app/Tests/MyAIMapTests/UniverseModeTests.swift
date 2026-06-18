@@ -59,7 +59,12 @@ struct UniverseModeTests {
         #expect(detail.planetOpacity(for: .design) < 0.08)
         #expect(chat.isChatOpen)
         #expect(!chat.showsSatellites)
-        #expect(chat.mapOpacity <= 0.25)
+        // Chat is a secondary input layer: it dims the universe but must NOT
+        // black it out (focusing the input stays atmospheric). So the map is
+        // reduced from full but clearly visible, with only a light scrim.
+        #expect(chat.mapOpacity > 0.4)
+        #expect(chat.mapOpacity < 1)
+        #expect(chat.dimOpacity < 0.5)
         #expect(chat.orbitOpacityMultiplier == 0)
     }
 }

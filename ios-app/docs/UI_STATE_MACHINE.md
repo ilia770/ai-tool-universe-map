@@ -107,9 +107,74 @@ Exactly one *primary* overlay at a time, in this z-priority:
 - no duplicate Add-tool / Attach-files due to state conflict.
 - code compiles; tests green (xcresult `passedTests`).
 
-## Implementation notes (append after refactor)
-_(empty — fill in: what changed, which owner now holds `universeMode`, how the
-view reads it, migration of the sheet booleans.)_
+## Implementation notes (Agent 1 — landed)
+
+**Owner.** `UniverseViewModel.universeMode: UniverseMode` is now the single
+stored navigation state. It replaced the view-local `@State mode` that used to
+live in `UniverseMapView`.
+
+**Projection.** `UniverseViewModel.selection` is now a *computed* read-only
+projection of `universeMode`:
+- `activeCategory = universeMode.focusedCategory`
+- `selectedToolID = universeMode.selectedToolID ?? firstTool(of: focusedCategory)`
+  — the "always-a-tool" default (overview/branchFocus still yield a card-able
+  tool, preserving Phase 1 behaviour and the existing tests).
+- `hoveredToolID` moved to its own stored property (hover is orthogonal to the
+  navigation mode).
+All existing `model.selection.activeCategory / .selectedToolID` readers
+(`CategoryRail`, `ToolDetailSection`, `AddToolSheet`) were left untouched — they
+keep working through the projection.
+
+**One writer per concern.** Model intents (`selectCategory`, `selectTool`,
+`focusTool`, `focusFirstSearchMatch`, `deleteTool`) now write `universeMode`
+only. The view writes `model.universeMode` directly for the view-owned modes
+(`detail`, `chatOpen`, restore). `mode` in `UniverseMapView` is a read alias:
+`private var mode: UniverseMode { model.universeMode }`.
+
+**Two-way sync deleted.** The old desync engine — `reconcileMode(with:)` plus
+`.onChange(of: model.selection)` that pushed selection→mode while actions
+pushed mode→selection — is gone. With one storage and a derived projection,
+map / chips / rail / card cannot disagree.
+
+**Input-focus / black-screen.** Global dim/blur is a function of `universeMode`
+only (`Color.black.opacity(mode.dimOpacity)` in `UniverseMapView`; the map's
+`.opacity(mode.mapOpacity).blur(mode.mapBlurRadius)` in `UniverseRealityView`).
+`chatOpen` values were softened so focusing the input dims slightly but keeps
+the universe atmospheric instead of black:
+- `mapOpacity` 0.22 → 0.55, `dimOpacity` 0.58 → 0.32, `mapBlurRadius` 1.4 → 1.0.
+`isInputFocused` and `attachmentState` remain local to `SearchDock` and do not
+drive these values.
+
+## Known limitations / handoff
+- `chatOpen` is still entered on bare input focus (via `SearchDock`'s
+  `onChatActivityChange`). The softened values stop the black-out, but whether
+  focus should enter a lighter "composer" state vs full `chatOpen` is an
+  INPUT_CHAT (Agent 2) call — left untouched to respect domain boundaries.
+- `isRailActive` is not yet modelled as explicit state; the rail still owns its
+  own gesture flag (RIGHT_RAIL — Agent 3).
+- `modeBeforeDetail` and the three sheet booleans (`detailPresented`,
+  `accountPresented`, `addToolPresented`) remain view-local. They are driven by
+  `universeMode` for detail; account/add-tool are pure presentation and were
+  left as-is.
 
 ## Changed files / QA done / Remaining issues
-_(empty)_
+**Changed files**
+- `State/UniverseViewModel.swift` — `universeMode` storage, computed
+  `selection`, `hoveredToolID`, rewritten intents.
+- `Universe/UniverseMapView.swift` — removed `@State mode`; read alias; all
+  writes routed to `model.universeMode`; deleted `reconcileMode` +
+  `onChange(model.selection)`.
+- `Universe/UniverseMode.swift` — softened `chatOpen` map/dim/blur values.
+- `Tests/MyAIMapTests/UniverseModeTests.swift` — updated the chat-suppression
+  assertion to the new atmospheric-not-black contract.
+
+**QA done**
+- Build green, Swift Testing suite green on iPhone 17 sim (see commit).
+- All 14 `UniverseViewModelTests` selection/category/tool contracts preserved
+  via the projection + first-tool default.
+
+**Remaining issues**
+- Visual/runtime QA (simulator) per `QA_REGRESSION_CHECKLIST.md` not yet run:
+  confirm no desync across map/chips/rail/card on device, and that chat focus
+  is atmospheric not black.
+- Agent 2/3/4/5 domains untouched by design.

@@ -7,13 +7,17 @@ struct UniverseMapView: View {
     @State private var sceneController = UniverseSceneController()
     @State private var cameraRig = CameraRigController()
     @State private var gestureController = UniverseGestureController()
-    @State private var mode: UniverseMode = .overview
     @State private var modeBeforeDetail: UniverseMode?
     @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
 
     @State private var planets: [PlanetData] = []
+
+    /// Read alias for the single source of truth. All writes go to
+    /// `model.universeMode`; the view never stores a second copy of the mode
+    /// (see docs/UI_STATE_MACHINE.md).
+    private var mode: UniverseMode { model.universeMode }
 
     private func rebuildPlanets() {
         planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: model.visibleAllTools)
@@ -73,23 +77,20 @@ struct UniverseMapView: View {
         .onAppear {
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
-            mode = navigationModeForSelection()
+            model.universeMode = navigationModeForSelection()
             focusCamera(for: mode, animated: false)
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
             BrandHaptics.isEnabled = isEnabled
         }
-        .onChange(of: mode) { _, newMode in
+        .onChange(of: model.universeMode) { _, newMode in
             focusCamera(for: newMode, animated: true)
-        }
-        .onChange(of: model.selection) { _, selection in
-            reconcileMode(with: selection)
         }
         .onChange(of: detailPresented) { _, isPresented in
             if isPresented {
-                mode = .detail(selectedTool.category, selectedTool.id)
+                model.universeMode = .detail(selectedTool.category, selectedTool.id)
             } else if mode.isDetailOpen {
-                mode = modeBeforeDetail ?? navigationModeForSelection()
+                model.universeMode = modeBeforeDetail ?? navigationModeForSelection()
                 modeBeforeDetail = nil
             }
         }
@@ -142,7 +143,6 @@ struct UniverseMapView: View {
 
         withAnimation(BrandMotion.flow) {
             model.selectCategory(id)
-            mode = id == .core ? .overview : .branchFocus(id)
         }
     }
 
@@ -153,14 +153,13 @@ struct UniverseMapView: View {
                 presentDetail()
             } else {
                 BrandHaptics.fire(.light)
-                mode = .toolSelected(tool.category, id)
+                model.universeMode = .toolSelected(tool.category, id)
             }
             return
         }
         BrandHaptics.fire(.medium)
         withAnimation(BrandMotion.flow) {
             _ = model.focusTool(id)
-            mode = .toolSelected(tool.category, id)
         }
     }
 
@@ -173,7 +172,6 @@ struct UniverseMapView: View {
         BrandHaptics.fireRich(.pocketClose)
         withAnimation(BrandMotion.flow) {
             model.selectCategory(.core)
-            mode = .overview
         }
     }
 
@@ -230,7 +228,7 @@ struct UniverseMapView: View {
         if !mode.isDetailOpen {
             modeBeforeDetail = mode
         }
-        mode = .detail(selectedTool.category, selectedTool.id)
+        model.universeMode = .detail(selectedTool.category, selectedTool.id)
         detailPresented = true
     }
 
@@ -239,7 +237,7 @@ struct UniverseMapView: View {
             guard !detailPresented else { return }
             let category = model.selection.activeCategory == .core ? nil : model.selection.activeCategory
             let toolID = model.selection.selectedToolID == "founder-os" ? nil : model.selection.selectedToolID
-            mode = .chatOpen(category, toolID)
+            model.universeMode = .chatOpen(category, toolID)
         } else if mode.isChatOpen {
             restoreNavigationMode(animated: true)
         }
@@ -250,40 +248,16 @@ struct UniverseMapView: View {
            let category,
            let toolID,
            model.visibleAllTools.contains(where: { $0.id == toolID && $0.category == category }) {
-            mode = .toolSelected(category, toolID)
+            model.universeMode = .toolSelected(category, toolID)
             return
         }
-        mode = navigationModeForSelection()
+        model.universeMode = navigationModeForSelection()
     }
 
     private func navigationModeForSelection() -> UniverseMode {
         let category = model.selection.activeCategory
         guard category != .core else { return .overview }
         return .branchFocus(category)
-    }
-
-    private func reconcileMode(with selection: UniverseSelection) {
-        guard !mode.isChatOpen else { return }
-
-        if mode.isDetailOpen {
-            guard let tool = model.visibleAllTools.first(where: { $0.id == selection.selectedToolID }) else { return }
-            modeBeforeDetail = .toolSelected(tool.category, tool.id)
-            if mode != .detail(tool.category, tool.id) {
-                mode = .detail(tool.category, tool.id)
-            }
-            return
-        }
-
-        if mode.selectedToolID != nil,
-           let tool = model.visibleAllTools.first(where: { $0.id == selection.selectedToolID }),
-           mode != .toolSelected(tool.category, tool.id) {
-            mode = .toolSelected(tool.category, tool.id)
-            return
-        }
-
-        if mode.selectedToolID == nil, mode.focusedCategory != selection.activeCategory {
-            mode = selection.activeCategory == .core ? .overview : .branchFocus(selection.activeCategory)
-        }
     }
 
     private func dismissKeyboard() {
