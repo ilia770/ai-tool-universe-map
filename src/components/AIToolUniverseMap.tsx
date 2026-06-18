@@ -26,6 +26,15 @@ import {
 } from '../data/ai-tool-universe';
 import { filterValidCustomTools, getToolArrayPayload } from '../data/universe-schema';
 import { classifyToolDetailed, makeSlug, getDisplayName } from '../lib/classify-ai-tool';
+import { trackUniverseEvent } from '../lib/universe-analytics';
+import {
+  buildUniverseSearch,
+  getAcquisitionLabel,
+  hasAcquisitionSource,
+  parseUniverseUrlState,
+  type UniverseRelationLens,
+  type UniverseUrlState,
+} from '../lib/universe-url-state';
 import { usePrefersReducedMotion } from '../lib/use-prefers-reduced-motion';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { ToolLogo } from './ToolLogo';
@@ -38,10 +47,12 @@ interface AIToolUniverseMapProps {
   onClose: () => void;
 }
 
-type RelationLens = 'direct' | 'adjacent' | 'stage' | 'category';
+type RelationLens = UniverseRelationLens;
 type MapClarityMode = 'focus' | 'context' | 'atlas';
 
 const CUSTOM_TOOLS_STORAGE_KEY = 'ai-tool-universe.custom-tools.v1';
+const ONBOARDING_STORAGE_KEY = 'ai-tool-universe.onboarding.v1';
+const LOW_CONFIDENCE_THRESHOLD = 0.45;
 const orderedStages: WorkflowStageId[] = ['research', 'planning', 'execution', 'approval', 'review'];
 const stageDockLabels: Record<WorkflowStageId, string> = {
   research: 'Research',
@@ -115,19 +126,97 @@ const readStoredCustomTools = (): AITool[] => {
   }
 };
 
+const categoryIdSet = new Set<ToolCategoryId>(categories.map((category) => category.id));
+const seedToolIds = new Set(tools.map((tool) => tool.id));
+
+const readInitialUrlState = () => {
+  if (typeof window === 'undefined') {
+    return parseUniverseUrlState('', { toolIds: seedToolIds, categoryIds: categoryIdSet });
+  }
+
+  return parseUniverseUrlState(window.location.search, { toolIds: seedToolIds, categoryIds: categoryIdSet });
+};
+
+const getInitialSelectedId = (state: UniverseUrlState) => {
+  if (state.toolId) return state.toolId;
+
+  if (state.query) {
+    const normalized = state.query.toLowerCase();
+    const match = tools.find((tool) =>
+      tool.id !== 'founder-os'
+      && (
+        tool.name.toLowerCase().includes(normalized)
+        || tool.summary.toLowerCase().includes(normalized)
+        || (tool.url?.toLowerCase().includes(normalized) ?? false)
+      ));
+    if (match) return match.id;
+  }
+
+  if (state.category !== 'all') {
+    const match = tools.find((tool) =>
+      tool.id !== 'founder-os'
+      && tool.category === state.category
+      && (state.stage === 'all' || tool.stage === state.stage));
+    if (match) return match.id;
+  }
+
+  return 'founder-os';
+};
+
+const readOnboardingDismissed = () => {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'dismissed';
+  } catch {
+    return false;
+  }
+};
+
+const writeOnboardingDismissed = () => {
+  try {
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, 'dismissed');
+  } catch {
+    // Storage can fail in private mode; dismissal should still work for this session.
+  }
+};
+
+const WebGLUnavailableFallback = ({ source }: { source: UniverseUrlState['source'] }) => {
+  useEffect(() => {
+    trackUniverseEvent('webgl_fallback', { source });
+  }, [source]);
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#020008] px-6 text-center">
+      <p className="text-sm font-semibold text-white/90">3D view unavailable</p>
+      <p className="max-w-xs text-xs text-white/55">
+        This browser or device could not start WebGL. The tool list in the side panel still works.
+      </p>
+    </div>
+  );
+};
+
 export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [selectedId, setSelectedId] = useState('founder-os');
-  const [query, setQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<ToolCategoryId | 'all'>('all');
-  const [activeStage, setActiveStage] = useState<WorkflowStageId | 'all'>('all');
-  const [relationLens, setRelationLens] = useState<RelationLens>('direct');
-  const [mapClarity, setMapClarity] = useState<MapClarityMode>('focus');
+  const toolInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [initialUrlState] = useState(readInitialUrlState);
+  const urlWriteSuppressedRef = useRef(false);
+  const [selectedId, setSelectedId] = useState(() => getInitialSelectedId(initialUrlState));
+  const [query, setQuery] = useState(initialUrlState.query);
+  const [activeCategory, setActiveCategory] = useState<ToolCategoryId | 'all'>(initialUrlState.category);
+  const [activeStage, setActiveStage] = useState<WorkflowStageId | 'all'>(initialUrlState.stage);
+  const [relationLens, setRelationLens] = useState<RelationLens>(initialUrlState.lens);
+  const [mapClarity, setMapClarity] = useState<MapClarityMode>(initialUrlState.hasExplicitState ? 'context' : 'focus');
   const [toolInput, setToolInput] = useState('');
   const [customTools, setCustomTools] = useState<AITool[]>(readStoredCustomTools);
   const [cameraVersion, setCameraVersion] = useState(0);
   const prefersReducedMotion = usePrefersReducedMotion();
+  const [showOnboarding, setShowOnboarding] = useState(() =>
+    !initialUrlState.hasExplicitState
+    && !hasAcquisitionSource(initialUrlState.source)
+    && !readOnboardingDismissed());
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<{
     tone: 'success' | 'error' | 'neutral';
@@ -231,6 +320,74 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
   const allTools = useMemo(() => [...tools, ...customTools], [customTools]);
   const nodeById = useMemo(() => new Map(allTools.map((tool) => [tool.id, tool])), [allTools]);
+  const urlToolIds = useMemo(() => new Set(allTools.map((tool) => tool.id)), [allTools]);
+  const acquisitionLabel = getAcquisitionLabel(initialUrlState.source);
+  const showEntryContext = initialUrlState.hasExplicitState
+    || hasAcquisitionSource(initialUrlState.source)
+    || initialUrlState.invalidParams.length > 0;
+
+  useEffect(() => {
+    trackUniverseEvent('map_opened', {
+      source: initialUrlState.source,
+      hasDeeplink: initialUrlState.hasExplicitState,
+      invalidParamCount: initialUrlState.invalidParams.length,
+    });
+
+    if (initialUrlState.hasExplicitState || initialUrlState.invalidParams.length > 0) {
+      trackUniverseEvent('deeplink_resolved', {
+        source: initialUrlState.source,
+        valid: initialUrlState.invalidParams.length === 0,
+        deeplinkType: initialUrlState.toolId ? 'tool' : initialUrlState.category !== 'all' ? 'category' : initialUrlState.query ? 'search' : 'state',
+        targetId: initialUrlState.toolId ?? initialUrlState.category,
+        query: initialUrlState.query,
+      });
+    }
+  }, [initialUrlState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      const nextState = parseUniverseUrlState(window.location.search, {
+        toolIds: urlToolIds,
+        categoryIds: categoryIdSet,
+      });
+      const nextSelectedId = nextState.toolId ?? getInitialSelectedId(nextState);
+
+      urlWriteSuppressedRef.current = true;
+      setSelectedId(nextSelectedId);
+      setActiveCategory(nextState.category);
+      setActiveStage(nextState.stage);
+      setRelationLens(nextState.lens);
+      setMapClarity(nextState.hasExplicitState ? 'context' : 'focus');
+      setQuery(nextState.query);
+      setCameraVersion((version) => version + 1);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [urlToolIds]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (urlWriteSuppressedRef.current) {
+      urlWriteSuppressedRef.current = false;
+      return;
+    }
+
+    const nextSearch = buildUniverseSearch(window.location.search, {
+      selectedId,
+      activeCategory,
+      activeStage,
+      query,
+      relationLens,
+    });
+    const nextUrl = `${window.location.pathname}${nextSearch}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl);
+  }, [activeCategory, activeStage, query, relationLens, selectedId]);
+
   const normalizedQuery = query.trim().toLowerCase();
   const visibleTools = useMemo(
     () => allTools.filter((tool) => {
@@ -394,7 +551,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       }),
     [activeClusterCategoryId, allTools, selectedTool.id],
   );
-  const focusTool = (tool: AITool) => {
+  const focusTool = (tool: AITool, interaction = 'panel') => {
     setSelectedId(tool.id);
     setActiveCategory(tool.category);
     setActiveStage(tool.stage);
@@ -402,13 +559,28 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     setMapClarity('focus');
     setQuery('');
     setCameraVersion((version) => version + 1);
+    trackUniverseEvent('tool_selected', {
+      source: initialUrlState.source,
+      toolId: tool.id,
+      category: tool.category,
+      stage: tool.stage,
+      interaction,
+    });
   };
 
   // Stable so memoized ToolNode instances don't re-render on every parent change.
   const selectToolId = useCallback((id: string) => {
     setSelectedId(id);
     setCameraVersion((version) => version + 1);
-  }, []);
+    const tool = nodeById.get(id);
+    trackUniverseEvent('tool_selected', {
+      source: initialUrlState.source,
+      toolId: id,
+      category: tool?.category,
+      stage: tool?.stage,
+      interaction: 'canvas',
+    });
+  }, [initialUrlState.source, nodeById]);
 
   const recenterSelectedTool = () => {
     setCameraVersion((version) => version + 1);
@@ -443,6 +615,11 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     setMapClarity('context');
     setQuery('');
     setCameraVersion((version) => version + 1);
+    trackUniverseEvent('category_opened', {
+      source: initialUrlState.source,
+      category: categoryId,
+      anchorToolId: anchorTool?.id,
+    });
   };
 
   const handleAddTool = (event: FormEvent<HTMLFormElement>) => {
@@ -470,13 +647,14 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     );
 
     if (existingTool) {
-      focusTool(existingTool);
+      focusTool(existingTool, 'intake-existing');
       setIntakeMessage(`${existingTool.name} already exists in ${categoryById.get(existingTool.category)?.name ?? 'the universe'}. Focused the existing node.`);
       setImportStatus(null);
       setToolInput('');
       return;
     }
 
+    const needsReview = classification.confidence < LOW_CONFIDENCE_THRESHOLD || classification.matchedKeywords.length === 0;
     const siblingCount = allTools.filter((tool) => tool.category === category).length;
     const id = `custom-${makeSlug(value)}-${Date.now()}`;
     const relationIds = Array.from(new Set(classification.relationIds)).filter((relationId) =>
@@ -487,7 +665,9 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
       id,
       name: displayName,
       category,
-      summary: `Added from your intake. It looks closest to ${categoryMeta.name}, with ${stageName} as the main workflow moment.`,
+      summary: needsReview
+        ? `Added from your intake. This needs review before it joins a stronger category, so it starts near ${categoryMeta.name} with ${stageName} as the likely workflow moment.`
+        : `Added from your intake. It looks closest to ${categoryMeta.name}, with ${stageName} as the main workflow moment.`,
       stage: classification.stage,
       orbit: 3,
       angle: categoryMeta.angle + 10 + siblingCount * 7,
@@ -502,14 +682,24 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
     setCustomTools((current) => [...current, customTool]);
     setSelectedId(id);
-    setActiveCategory(category);
+    setActiveCategory(needsReview && category === 'core' ? 'all' : category);
     setActiveStage(classification.stage);
     setRelationLens('direct');
     setMapClarity('focus');
     setCameraVersion((version) => version + 1);
-    setIntakeMessage(`${displayName} was added to ${categoryMeta.name}.`);
+    setIntakeMessage(needsReview
+      ? `${displayName} was parked near ${categoryMeta.shortName} for review.`
+      : `${displayName} was added to ${categoryMeta.name}.`);
     setImportStatus(null);
     setToolInput('');
+    trackUniverseEvent('custom_tool_added', {
+      source: initialUrlState.source,
+      toolId: id,
+      category,
+      stage: classification.stage,
+      confidence: classification.confidence,
+      needsReview,
+    });
   };
 
   const handleExportCustomTools = () => {
@@ -564,6 +754,36 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
     }
   };
 
+  const completeOnboarding = (action: string) => {
+    setShowOnboarding(false);
+    writeOnboardingDismissed();
+    trackUniverseEvent('onboarding_action', {
+      source: initialUrlState.source,
+      action,
+    });
+  };
+
+  const handleOnboardingAction = (action: 'search' | 'coding' | 'add-service' | 'explore') => {
+    completeOnboarding(action);
+
+    if (action === 'search') {
+      searchInputRef.current?.focus();
+      return;
+    }
+
+    if (action === 'coding') {
+      focusCategory('coding');
+      return;
+    }
+
+    if (action === 'add-service') {
+      toolInputRef.current?.focus();
+      return;
+    }
+
+    showAllGroups();
+  };
+
   return (
     <div
       className="fixed inset-0 z-[80] overflow-hidden bg-[#03040a] text-text-primary"
@@ -610,6 +830,89 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
       <main className="relative z-10 grid h-[calc(100dvh-4rem)] grid-cols-1 overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)_340px] lg:overflow-hidden">
         <aside className="order-3 border-t border-white/10 bg-black/20 p-4 backdrop-blur-xl lg:order-1 lg:overflow-y-auto lg:border-t-0 lg:border-r">
+          {showEntryContext && (
+            <div
+              className={`mb-4 rounded-xl border p-3 text-xs leading-5 ${
+                initialUrlState.invalidParams.length > 0
+                  ? 'border-amber-200/20 bg-amber-200/[0.06] text-amber-50/85'
+                  : 'border-cyan-200/15 bg-cyan-200/[0.055] text-cyan-50/82'
+              }`}
+              data-testid="entry-context"
+            >
+              <p className="font-semibold text-white">
+                {initialUrlState.invalidParams.length > 0
+                  ? 'Link needs review'
+                  : acquisitionLabel
+                    ? `Opened from ${acquisitionLabel}`
+                    : 'Linked view'}
+              </p>
+              <p className="mt-1 text-text-secondary">
+                {initialUrlState.invalidParams.length > 0
+                  ? 'Some link targets no longer exist here. Search and categories are still ready.'
+                  : initialUrlState.toolId
+                    ? 'The requested service is focused.'
+                    : initialUrlState.category !== 'all'
+                      ? 'The requested category is open.'
+                      : initialUrlState.query
+                        ? 'Search context was restored.'
+                        : 'Source context is preserved for this session.'}
+              </p>
+            </div>
+          )}
+
+          {showOnboarding && (
+            <section
+              className="mb-4 rounded-xl border border-cyan-200/15 bg-cyan-200/[0.055] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+              data-testid="onboarding-panel"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-cyan-100/80">Start with your goal</p>
+                  <p className="mt-1 text-xs leading-5 text-text-secondary">Choose a path into the map.</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss onboarding"
+                  title="Dismiss onboarding"
+                  onClick={() => completeOnboarding('dismiss')}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-text-muted transition hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOnboardingAction('search')}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-left text-xs font-semibold text-white transition hover:bg-white/[0.07]"
+                >
+                  Find tools for a workflow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOnboardingAction('coding')}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-left text-xs font-semibold text-white transition hover:bg-white/[0.07]"
+                >
+                  Open the AI coding stack
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOnboardingAction('add-service')}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-left text-xs font-semibold text-white transition hover:bg-white/[0.07]"
+                >
+                  Add a tool I use
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOnboardingAction('explore')}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-left text-xs font-semibold text-white transition hover:bg-white/[0.07]"
+                >
+                  Explore categories
+                </button>
+              </div>
+            </section>
+          )}
+
           <form
             onSubmit={handleAddTool}
             className="rounded-xl border border-white/15 bg-white/[0.07] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
@@ -620,6 +923,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
             </label>
             <div className="flex gap-2">
               <input
+                ref={toolInputRef}
                 value={toolInput}
                 onChange={(event) => {
                   setToolInput(event.target.value);
@@ -649,7 +953,9 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               <div className="mt-3 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.06] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-semibold uppercase text-cyan-100">
-                    {categoryById.get(intakePreview.category)?.shortName ?? 'Core'}
+                    {intakePreview.confidence < LOW_CONFIDENCE_THRESHOLD || intakePreview.matchedKeywords.length === 0
+                      ? 'Needs review'
+                      : categoryById.get(intakePreview.category)?.shortName ?? 'Core'}
                   </span>
                   <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-cyan-50">
                     {Math.round(intakePreview.confidence * 100)}% match
@@ -680,12 +986,18 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
               Search
             </label>
             <input
+              ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && queryResultTools[0]) {
+                if (event.key === 'Enter') {
                   event.preventDefault();
-                  focusTool(queryResultTools[0]);
+                  trackUniverseEvent('search_submitted', {
+                    source: initialUrlState.source,
+                    query: normalizedQuery,
+                    resultCount: queryResultTools.length,
+                  });
+                  if (queryResultTools[0]) focusTool(queryResultTools[0], 'search');
                 }
               }}
               placeholder="Cursor, video, skills... ↵ to focus"
@@ -838,14 +1150,7 @@ export const AIToolUniverseMap = ({ onClose }: AIToolUniverseMapProps) => {
 
         <section className="order-1 relative flex flex-col min-h-[680px] overflow-hidden sm:min-h-[620px] md:min-h-[640px] lg:order-2 lg:h-[calc(100dvh-4rem)] lg:min-h-0">
           <div className="relative flex-1 min-h-[440px] lg:min-h-0">
-            <WebGLErrorBoundary fallback={
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#020008] px-6 text-center">
-                <p className="text-sm font-semibold text-white/90">3D view unavailable</p>
-                <p className="max-w-xs text-xs text-white/55">
-                  This browser or device could not start WebGL. The tool list in the side panel still works.
-                </p>
-              </div>
-            }>
+            <WebGLErrorBoundary fallback={<WebGLUnavailableFallback source={initialUrlState.source} />}>
               <Suspense fallback={
                 <div className="absolute inset-0 flex items-center justify-center bg-[#020008]">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-300" />

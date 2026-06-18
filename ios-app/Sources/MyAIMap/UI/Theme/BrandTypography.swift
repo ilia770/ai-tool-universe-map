@@ -3,14 +3,17 @@ import SwiftUI
 /// Named text styles. SF Pro Display via the system, Dynamic Type
 /// honored. No custom font shipped in Phase 0–3.
 enum BrandTypography {
+    /// 44 pt semibold — large modal/sheet titles.
+    static let displayLarge: Font = .system(size: 44, weight: .semibold, design: .rounded)
+
     /// 28 pt semibold — sheet titles.
-    static let display: Font = .system(size: 28, weight: .semibold, design: .default)
+    static let display: Font = .system(size: 34, weight: .semibold, design: .rounded)
 
     /// `.title3` semibold — section headers.
-    static let title: Font = .system(.title3, design: .default, weight: .semibold)
+    static let title: Font = .system(.title3, design: .rounded, weight: .semibold)
 
     /// `.body` — descriptions, paragraph copy.
-    static let body: Font = .system(.body, design: .default)
+    static let body: Font = .system(.body, design: .rounded)
 
     /// `.footnote` semibold — category chips.
     static let chip: Font = .system(.footnote, design: .default, weight: .semibold)

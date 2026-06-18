@@ -126,4 +126,48 @@ struct UniverseViewModelTests {
         model.searchQuery = "zzz-no-such-tool"
         #expect(model.focusFirstSearchMatch() == false)
     }
+
+    @Test func deleteToolHidesItFromSearchAndRecordsHistory() {
+        let model = UniverseViewModel()
+        #expect(model.focusTool("posthog"))
+
+        #expect(model.deleteTool("posthog"))
+
+        model.searchQuery = "posthog"
+        #expect(model.searchResults.isEmpty)
+        #expect(model.removedTools.contains { $0.id == "posthog" })
+        #expect(model.activityHistory.contains { $0.kind == .removed && $0.toolID == "posthog" })
+    }
+
+    @Test func restoreToolReturnsItToSearch() {
+        let model = UniverseViewModel()
+        #expect(model.deleteTool("posthog"))
+        #expect(model.restoreTool("posthog"))
+
+        model.searchQuery = "posthog"
+        #expect(model.searchResults.contains { $0.id == "posthog" })
+        #expect(model.activityHistory.contains { $0.kind == .restored && $0.toolID == "posthog" })
+    }
+
+    @Test func addCustomToolFocusesAndRecordsIt() {
+        let model = UniverseViewModel()
+
+        #expect(model.addCustomTool(name: "New Analytics Tool", urlString: "example.com", category: .analytics))
+
+        #expect(model.selectedTool.name == "New Analytics Tool")
+        #expect(model.selection.activeCategory == .analytics)
+        #expect(model.activityHistory.contains { $0.kind == .added && $0.title.contains("New Analytics Tool") })
+    }
+
+    @Test func assistantMissingToolDoesNotInventMatch() {
+        let model = UniverseViewModel()
+        model.assistantQuery = "some unknown service"
+
+        model.askAssistant()
+
+        let assistantReply = model.assistantMessages.last
+        #expect(assistantReply?.role == .assistant)
+        #expect(assistantReply?.matchIDs.isEmpty == true)
+        #expect(assistantReply?.text.contains("website URL") == true)
+    }
 }

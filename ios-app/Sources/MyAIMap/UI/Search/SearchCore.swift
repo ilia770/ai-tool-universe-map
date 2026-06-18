@@ -27,13 +27,14 @@ enum SearchCore {
     static func results(
         for query: String,
         in tools: [Tool],
-        categoryName: (ToolCategoryId) -> String
+        categoryName: (ToolCategoryId) -> String,
+        extraText: ((Tool) -> String)? = nil
     ) -> [Tool] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         let needle = fold(trimmed)
 
-        var buckets: [[Tool]] = [[], [], [], []]
+        var buckets: [[Tool]] = [[], [], [], [], []]
         for tool in tools {
             let name = fold(tool.name)
             if name.hasPrefix(needle) {
@@ -42,8 +43,10 @@ enum SearchCore {
                 buckets[1].append(tool)
             } else if fold(tool.summary).contains(needle) {
                 buckets[2].append(tool)
-            } else if fold(categoryName(tool.category)).contains(needle) {
+            } else if let extraText, fold(extraText(tool)).contains(needle) {
                 buckets[3].append(tool)
+            } else if fold(categoryName(tool.category)).contains(needle) {
+                buckets[4].append(tool)
             }
         }
         return Array(buckets.joined().prefix(maxResults))

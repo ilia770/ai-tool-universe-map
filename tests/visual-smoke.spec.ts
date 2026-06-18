@@ -2,10 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const internalCopyPattern = /rule-based|persisted relations|VITE_|Logo\.dev|local SVG fallback|Import custom tools JSON|Local node|Liquid Glass Intake/i;
 
-async function openUniverse(page: Page) {
-  await page.addInitScript(() => window.localStorage.clear());
-  await page.goto('/');
-
+async function waitForUniverse(page: Page) {
   await expect(page.getByTestId('ai-tool-universe-map')).toBeVisible();
   await expect(page.getByText('Universe lens')).toBeVisible();
   await expect(page.getByText('3D view unavailable')).toHaveCount(0);
@@ -14,7 +11,37 @@ async function openUniverse(page: Page) {
     if (!canvas) return false;
     const box = canvas.getBoundingClientRect();
     return box.width > 300 && box.height > 300;
-  }, null, { timeout: 20_000 });
+  }, null, { timeout: 30_000 });
+}
+
+async function openUniverse(page: Page, path = '/', options: { collectAnalytics?: boolean } = {}) {
+  await page.addInitScript(({ collectAnalytics }) => {
+    window.localStorage.clear();
+    if (collectAnalytics) {
+      window.addEventListener('ai-tool-universe:analytics', (event) => {
+        const detail = (event as CustomEvent).detail;
+        const queue = (window as unknown as { __universeAnalyticsEvents?: unknown[] }).__universeAnalyticsEvents ?? [];
+        queue.push(detail);
+        (window as unknown as { __universeAnalyticsEvents?: unknown[] }).__universeAnalyticsEvents = queue;
+      });
+    }
+  }, { collectAnalytics: Boolean(options.collectAnalytics) });
+  await page.goto(path);
+  await waitForUniverse(page);
+}
+
+async function openUniverseWithPersistedStorage(page: Page, path = '/') {
+  await page.goto(path);
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto(path);
+  await waitForUniverse(page);
+}
+
+async function analyticsEvents(page: Page) {
+  return page.evaluate(() => (
+    (window as unknown as { aiToolUniverseAnalytics?: Array<{ name: string; payload: Record<string, unknown> }> })
+      .aiToolUniverseAnalytics ?? []
+  ));
 }
 
 async function classifyTool(page: Page, value: string) {
@@ -78,6 +105,79 @@ test('keeps public UI free of implementation copy', async ({ page }) => {
 
   await expect(page.locator('body')).not.toContainText(internalCopyPattern);
   await expect(page.getByText('Add service')).toBeVisible();
+});
+
+test('tool deeplink focuses the requested service and keeps acquisition context', async ({ page }) => {
+  await openUniverse(
+    page,
+    '/?tool=cursor&utm_source=telegram&utm_medium=bot&utm_campaign=launch&tg_start=event-42',
+    { collectAnalytics: true },
+  );
+
+  await expect(page.getByTestId('tool-detail-panel').getByRole('heading', { name: 'Cursor' })).toBeVisible();
+  await expect(page.getByTestId('entry-context')).toContainText('launch');
+  expect(page.url()).toContain('tool=cursor');
+  expect(page.url()).toContain('utm_source=telegram');
+  expect(page.url()).toContain('tg_start=event-42');
+
+  const events = await analyticsEvents(page);
+  expect(events.find((event) => event.name === 'map_opened')).toMatchObject({
+    payload: {
+      hasDeeplink: true,
+      source: {
+        utmSource: 'telegram',
+        utmMedium: 'bot',
+        utmCampaign: 'launch',
+        tgStart: 'event-42',
+      },
+    },
+  });
+  expect(events.find((event) => event.name === 'deeplink_resolved')).toMatchObject({
+    payload: {
+      valid: true,
+      deeplinkType: 'tool',
+      targetId: 'cursor',
+    },
+  });
+});
+
+test('category deeplink opens the requested pocket world', async ({ page }) => {
+  await openUniverse(page, '/?category=design');
+
+  const designChip = page.getByTestId('lens-category-design');
+  await expect(designChip).toHaveClass(/bg-white\/15/);
+  await expect(page.getByText(/Pocket world\s*·\s*Design/).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('tool-detail-panel').getByText('Design & Product UI').first()).toBeVisible();
+});
+
+test('broken deeplink stays recoverable and keeps valid search context', async ({ page }) => {
+  await openUniverse(page, '/?tool=missing-tool&category=unknown&q=agent', { collectAnalytics: true });
+
+  await expect(page.getByTestId('entry-context')).toContainText('Link needs review');
+  await expect(page.getByPlaceholder('Cursor, video, skills...')).toHaveValue('agent');
+  await expect(page.getByText('Scan results')).toBeVisible();
+
+  const events = await analyticsEvents(page);
+  expect(events.find((event) => event.name === 'deeplink_resolved')).toMatchObject({
+    payload: {
+      valid: false,
+      deeplinkType: 'search',
+      query: 'agent',
+    },
+  });
+});
+
+test('onboarding offers first-run actions and persists dismissal', async ({ page }) => {
+  await openUniverseWithPersistedStorage(page);
+
+  await expect(page.getByTestId('onboarding-panel')).toBeVisible();
+  await page.getByRole('button', { name: 'Add a tool I use' }).click();
+  await expect(page.getByTestId('onboarding-panel')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Tool name or URL')).toBeFocused();
+
+  await page.reload();
+  await waitForUniverse(page);
+  await expect(page.getByTestId('onboarding-panel')).toHaveCount(0);
 });
 
 test('mobile and tablet expose the selected-service panel', async ({ page }, testInfo) => {
@@ -176,10 +276,13 @@ test('search enter focuses the first matching tool', async ({ page }) => {
   await search.press('Enter');
   await expect(page.getByRole('heading', { name: 'Cursor' })).toBeVisible();
   await expect(page.getByText('Workflow').first()).toBeVisible();
+  expect(page.url()).toContain('tool=cursor');
+  expect(page.url()).toContain('category=coding');
+  expect(page.url()).toContain('stage=execution');
 });
 
 test('desktop hover makes the focused tool unambiguous', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name.includes('mobile'), 'Hover focus is a desktop pointer interaction.');
+  test.skip(!testInfo.project.name.includes('desktop'), 'Hover focus is a desktop pointer interaction.');
   test.setTimeout(90_000);
 
   await openUniverse(page);

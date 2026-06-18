@@ -64,6 +64,7 @@ struct UniverseLayoutTests {
         #expect(UniverseSeed.tools.contains { $0.id == "founder-os" })
         #expect(UniverseSeed.tools(in: .coding).count >= 3)
         #expect(UniverseSeed.tools(in: .design).count >= 2)
+        #expect(UniverseSeed.tools(in: .media).count >= 4)
         #expect(UniverseSeed.tools(in: .core).count >= 2)
     }
 
@@ -72,5 +73,67 @@ struct UniverseLayoutTests {
         for tool in UniverseSeed.tools {
             #expect(categoryIds.contains(tool.category), "\(tool.name) points at a missing category")
         }
+    }
+}
+
+@Suite("UniverseSpatialLayout — selected tool anchors")
+struct UniverseSpatialLayoutTests {
+
+    @Test func nativePlanetLayoutKeepsOverviewBranchesReadable() {
+        let branches = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        .filter { $0.id != .core }
+
+        for i in 0..<branches.count {
+            for j in (i + 1)..<branches.count {
+                let distance = simd_distance(branches[i].position3D, branches[j].position3D)
+                #expect(distance > 3.1, "\(branches[i].title) and \(branches[j].title) are too close: \(distance)")
+            }
+        }
+    }
+
+    @Test func remotionIsVisibleInMediaVerticalSlice() {
+        let planets = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        guard let media = planets.first(where: { $0.id == .media }),
+              let remotionIndex = media.tools.firstIndex(where: { $0.id == "remotion" }) else {
+            Issue.record("Remotion must remain discoverable in the Media branch")
+            return
+        }
+
+        let position = UniverseSpatialLayout.satelliteWorldPosition(
+            for: media.tools[remotionIndex],
+            in: media,
+            index: remotionIndex,
+            count: media.tools.count
+        )
+
+        #expect(media.tools.count >= 4)
+        #expect(position != media.position3D)
+    }
+
+    @Test func postHogHasDeterministicSatellitePositionInAnalyticsBranch() {
+        let planets = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        guard let analytics = planets.first(where: { $0.id == .analytics }),
+              let postHogIndex = analytics.tools.firstIndex(where: { $0.id == "posthog" }) else {
+            Issue.record("PostHog must remain discoverable in the Analytics branch")
+            return
+        }
+
+        let position = UniverseSpatialLayout.satelliteWorldPosition(
+            for: analytics.tools[postHogIndex],
+            in: analytics,
+            index: postHogIndex,
+            count: analytics.tools.count
+        )
+
+        #expect(position != analytics.position3D)
     }
 }

@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Universe Visual Variations</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #03040a;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 18% 8%, rgba(83, 221, 255, 0.18), transparent 28rem),
+          radial-gradient(circle at 86% 24%, rgba(229, 94, 255, 0.12), transparent 26rem),
+          #03040a;
+      }
+
+      main {
+        width: min(1440px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 4vw, 48px);
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.58);
+        line-height: 1.5;
+      }
+
+      .live-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 8px 13px;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        backdrop-filter: blur(18px);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 18px;
+      }
+
+      .letter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin: 24px 0;
+      }
+
+      .letter-card {
+        min-height: 156px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.065);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(22px);
+      }
+
+      .letter-card.is-finalist {
+        border-color: rgba(85, 231, 255, 0.32);
+        background: rgba(50, 210, 255, 0.09);
+      }
+
+      .letter-card.is-missing {
+        opacity: 0.62;
+      }
+
+      .letter-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .letter {
+        display: inline-grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        color: #02030a;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .tag {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 5px 9px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .letter-card h2 {
+        margin: 0 0 7px;
+        font-size: 17px;
+        letter-spacing: 0;
+      }
+
+      .letter-card p {
+        font-size: 13px;
+      }
+
+      .sim-canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        margin: 0 0 13px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        background: #02030a;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .sim-note {
+        margin: -8px 0 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.055);
+        color: rgba(255, 255, 255, 0.64);
+        font-size: 13px;
+      }
+
+      figure {
+        margin: 0;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(22px);
+      }
+
+      figure a {
+        display: block;
+      }
+
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #02030a;
+      }
+
+      figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 13px 14px 14px;
+      }
+
+      .title {
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .file {
+        color: rgba(255, 255, 255, 0.46);
+        font-size: 11px;
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 760px) {
+        main {
+          width: min(100% - 24px, 1440px);
+          padding-top: 20px;
+        }
+
+        header {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .live-links {
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>AI Universe Visual Variations</h1>
+          <p>Live mini-simulations, saved visual-smoke captures, and quick links into local states.</p>
+        </div>
+        <nav class="live-links" aria-label="Live local states">
+          <a class="pill" href="http://127.0.0.1:5177/">Live overview</a>
+          <a class="pill" href="http://127.0.0.1:5177/?tool=cursor">Cursor focus</a>
+          <a class="pill" href="http://127.0.0.1:5177/?category=design">Design pocket</a>
+          <a class="pill" href="http://127.0.0.1:5177/?tool=buffer&lens=stage">Stage lens</a>
+          <a class="pill" href="http://127.0.0.1:5177/?q=agent">Search scan</a>
+        </nav>
+      </header>
+
+      <p class="sim-note">
+        A-D and K/N/O come from the recovered research notes. E/F/G/H/I/L/M did not survive as
+        saved artifacts, so these are reconstructed mini-simulations for comparison.
+      </p>
+
+      <section class="letter-grid" aria-label="Research letter set">
+        <article class="letter-card is-finalist">
+          <div class="letter-top"><span class="letter">A</span><span class="tag">Direction + finalist</span></div>
+          <h2>Overlay-Native / BrainGraph</h2>
+          <p>Recommended direction: RealityKit for ambient depth, screen-space SwiftUI/Canvas for readable graph, badges, edges, and orbs.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">B</span><span class="tag">Direction</span></div>
+          <h2>Find-First</h2>
+          <p>Default home becomes instant search/list; universe moves into Explore. Strong product ROI, less visual clutter.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">C</span><span class="tag">Direction</span></div>
+          <h2>Full 2.5D Force Graph</h2>
+          <p>Drop interactive 3D for a flat Canvas/SpriteKit graph. Clearest structure and easiest 60fps legibility.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">D</span><span class="tag">Direction</span></div>
+          <h2>RealityKit Interim</h2>
+          <p>Keep the 3D world graph, lift labels to overlay, improve thickness, materials, aura, and distance compensation.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">E</span><span class="tag">Recreated sim</span></div>
+          <h2>Radial Atlas</h2>
+          <p>Concentric rings for categories, tools, and relations. Fast overview, less cinematic.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">F</span><span class="tag">Recreated sim</span></div>
+          <h2>Workflow Flight Path</h2>
+          <p>Tools arranged by stage: research, plan, build, approve, review. Great for task flow.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">G</span><span class="tag">Recreated sim</span></div>
+          <h2>Cluster Galaxy</h2>
+          <p>Category galaxies with local gravity wells. Strong universe feeling, needs declutter.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">H</span><span class="tag">Recreated sim</span></div>
+          <h2>Relation Matrix</h2>
+          <p>Dense relationship heatmap. Analytical and readable, but less emotional.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">I</span><span class="tag">Recreated sim</span></div>
+          <h2>Inspector Stack</h2>
+          <p>Selected tool becomes a card stack over a faint universe. Best for rich details.</p>
+        </article>
+        <article class="letter-card is-finalist">
+          <div class="letter-top"><span class="letter">K</span><span class="tag">Finalist</span></div>
+          <h2>BloomGraph</h2>
+          <p>Progressive reveal and autofocus: labels/neighbours appear around focus instead of showing everything at once.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">L</span><span class="tag">Recreated sim</span></div>
+          <h2>Liquid Lens</h2>
+          <p>A moving glass lens enlarges nearby labels and relations. Playful and inspectable.</p>
+        </article>
+        <article class="letter-card">
+          <div class="letter-top"><span class="letter">M</span><span class="tag">Recreated sim</span></div>
+          <h2>Mesh Constellation</h2>
+          <p>Triangulated semantic mesh. Beautiful for connections, riskier for readability.</p>
+        </article>
+        <article class="letter-card is-finalist">
+          <div class="letter-top"><span class="letter">N</span><span class="tag">Finalist</span></div>
+          <h2>Force3D</h2>
+          <p>True 3D force graph with camera-facing SDF/HTML text, outline, distance handling, and stronger 3D travel.</p>
+        </article>
+        <article class="letter-card is-finalist">
+          <div class="letter-top"><span class="letter">O</span><span class="tag">Finalist</span></div>
+          <h2>NeuralUniverse</h2>
+          <p>Hero volumetric look: additive halos, haze, pulses, camera-facing outlined labels, and premium ambient depth.</p>
+        </article>
+      </section>
+
+      <section class="grid" aria-label="Visual variation screenshots">
+        <figure>
+          <a href="./ai-tool-universe-desktop.png"><img src="./ai-tool-universe-desktop.png" alt="Desktop overview visual variation" /></a>
+          <figcaption><span class="title">Desktop Overview</span><span class="file">ai-tool-universe-desktop.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-clarity-focus.png"><img src="./ai-tool-universe-clarity-focus.png" alt="Clarity focus visual variation" /></a>
+          <figcaption><span class="title">Clarity Focus</span><span class="file">ai-tool-universe-clarity-focus.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-design-cluster.png"><img src="./ai-tool-universe-design-cluster.png" alt="Design cluster visual variation" /></a>
+          <figcaption><span class="title">Design Cluster</span><span class="file">ai-tool-universe-design-cluster.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-hover-bubbles.png"><img src="./ai-tool-universe-hover-bubbles.png" alt="Hover bubbles visual variation" /></a>
+          <figcaption><span class="title">Hover Bubbles</span><span class="file">ai-tool-universe-hover-bubbles.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-hover-focus.png"><img src="./ai-tool-universe-hover-focus.png" alt="Hover focus visual variation" /></a>
+          <figcaption><span class="title">Hover Focus</span><span class="file">ai-tool-universe-hover-focus.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-relation-lens.png"><img src="./ai-tool-universe-relation-lens.png" alt="Relation lens visual variation" /></a>
+          <figcaption><span class="title">Relation Lens</span><span class="file">ai-tool-universe-relation-lens.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-search-scan.png"><img src="./ai-tool-universe-search-scan.png" alt="Search scan visual variation" /></a>
+          <figcaption><span class="title">Search Scan</span><span class="file">ai-tool-universe-search-scan.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./ai-tool-universe-selected-tool.png"><img src="./ai-tool-universe-selected-tool.png" alt="Selected tool visual variation" /></a>
+          <figcaption><span class="title">Selected Tool</span><span class="file">ai-tool-universe-selected-tool.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./vercel-camera-drag-compact-panel.png"><img src="./vercel-camera-drag-compact-panel.png" alt="Camera drag compact panel visual variation" /></a>
+          <figcaption><span class="title">Camera Drag Panel</span><span class="file">vercel-camera-drag-compact-panel.png</span></figcaption>
+        </figure>
+        <figure>
+          <a href="./vercel-large-logo-badges.png"><img src="./vercel-large-logo-badges.png" alt="Large logo badges visual variation" /></a>
+          <figcaption><span class="title">Large Logo Badges</span><span class="file">vercel-large-logo-badges.png</span></figcaption>
+        </figure>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const palette = ['#55e7ff', '#ff69d4', '#a9ff74', '#ffd166', '#b49cff', '#7cf8d2'];
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        const hash = (n) => {
+          const x = Math.sin(n * 999.37) * 43758.5453;
+          return x - Math.floor(x);
+        };
+
+        const lerp = (a, b, t) => a + (b - a) * t;
+
+        const glowCircle = (ctx, x, y, r, color, alpha = 1) => {
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, r * 2.8);
+          gradient.addColorStop(0, color);
+          gradient.addColorStop(0.28, color + Math.round(alpha * 255).toString(16).padStart(2, '0'));
+          gradient.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(x, y, r * 2.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        };
+
+        const badge = (ctx, text, x, y, color) => {
+          ctx.font = '700 11px system-ui, -apple-system, sans-serif';
+          const width = Math.min(110, Math.max(44, ctx.measureText(text).width + 18));
+          ctx.fillStyle = 'rgba(5, 9, 18, 0.78)';
+          ctx.strokeStyle = color + '88';
+          ctx.lineWidth = 1;
+          roundRect(ctx, x - width / 2, y - 12, width, 24, 12);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,0.92)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, x, y);
+        };
+
+        const roundRect = (ctx, x, y, w, h, r) => {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        };
+
+        const background = (ctx, w, h, t, hue = '#55e7ff') => {
+          const gradient = ctx.createRadialGradient(w * 0.5, h * 0.46, 0, w * 0.5, h * 0.5, w * 0.72);
+          gradient.addColorStop(0, 'rgba(32, 48, 78, 0.44)');
+          gradient.addColorStop(0.55, 'rgba(5, 8, 18, 0.9)');
+          gradient.addColorStop(1, '#02030a');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = hue + '99';
+          for (let i = 0; i < 42; i += 1) {
+            const x = hash(i + 2) * w;
+            const y = hash(i + 9) * h;
+            const pulse = 0.35 + 0.65 * Math.sin(t * 0.9 + i);
+            ctx.globalAlpha = 0.18 + pulse * 0.22;
+            ctx.beginPath();
+            ctx.arc(x, y, 0.7 + hash(i + 4) * 1.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        };
+
+        const baseNodes = (count, w, h, t, spread = 0.34) => Array.from({ length: count }, (_, i) => {
+          const a = i * 2.399 + t * 0.12;
+          const radius = Math.sqrt((i + 1) / count) * Math.min(w, h) * spread;
+          return {
+            x: w * 0.5 + Math.cos(a) * radius,
+            y: h * 0.5 + Math.sin(a * 1.17) * radius * 0.62,
+            c: palette[i % palette.length],
+            r: 4 + hash(i + 20) * 5,
+            label: ['Core', 'Code', 'Design', 'Search', 'Data', 'Media', 'Skills'][i % 7],
+          };
+        });
+
+        const drawEdges = (ctx, nodes, alpha = 0.22) => {
+          ctx.lineWidth = 1;
+          for (let i = 1; i < nodes.length; i += 1) {
+            const a = nodes[i];
+            const b = nodes[Math.floor((i - 1) / 2)];
+            ctx.strokeStyle = `rgba(160, 215, 255, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.quadraticCurveTo((a.x + b.x) / 2, Math.min(a.y, b.y) - 18, b.x, b.y);
+            ctx.stroke();
+          }
+        };
+
+        const drawA = (ctx, w, h, t) => {
+          background(ctx, w, h, t);
+          const nodes = baseNodes(18, w, h, t, 0.44);
+          drawEdges(ctx, nodes, 0.2);
+          nodes.forEach((node, i) => {
+            glowCircle(ctx, node.x, node.y, node.r * (i === 0 ? 1.8 : 1), node.c, 0.72);
+            if (i < 7 || i === 11) badge(ctx, node.label, node.x, node.y - node.r - 14, node.c);
+          });
+        };
+
+        const drawB = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#b49cff');
+          roundRect(ctx, 18, 18, w - 36, 38, 19);
+          ctx.fillStyle = 'rgba(255,255,255,0.1)';
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.72)';
+          ctx.font = '700 13px system-ui';
+          ctx.fillText('Find: build a database fast', 36, 42);
+          ['Supabase', 'Firebase', 'Neon', 'Airtable'].forEach((name, i) => {
+            const y = 78 + i * 34;
+            roundRect(ctx, 24, y, w - 48, 26, 10);
+            ctx.fillStyle = i === 0 ? 'rgba(85,231,255,0.2)' : 'rgba(255,255,255,0.07)';
+            ctx.fill();
+            glowCircle(ctx, 42, y + 13, 3.5, palette[i], 0.8);
+            ctx.fillStyle = 'rgba(255,255,255,0.86)';
+            ctx.font = '700 11px system-ui';
+            ctx.fillText(name, 56, y + 17);
+          });
+          const nodes = baseNodes(7, w, h, t, 0.22);
+          nodes.forEach((n) => glowCircle(ctx, n.x + w * 0.22, n.y + h * 0.18, 3, n.c, 0.5));
+        };
+
+        const drawC = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#a9ff74');
+          ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+          for (let x = 0; x < w; x += 28) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+          }
+          const nodes = baseNodes(24, w, h, t * 0.35, 0.46);
+          drawEdges(ctx, nodes, 0.16);
+          nodes.forEach((n, i) => glowCircle(ctx, n.x, n.y, i % 5 === 0 ? 7 : 4, n.c, 0.5));
+        };
+
+        const drawD = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#ffd166');
+          for (let r = 38; r < Math.min(w, h) * 0.48; r += 34) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.beginPath();
+            ctx.ellipse(w * 0.5, h * 0.54, r * 1.35, r * 0.42, -0.12, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          glowCircle(ctx, w * 0.5, h * 0.54, 21, '#f6fbff', 0.9);
+          for (let i = 0; i < 6; i += 1) {
+            const a = t * 0.35 + i * Math.PI * 2 / 6;
+            const x = w * 0.5 + Math.cos(a) * w * 0.34;
+            const y = h * 0.54 + Math.sin(a) * h * 0.17;
+            glowCircle(ctx, x, y, 8, palette[i], 0.65);
+            badge(ctx, ['Code', 'Design', 'Research', 'Data', 'Media', 'Skills'][i], x, y - 20, palette[i]);
+          }
+        };
+
+        const drawE = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#55e7ff');
+          for (let r = 30; r < Math.min(w, h) * 0.47; r += 30) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, r, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          for (let i = 0; i < 32; i += 1) {
+            const ring = 1 + (i % 4);
+            const a = i * 0.72 + t * 0.08 * ring;
+            const r = ring * 28;
+            glowCircle(ctx, w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, 3.5, palette[i % 6], 0.55);
+          }
+          badge(ctx, 'Atlas', w / 2, h / 2, '#55e7ff');
+        };
+
+        const drawF = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#ff69d4');
+          const stages = ['Research', 'Plan', 'Build', 'Approve', 'Review'];
+          stages.forEach((stage, i) => {
+            const x = 34 + i * ((w - 68) / 4);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            if (i > 0) {
+              ctx.beginPath();
+              ctx.moveTo(34 + (i - 1) * ((w - 68) / 4), h * 0.5);
+              ctx.lineTo(x, h * 0.5);
+              ctx.stroke();
+            }
+            glowCircle(ctx, x, h * 0.5 + Math.sin(t + i) * 8, 8, palette[i], 0.68);
+            badge(ctx, stage, x, h * 0.5 - 28, palette[i]);
+          });
+        };
+
+        const drawG = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#b49cff');
+          for (let group = 0; group < 4; group += 1) {
+            const cx = w * (0.22 + (group % 2) * 0.56);
+            const cy = h * (0.32 + Math.floor(group / 2) * 0.36);
+            for (let i = 0; i < 13; i += 1) {
+              const a = i * 2.1 + t * 0.2;
+              const r = 8 + hash(i + group * 9) * 45;
+              glowCircle(ctx, cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.55, 2.5 + hash(i) * 3, palette[group], 0.42);
+            }
+            badge(ctx, ['Code', 'Design', 'Data', 'Media'][group], cx, cy - 48, palette[group]);
+          }
+        };
+
+        const drawH = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#a9ff74');
+          const size = Math.min(w, h) * 0.08;
+          const startX = (w - size * 7) / 2;
+          const startY = (h - size * 5) / 2;
+          for (let y = 0; y < 5; y += 1) {
+            for (let x = 0; x < 7; x += 1) {
+              const v = 0.2 + 0.8 * hash(x * 19 + y * 7);
+              const pulse = 0.5 + 0.5 * Math.sin(t * 1.4 + x + y);
+              ctx.fillStyle = `rgba(85,231,255,${v * pulse * 0.42})`;
+              roundRect(ctx, startX + x * size + 2, startY + y * size + 2, size - 4, size - 4, 7);
+              ctx.fill();
+            }
+          }
+          badge(ctx, 'Relation Matrix', w / 2, 28, '#a9ff74');
+        };
+
+        const drawI = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#ffd166');
+          baseNodes(12, w, h, t, 0.4).forEach((n) => glowCircle(ctx, n.x, n.y, 3, n.c, 0.38));
+          for (let i = 0; i < 4; i += 1) {
+            const x = w * 0.22 + i * 18;
+            const y = h * 0.24 + i * 18;
+            roundRect(ctx, x, y, w * 0.58, h * 0.44, 18);
+            ctx.fillStyle = `rgba(255,255,255,${0.08 + i * 0.035})`;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+            ctx.stroke();
+          }
+          badge(ctx, 'Tool Inspector', w / 2, h * 0.46, '#ffd166');
+        };
+
+        const drawK = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#55e7ff');
+          const nodes = baseNodes(22, w, h, t * 0.5, 0.45);
+          const focus = nodes[0];
+          drawEdges(ctx, nodes.slice(0, 10 + Math.floor((Math.sin(t) + 1) * 4)), 0.18);
+          nodes.forEach((n, i) => {
+            const d = Math.hypot(n.x - focus.x, n.y - focus.y);
+            ctx.globalAlpha = Math.max(0.18, 1 - d / 210);
+            glowCircle(ctx, n.x, n.y, i === 0 ? 12 : 4, n.c, 0.7);
+            if (i < 6) badge(ctx, n.label, n.x, n.y - 19, n.c);
+          });
+          ctx.globalAlpha = 1;
+        };
+
+        const drawL = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#7cf8d2');
+          const nodes = baseNodes(22, w, h, t * 0.28, 0.44);
+          drawEdges(ctx, nodes, 0.1);
+          const lx = w * (0.5 + Math.sin(t * 0.7) * 0.24);
+          const ly = h * (0.5 + Math.cos(t * 0.55) * 0.18);
+          nodes.forEach((n) => {
+            const d = Math.hypot(n.x - lx, n.y - ly);
+            glowCircle(ctx, n.x, n.y, d < 72 ? 8 : 3.5, n.c, d < 72 ? 0.9 : 0.38);
+            if (d < 72) badge(ctx, n.label, n.x, n.y - 23, n.c);
+          });
+          ctx.strokeStyle = 'rgba(255,255,255,0.36)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(lx, ly, 72, 0, Math.PI * 2);
+          ctx.stroke();
+        };
+
+        const drawM = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#b49cff');
+          const nodes = baseNodes(17, w, h, t * 0.22, 0.42);
+          for (let i = 2; i < nodes.length; i += 1) {
+            ctx.strokeStyle = 'rgba(180,156,255,0.16)';
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[i - 1].x, nodes[i - 1].y);
+            ctx.lineTo(nodes[Math.floor(i / 2)].x, nodes[Math.floor(i / 2)].y);
+            ctx.closePath();
+            ctx.stroke();
+          }
+          nodes.forEach((n, i) => glowCircle(ctx, n.x, n.y, i % 4 === 0 ? 7 : 3.5, n.c, 0.55));
+        };
+
+        const drawN = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#ff69d4');
+          const yaw = t * 0.35;
+          const points = Array.from({ length: 18 }, (_, i) => {
+            const a = i * 2.399;
+            const z = Math.sin(a + yaw);
+            const scale = 0.72 + (z + 1) * 0.24;
+            return {
+              x: w / 2 + Math.cos(a + yaw) * w * 0.32 * scale,
+              y: h / 2 + Math.sin(i * 1.13) * h * 0.23 * scale,
+              z,
+              scale,
+              c: palette[i % 6],
+            };
+          }).sort((a, b) => a.z - b.z);
+          points.forEach((p, i) => {
+            ctx.globalAlpha = 0.28 + p.scale * 0.62;
+            glowCircle(ctx, p.x, p.y, 4 + p.scale * 5, p.c, 0.7);
+            if (i > 12) badge(ctx, ['3D', 'Orbit', 'Node'][i % 3], p.x, p.y - 24, p.c);
+          });
+          ctx.globalAlpha = 1;
+        };
+
+        const drawO = (ctx, w, h, t) => {
+          background(ctx, w, h, t, '#55e7ff');
+          const nodes = baseNodes(16, w, h, t * 0.16, 0.42);
+          nodes.forEach((n, i) => {
+            const next = nodes[(i + 5) % nodes.length];
+            const pulse = 0.5 + 0.5 * Math.sin(t * 1.9 + i);
+            ctx.strokeStyle = `rgba(85,231,255,${0.08 + pulse * 0.22})`;
+            ctx.lineWidth = 1 + pulse * 2;
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.quadraticCurveTo(w / 2, h / 2, next.x, next.y);
+            ctx.stroke();
+          });
+          glowCircle(ctx, w / 2, h / 2, 24 + Math.sin(t) * 2, '#f6fbff', 0.95);
+          nodes.forEach((n, i) => glowCircle(ctx, n.x, n.y, i % 3 === 0 ? 8 : 4, n.c, 0.58));
+          badge(ctx, 'Neural Universe', w / 2, h / 2 - 43, '#55e7ff');
+        };
+
+        const drawers = { A: drawA, B: drawB, C: drawC, D: drawD, E: drawE, F: drawF, G: drawG, H: drawH, I: drawI, K: drawK, L: drawL, M: drawM, N: drawN, O: drawO };
+
+        const cards = [...document.querySelectorAll('.letter-card')];
+        const scenes = cards.map((card) => {
+          const letter = card.querySelector('.letter')?.textContent?.trim();
+          const canvas = document.createElement('canvas');
+          canvas.className = 'sim-canvas';
+          canvas.setAttribute('aria-label', `Simulation ${letter}`);
+          card.insertBefore(canvas, card.querySelector('h2'));
+          return { letter, canvas, ctx: canvas.getContext('2d') };
+        }).filter((scene) => scene.ctx && drawers[scene.letter]);
+
+        const render = (now) => {
+          const time = prefersReducedMotion ? 0.5 : now / 1000;
+          scenes.forEach(({ letter, canvas, ctx }) => {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const width = Math.max(1, Math.floor(rect.width * dpr));
+            const height = Math.max(1, Math.floor(rect.height * dpr));
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            drawers[letter](ctx, rect.width, rect.height, time);
+          });
+          if (!prefersReducedMotion) window.requestAnimationFrame(render);
+        };
+
+        window.requestAnimationFrame(render);
+      })();
+    </script>
+  </body>
+</html>

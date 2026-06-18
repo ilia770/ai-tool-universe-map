@@ -5,15 +5,18 @@ import UIKit
 /// Swift mirror of the web app's `ToolCategoryId` discriminated union.
 /// Kept exhaustive so the compiler enforces parity with the data file
 /// in `src/data/ai-tool-universe.ts`.
-enum ToolCategoryId: String, CaseIterable, Codable, Sendable {
+enum ToolCategoryId: String, CaseIterable, Codable, Sendable, Identifiable {
     case coding
     case design
     case research
+    case analytics
     case media
     case distribution
     case infrastructure
     case knowledge
     case core
+
+    var id: String { rawValue }
 }
 
 /// One category orbit in the universe. `angle` is degrees, matching the

@@ -10,6 +10,8 @@ import RealityKit
 struct UniverseView: View {
     let selectedCategory: ToolCategoryId
     let selectedToolId: String
+    let tools: [Tool]
+    let visualizationStyle: VisualizationStyle
     let onToolSelect: @MainActor (String) -> Void
     let onProximityEvent: @MainActor (ProximityWatcherCore.Event) -> Void
 
@@ -34,22 +36,28 @@ struct UniverseView: View {
             cameraController.attach(camera, mode: viewMode, target: lookAtPosition(for: selectedCategory))
 
             universe.addChild(Self.makeToolNode(
-                tool: UniverseSeed.tools.first { $0.id == "founder-os" },
+                tool: tools.first { $0.id == "founder-os" },
                 category: UniverseSeed.category(.core),
                 position: .zero,
-                selected: selectedCategory == .core
+                selected: selectedCategory == .core,
+                visualizationStyle: visualizationStyle
             ))
 
             var anchors: [ProximityWatcherCore.Anchor] = []
             for category in UniverseSeed.categories where category.id != .core {
                 let center = UniverseLayout.categoryPosition(angleDegrees: category.angle)
                 anchors.append(ProximityWatcherCore.Anchor(id: category.id, position: center))
-                universe.addChild(Self.makeCategoryAnchor(category: category, position: center, selected: category.id == selectedCategory))
+                universe.addChild(Self.makeCategoryAnchor(
+                    category: category,
+                    position: center,
+                    selected: category.id == selectedCategory,
+                    visualizationStyle: visualizationStyle
+                ))
                 if category.id == selectedCategory {
                     universe.addChild(PocketShellEntity.make(category: category, position: center, reduceMotion: reduceMotion))
                 }
 
-                let categoryTools = UniverseSeed.tools(in: category.id)
+                let categoryTools = tools.filter { $0.category == category.id }
                 for (index, tool) in categoryTools.enumerated() {
                     let isPocket = category.id == selectedCategory
                     let isSelectedTool = tool.id == selectedToolId
@@ -71,7 +79,8 @@ struct UniverseView: View {
                         category: category,
                         position: position,
                         selected: isSelectedTool,
-                        pocketed: isPocket
+                        pocketed: isPocket,
+                        visualizationStyle: visualizationStyle
                     ))
                 }
             }
@@ -101,7 +110,7 @@ struct UniverseView: View {
             fill.look(at: .zero, from: fill.position, relativeTo: nil)
             universe.addChild(fill)
         }
-        .id(selectedCategory)
+        .id(sceneIdentity)
         .gesture(
             SpatialTapGesture()
                 .targetedToAnyEntity()
@@ -121,7 +130,7 @@ struct UniverseView: View {
         .background(
             RadialGradient(
                 colors: [
-                    UniverseSeed.category(selectedCategory).color.swiftUIColor.opacity(0.18),
+                    UniverseSeed.category(selectedCategory).color.swiftUIColor.opacity(visualizationStyle.backgroundGlow),
                     Color(red: 0.01, green: 0.015, blue: 0.035),
                     .black
                 ],
@@ -130,6 +139,15 @@ struct UniverseView: View {
                 endRadius: 560
             )
         )
+    }
+
+    private var sceneIdentity: String {
+        [
+            selectedCategory.rawValue,
+            selectedToolId,
+            visualizationStyle.rawValue,
+            tools.map(\.id).joined(separator: ","),
+        ].joined(separator: "|")
     }
 
     /// Tap routing mirrors the interim 2D map (#41): tool nodes select the
@@ -158,15 +176,20 @@ struct UniverseView: View {
     /// Frosted translucent category sphere: matte PBR glass tinted by the
     /// category hue, with a faint emissive lift so the shell reads as a
     /// lit volume instead of a flat colored ball.
-    private static func makeCategoryAnchor(category: ToolCategory, position: SIMD3<Float>, selected: Bool) -> ModelEntity {
-        let radius: Float = selected ? 0.74 : 0.48
+    private static func makeCategoryAnchor(
+        category: ToolCategory,
+        position: SIMD3<Float>,
+        selected: Bool,
+        visualizationStyle: VisualizationStyle
+    ) -> ModelEntity {
+        let radius: Float = (selected ? 0.74 : 0.48) * visualizationStyle.categoryScale
         var material = PhysicallyBasedMaterial()
         material.baseColor = .init(tint: darkened(category.color.uiColor, by: 0.45))
         material.roughness = .init(floatLiteral: 0.6)
         material.metallic = .init(floatLiteral: 0.0)
         material.blending = .transparent(opacity: .init(floatLiteral: selected ? 0.9 : 0.5))
         material.emissiveColor = .init(color: category.color.uiColor)
-        material.emissiveIntensity = selected ? 0.65 : 0.28
+        material.emissiveIntensity = (selected ? 0.65 : 0.28) * visualizationStyle.glowBoost
         let anchor = ModelEntity(
             mesh: .generateSphere(radius: radius),
             materials: [material]
@@ -182,14 +205,16 @@ struct UniverseView: View {
         category: ToolCategory,
         position: SIMD3<Float>,
         selected: Bool,
-        pocketed: Bool = false
+        pocketed: Bool = false,
+        visualizationStyle: VisualizationStyle = .orbitalGlass
     ) -> ModelEntity {
         let orbitRadius = Float(tool?.orbit.rawValue ?? 0)
-        let radius: Float = selected
+        let baseRadius: Float = selected
             ? 0.46 + orbitRadius * 0.055
             : pocketed
                 ? 0.32 + orbitRadius * 0.04
                 : 0.24 + orbitRadius * 0.025
+        let radius = baseRadius * visualizationStyle.nodeScale
         let isCore = category.id == .core
         var material = PhysicallyBasedMaterial()
         let darken: CGFloat = selected ? 0.6 : pocketed ? 0.68 : 0.75
@@ -202,6 +227,7 @@ struct UniverseView: View {
         material.emissiveIntensity = isCore
             ? (selected ? 2.0 : 0.8)
             : (selected ? 1.5 : pocketed ? 0.5 : 0.18)
+        material.emissiveIntensity *= visualizationStyle.glowBoost
         if selected {
             // Thin glossy shell over the matte base — "lit from within",
             // not a lampshade.
@@ -239,6 +265,8 @@ struct UniverseView: View {
     UniverseView(
         selectedCategory: .design,
         selectedToolId: "figma",
+        tools: UniverseSeed.tools,
+        visualizationStyle: .orbitalGlass,
         onToolSelect: { _ in },
         onProximityEvent: { _ in }
     )

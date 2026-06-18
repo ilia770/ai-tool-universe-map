@@ -1,0 +1,235 @@
+import Foundation
+import RealityKit
+import UIKit
+
+/// Owns the RealityKit entity graph for the AI Universe Map.
+@MainActor
+final class UniverseSceneController {
+    private let root = Entity()
+    private let planetRoot = Entity()
+    private let orbitRoot = Entity()
+    private let starRoot = Entity()
+    private let satelliteRoot = Entity()
+    private let lightRoot = Entity()
+    private let camera = PerspectiveCamera()
+
+    private var sceneSignature = ""
+    func makeScene(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        cameraRig: CameraRigController,
+        reduceMotion: Bool
+    ) -> Entity {
+        root.name = "ai-universe-root"
+        planetRoot.name = "planet-root"
+        orbitRoot.name = "orbit-root"
+        starRoot.name = "star-root"
+        satelliteRoot.name = "satellite-root"
+        lightRoot.name = "light-root"
+
+        if root.children.isEmpty {
+            root.addChild(starRoot)
+            root.addChild(orbitRoot)
+            root.addChild(planetRoot)
+            root.addChild(satelliteRoot)
+            root.addChild(lightRoot)
+            root.addChild(camera)
+            cameraRig.attach(camera)
+            addLights()
+            addStars()
+        }
+
+        rebuildIfNeeded(
+            planets: planets,
+            mode: mode,
+            visualizationStyle: visualizationStyle,
+            reduceMotion: reduceMotion
+        )
+        return root
+    }
+
+    func update(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        reduceMotion: Bool
+    ) {
+        rebuildIfNeeded(
+            planets: planets,
+            mode: mode,
+            visualizationStyle: visualizationStyle,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    func target(from entity: Entity) -> UniverseSceneTarget? {
+        var current: Entity? = entity
+        while let candidate = current {
+            if candidate.name.hasPrefix("planet:") {
+                let raw = String(candidate.name.dropFirst("planet:".count))
+                if let id = ToolCategoryId(rawValue: raw) {
+                    return .planet(id)
+                }
+            }
+            if candidate.name.hasPrefix("tool:") {
+                return .tool(String(candidate.name.dropFirst("tool:".count)))
+            }
+            current = candidate.parent
+        }
+        return nil
+    }
+
+    private func rebuildIfNeeded(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        reduceMotion: Bool
+    ) {
+        let signature = [
+            mode.signature,
+            visualizationStyle.rawValue,
+            planets.map { "\($0.id.rawValue):\($0.toolCount)" }.joined(separator: "|"),
+            reduceMotion ? "reduce" : "motion",
+        ].joined(separator: "#")
+        guard signature != sceneSignature else { return }
+        sceneSignature = signature
+        clearDynamicChildren()
+
+        for ring in orbitRings(for: visualizationStyle) {
+            let ring = PlanetEntityFactory.makeUniverseOrbit(
+                radius: ring.radius,
+                color: UIColor(white: 1, alpha: 1),
+                opacity: ring.opacity * mode.orbitOpacityMultiplier,
+                tilt: ring.tilt
+            )
+            orbitRoot.addChild(ring)
+        }
+
+        for planet in planets {
+            let isSelected = mode.isPrimaryPlanet(planet.id)
+            let entity = PlanetEntityFactory.makePlanet(
+                data: planet,
+                isSelected: isSelected,
+                visualizationStyle: visualizationStyle,
+                reduceMotion: reduceMotion
+            )
+            entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
+            planetRoot.addChild(entity)
+        }
+
+        if mode.showsSatellites,
+           let selectedPlanet = planets.first(where: { $0.id == mode.focusedCategory }) {
+            addSatellites(
+                around: selectedPlanet,
+                mode: mode,
+                visualizationStyle: visualizationStyle,
+                reduceMotion: reduceMotion
+            )
+        }
+    }
+
+    private func addSatellites(
+        around planet: PlanetData,
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        reduceMotion: Bool
+    ) {
+        let category = UniverseSeed.category(planet.id)
+
+        // For core, founder-os is the central planet itself, so only its other
+        // tools become satellites. Indices/count stay aligned with the full
+        // tool list so screen-space labels match the 3D nodes.
+        let satelliteTools = planet.tools.enumerated().filter { _, tool in
+            !(planet.id == .core && tool.id == PlanetData.centralCoreToolID)
+        }
+        guard !satelliteTools.isEmpty else { return }
+
+        let orbitShell = PlanetEntityFactory.makeSatelliteOrbitShell(
+            radius: max(2.4, planet.radius * 4.2),
+            category: category,
+            visualizationStyle: visualizationStyle,
+            reduceMotion: reduceMotion
+        )
+        orbitShell.position = planet.position3D
+        orbitShell.components.set(OpacityComponent(opacity: mode.selectedToolID == nil ? 0.42 : 0.28))
+        satelliteRoot.addChild(orbitShell)
+
+        let pivot = Entity()
+        pivot.name = "satellite-pivot:\(planet.id.rawValue)"
+        pivot.position = planet.position3D
+        satelliteRoot.addChild(pivot)
+
+        for (index, tool) in satelliteTools {
+            let satellite = PlanetEntityFactory.makeSatellite(
+                tool: tool,
+                category: category,
+                index: index,
+                count: planet.tools.count,
+                isSelected: tool.id == mode.selectedToolID,
+                visualizationStyle: visualizationStyle,
+                reduceMotion: reduceMotion
+            )
+            satellite.components.set(OpacityComponent(opacity: mode.satelliteOpacity(for: tool.id)))
+            pivot.addChild(satellite)
+        }
+    }
+
+    private func addLights() {
+        removeChildren(from: lightRoot)
+
+        let key = DirectionalLight()
+        key.name = "cosmic-key-light"
+        key.light.intensity = 3_200
+        key.light.color = UIColor(red: 0.82, green: 0.9, blue: 1, alpha: 1)
+        key.position = SIMD3<Float>(-5, 8, 9)
+        key.look(at: .zero, from: key.position, relativeTo: nil)
+        lightRoot.addChild(key)
+
+        let rim = DirectionalLight()
+        rim.name = "cosmic-rim-light"
+        rim.light.intensity = 1_200
+        rim.light.color = UIColor(red: 0.75, green: 0.72, blue: 1, alpha: 1)
+        rim.position = SIMD3<Float>(6, 3, -8)
+        rim.look(at: .zero, from: rim.position, relativeTo: nil)
+        lightRoot.addChild(rim)
+    }
+
+    private func addStars() {
+        guard starRoot.children.isEmpty else { return }
+        for index in 0..<160 {
+            starRoot.addChild(PlanetEntityFactory.makeStar(index: index))
+        }
+    }
+
+    private func orbitRings(for style: VisualizationStyle) -> [(radius: Float, opacity: Float, tilt: Float)] {
+        switch style {
+        case .atlasOverlay:
+            return [(3.9, 0.025, 0.00), (5.95, 0.022, 0.03), (7.75, 0.018, -0.03)]
+        case .kineticPockets:
+            return [(3.55, 0.046, 0.02), (5.35, 0.042, -0.06), (7.2, 0.035, 0.08), (8.65, 0.026, -0.1)]
+        case .force3D:
+            return [(3.25, 0.06, 0.0), (5.15, 0.052, 0.18), (7.35, 0.04, -0.16), (9.4, 0.03, 0.26)]
+        case .orbitalGlass:
+            return [(3.7, 0.035, 0.0), (5.45, 0.032, 0.04), (7.15, 0.025, -0.04)]
+        }
+    }
+
+    private func clearDynamicChildren() {
+        removeChildren(from: planetRoot)
+        removeChildren(from: orbitRoot)
+        removeChildren(from: satelliteRoot)
+    }
+
+    private func removeChildren(from entity: Entity) {
+        for child in Array(entity.children) {
+            child.removeFromParent()
+        }
+    }
+
+}
+
+enum UniverseSceneTarget: Equatable {
+    case planet(ToolCategoryId)
+    case tool(String)
+}

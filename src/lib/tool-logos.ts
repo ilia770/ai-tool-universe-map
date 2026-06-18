@@ -50,6 +50,17 @@ const logoDomainOverrides: Record<string, string> = {
   zed: 'zed.dev',
 };
 
+const logoDomainDisplayNames: Record<string, string> = {
+  'adobe.com': 'Adobe',
+  'anthropic.com': 'Anthropic',
+  'apple.com': 'Apple',
+  'github.com': 'GitHub',
+  'heygen.com': 'HeyGen',
+  'openai.com': 'OpenAI',
+  'tauri.app': 'Tauri',
+  'visualstudio.com': 'VS Code',
+};
+
 export const hasLogoDevKey = Boolean(logoDevPublishableKey);
 
 export const getDomainFromUrl = (url?: string) => {
@@ -65,6 +76,12 @@ export const getDomainFromUrl = (url?: string) => {
 
 export const getToolLogoDomain = (tool: Pick<AITool, 'id' | 'url' | 'logoDomain'>) =>
   tool.logoDomain ?? logoDomainOverrides[tool.id] ?? getDomainFromUrl(tool.url);
+
+export const getToolLogoDisplayDomain = (tool: Pick<AITool, 'id' | 'url' | 'logoDomain'>) => {
+  const domain = getToolLogoDomain(tool);
+  if (!domain) return null;
+  return logoDomainDisplayNames[domain] ?? domain.replace(/^app\./, '').split('.').slice(0, 2).join('.');
+};
 
 export const getToolLogoUrl = (tool: Pick<AITool, 'id' | 'url' | 'logoDomain'>, size = 96) => {
   const domain = getToolLogoDomain(tool);
@@ -84,9 +101,14 @@ export const getToolLogoUrl = (tool: Pick<AITool, 'id' | 'url' | 'logoDomain'>, 
 
 export const getToolInitials = (name: string) => {
   const parts = name
-    .replace(/[+/]/g, ' ')
+    .replace(/[+/|]/g, ' ')
+    .replace(/\.(?=\s|$)/g, '')
     .split(/\s+/)
     .filter(Boolean);
+
+  const firstAllCaps = parts.find((part) => /^[A-Z0-9]{2,4}$/.test(part));
+  if (firstAllCaps) return firstAllCaps.slice(0, 3);
+
   const initials = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
   return initials || '?';
 };

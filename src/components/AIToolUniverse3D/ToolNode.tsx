@@ -202,7 +202,16 @@ function ToolNodeImpl({
             onMouseEnter={() => {
               if (interactive) onToolHover(id);
             }}
+            onPointerEnter={() => {
+              if (interactive) onToolHover(id);
+            }}
+            onPointerMove={() => {
+              if (interactive) onToolHover(id);
+            }}
             onMouseLeave={() => {
+              if (interactive) onToolHover(null);
+            }}
+            onPointerLeave={() => {
               if (interactive) onToolHover(null);
             }}
             onFocus={() => {
@@ -217,7 +226,7 @@ function ToolNodeImpl({
               cursor: htmlCursor,
             } as CSSProperties}
           >
-            {logoBadgeMounted && <ToolLogo tool={tool} size={labelIsFocus ? 58 : 38} className="universe-node-logo-badge__image" />}
+            {logoBadgeMounted && <ToolLogo tool={tool} size={labelIsFocus ? 64 : 42} className="universe-node-logo-badge__image" />}
           </button>
         </Html>
       </Billboard>
@@ -241,7 +250,16 @@ function ToolNodeImpl({
             onMouseEnter={() => {
               if (interactive) onToolHover(id);
             }}
+            onPointerEnter={() => {
+              if (interactive) onToolHover(id);
+            }}
+            onPointerMove={() => {
+              if (interactive) onToolHover(id);
+            }}
             onMouseLeave={() => {
+              if (interactive) onToolHover(null);
+            }}
+            onPointerLeave={() => {
               if (interactive) onToolHover(null);
             }}
             style={{ ...labelStyle, cursor: htmlCursor }}

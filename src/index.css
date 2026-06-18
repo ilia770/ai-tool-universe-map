@@ -176,8 +176,8 @@ button {
   --node-logo-color: rgba(103, 232, 249, 0.9);
   --node-logo-glow: rgba(103, 232, 249, 0.28);
   display: inline-flex;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -211,15 +211,15 @@ button {
 }
 
 .universe-node-logo-badge.is-pocket:not(.is-focus) {
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   border-radius: 14px;
   transform: translate3d(0, -14px, 0) scale(1);
 }
 
 .universe-node-logo-badge.is-focus {
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   border-radius: 18px;
   opacity: 1;
   transform: translate3d(0, -18px, 0) scale(1.03);
@@ -232,6 +232,9 @@ button {
 .universe-node-logo-badge__image {
   border-color: rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tool-logo-accent, #67e8f9) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 .universe-label-logo {
