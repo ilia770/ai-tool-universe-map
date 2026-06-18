@@ -19,6 +19,7 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     GENERATE_INFOPLIST_FILE: "YES"
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "NO"
+    INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
 
@@ -29,22 +30,6 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - Sources/MyAIMap
-    # Xcode merges this generated plist with the INFOPLIST_KEY_* build
-    # settings (GENERATE_INFOPLIST_FILE stays YES). UILaunchScreen is not
-    # expressible as an INFOPLIST_KEY, so it lives here: a black launch
-    # screen (LaunchBackground color set) instead of the default white one.
-    info:
-      path: Info.plist
-      properties:
-        UILaunchScreen:
-          UIColorName: LaunchBackground
-        # Lock the app to dark — the whole experience is a dark cosmic
-        # scene; light-mode users otherwise get light system surfaces
-        # (review NEW-10).
-        UIUserInterfaceStyle: Dark
-        # No non-exempt encryption — skips the export-compliance prompt
-        # on every TestFlight upload (review NEW-10).
-        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap
@@ -52,6 +37,12 @@ targets:
         PRODUCT_MODULE_NAME: MyAIMap
         INFOPLIST_KEY_CFBundleDisplayName: "My AI Map"
         INFOPLIST_KEY_UIRequiredDeviceCapabilities: "arm64 metal"
+        # Lock to dark — the whole experience is a dark cosmic scene; light-mode
+        # users otherwise get light system surfaces (ported from main, NEW-10).
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        # No non-exempt encryption — skips the TestFlight export-compliance
+        # prompt on every upload (ported from main, NEW-10).
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -71,12 +62,31 @@ targets:
     dependencies:
       - target: MyAIMap
 
+  MyAIMapUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Tests/MyAIMapUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap.uitests
+        TEST_TARGET_NAME: MyAIMap
+    dependencies:
+      - target: MyAIMap
+
 schemes:
   MyAIMap:
     build:
       targets:
         MyAIMap: all
         MyAIMapTests: [test]
+        MyAIMapUITests: [test]
     test:
+      # MyAIMapUITests is a screenshot-capture harness. It launches the app with
+      # -uitestStatic (forces Reduce Motion → static scene) so XCUITest reaches
+      # quiescence and snapshots reliably. Run all: `xcodebuild test`; or just
+      # the captures: `-only-testing:MyAIMapUITests`.
       targets:
         - MyAIMapTests
+        - MyAIMapUITests

@@ -32,10 +32,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Use the runner's default Xcode — its iOS simulator SDK has a
-      # matching installed runtime. Pinning a specific Xcode_X.app can
-      # select an SDK (e.g. 18.0) whose runtime isn't on the image, and
-      # actool then fails with "No simulator runtime version available".
+      # The app uses iOS 26 Liquid Glass APIs (.glassEffect / Glass.regular),
+      # so it must build with Xcode 26+. The runner's default (16.4) ships an
+      # iOS 18 SDK that lacks those symbols. Select the newest stable Xcode on
+      # the image; its SDK and simulator runtime match (avoids the actool
+      # "no simulator runtime" failure that pinning an arbitrary Xcode_X caused).
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install XcodeGen
         run: brew install xcodegen

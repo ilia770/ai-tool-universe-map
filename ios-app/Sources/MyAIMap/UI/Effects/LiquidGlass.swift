@@ -40,19 +40,21 @@ private struct LiquidGlassNativeModifier<S: InsettableShape>: ViewModifier {
     let strokeStrength: Double
 
     func body(content: Content) -> some View {
-        content
-            .background {
-                shape.fill(.regularMaterial)
-            }
-            .background {
-                if let tint {
-                    shape.fill(tint.opacity(0.10))
+        if let tint {
+            content
+                .glassEffect(.regular.tint(tint.opacity(0.12)).interactive(), in: shape)
+                .overlay {
+                    shape.stroke(BrandColor.strokeStrong.opacity(strokeStrength * 5.55), lineWidth: 1)
                 }
-            }
-            .overlay {
-                shape.stroke(BrandColor.strokeStrong.opacity(strokeStrength * 5.55), lineWidth: 1)
-            }
-            .clipShape(shape)
+                .clipShape(shape)
+        } else {
+            content
+                .glassEffect(.regular.interactive(), in: shape)
+                .overlay {
+                    shape.stroke(BrandColor.strokeStrong.opacity(strokeStrength * 5.55), lineWidth: 1)
+                }
+                .clipShape(shape)
+        }
     }
 }
 

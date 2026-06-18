@@ -83,6 +83,20 @@ struct SearchCoreTests {
         #expect(results("design", tools).map(\.id) == ["name-hit", "summary-hit", "category-hit"])
     }
 
+    @Test func extraKnowledgeMatchRanksBeforeCategoryName() {
+        let tools = [
+            makeTool(id: "category-hit", name: "Sketch", summary: "Vector editor", category: .design),
+            makeTool(id: "knowledge-hit", name: "Backend Box", summary: "Runtime shell", category: .coding),
+        ]
+        let hits = SearchCore.results(
+            for: "database",
+            in: tools,
+            categoryName: categoryName,
+            extraText: { tool in tool.id == "knowledge-hit" ? "Postgres database auth storage" : "" }
+        )
+        #expect(hits.map(\.id) == ["knowledge-hit"])
+    }
+
     // MARK: - Folding
 
     @Test func matchingIsCaseInsensitive() {

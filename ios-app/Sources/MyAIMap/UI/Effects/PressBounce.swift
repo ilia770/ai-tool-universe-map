@@ -47,6 +47,8 @@ struct PressableButtonStyle: ButtonStyle {
 /// Plain bounce without the dim — useful for icon-only buttons where
 /// fading is too much.
 struct BouncyIconButtonStyle: ButtonStyle {
+    var pressedScale: CGFloat = 0.92
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
@@ -60,6 +62,6 @@ struct BouncyIconButtonStyle: ButtonStyle {
 
     private func scale(for configuration: Configuration) -> CGFloat {
         guard configuration.isPressed else { return 1 }
-        return reduceMotion ? 1 : 0.88
+        return reduceMotion ? 1 : pressedScale
     }
 }
