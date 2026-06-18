@@ -89,5 +89,9 @@ struct UniverseRealityView: View {
         )
         .opacity(mode.mapOpacity)
         .blur(radius: CGFloat(mode.mapBlurRadius))
+        .onAppear { cameraRig.prefersInstant = effectiveReduceMotion }
+        .onChange(of: reduceMotion) { _, _ in
+            cameraRig.prefersInstant = effectiveReduceMotion
+        }
     }
 }

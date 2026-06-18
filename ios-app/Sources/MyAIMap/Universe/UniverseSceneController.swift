@@ -96,6 +96,10 @@ final class UniverseSceneController {
         sceneSignature = signature
         clearDynamicChildren()
 
+        // Pause ambient spin/pulse when the universe is only a dimmed backdrop
+        // (detail/chat); honor Reduce Motion the same way.
+        let pauseMotion = reduceMotion || mode.pausesAmbientMotion
+
         for ring in orbitRings(for: visualizationStyle) {
             let ring = PlanetEntityFactory.makeUniverseOrbit(
                 radius: ring.radius,
@@ -112,7 +116,7 @@ final class UniverseSceneController {
                 data: planet,
                 isSelected: isSelected,
                 visualizationStyle: visualizationStyle,
-                reduceMotion: reduceMotion
+                reduceMotion: pauseMotion
             )
             entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
             planetRoot.addChild(entity)

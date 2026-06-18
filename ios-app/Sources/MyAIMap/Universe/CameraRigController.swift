@@ -29,6 +29,12 @@ final class CameraRigController {
     /// gesture frame (perf), then refresh once the gesture ends.
     private(set) var isInteracting = false
 
+    /// When set (Reduce Motion, or `-uitestStatic`), cinematic fly-to is
+    /// collapsed to an instant cut: focus/overview snap rather than animate.
+    /// Accessibility + lets XCUITest reach quiescence (camera transition Tasks
+    /// otherwise keep the app busy like the ambient scene animations did).
+    var prefersInstant = false
+
     @ObservationIgnored private(set) weak var camera: PerspectiveCamera?
     @ObservationIgnored private var activeGestureCount = 0
     @ObservationIgnored private var zoomBaseDistance: Float?
@@ -234,6 +240,7 @@ final class CameraRigController {
 
     private func applyCamera(animated: Bool, duration: TimeInterval = 0.8) {
         guard let camera else { return }
+        let animated = animated && !prefersInstant
         let eye = eyePosition()
         var transform = camera.transform
         transform.translation = eye

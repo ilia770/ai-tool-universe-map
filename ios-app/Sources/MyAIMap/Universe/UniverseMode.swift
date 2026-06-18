@@ -97,6 +97,15 @@ enum UniverseMode: Equatable, Sendable {
         return false
     }
 
+    /// In detail/chat the universe is a dimmed atmospheric backdrop, so its
+    /// per-planet spin/pulse animations are wasted GPU work behind the sheet.
+    /// The scene already rebuilds on entering these modes (mode is in the scene
+    /// signature), so building static here cleanly pauses ambient motion and
+    /// resumes it on return to a navigable mode.
+    var pausesAmbientMotion: Bool {
+        isDetailOpen || isChatOpen
+    }
+
     var allowsMapGestures: Bool {
         switch self {
         case .overview, .branchFocus, .toolSelected:

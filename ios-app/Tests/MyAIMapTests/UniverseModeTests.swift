@@ -67,4 +67,15 @@ struct UniverseModeTests {
         #expect(chat.dimOpacity < 0.5)
         #expect(chat.orbitOpacityMultiplier == 0)
     }
+
+    @Test func ambientMotionPausesOnlyWhenUniverseIsBackdrop() {
+        // Detail/chat dim the universe to a backdrop → pause ambient motion.
+        #expect(UniverseMode.detail(.analytics, "posthog").pausesAmbientMotion)
+        #expect(UniverseMode.chatOpen(.analytics, "posthog").pausesAmbientMotion)
+        #expect(UniverseMode.chatOpen(nil, nil).pausesAmbientMotion)
+        // Navigable modes keep planets alive.
+        #expect(!UniverseMode.overview.pausesAmbientMotion)
+        #expect(!UniverseMode.branchFocus(.analytics).pausesAmbientMotion)
+        #expect(!UniverseMode.toolSelected(.analytics, "posthog").pausesAmbientMotion)
+    }
 }

@@ -38,6 +38,10 @@ struct CategoryRail: View {
                                 .stroke(isSelected ? category.color.swiftUIColor.opacity(0.64) : .white.opacity(0.12), lineWidth: 1)
                         )
                         .shadow(color: category.color.swiftUIColor.opacity(isSelected ? 0.26 : 0), radius: isSelected ? 12 : 0, x: 0, y: 6)
+                        // Keep the visual capsule compact but guarantee a 44pt
+                        // tap target (Apple HIG minimum) around it.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableButtonStyle(pressedScale: 0.93, haptic: nil, pressedOpacity: 0.92))
                     .brandAnimation(BrandMotion.nudge, value: model.selection.activeCategory)
