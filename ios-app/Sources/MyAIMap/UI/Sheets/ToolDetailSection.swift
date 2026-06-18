@@ -64,6 +64,11 @@ struct ToolDetailSection: View {
     private var headerBlock: some View {
         VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             HStack(alignment: .top, spacing: BrandSpacing.m.value) {
+                ToolLogoView(
+                    tool: selectedTool,
+                    accent: selectedCategoryModel.color.swiftUIColor
+                )
+
                 VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                     Text(selectedCategoryModel.name.uppercased())
                         .font(.caption2.weight(.bold))
@@ -132,19 +137,9 @@ struct ToolDetailSection: View {
                     metadataDivider
                     metadataRow("Source domain", domain, icon: "globe")
                 }
-                if let classification = selectedTool.classification {
+                if let reason = selectedTool.classification?.reason {
                     metadataDivider
-                    metadataRow("Match confidence", "\(Int((classification.confidence * 100).rounded()))%", icon: "gauge.medium")
-                    metadataDivider
-                    metadataRow("Why it belongs", classification.reason, icon: "text.bubble")
-                    if !classification.matchedKeywords.isEmpty {
-                        metadataDivider
-                        VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-                            metadataLabel("Matched terms", icon: "tag")
-                            chipGrid(classification.matchedKeywords, tint: selectedCategoryModel.color.swiftUIColor, symbol: "number")
-                        }
-                        .padding(.vertical, BrandSpacing.m.value)
-                    }
+                    metadataRow("Why it belongs", reason, icon: "text.bubble")
                 }
             }
         }
