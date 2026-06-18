@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Edge-only branch navigator for the universe.
 ///
@@ -145,11 +146,12 @@ struct UniverseRailView: View {
 
     private func beginHold() {
         guard !gestureState.isActive else { return }
-        gestureState.begin(activeCategory: activeCategory, activeIndex: activeIndex)
         BrandHaptics.fire(.light)
         onActiveChange(true)
         withAnimation(BrandMotion.nudge) {
-            gestureState.phase = .active
+            // Resigns the keyboard on the inactive→active edge so the rail
+            // never coexists with an open keyboard (UI_STATE_MACHINE.md).
+            gestureState.begin(activeCategory: activeCategory, activeIndex: activeIndex)
         }
     }
 
@@ -209,9 +211,30 @@ struct UniverseRailGestureState {
         phase == .active
     }
 
-    mutating func begin(activeCategory: ToolCategoryId, activeIndex: Int) {
+    /// Transition into the active (hold) state. Fires `resignKeyboard` exactly
+    /// once on the inactive→active edge so the rail never coexists with an open
+    /// keyboard (forbidden state in UI_STATE_MACHINE.md). No-op if already active.
+    mutating func begin(
+        activeCategory: ToolCategoryId,
+        activeIndex: Int,
+        resignKeyboard: () -> Void = UniverseRailGestureState.resignFirstResponder
+    ) {
+        guard !isActive else { return }
+        resignKeyboard()
+        phase = .active
         hoveredCategory = activeCategory
         holdStartIndex = activeIndex
+    }
+
+    static func resignFirstResponder() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
     }
 
     mutating func updateHover(_ category: ToolCategoryId) -> Bool {
