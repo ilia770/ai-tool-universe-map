@@ -18,7 +18,9 @@ struct ToolDetailSection: View {
     }
 
     private var selectedTool: Tool {
-        model.selectedTool
+        // This sheet is only presented once a tool is selected, so
+        // `model.selectedTool` is non-nil here; fall back defensively.
+        model.selectedTool ?? UniverseSeed.tools[0]
     }
 
     private var knowledge: ToolKnowledge {

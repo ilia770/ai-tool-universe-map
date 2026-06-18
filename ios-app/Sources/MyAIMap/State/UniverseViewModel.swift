@@ -28,6 +28,21 @@ final class UniverseViewModel {
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
 
+    @ObservationIgnored private let store: UniverseStore
+
+    /// Loads any previously-built universe from local storage. A brand-new user
+    /// has none, so they start with an empty universe (see `UniverseStore`).
+    init(store: UniverseStore = .standard) {
+        self.store = store
+        let saved = store.load()
+        self.customTools = saved.tools
+        self.hiddenToolIDs = saved.hidden
+    }
+
+    private func persist() {
+        store.save(tools: customTools, hidden: hiddenToolIDs)
+    }
+
     // MARK: - Derived state
 
     /// Read-only projection of `universeMode` for surfaces that think in terms
@@ -48,8 +63,16 @@ final class UniverseViewModel {
         )
     }
 
+    /// The user's universe is exactly the tools they have added. The seed is
+    /// sample data (`loadSampleUniverse()`), never a silent default.
     var allTools: [Tool] {
-        UniverseSeed.tools + customTools
+        customTools
+    }
+
+    /// True before the user has added (or sampled) anything — drives the
+    /// empty-state onboarding.
+    var isUniverseEmpty: Bool {
+        visibleAllTools.isEmpty
     }
 
     var visibleAllTools: [Tool] {
@@ -71,11 +94,12 @@ final class UniverseViewModel {
         return activeTools.isEmpty ? tools(in: .core) : activeTools
     }
 
-    var selectedTool: Tool {
+    /// The currently selected tool, or `nil` when the universe is empty (no
+    /// tool to select yet).
+    var selectedTool: Tool? {
         visibleAllTools.first { $0.id == selection.selectedToolID }
             ?? visibleTools.first
             ?? visibleAllTools.first
-            ?? UniverseSeed.tools[0]
     }
 
     /// Ranked matches via `SearchCore` (name-prefix > name > summary >
@@ -101,6 +125,40 @@ final class UniverseViewModel {
     }
 
     // MARK: - Intents
+
+    /// Populates the empty universe with the bundled sample (the founder's
+    /// seed), skipping anything already present. Used by the empty-state
+    /// "load a sample universe" affordance.
+    @discardableResult
+    func loadSampleUniverse() -> Bool {
+        let existingIDs = Set(customTools.map(\.id))
+        let sample = UniverseSeed.tools.filter { !existingIDs.contains($0.id) }
+        guard !sample.isEmpty else { return false }
+        customTools.append(contentsOf: sample)
+        hiddenToolIDs.subtract(sample.map(\.id))
+        persist()
+        recordActivity(
+            kind: .added,
+            title: "Loaded sample universe",
+            detail: "\(sample.count) tools added",
+            toolID: nil
+        )
+        return true
+    }
+
+    /// Wipes the user's universe back to empty (custom tools + hidden ids).
+    func resetUniverse() {
+        customTools.removeAll()
+        hiddenToolIDs.removeAll()
+        universeMode = .overview
+        persist()
+        recordActivity(
+            kind: .removed,
+            title: "Reset universe",
+            detail: "Cleared all tools",
+            toolID: nil
+        )
+    }
 
     func selectCategory(_ id: ToolCategoryId) {
         // Re-tapping the active category is a no-op so it never resets the
@@ -174,6 +232,7 @@ final class UniverseViewModel {
     func deleteTool(_ id: String) -> Bool {
         guard let tool = visibleAllTools.first(where: { $0.id == id }), tool.category != .core else { return false }
         hiddenToolIDs.insert(id)
+        persist()
         recordActivity(
             kind: .removed,
             title: "Removed \(tool.name)",
@@ -193,6 +252,7 @@ final class UniverseViewModel {
     @discardableResult
     func restoreTool(_ id: String) -> Bool {
         guard let tool = allTools.first(where: { $0.id == id }), hiddenToolIDs.remove(id) != nil else { return false }
+        persist()
         recordActivity(
             kind: .restored,
             title: "Restored \(tool.name)",
@@ -231,6 +291,7 @@ final class UniverseViewModel {
             )
         )
         customTools.append(tool)
+        persist()
         recordActivity(
             kind: .added,
             title: "Added \(tool.name)",

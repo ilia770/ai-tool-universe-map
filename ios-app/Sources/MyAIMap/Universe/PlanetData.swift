@@ -30,8 +30,12 @@ struct PlanetData: Identifiable, Sendable {
 
     static func makePlanets(categories: [ToolCategory], tools: [Tool]) -> [PlanetData] {
         let branches = categories.filter { $0.id != .core }
-        return categories.map { category in
+        return categories.compactMap { category in
             let categoryTools = tools.filter { $0.category == category.id }
+            // A planet only exists once it holds at least one tool. An empty
+            // universe renders no planets (blank starfield); the user grows it
+            // by adding tools, and each new category lights up its planet.
+            guard !categoryTools.isEmpty else { return nil }
             let isCore = category.id == .core
             let branchIndex = branches.firstIndex { $0.id == category.id } ?? 0
             return PlanetData(
@@ -53,8 +57,27 @@ struct PlanetData: Identifiable, Sendable {
         }
     }
 
+    /// A core planet for callers that need a non-optional fallback (e.g. the
+    /// selected-planet projection). Safe even when the universe is empty: with
+    /// no core tools `makePlanets` yields nothing, so synthesize an empty core
+    /// at the origin rather than crash.
     static func core(from tools: [Tool]) -> PlanetData {
-        makePlanets(categories: [UniverseSeed.category(.core)], tools: tools)[0]
+        let category = UniverseSeed.category(.core)
+        if let planet = makePlanets(categories: [category], tools: tools).first {
+            return planet
+        }
+        return PlanetData(
+            id: .core,
+            title: "Founder OS",
+            subtitle: category.description,
+            color: category.color,
+            accent: category.glow,
+            position3D: .zero,
+            radius: 0.94,
+            toolCount: 0,
+            tools: [],
+            categoryType: .core
+        )
     }
 }
 

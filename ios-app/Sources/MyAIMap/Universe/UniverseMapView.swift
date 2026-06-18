@@ -34,7 +34,10 @@ struct UniverseMapView: View {
            let tool = model.visibleAllTools.first(where: { $0.id == selectedToolID }) {
             return tool
         }
-        return model.selectedTool
+        // Defensive fallback: detail/tool UI is only reachable once a real tool
+        // is selected, so `model.selectedTool` is non-nil there. The empty
+        // universe never opens these surfaces (gated by the empty state).
+        return model.selectedTool ?? UniverseSeed.tools[0]
     }
 
     var body: some View {
