@@ -145,6 +145,35 @@ enum PlanetEntityFactory {
         return ring
     }
 
+    /// Shared unit-box mesh for every structural link, reused across the one
+    /// transform + material so links keep allocations down.
+    private static let linkMesh = MeshResource.generateBox(size: 1)
+
+    /// A static structural connection line (core→category, category→tool) drawn
+    /// as a thin box stretched/oriented via `LinkGeometry`. UnlitMaterial so it
+    /// reads the same regardless of the lighting rig. NOT tappable (no
+    /// InputTargetComponent/collision) so a link never steals a tap from the
+    /// node under it.
+    static func makeLink(
+        from: SIMD3<Float>,
+        to: SIMD3<Float>,
+        color: UIColor,
+        opacity: Float,
+        thickness: Float,
+        name: String
+    ) -> ModelEntity {
+        var material = UnlitMaterial(color: color)
+        material.blending = .transparent(opacity: .init(floatLiteral: opacity))
+        let link = ModelEntity(mesh: linkMesh, materials: [material])
+        link.name = name
+
+        let t = LinkGeometry.transform(from: from, to: to, thickness: thickness)
+        link.position = t.position
+        link.scale = t.scale
+        link.orientation = t.rotation
+        return link
+    }
+
     static func makeStar(index: Int) -> ModelEntity {
         let radius = Float(0.008 + Double(index % 4) * 0.004)
         let color: UIColor = index.isMultiple(of: 9)

@@ -122,6 +122,23 @@ final class UniverseSceneController {
             planetRoot.addChild(entity)
         }
 
+        // Structural graph edges: founder core (origin) → each category planet
+        // (primary tier). Static lines that fade with the orbit opacity, so they
+        // vanish in detail/chat and soften when focused on a single branch.
+        let linkFade = mode.orbitOpacityMultiplier / UniverseMode.overview.orbitOpacityMultiplier
+        if linkFade > 0.001 {
+            for planet in planets where planet.id != .core {
+                orbitRoot.addChild(PlanetEntityFactory.makeLink(
+                    from: .zero,
+                    to: planet.position3D,
+                    color: planet.uiColor,
+                    opacity: 0.5 * linkFade,
+                    thickness: 0.02,
+                    name: "link:core-\(planet.id.rawValue)"
+                ))
+            }
+        }
+
         if mode.showsSatellites,
            let selectedPlanet = planets.first(where: { $0.id == mode.focusedCategory }) {
             addSatellites(
@@ -176,6 +193,20 @@ final class UniverseSceneController {
             )
             satellite.components.set(OpacityComponent(opacity: mode.satelliteOpacity(for: tool.id)))
             pivot.addChild(satellite)
+
+            // Structural graph edge: category anchor → tool satellite (secondary
+            // tier — dimmer/thinner than core→category). Static, in world space.
+            let toolWorld = UniverseSpatialLayout.satelliteWorldPosition(
+                for: tool, in: planet, index: index, count: planet.tools.count
+            )
+            satelliteRoot.addChild(PlanetEntityFactory.makeLink(
+                from: planet.position3D,
+                to: toolWorld,
+                color: category.color.uiColor,
+                opacity: 0.22,
+                thickness: 0.012,
+                name: "link:\(planet.id.rawValue)-\(tool.id)"
+            ))
         }
     }
 
