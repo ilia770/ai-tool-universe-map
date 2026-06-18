@@ -113,6 +113,47 @@ struct LabelPackerTests {
         #expect(placed.first?.id == "high")
     }
 
+    // Reserved rect = a label from another layer (e.g. focused planet label)
+    // that this layer's tool labels must not overlap (cross-layer de-overlap).
+    private let reservedRect = CGRect(x: 135, y: 400, width: 120, height: 44) // center (195,422)
+
+    @Test func reservedRectCullsBlockedLabel() {
+        // A label landing on the reserved rect with no room to dodge is culled,
+        // never placed overlapping the other layer.
+        let placed = LabelPacker.pack(
+            [candidate("tool", x: 195, y: 422)],
+            bounds: bounds, safe: safe, maxCount: 8, offsets: [], reserved: [reservedRect]
+        )
+        #expect(placed.isEmpty)
+    }
+
+    @Test func reservedRectIsDodgedByOffset() {
+        // A label near the reserved rect offsets clear of it and is placed
+        // without overlapping it.
+        let placed = LabelPacker.pack(
+            [candidate("tool", x: 195, y: 452)],
+            bounds: bounds, safe: safe, maxCount: 8, reserved: [reservedRect]
+        )
+        #expect(placed.count == 1)
+        let rect = CGRect(
+            x: placed[0].position.x - labelSize.width / 2,
+            y: placed[0].position.y - labelSize.height / 2,
+            width: labelSize.width,
+            height: labelSize.height
+        )
+        #expect(!rect.intersects(reservedRect))
+    }
+
+    @Test func pinnedLabelOverridesReservedRect() {
+        // The selected label is pinned and must show even if it lands on a
+        // reserved cross-layer rect.
+        let placed = LabelPacker.pack(
+            [candidate("selected", x: 195, y: 422, pinned: true)],
+            bounds: bounds, safe: safe, maxCount: 8, offsets: [], reserved: [reservedRect]
+        )
+        #expect(placed.contains { $0.id == "selected" })
+    }
+
     private func assertNoOverlap(_ placed: [LabelPacker.Placement]) {
         for i in 0..<placed.count {
             for j in (i + 1)..<placed.count {

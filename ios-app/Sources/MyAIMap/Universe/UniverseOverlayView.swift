@@ -263,7 +263,8 @@ struct UniverseOverlayView: View {
             candidates,
             bounds: CGRect(origin: .zero, size: size),
             safe: toolLabelSafeInsets(),
-            maxCount: 4
+            maxCount: 4,
+            reserved: focusedPlanetLabelRects(in: size)
         )
 
         return packed.compactMap { placement -> ToolLabelPlacement? in
@@ -390,6 +391,17 @@ struct UniverseOverlayView: View {
             width: width,
             height: height
         )
+    }
+
+    /// The focused planet label's screen rect in branch/tool mode, so the
+    /// tool-label layer can reserve it and not overlap it (cross-layer
+    /// de-overlap). Empty when no focused planet label is showing.
+    private func focusedPlanetLabelRects(in size: CGSize) -> [CGRect] {
+        guard mode.showsPlanetLabels else { return [] }
+        let projection = cameraRig.projection(for: selectedPlanet.position3D, in: size)
+        guard shouldShowLabel(for: selectedPlanet, projection: projection) else { return [] }
+        let center = labelPosition(for: selectedPlanet, projection: projection, in: size)
+        return [labelRect(center: center, isSelected: true)]
     }
 
     private func clampedToolLabelPoint(_ point: CGPoint, in size: CGSize) -> CGPoint {

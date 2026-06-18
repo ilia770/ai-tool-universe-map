@@ -46,6 +46,10 @@ enum LabelPacker {
     ]
 
     /// Pack labels. Deterministic for a fixed input.
+    /// - Parameter reserved: screen rects already occupied by labels from
+    ///   another layer (e.g. the focused planet label when packing tool
+    ///   labels). Non-pinned candidates dodge these too, so the two label
+    ///   layers do not overlap each other ("cross-layer" de-overlap).
     /// - Returns: placements for the labels that survived de-overlap, in
     ///   placement order (pinned + highest priority first).
     static func pack(
@@ -53,7 +57,8 @@ enum LabelPacker {
         bounds: CGRect,
         safe: SafeInsets,
         maxCount: Int,
-        offsets: [CGSize] = defaultOffsets
+        offsets: [CGSize] = defaultOffsets,
+        reserved: [CGRect] = []
     ) -> [Placement] {
         // Stable ordering: pinned first, then by ascending priority, then by id
         // so the result never depends on input order.
@@ -66,7 +71,9 @@ enum LabelPacker {
         }.map(\.element)
 
         var placed: [Placement] = []
-        var occupied: [CGRect] = []
+        // Seed with cross-layer reserved rects so this layer's labels dodge
+        // labels already placed by another layer.
+        var occupied: [CGRect] = reserved
         // Always include the anchor itself as a fallback offset so a label that
         // dodges off every offset still lands at its clamped anchor.
         let tryOffsets = offsets.isEmpty ? [CGSize.zero] : offsets
