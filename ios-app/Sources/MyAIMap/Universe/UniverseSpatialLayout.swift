@@ -1,5 +1,132 @@
+import CoreGraphics
 import Foundation
 import simd
+
+/// Pure screen-space label de-overlap ("bubble soup" fix).
+///
+/// Given projected label anchors with sizes and priorities, decide where each
+/// label sits so that placed labels do not overlap, every position is clamped
+/// inside a safe screen area, and any label that cannot find a free slot is
+/// culled. Pinned labels (e.g. the current selection) are always placed.
+///
+/// This is intentionally free of SwiftUI so it can be unit-tested directly.
+enum LabelPacker {
+    struct SafeInsets: Equatable, Sendable {
+        var top: CGFloat
+        var leading: CGFloat
+        var bottom: CGFloat
+        var trailing: CGFloat
+    }
+
+    struct Candidate: Equatable, Sendable {
+        let id: String
+        /// Projected anchor (where the label *wants* to be before de-overlap).
+        let anchor: CGPoint
+        let size: CGSize
+        /// Lower value == more important (placed first, wins contested slots).
+        let priority: Int
+        /// Pinned labels are always placed (selection must stay legible).
+        var pinned: Bool = false
+    }
+
+    struct Placement: Equatable, Sendable {
+        let id: String
+        let position: CGPoint
+    }
+
+    /// Default candidate offsets tried, in order, to dodge a collision.
+    static let defaultOffsets: [CGSize] = [
+        .zero,
+        CGSize(width: 0, height: -34),
+        CGSize(width: 0, height: 34),
+        CGSize(width: -36, height: 0),
+        CGSize(width: 36, height: 0),
+        CGSize(width: -36, height: -30),
+        CGSize(width: 36, height: 30),
+    ]
+
+    /// Pack labels. Deterministic for a fixed input.
+    /// - Returns: placements for the labels that survived de-overlap, in
+    ///   placement order (pinned + highest priority first).
+    static func pack(
+        _ candidates: [Candidate],
+        bounds: CGRect,
+        safe: SafeInsets,
+        maxCount: Int,
+        offsets: [CGSize] = defaultOffsets
+    ) -> [Placement] {
+        // Stable ordering: pinned first, then by ascending priority, then by id
+        // so the result never depends on input order.
+        let ordered = candidates.enumerated().sorted { lhs, rhs in
+            if lhs.element.pinned != rhs.element.pinned { return lhs.element.pinned }
+            if lhs.element.priority != rhs.element.priority {
+                return lhs.element.priority < rhs.element.priority
+            }
+            return lhs.element.id < rhs.element.id
+        }.map(\.element)
+
+        var placed: [Placement] = []
+        var occupied: [CGRect] = []
+        // Always include the anchor itself as a fallback offset so a label that
+        // dodges off every offset still lands at its clamped anchor.
+        let tryOffsets = offsets.isEmpty ? [CGSize.zero] : offsets
+
+        for candidate in ordered {
+            let isPinned = candidate.pinned
+            if !isPinned && placed.count >= maxCount { continue }
+
+            var chosen: CGPoint?
+            for offset in tryOffsets {
+                let raw = CGPoint(
+                    x: candidate.anchor.x + offset.width,
+                    y: candidate.anchor.y + offset.height
+                )
+                let clamped = clamp(raw, size: candidate.size, bounds: bounds, safe: safe)
+                let rect = rect(center: clamped, size: candidate.size)
+                if !occupied.contains(where: { $0.intersects(rect) }) {
+                    chosen = clamped
+                    break
+                }
+            }
+
+            if let chosen {
+                placed.append(Placement(id: candidate.id, position: chosen))
+                occupied.append(rect(center: chosen, size: candidate.size))
+            } else if isPinned {
+                // Pinned labels must remain visible even when every slot is
+                // contested: place at the clamped anchor regardless of overlap.
+                let clamped = clamp(candidate.anchor, size: candidate.size, bounds: bounds, safe: safe)
+                placed.append(Placement(id: candidate.id, position: clamped))
+                occupied.append(rect(center: clamped, size: candidate.size))
+            }
+            // Non-pinned with no free slot: culled (drop it).
+        }
+
+        return placed
+    }
+
+    static func clamp(_ point: CGPoint, size: CGSize, bounds: CGRect, safe: SafeInsets) -> CGPoint {
+        let halfW = size.width / 2
+        let halfH = size.height / 2
+        let minX = safe.leading + halfW
+        let maxX = bounds.width - safe.trailing - halfW
+        let minY = safe.top + halfH
+        let maxY = bounds.height - safe.bottom - halfH
+        return CGPoint(
+            x: minX <= maxX ? min(max(point.x, minX), maxX) : (minX + maxX) / 2,
+            y: minY <= maxY ? min(max(point.y, minY), maxY) : (minY + maxY) / 2
+        )
+    }
+
+    private static func rect(center: CGPoint, size: CGSize) -> CGRect {
+        CGRect(
+            x: center.x - size.width / 2,
+            y: center.y - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+}
 
 /// Shared spatial math for RealityKit entities and SwiftUI overlays.
 ///

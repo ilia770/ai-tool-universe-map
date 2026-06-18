@@ -136,4 +136,41 @@ struct UniverseSpatialLayoutTests {
 
         #expect(position != analytics.position3D)
     }
+
+    @Test func satelliteOffsetIsDeterministic() {
+        let a = UniverseSpatialLayout.satelliteOffset(index: 3, count: 7, orbit: .middle)
+        let b = UniverseSpatialLayout.satelliteOffset(index: 3, count: 7, orbit: .middle)
+        #expect(a == b)
+    }
+
+    @Test func satellitesOnSameRingKeepDeterministicAngularSpacing() {
+        // Tools on the same ring must be evenly spaced by 2π/count so the 3D
+        // nodes (and their labels) never collapse onto one another.
+        let count = 6
+        var previousAngle: Float?
+        for index in 0..<count {
+            let offset = UniverseSpatialLayout.satelliteOffset(index: index, count: count, orbit: .inner)
+            let angle = atan2(offset.z, offset.x)
+            if let previousAngle {
+                let raw = abs(angle - previousAngle)
+                let separation = min(raw, 2 * .pi - raw)
+                #expect(separation > 0.3, "ring slots \(index - 1)/\(index) too close: \(separation)")
+            }
+            previousAngle = angle
+        }
+    }
+
+    @Test func satellitesInSameBranchDoNotCoincide() {
+        let count = 8
+        var positions: [SIMD3<Float>] = []
+        for index in 0..<count {
+            positions.append(UniverseSpatialLayout.satelliteOffset(index: index, count: count, orbit: .inner))
+        }
+        for i in 0..<positions.count {
+            for j in (i + 1)..<positions.count {
+                #expect(simd_distance(positions[i], positions[j]) > 0.4,
+                        "satellites \(i)/\(j) overlap in 3D")
+            }
+        }
+    }
 }

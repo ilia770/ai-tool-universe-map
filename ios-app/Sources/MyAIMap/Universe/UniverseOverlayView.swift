@@ -22,19 +22,28 @@ struct UniverseOverlayView: View {
         mode.selectedToolID != nil && selectedTool.category == selectedPlanet.id && selectedPlanet.id != .core
     }
 
+    /// Screen-space labels re-project from the camera every render. While the
+    /// camera is transitioning OR actively being dragged/pinched, suppress them
+    /// so we do not re-project every label on every gesture frame (perf) and so
+    /// labels settle around the focus instead of smearing mid-gesture. They
+    /// reappear the moment the interaction ends.
+    private var labelsQuiescent: Bool {
+        !cameraRig.isTransitioning && !cameraRig.isInteracting
+    }
+
     var body: some View {
         ZStack {
-            if mode.showsPlanetLabels && !cameraRig.isTransitioning {
+            if mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolAnchor && !cameraRig.isTransitioning {
+            if mode.showsToolAnchor && labelsQuiescent {
                 toolAnchorLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolLabels && !cameraRig.isTransitioning {
+            if mode.showsToolLabels && labelsQuiescent {
                 toolLabelLayer
                     .allowsHitTesting(false)
             }
@@ -202,7 +211,9 @@ struct UniverseOverlayView: View {
 
     private func toolLabelPlacements(in size: CGSize) -> [ToolLabelPlacement] {
         let selectedToolID = mode.selectedToolID
-        let candidates = selectedPlanet.tools.enumerated().compactMap { index, tool -> ToolLabelPlacement? in
+        var byID: [String: ToolLabelPlacement] = [:]
+        var rank = 0
+        let candidates = selectedPlanet.tools.enumerated().compactMap { index, tool -> LabelPacker.Candidate? in
             // Core's central founder-os has no satellite; it carries the
             // planet label instead.
             if selectedPlanet.id == .core, tool.id == PlanetData.centralCoreToolID {
@@ -219,59 +230,52 @@ struct UniverseOverlayView: View {
             )
             let projection = cameraRig.projection(for: worldPosition, in: size)
             guard projection.isVisible else { return nil }
-            guard projection.opacity > 0.32 || tool.id == selectedToolID else { return nil }
+            let isSelected = tool.id == selectedToolID
+            guard projection.opacity > 0.32 || isSelected else { return nil }
 
-            let position = toolLabelPosition(
+            let anchor = toolLabelPosition(
                 from: projection.point,
                 around: selectedPlanet.position3D,
                 in: size
             )
-            let isSelected = tool.id == selectedToolID
-            return ToolLabelPlacement(
+            byID[tool.id] = ToolLabelPlacement(
                 tool: tool,
                 projection: projection,
-                position: position,
+                position: anchor,
                 opacity: isSelected ? 1 : min(0.9, max(0.62, projection.opacity * 0.86)),
                 scale: isSelected ? 1.06 : min(1, max(0.82, projection.scale * 0.94))
             )
-        }
-        .sorted {
-            if $0.tool.id == selectedToolID { return true }
-            if $1.tool.id == selectedToolID { return false }
-            return $0.projection.opacity > $1.projection.opacity
-        }
-
-        var placed: [ToolLabelPlacement] = []
-        var occupied: [CGRect] = []
-
-        for candidate in candidates {
-            guard placed.count < 4 else { break }
-            let offsets: [CGSize] = [
-                .zero,
-                CGSize(width: 0, height: -28),
-                CGSize(width: 0, height: 28),
-                CGSize(width: -32, height: 0),
-                CGSize(width: 32, height: 0),
-            ]
-
-            for offset in offsets {
-                var next = candidate
-                next.position = clampedToolLabelPoint(
-                    CGPoint(
-                        x: candidate.position.x + offset.width,
-                        y: candidate.position.y + offset.height
-                    ),
-                    in: size
-                )
-                let rect = toolLabelRect(center: next.position, isSelected: next.tool.id == selectedToolID)
-                guard !occupied.contains(where: { $0.intersects(rect) }) else { continue }
-                placed.append(next)
-                occupied.append(rect)
-                break
-            }
+            // Lower priority value == placed first. Selected wins; others rank
+            // by descending opacity (brighter/closer first), made deterministic
+            // by a stable enumeration tie-break.
+            let priority = isSelected ? Int.min : Int((1 - projection.opacity) * 1000) * 100 + rank
+            rank += 1
+            return LabelPacker.Candidate(
+                id: tool.id,
+                anchor: anchor,
+                size: toolLabelRect(center: anchor, isSelected: isSelected).size,
+                priority: priority,
+                pinned: isSelected
+            )
         }
 
-        return placed
+        let packed = LabelPacker.pack(
+            candidates,
+            bounds: CGRect(origin: .zero, size: size),
+            safe: toolLabelSafeInsets(),
+            maxCount: 4
+        )
+
+        return packed.compactMap { placement -> ToolLabelPlacement? in
+            guard var resolved = byID[placement.id] else { return nil }
+            resolved.position = placement.position
+            return resolved
+        }
+    }
+
+    private func toolLabelSafeInsets() -> LabelPacker.SafeInsets {
+        // Mirrors the prior clampedToolLabelPoint bounds.
+        LabelPacker.SafeInsets(top: 112, leading: 70, bottom: 244, trailing: 108)
     }
 
     private func toolLabelPosition(from point: CGPoint, around planetPosition: SIMD3<Float>, in size: CGSize) -> CGPoint {
@@ -294,61 +298,50 @@ struct UniverseOverlayView: View {
     }
 
     private func overviewLabelPlacements(in size: CGSize) -> [PlanetLabelPlacement] {
-        let candidates = planets.compactMap { planet -> PlanetLabelPlacement? in
+        var byID: [ToolCategoryId: PlanetLabelPlacement] = [:]
+        let candidates = planets.compactMap { planet -> LabelPacker.Candidate? in
             let projection = cameraRig.projection(for: planet.position3D, in: size)
             guard shouldShowLabel(for: planet, projection: projection) else { return nil }
             let coreGuardCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.40)
             if hypot(projection.point.x - coreGuardCenter.x, projection.point.y - coreGuardCenter.y) < 86 {
                 return nil
             }
-            return PlanetLabelPlacement(
+            let anchor = labelPosition(for: planet, projection: projection, in: size)
+            byID[planet.id] = PlanetLabelPlacement(
                 planet: planet,
                 projection: projection,
-                position: labelPosition(for: planet, projection: projection, in: size)
+                position: anchor
+            )
+            let isSelected = planet.id == selectedPlanet.id
+            return LabelPacker.Candidate(
+                id: planet.id.rawValue,
+                anchor: anchor,
+                size: labelRect(center: anchor, isSelected: isSelected).size,
+                priority: isSelected ? Int.min : overviewLabelPriority(for: planet.id),
+                pinned: isSelected
             )
         }
-        .sorted {
-            if $0.planet.id == selectedPlanet.id { return true }
-            if $1.planet.id == selectedPlanet.id { return false }
-            let leftPriority = overviewLabelPriority(for: $0.planet.id)
-            let rightPriority = overviewLabelPriority(for: $1.planet.id)
-            if leftPriority != rightPriority {
-                return leftPriority < rightPriority
-            }
-            return $0.projection.opacity > $1.projection.opacity
+
+        let packed = LabelPacker.pack(
+            candidates,
+            bounds: CGRect(origin: .zero, size: size),
+            safe: overviewSafeInsets(in: size),
+            maxCount: 5
+        )
+
+        return packed.compactMap { placement -> PlanetLabelPlacement? in
+            guard let id = ToolCategoryId(rawValue: placement.id),
+                  var resolved = byID[id] else { return nil }
+            resolved.position = placement.position
+            return resolved
         }
+    }
 
-        var placed: [PlanetLabelPlacement] = []
-        var occupied: [CGRect] = []
-
-        for candidate in candidates {
-            guard placed.count < 5 else { break }
-            let offsets: [CGSize] = [
-                .zero,
-                CGSize(width: 0, height: -42),
-                CGSize(width: 0, height: 42),
-                CGSize(width: -34, height: 0),
-                CGSize(width: 34, height: 0),
-            ]
-
-            for offset in offsets {
-                var next = candidate
-                next.position = clampedOverviewLabelPoint(
-                    CGPoint(
-                        x: candidate.position.x + offset.width,
-                        y: candidate.position.y + offset.height
-                    ),
-                    in: size
-                )
-                let rect = labelRect(center: next.position, isSelected: next.planet.id == selectedPlanet.id)
-                guard !occupied.contains(where: { $0.intersects(rect) }) else { continue }
-                placed.append(next)
-                occupied.append(rect)
-                break
-            }
-        }
-
-        return placed
+    private func overviewSafeInsets(in size: CGSize) -> LabelPacker.SafeInsets {
+        // Distance from each edge labels must stay inside; mirrors the prior
+        // clampedOverviewLabelPoint bounds (top 132, leading 72, trailing 98,
+        // bottom 292 to clear the bottom card stack).
+        LabelPacker.SafeInsets(top: 132, leading: 72, bottom: 292, trailing: 98)
     }
 
     private func overviewLabelPriority(for id: ToolCategoryId) -> Int {
@@ -385,13 +378,6 @@ struct UniverseOverlayView: View {
         return CGPoint(
             x: min(max(raw.x, 68), size.width - 98),
             y: min(max(raw.y, 98), size.height - 238)
-        )
-    }
-
-    private func clampedOverviewLabelPoint(_ point: CGPoint, in size: CGSize) -> CGPoint {
-        CGPoint(
-            x: min(max(point.x, 72), size.width - 98),
-            y: min(max(point.y, 132), size.height - 292)
         )
     }
 

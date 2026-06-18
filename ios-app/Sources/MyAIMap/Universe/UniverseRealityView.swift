@@ -62,7 +62,7 @@ struct UniverseRealityView: View {
                 }
                 .onEnded { value in
                     guard mode.allowsMapGestures else {
-                        gestureController.cancelDrag()
+                        gestureController.cancelDrag(camera: cameraRig)
                         return
                     }
                     gestureController.dragEnded(value, camera: cameraRig)

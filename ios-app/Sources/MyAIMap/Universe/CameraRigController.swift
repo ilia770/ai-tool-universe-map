@@ -24,7 +24,13 @@ final class CameraRigController {
     private(set) var target: SIMD3<Float> = .zero
     private(set) var isTransitioning = false
 
+    /// True while a drag/pinch is actively manipulating the camera. The overlay
+    /// label layers gate on this to avoid re-projecting every label on every
+    /// gesture frame (perf), then refresh once the gesture ends.
+    private(set) var isInteracting = false
+
     @ObservationIgnored private(set) weak var camera: PerspectiveCamera?
+    @ObservationIgnored private var activeGestureCount = 0
     @ObservationIgnored private var zoomBaseDistance: Float?
     @ObservationIgnored private var transitionTask: Task<Void, Never>?
     @ObservationIgnored private var transitionGeneration = 0
@@ -140,6 +146,22 @@ final class CameraRigController {
 
     func returnToOverview(animated: Bool = true) {
         overview(animated: animated)
+    }
+
+    /// Mark the start of a camera-manipulating gesture (drag or pinch). Safe to
+    /// nest: a drag and a pinch can overlap and the flag stays set until both
+    /// gestures end.
+    func beginInteraction() {
+        activeGestureCount += 1
+        if !isInteracting { isInteracting = true }
+    }
+
+    /// Mark the end of a camera-manipulating gesture. The flag clears only once
+    /// all in-flight gestures have ended.
+    func endInteraction() {
+        guard activeGestureCount > 0 else { return }
+        activeGestureCount -= 1
+        if activeGestureCount == 0 { isInteracting = false }
     }
 
     func pan(delta: CGSize) {

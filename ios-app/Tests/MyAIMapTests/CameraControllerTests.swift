@@ -87,3 +87,45 @@ struct CameraControllerTests {
         #expect(degenerate == 46)
     }
 }
+
+@Suite("CameraRigController — interacting gate for label re-projection")
+@MainActor
+struct CameraRigInteractingTests {
+
+    @Test func startsNotInteracting() {
+        let rig = CameraRigController()
+        #expect(rig.isInteracting == false)
+    }
+
+    @Test func beginInteractionSetsFlag() {
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        #expect(rig.isInteracting)
+    }
+
+    @Test func endInteractionClearsFlag() {
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
+    }
+
+    @Test func nestedGesturesRequireMatchingEndsToClear() {
+        // A drag and a pinch can overlap; the flag must stay set until both end.
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        rig.beginInteraction()
+        rig.endInteraction()
+        #expect(rig.isInteracting, "still interacting until all gestures end")
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
+    }
+
+    @Test func extraEndDoesNotDriveCountNegative() {
+        let rig = CameraRigController()
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
+        rig.beginInteraction()
+        #expect(rig.isInteracting)
+    }
+}

@@ -7,10 +7,16 @@ final class UniverseGestureController {
     private var previousDragTranslation: CGSize = .zero
     private var entityTapGeneration = 0
     private var lastEntityTapAt: Date?
+    private var dragInteracting = false
+    private var pinchInteracting = false
 
     nonisolated init() {}
 
     func dragChanged(_ value: DragGesture.Value, camera: CameraRigController) {
+        if !dragInteracting {
+            dragInteracting = true
+            camera.beginInteraction()
+        }
         let delta = CGSize(
             width: value.translation.width - previousDragTranslation.width,
             height: value.translation.height - previousDragTranslation.height
@@ -25,20 +31,36 @@ final class UniverseGestureController {
             height: value.predictedEndTranslation.height - value.translation.height
         )
         previousDragTranslation = .zero
+        endDragInteraction(camera)
         guard !camera.isTransitioning else { return }
         camera.finishPan(predictedDelta: predicted)
     }
 
-    func cancelDrag() {
+    func cancelDrag(camera: CameraRigController) {
         previousDragTranslation = .zero
+        endDragInteraction(camera)
+    }
+
+    private func endDragInteraction(_ camera: CameraRigController) {
+        guard dragInteracting else { return }
+        dragInteracting = false
+        camera.endInteraction()
     }
 
     func pinchChanged(_ value: MagnifyGesture.Value, camera: CameraRigController) {
+        if !pinchInteracting {
+            pinchInteracting = true
+            camera.beginInteraction()
+        }
         camera.zoom(magnification: Float(value.magnification))
     }
 
     func pinchEnded(camera: CameraRigController) {
         camera.endZoom()
+        if pinchInteracting {
+            pinchInteracting = false
+            camera.endInteraction()
+        }
     }
 
     func markEntityTap() {
