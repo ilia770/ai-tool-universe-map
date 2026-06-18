@@ -15,6 +15,15 @@ struct UniverseRealityView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Honor the system Reduce Motion setting, and also force a static scene
+    /// when launched with `-uitestStatic` so XCUITest can reach quiescence
+    /// (the perpetual RealityKit spin/pulse animations otherwise keep the app
+    /// from ever going idle, timing out accessibility snapshots). Prod behavior
+    /// is unchanged unless that launch argument is present.
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
+    }
+
     var body: some View {
         RealityView { content in
             content.add(sceneController.makeScene(
@@ -22,14 +31,14 @@ struct UniverseRealityView: View {
                 mode: mode,
                 visualizationStyle: visualizationStyle,
                 cameraRig: cameraRig,
-                reduceMotion: reduceMotion
+                reduceMotion: effectiveReduceMotion
             ))
         } update: { _ in
             sceneController.update(
                 planets: planets,
                 mode: mode,
                 visualizationStyle: visualizationStyle,
-                reduceMotion: reduceMotion
+                reduceMotion: effectiveReduceMotion
             )
         }
         .gesture(
