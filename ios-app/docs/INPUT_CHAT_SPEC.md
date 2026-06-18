@@ -111,3 +111,35 @@ Single source of truth (`model.universeMode`) untouched.
   input on small devices, keyboard interactions) not yet run on-device.
 - `chatOpen`-on-bare-focus question (lighter composer state vs full chat) noted
   by Agent 1 is unchanged here; out of this task's scope.
+
+### Agent 2b — Founder OS chat context decision (landed)
+
+**Product decision.** Fresh overview opens a general chat, even though the
+selection projection defaults to `founder-os` for card parity. If the user
+explicitly selects a core tool (`founder-os` or `openswarm`) before opening
+chat, chat preserves that `.core` tool context and dismissing chat can restore
+the explicit core selection.
+
+**Implementation.** `UniverseMode.chatContext(...)` centralizes the rule so
+`UniverseMapView` no longer hard-codes `founder-os` as "no tool". The helper
+uses the explicit mode-selected tool to distinguish real core-tool selection
+from the overview projection fallback.
+
+**Changed files**
+- `Universe/UniverseMode.swift` — added `chatContext(...)` helper.
+- `Universe/UniverseMapView.swift` — routes chat-open transitions through the
+  helper.
+- `Tests/MyAIMapTests/UniverseModeTests.swift` — 3 tests for general overview,
+  explicit Founder OS, and explicit core-satellite chat context.
+
+**QA done**
+- `npm run ios:verify` — build + build-for-testing succeeded.
+- `xcodebuild ... -only-testing:MyAIMapTests ... test-without-building` —
+  124 Swift tests / 16 suites passed, result bundle `/tmp/aimap-unit.xcresult`.
+- `xcodebuild ... -only-testing:MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates ... test-without-building`
+  — UI smoke passed on iPhone 17 Pro, result bundle `/tmp/aimap-ui.xcresult`.
+
+**Remaining issues**
+- `rail-edge-swallows-map-pan` still needs manual gesture arbitration QA.
+- `scene-rebuild-on-opacity` remains a risky performance refactor and was not
+  touched.

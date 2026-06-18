@@ -235,9 +235,11 @@ struct UniverseMapView: View {
     private func setChatOpen(_ isOpen: Bool) {
         if isOpen {
             guard !detailPresented else { return }
-            let category = model.selection.activeCategory == .core ? nil : model.selection.activeCategory
-            let toolID = model.selection.selectedToolID == "founder-os" ? nil : model.selection.selectedToolID
-            model.universeMode = .chatOpen(category, toolID)
+            model.universeMode = .chatContext(
+                activeCategory: model.selection.activeCategory,
+                projectedSelectedToolID: model.selection.selectedToolID,
+                explicitSelectedToolID: mode.selectedToolID
+            )
         } else if mode.isChatOpen {
             restoreNavigationMode(animated: true)
         }

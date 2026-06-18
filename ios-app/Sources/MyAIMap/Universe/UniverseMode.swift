@@ -208,3 +208,20 @@ enum UniverseMode: Equatable, Sendable {
         }
     }
 }
+
+extension UniverseMode {
+    static func chatContext(
+        activeCategory: ToolCategoryId,
+        projectedSelectedToolID: String,
+        explicitSelectedToolID: String?
+    ) -> UniverseMode {
+        if activeCategory == .core {
+            guard let explicitSelectedToolID else {
+                return .chatOpen(nil, nil)
+            }
+            return .chatOpen(.core, explicitSelectedToolID)
+        }
+
+        return .chatOpen(activeCategory, projectedSelectedToolID)
+    }
+}

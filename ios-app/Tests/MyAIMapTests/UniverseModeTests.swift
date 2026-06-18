@@ -78,4 +78,34 @@ struct UniverseModeTests {
         #expect(!UniverseMode.branchFocus(.analytics).pausesAmbientMotion)
         #expect(!UniverseMode.toolSelected(.analytics, "posthog").pausesAmbientMotion)
     }
+
+    @Test func freshOverviewOpensGeneralChatDespiteFounderProjection() {
+        let context = UniverseMode.chatContext(
+            activeCategory: .core,
+            projectedSelectedToolID: "founder-os",
+            explicitSelectedToolID: nil
+        )
+
+        #expect(context == .chatOpen(nil, nil))
+    }
+
+    @Test func explicitFounderSelectionIsPreservedAsChatContext() {
+        let context = UniverseMode.chatContext(
+            activeCategory: .core,
+            projectedSelectedToolID: "founder-os",
+            explicitSelectedToolID: "founder-os"
+        )
+
+        #expect(context == .chatOpen(.core, "founder-os"))
+    }
+
+    @Test func explicitCoreSatelliteSelectionIsPreservedAsChatContext() {
+        let context = UniverseMode.chatContext(
+            activeCategory: .core,
+            projectedSelectedToolID: "openswarm",
+            explicitSelectedToolID: "openswarm"
+        )
+
+        #expect(context == .chatOpen(.core, "openswarm"))
+    }
 }
