@@ -56,12 +56,27 @@ targets:
     dependencies:
       - target: MyAIMap
 
+  MyAIMapUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Tests/MyAIMapUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap.uitests
+        TEST_TARGET_NAME: MyAIMap
+    dependencies:
+      - target: MyAIMap
+
 schemes:
   MyAIMap:
     build:
       targets:
         MyAIMap: all
         MyAIMapTests: [test]
+        MyAIMapUITests: [test]
     test:
       targets:
         - MyAIMapTests
+        - MyAIMapUITests

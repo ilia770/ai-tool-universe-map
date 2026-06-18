@@ -116,7 +116,7 @@ enum UniverseMode: Equatable, Sendable {
             // Chat is a secondary input layer, not a takeover: the universe
             // stays visible/atmospheric so focusing the input never blacks out
             // the app (see docs/UI_STATE_MACHINE.md, INPUT_CHAT_SPEC.md).
-            return 0.55
+            return 0.7
         }
     }
 
@@ -139,7 +139,7 @@ enum UniverseMode: Equatable, Sendable {
             return 0.64
         case .chatOpen:
             // Light scrim only — keep the universe readable behind chat.
-            return 0.32
+            return 0.18
         }
     }
 
@@ -178,9 +178,13 @@ enum UniverseMode: Equatable, Sendable {
             if category == .core { return 0.045 }
             return 0.025
         case .chatOpen:
-            if category == focusedCategory { return 0.16 }
-            if category == .core { return 0.045 }
-            return 0.025
+            // Chat is a secondary input layer, not a takeover. Keep planets
+            // clearly visible (atmospheric) so focusing the input never blacks
+            // out the universe. (detail, above, stays heavily dimmed — it is a
+            // full reading sheet, not an input overlay.)
+            if category == focusedCategory { return 0.7 }
+            if category == .core { return 0.6 }
+            return 0.5
         }
     }
 
