@@ -38,6 +38,7 @@ final class UniverseSceneController {
             cameraRig.attach(camera)
             addLights()
             addStars()
+            addBackdropAndIBL()
         }
 
         rebuildIfNeeded(
@@ -221,9 +222,11 @@ final class UniverseSceneController {
     private func addLights() {
         removeChildren(from: lightRoot)
 
+        // Lowered from a code-only rig now that IBL (addBackdropAndIBL) provides
+        // ambient + specular fill; the directionals just shape the key/rim.
         let key = DirectionalLight()
         key.name = "cosmic-key-light"
-        key.light.intensity = 3_200
+        key.light.intensity = 2_600
         key.light.color = UIColor(red: 0.82, green: 0.9, blue: 1, alpha: 1)
         key.position = SIMD3<Float>(-5, 8, 9)
         key.look(at: .zero, from: key.position, relativeTo: nil)
@@ -231,11 +234,32 @@ final class UniverseSceneController {
 
         let rim = DirectionalLight()
         rim.name = "cosmic-rim-light"
-        rim.light.intensity = 1_200
+        rim.light.intensity = 750
         rim.light.color = UIColor(red: 0.75, green: 0.72, blue: 1, alpha: 1)
         rim.position = SIMD3<Float>(6, 3, -8)
         rim.look(at: .zero, from: rim.position, relativeTo: nil)
         lightRoot.addChild(rim)
+    }
+
+    /// Cosmic backdrop + image-based lighting (ported from pre-cutover main):
+    /// a textured skybox shell and faint galaxy-dust haze, plus a procedurally
+    /// generated equirectangular environment map that drives real IBL ambient
+    /// and specular on the PBR nodes. All non-tappable, added once. Texture-gen
+    /// failure degrades gracefully (skybox/IBL simply absent).
+    private func addBackdropAndIBL() {
+        if let skybox = SkyboxEntity.make() {
+            root.addChild(skybox)
+        }
+        root.addChild(GalaxyDustEntity.make())
+
+        if let equirect = CosmicEnvironmentTexture.makeEquirectangular(),
+           let environment = try? EnvironmentResource(equirectangular: equirect) {
+            let ibl = Entity()
+            ibl.name = "ibl"
+            ibl.components.set(ImageBasedLightComponent(source: .single(environment)))
+            root.addChild(ibl)
+            root.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl))
+        }
     }
 
     private func addStars() {
