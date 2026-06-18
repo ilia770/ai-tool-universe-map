@@ -57,6 +57,11 @@ struct UniverseOverlayView: View {
                     .transition(.opacity)
             }
 
+            if model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen {
+                emptyStateCard
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+
             VStack(spacing: 0) {
                 if !mode.isDetailOpen && !mode.isChatOpen {
                     topChrome
@@ -71,7 +76,7 @@ struct UniverseOverlayView: View {
                     .padding(.bottom, 10)
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen && !cameraRig.isTransitioning {
+            if !mode.isDetailOpen && !mode.isChatOpen && !cameraRig.isTransitioning && !model.isUniverseEmpty {
                 rightUniverseRail
             }
         }
@@ -521,7 +526,9 @@ struct UniverseOverlayView: View {
 
     private var bottomControls: some View {
         VStack(spacing: 10) {
-            if !mode.isDetailOpen && !mode.isChatOpen {
+            // Tool card + category rail only make sense once the universe has
+            // planets/tools. An empty universe shows the onboarding card instead.
+            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
                 PlanetInfoCard(
                     planet: selectedPlanet,
                     selectedTool: selectedTool,
@@ -539,7 +546,7 @@ struct UniverseOverlayView: View {
                 )
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen {
+            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
                 HStack(alignment: .center, spacing: 6) {
                     CategoryRail { id in
                         onCategorySelect(id)
@@ -547,6 +554,60 @@ struct UniverseOverlayView: View {
                 }
             }
         }
+    }
+
+    /// Onboarding shown when the universe has no tools yet: the user either adds
+    /// their first tool (which becomes the first planet) or loads the bundled
+    /// sample universe.
+    private var emptyStateCard: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(.white.opacity(0.92))
+
+            VStack(spacing: 7) {
+                Text("Your universe is empty")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("Add the AI tools you use — each one becomes a planet you can fly between.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.66))
+                    .multilineTextAlignment(.center)
+            }
+
+            VStack(spacing: 10) {
+                Button {
+                    BrandHaptics.fire(.medium)
+                    onAddTool()
+                } label: {
+                    Label("Add your first tool", systemImage: "plus")
+                        .font(.callout.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+                .padding(.vertical, 11)
+                .padding(.horizontal, 16)
+                .background(.white.opacity(0.14), in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
+                .foregroundStyle(.white)
+
+                Button {
+                    BrandHaptics.fire(.light)
+                    withAnimation(BrandMotion.flow) {
+                        _ = model.loadSampleUniverse()
+                    }
+                } label: {
+                    Text("Load a sample universe")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.62))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 26)
+        .padding(.horizontal, 24)
+        .frame(maxWidth: 320)
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous), tint: nil, strokeStrength: 0.12)
     }
 }
 

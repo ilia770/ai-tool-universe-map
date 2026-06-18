@@ -4,6 +4,7 @@ struct AccountSettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var section: AccountSection = .settings
+    @State private var showResetConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -105,6 +106,33 @@ struct AccountSettingsSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
+                VStack(spacing: BrandSpacing.s.value) {
+                    Button {
+                        withAnimation(BrandMotion.flow) { _ = model.loadSampleUniverse() }
+                    } label: {
+                        universeActionRow("Load sample universe", systemImage: "sparkles", destructive: false)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+
+                    Button(role: .destructive) {
+                        showResetConfirm = true
+                    } label: {
+                        universeActionRow("Reset universe", systemImage: "trash", destructive: true)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                    .disabled(model.isUniverseEmpty)
+                }
+            }
+            .confirmationDialog("Reset universe?", isPresented: $showResetConfirm, titleVisibility: .visible) {
+                Button("Reset everything", role: .destructive) {
+                    withAnimation(BrandMotion.flow) { model.resetUniverse() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes every tool you've added. This can't be undone.")
+            }
+
             if !model.removedTools.isEmpty {
                 settingsGroup(title: "Hidden tools", systemImage: "eye.slash.fill") {
                     VStack(spacing: BrandSpacing.s.value) {
@@ -159,6 +187,18 @@ struct AccountSettingsSheet: View {
                 }
             }
         }
+    }
+
+    private func universeActionRow(_ title: String, systemImage: String, destructive: Bool) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+        }
+        .foregroundStyle(destructive ? Color.red : .white)
+        .padding(BrandSpacing.m.value)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
     }
 
     private func settingsGroup<Content: View>(
