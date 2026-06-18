@@ -1,11 +1,15 @@
 import XCTest
 
-/// Visual smoke: drives the app to key UI states by ACCESSIBILITY ELEMENT (not
-/// raw coordinates — those hit the 3D scene's empty-tap and just reset), saving
-/// a kept screenshot of each so a human can review the QA_REGRESSION_CHECKLIST
-/// (state consistency, input-focus-not-black, attachment menu, branch focus,
-/// detail, account). Also attaches the element tree for discovery.
+/// Visual smoke via PURE coordinate taps. This app runs a continuous RealityKit
+/// render loop (frameloop .always), which keeps the main thread busy so XCUITest
+/// accessibility snapshots (element queries / debugDescription) time out ("main
+/// thread busy for 30s"). Coordinate taps + XCUIScreen screenshots do NOT need a
+/// snapshot, so they work. Coordinates are normalized from observed control rects
+/// (iPhone 17, ~402x874 pt). Each state is captured then reset to overview by
+/// tapping empty space (the 3D scene's empty-tap handler).
 final class UniverseUISmokeTests: XCTestCase {
+
+    override func setUp() { continueAfterFailure = true }
 
     @MainActor
     func testCaptureKeyStates() {
@@ -13,58 +17,42 @@ final class UniverseUISmokeTests: XCTestCase {
         app.launch()
         wait(3.0)
         snap("01-overview")
-        attachText("tree-overview", app.debugDescription)
 
-        // 1) Input focus — regression test for "focus blacks out universe".
-        let field = app.textFields.firstMatch
-        if field.waitForExistence(timeout: 5) {
-            field.tap()
-            wait(1.6)
-            snap("02-input-focus")
-            attachText("tree-focused", app.debugDescription)
-        } else {
-            attachText("02-no-textfield", "textFields.firstMatch not found")
-        }
+        // Account sheet (top-right button ~ (0.903, 0.110)).
+        tap(app, 0.903, 0.110); wait(1.6); snap("02-account")
+        app.swipeDown(velocity: .fast); wait(1.2)
 
-        // 2) Attachment menu (button label set in code: "Attach photo or file").
-        let attach = app.buttons["Attach photo or file"]
-        if attach.waitForExistence(timeout: 3) {
-            attach.tap()
-            wait(1.2)
-            snap("03-attach-menu")
-            // dismiss the menu if it opened
-            if app.buttons["Files"].waitForExistence(timeout: 2) {
-                app.buttons["Files"].tap() // selects an attachment -> file pill
-                wait(1.0)
-                snap("03b-attached-pill")
-            }
-        }
+        // Category branch focus — Design chip center ~ (0.236, 0.922) (from rect).
+        tap(app, 0.236, 0.922); wait(2.0); snap("03-branch")
 
-        // 3) Category branch focus — try known chip labels.
-        for label in ["Design", "Coding", "Research", "Analytics", "Media", "Distribution"] {
-            let chip = app.buttons[label]
-            if chip.exists {
-                chip.tap()
-                wait(2.0)
-                snap("04-branch-\(label)")
-                break
-            }
-        }
-        attachText("tree-branch", app.debugDescription)
+        // Detail — tap the bottom selection card (~ (0.45, 0.80)) while branched.
+        tap(app, 0.45, 0.80); wait(1.6); snap("04-after-cardtap")
+        app.swipeDown(velocity: .fast); wait(1.0)
+        resetToOverview(app)
 
-        // 4) Detail — re-tap the selected tool / open card. Try a Details button.
-        for label in ["Details", "Open details", "View details"] {
-            let b = app.buttons[label]
-            if b.exists { b.tap(); wait(1.6); snap("05-detail"); break }
-        }
+        // Input focus — composer field center ~ (0.49, 0.919).
+        tap(app, 0.49, 0.919); wait(1.6); snap("05-input-focus")
+        resetToOverview(app)
 
-        // 5) Account sheet (button label "Account").
-        let account = app.buttons["Account"]
-        if account.waitForExistence(timeout: 3) {
-            account.tap()
-            wait(1.8)
-            snap("06-account")
-        }
+        // Attachment menu — paperclip ~ (0.097, 0.919). Focus first, then tap clip.
+        tap(app, 0.49, 0.919); wait(1.0)
+        tap(app, 0.097, 0.919); wait(1.2); snap("06-attach-menu")
+        resetToOverview(app)
+
+        // Rail — press-drag the right edge (best-effort, can't snap mid-gesture).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.52))
+            .press(forDuration: 0.6,
+                   thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.42)))
+        wait(0.6); snap("07-after-rail-drag")
+    }
+
+    private func resetToOverview(_ app: XCUIApplication) {
+        // Tap empty sky to dismiss chat/keyboard and recenter.
+        tap(app, 0.5, 0.30); wait(1.0)
+    }
+
+    private func tap(_ app: XCUIApplication, _ dx: CGFloat, _ dy: CGFloat) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy)).tap()
     }
 
     private func wait(_ seconds: TimeInterval) {
@@ -74,16 +62,7 @@ final class UniverseUISmokeTests: XCTestCase {
     }
 
     private func snap(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
-    private func attachText(_ name: String, _ text: String) {
-        let attachment = XCTAttachment(string: text)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        a.name = name; a.lifetime = .keepAlways; add(a)
     }
 }

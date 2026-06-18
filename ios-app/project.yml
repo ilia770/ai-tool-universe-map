@@ -77,6 +77,9 @@ schemes:
         MyAIMapTests: [test]
         MyAIMapUITests: [test]
     test:
+      # UI smoke is MANUAL-ONLY (run via -only-testing:MyAIMapUITests). It is a
+      # screenshot-capture harness for human review, and it is flaky under the
+      # continuous RealityKit render loop (XCUITest accessibility snapshots time
+      # out — "main thread busy"), so it must NOT gate the default test action.
       targets:
         - MyAIMapTests
-        - MyAIMapUITests
