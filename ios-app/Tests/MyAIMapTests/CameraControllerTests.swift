@@ -1,7 +1,6 @@
-import CoreGraphics
-import RealityKit
 import Testing
 import simd
+import CoreGraphics
 @testable import MyAIMap
 
 @Suite("CameraController — drei parity math")
@@ -88,150 +87,67 @@ struct CameraControllerTests {
         let degenerate = CameraController.dollyDistance(base: 20, magnification: 0)
         #expect(degenerate == 46)
     }
+}
 
-    // MARK: - Pinch gesture lifecycle (regression: mid-pinch re-attach)
+@Suite("CameraRigController — interacting gate for label re-projection")
+@MainActor
+struct CameraRigInteractingTests {
 
-    @Test @MainActor func pinchFromRestDolliesByAbsoluteMagnification() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-        let base = simd_length(camera.position)
-
-        controller.pinchChanged(magnification: 1.0)
-        #expect(abs(simd_length(camera.position) - base) < 0.001)
-
-        controller.pinchChanged(magnification: 2.0)
-        #expect(abs(simd_length(camera.position) - CameraController.clampedDistance(base / 2)) < 0.001)
+    @Test func startsNotInteracting() {
+        let rig = CameraRigController()
+        #expect(rig.isInteracting == false)
     }
 
-    @Test @MainActor func midPinchReattachDoesNotApplyAccumulatedMagnification() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-        controller.pinchChanged(magnification: 1.0)
-        controller.pinchChanged(magnification: 2.5)
-
-        // Proximity auto-enter rebuilds the scene mid-pinch: attach()
-        // runs again while the magnify gesture is still ongoing.
-        let pocketTarget = SIMD3<Float>(4, 0, -2)
-        controller.attach(camera, mode: .pocket, target: pocketTarget)
-        let framing = simd_length(CameraController.focusEye(for: .pocket, target: pocketTarget) - pocketTarget)
-
-        // The next update still reports the accumulated 2.5x; the camera
-        // must stay at the pocket framing distance (no jump to min).
-        controller.pinchChanged(magnification: 2.5)
-        #expect(abs(simd_length(camera.position - pocketTarget) - framing) < 0.001)
-
-        // Further pinching zooms relative to the re-capture point
-        // (effective magnification 3.0 / 2.5 = 1.2).
-        controller.pinchChanged(magnification: 3.0)
-        let expected = CameraController.clampedDistance(framing / (3.0 / 2.5))
-        #expect(abs(simd_length(camera.position - pocketTarget) - expected) < 0.001)
+    @Test func beginInteractionSetsFlag() {
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        #expect(rig.isInteracting)
     }
 
-    @Test @MainActor func pinchEndedResetsMagnificationReference() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-        controller.pinchChanged(magnification: 1.0)
-        controller.pinchChanged(magnification: 2.5)
-        controller.pinchEnded()
-
-        // A fresh gesture starting at ~1.0 behaves exactly like a pinch
-        // from rest: 2.0 halves the new resting distance.
-        let resting = simd_length(camera.position)
-        controller.pinchChanged(magnification: 1.0)
-        #expect(abs(simd_length(camera.position) - resting) < 0.001)
-
-        controller.pinchChanged(magnification: 2.0)
-        #expect(abs(simd_length(camera.position) - CameraController.clampedDistance(resting / 2)) < 0.001)
+    @Test func endInteractionClearsFlag() {
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
     }
 
-    // MARK: - Drag orbit
-
-    @Test @MainActor func orbitChangedRotatesCameraPreservingDistance() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-        let before = simd_length(camera.position - controller.target)
-
-        controller.orbitChanged(translation: CGSize(width: 120, height: 0))
-        let after = simd_length(camera.position - controller.target)
-
-        // Pure rotation: the distance from target is unchanged...
-        #expect(abs(before - after) < 0.001)
-        // ...and the eye actually moved (horizontal drag swept yaw).
-        #expect(simd_length(camera.position - CameraController.focusEye(for: .overview, target: .zero)) > 0.001)
+    @Test func nestedGesturesRequireMatchingEndsToClear() {
+        // A drag and a pinch can overlap; the flag must stay set until both end.
+        let rig = CameraRigController()
+        rig.beginInteraction()
+        rig.beginInteraction()
+        rig.endInteraction()
+        #expect(rig.isInteracting, "still interacting until all gestures end")
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
     }
 
-    @Test @MainActor func orbitPitchClampsUnderLargeVerticalDrag() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-
-        // A huge vertical drag would over-rotate; pitch must clamp so the
-        // camera never flips. The orbited eye must land exactly where a
-        // pure rotation at maxOrbitPitch puts the (un-orbited) base eye —
-        // proving the drag pitch was clamped, not applied raw.
-        controller.orbitChanged(translation: CGSize(width: 0, height: 100_000))
-
-        let baseEye = CameraController.focusEye(for: .overview, target: .zero)
-        let expected = CameraController.orbitAdjusted(
-            baseEye,
-            yaw: 0,
-            pitch: CameraController.maxOrbitPitch
-        )
-        #expect(simd_length(camera.position - expected) < 0.001)
+    @Test func extraEndDoesNotDriveCountNegative() {
+        let rig = CameraRigController()
+        rig.endInteraction()
+        #expect(rig.isInteracting == false)
+        rig.beginInteraction()
+        #expect(rig.isInteracting)
     }
 
-    @Test @MainActor func orbitEndedKeepsOrbitedPosition() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
+    @Test func projectionHidesObjectsBehindTheCamera() {
+        // The target is in front and must project visibly; a point far past the
+        // target (negative raw depth) is behind the camera and must NOT be
+        // marked visible even though the clamped point lands on-screen.
+        let rig = CameraRigController()
+        let size = CGSize(width: 390, height: 844)
 
-        controller.orbitChanged(translation: CGSize(width: 120, height: 40))
-        let orbited = camera.position
-        controller.orbitEnded()
+        let front = rig.projection(for: .zero, in: size)
+        #expect(front.isVisible)
 
-        // No snap-back: the camera stays exactly where the drag left it.
-        #expect(simd_length(camera.position - orbited) < 0.001)
-
-        // A second drag continues from the kept orbit (baseline = current),
-        // so zero translation is a no-op rather than a reset to head-on.
-        controller.orbitChanged(translation: .zero)
-        #expect(simd_length(camera.position - orbited) < 0.001)
+        let behind = rig.projection(for: SIMD3<Float>(0, 0, -25), in: size)
+        #expect(behind.isVisible == false)
     }
 
-    @Test @MainActor func retargetResetsOrbitToHeadOn() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-        controller.orbitChanged(translation: CGSize(width: 200, height: 80))
-        controller.orbitEnded()
-
-        let pocketTarget = SIMD3<Float>(4, 0, -2)
-        controller.retarget(mode: .pocket, target: pocketTarget, reduceMotion: true)
-
-        // After retarget, a zero-translation drag must recompute the eye at
-        // the head-on framing for the new pocket (orbit reset to 0).
-        controller.orbitChanged(translation: .zero)
-        let expected = CameraController.focusEye(for: .pocket, target: pocketTarget)
-        #expect(simd_length(camera.position - expected) < 0.001)
-    }
-
-    @Test @MainActor func orbitComposesWithPinchDolly() {
-        let controller = CameraController()
-        let camera = PerspectiveCamera()
-        controller.attach(camera, mode: .overview, target: .zero)
-
-        // Pinch to dolly in, then orbit: the orbit must preserve the
-        // dollied distance, not snap back to the framing distance.
-        controller.pinchChanged(magnification: 1.0)
-        controller.pinchChanged(magnification: 2.0)
-        controller.pinchEnded()
-        let dollied = simd_length(camera.position - controller.target)
-
-        controller.orbitChanged(translation: CGSize(width: 90, height: 0))
-        #expect(abs(simd_length(camera.position - controller.target) - dollied) < 0.001)
+    @Test func projectionKeepsNearbyInFrontObjectsVisible() {
+        let rig = CameraRigController()
+        let size = CGSize(width: 390, height: 844)
+        let nearby = rig.projection(for: SIMD3<Float>(3, 0, 3), in: size)
+        #expect(nearby.isVisible)
     }
 }

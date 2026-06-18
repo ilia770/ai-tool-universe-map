@@ -64,6 +64,7 @@ struct UniverseLayoutTests {
         #expect(UniverseSeed.tools.contains { $0.id == "founder-os" })
         #expect(UniverseSeed.tools(in: .coding).count >= 3)
         #expect(UniverseSeed.tools(in: .design).count >= 2)
+        #expect(UniverseSeed.tools(in: .media).count >= 4)
         #expect(UniverseSeed.tools(in: .core).count >= 2)
     }
 
@@ -71,6 +72,105 @@ struct UniverseLayoutTests {
         let categoryIds = Set(UniverseSeed.categories.map(\.id))
         for tool in UniverseSeed.tools {
             #expect(categoryIds.contains(tool.category), "\(tool.name) points at a missing category")
+        }
+    }
+}
+
+@Suite("UniverseSpatialLayout — selected tool anchors")
+struct UniverseSpatialLayoutTests {
+
+    @Test func nativePlanetLayoutKeepsOverviewBranchesReadable() {
+        let branches = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        .filter { $0.id != .core }
+
+        for i in 0..<branches.count {
+            for j in (i + 1)..<branches.count {
+                let distance = simd_distance(branches[i].position3D, branches[j].position3D)
+                #expect(distance > 3.1, "\(branches[i].title) and \(branches[j].title) are too close: \(distance)")
+            }
+        }
+    }
+
+    @Test func remotionIsVisibleInMediaVerticalSlice() {
+        let planets = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        guard let media = planets.first(where: { $0.id == .media }),
+              let remotionIndex = media.tools.firstIndex(where: { $0.id == "remotion" }) else {
+            Issue.record("Remotion must remain discoverable in the Media branch")
+            return
+        }
+
+        let position = UniverseSpatialLayout.satelliteWorldPosition(
+            for: media.tools[remotionIndex],
+            in: media,
+            index: remotionIndex,
+            count: media.tools.count
+        )
+
+        #expect(media.tools.count >= 4)
+        #expect(position != media.position3D)
+    }
+
+    @Test func postHogHasDeterministicSatellitePositionInAnalyticsBranch() {
+        let planets = PlanetData.makePlanets(
+            categories: UniverseSeed.categories,
+            tools: UniverseSeed.tools
+        )
+        guard let analytics = planets.first(where: { $0.id == .analytics }),
+              let postHogIndex = analytics.tools.firstIndex(where: { $0.id == "posthog" }) else {
+            Issue.record("PostHog must remain discoverable in the Analytics branch")
+            return
+        }
+
+        let position = UniverseSpatialLayout.satelliteWorldPosition(
+            for: analytics.tools[postHogIndex],
+            in: analytics,
+            index: postHogIndex,
+            count: analytics.tools.count
+        )
+
+        #expect(position != analytics.position3D)
+    }
+
+    @Test func satelliteOffsetIsDeterministic() {
+        let a = UniverseSpatialLayout.satelliteOffset(index: 3, count: 7, orbit: .middle)
+        let b = UniverseSpatialLayout.satelliteOffset(index: 3, count: 7, orbit: .middle)
+        #expect(a == b)
+    }
+
+    @Test func satellitesOnSameRingKeepDeterministicAngularSpacing() {
+        // Tools on the same ring must be evenly spaced by 2π/count so the 3D
+        // nodes (and their labels) never collapse onto one another.
+        let count = 6
+        var previousAngle: Float?
+        for index in 0..<count {
+            let offset = UniverseSpatialLayout.satelliteOffset(index: index, count: count, orbit: .inner)
+            let angle = atan2(offset.z, offset.x)
+            if let previousAngle {
+                let raw = abs(angle - previousAngle)
+                let separation = min(raw, 2 * .pi - raw)
+                #expect(separation > 0.3, "ring slots \(index - 1)/\(index) too close: \(separation)")
+            }
+            previousAngle = angle
+        }
+    }
+
+    @Test func satellitesInSameBranchDoNotCoincide() {
+        let count = 8
+        var positions: [SIMD3<Float>] = []
+        for index in 0..<count {
+            positions.append(UniverseSpatialLayout.satelliteOffset(index: index, count: count, orbit: .inner))
+        }
+        for i in 0..<positions.count {
+            for j in (i + 1)..<positions.count {
+                #expect(simd_distance(positions[i], positions[j]) > 0.4,
+                        "satellites \(i)/\(j) overlap in 3D")
+            }
         }
     }
 }

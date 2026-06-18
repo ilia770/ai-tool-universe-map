@@ -16,9 +16,6 @@ enum PocketShellEntity {
 
     static func make(category: ToolCategory, position: SIMD3<Float>, reduceMotion: Bool) -> Entity {
         let root = Entity()
-        // Stable name so the persistent scene (UniverseView's update
-        // closure) can find and swap the shell on category change.
-        root.name = "pocket-shell"
         root.position = position
 
         let color = category.color.uiColor
@@ -51,19 +48,10 @@ enum PocketShellEntity {
         inner.orientation = tiltRotation(PocketShellGeometry.innerRingTilt)
         root.addChild(inner)
 
-        // Bright sparkle field filling the pocket volume (web drei
-        // <Sparkles>). Local to the shell root, so it's centred on the
-        // category position and rides the shell's add/remove lifecycle.
-        root.addChild(SparkleFieldEntity.make(color: color, reduceMotion: reduceMotion))
-
         if !reduceMotion {
             fadeIn(root)
             spin(outer, radPerSec: PocketShellGeometry.outerSpinRadPerSec)
             spin(inner, radPerSec: PocketShellGeometry.innerSpinRadPerSec)
-            // Slow ±1.8 % wobble + yaw sway on the whole shell group
-            // (backlog 22), driven by ShellBreathingSystem. Tag only when
-            // motion is allowed — presence of the component IS the opt-in.
-            root.components.set(ShellBreathingComponent())
         }
         return root
     }

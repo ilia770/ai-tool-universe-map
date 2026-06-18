@@ -17,14 +17,19 @@ struct RootSheet: View {
     var body: some View {
         ScrollView {
             ToolDetailSection()
-                .padding(16)
+                .padding(.horizontal, 20)
+                .padding(.top, 22)
+                .padding(.bottom, 28)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollClipDisabled()
         .presentationBackground {
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
-                model.selectedCategoryModel.color.swiftUIColor.opacity(0.07)
+                Rectangle().fill(.black.opacity(0.16))
+                model.selectedCategoryModel.color.swiftUIColor.opacity(0.09)
             }
         }
     }
@@ -35,8 +40,9 @@ struct RootSheet: View {
         .ignoresSafeArea()
         .sheet(isPresented: .constant(true)) {
             RootSheet()
-                .presentationDetents([.height(118), .fraction(0.42), .large])
+                .presentationDetents([.height(238), .fraction(0.48), .large])
                 .presentationDragIndicator(.visible)
+                .presentationCornerRadius(42)
                 .environment(UniverseViewModel())
         }
         .preferredColorScheme(.dark)
