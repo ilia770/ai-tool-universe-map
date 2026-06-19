@@ -4,6 +4,7 @@ import UIKit
 /// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
 struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var sceneController = UniverseSceneController()
     @State private var cameraRig = CameraRigController()
     @State private var gestureController = UniverseGestureController()
@@ -18,6 +19,10 @@ struct UniverseMapView: View {
     /// `model.universeMode`; the view never stores a second copy of the mode
     /// (see docs/UI_STATE_MACHINE.md).
     private var mode: UniverseMode { model.universeMode }
+
+    /// iPhone (or iPad slide-over) uses the bottom-sheet detail; regular width
+    /// (iPad) uses an always-visible trailing inspector panel instead.
+    private var isCompact: Bool { AdaptiveLayout.isCompact(hSizeClass) }
 
     private func rebuildPlanets() {
         planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: model.visibleAllTools)
@@ -40,7 +45,7 @@ struct UniverseMapView: View {
         return model.selectedTool ?? UniverseSeed.tools[0]
     }
 
-    var body: some View {
+    private var universeStack: some View {
         ZStack {
             UniverseRealityView(
                 planets: planets,
@@ -73,6 +78,40 @@ struct UniverseMapView: View {
                 onAccount: presentAccount,
                 onAddTool: presentAddTool
             )
+        }
+    }
+
+    /// iPad trailing inspector: the selected tool's detail as a persistent
+    /// side panel (a blocking sheet would cover the map). Shown only when a
+    /// tool is selected in a non-empty universe.
+    @ViewBuilder
+    private var inspectorPanel: some View {
+        if !model.isUniverseEmpty, mode.selectedToolID != nil {
+            RootSheet()
+                .frame(width: 360)
+                .background {
+                    ZStack {
+                        Rectangle().fill(.ultraThinMaterial)
+                        selectedPlanet.swiftUIColor.opacity(0.07)
+                    }
+                    .ignoresSafeArea()
+                }
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+        }
+    }
+
+    var body: some View {
+        Group {
+            if isCompact {
+                universeStack
+            } else {
+                HStack(spacing: 0) {
+                    universeStack
+                        .frame(maxWidth: .infinity)
+                    inspectorPanel
+                }
+                .brandAnimation(BrandMotion.flow, value: model.selection.selectedToolID)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
@@ -228,6 +267,10 @@ struct UniverseMapView: View {
 
     private func presentDetail() {
         BrandHaptics.fire(.medium)
+        // iPad: the trailing inspector panel already shows the selected tool's
+        // detail, and entering .detail mode would dim the map behind it. Keep
+        // the current (toolSelected) mode; the panel is the detail surface.
+        guard isCompact else { return }
         if !mode.isDetailOpen {
             modeBeforeDetail = mode
         }
