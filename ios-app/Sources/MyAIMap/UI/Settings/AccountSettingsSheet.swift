@@ -217,11 +217,15 @@ struct AccountSettingsSheet: View {
             content()
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-            strokeStrength: 0.08
+        // Settings group = content panel → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func renderModeRow(_ renderMode: UniverseRenderMode) -> some View {

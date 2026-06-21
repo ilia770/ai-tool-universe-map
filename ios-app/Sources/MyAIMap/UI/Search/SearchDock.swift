@@ -188,10 +188,10 @@ struct SearchDock: View {
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(5)
         .background(.black.opacity(0.12), in: Capsule())
-        .liquidGlass(
+        .glassSurface(
             in: Capsule(),
             tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.5),
-            strokeStrength: 0.08
+            interactive: true
         )
         .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
     }
@@ -208,11 +208,9 @@ struct SearchDock: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(selectedAttachment == nil ? .white.opacity(0.74) : model.selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 36, height: 36)
-                .liquidGlass(
-                    in: Circle(),
-                    tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-                    strokeStrength: 0.07
-                )
+                // Lives inside the composer pill (already glass); a nested glass
+                // here would double-lens. Solid fill keeps the tappable affordance.
+                .background(.white.opacity(0.08), in: Circle())
         }
         .buttonStyle(BouncyIconButtonStyle())
         .accessibilityLabel("Attach photo or file")
@@ -250,10 +248,10 @@ struct SearchDock: View {
                 .black.opacity(0.30),
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous)
             )
-            .liquidGlass(
+            .glassSurface(
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous),
                 tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.34),
-                strokeStrength: 0.08
+                interactive: true
             )
             .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
 
@@ -334,10 +332,11 @@ struct SearchDock: View {
             .foregroundStyle(.white.opacity(0.84))
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .liquidGlass(
-                in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.45),
-                strokeStrength: 0.06
+            // Staged-attachment pill is content (per glass MAP), and sits inside
+            // the glass composer pill — keep it solid to avoid nested lensing.
+            .background(
+                model.selectedCategoryModel.color.swiftUIColor.opacity(0.28),
+                in: Capsule()
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
@@ -372,15 +371,15 @@ struct SearchDock: View {
                 }
             }
         }
+        // Transcript is content, not chrome — solid reading surface (glass MAP).
         .background(
-            .black.opacity(0.18),
+            BrandColor.glassSolid,
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.38),
-            strokeStrength: 0.08
-        )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
         .shadow(color: .black.opacity(0.32), radius: 16, x: 0, y: 8)
         .simultaneousGesture(TapGesture().onEnded {
             attachmentMenuOpen = false
@@ -408,10 +407,10 @@ struct SearchDock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(maxWidth: 152)
-            .liquidGlass(
+            .glassSurface(
                 in: Capsule(),
                 tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                strokeStrength: 0.06
+                interactive: true
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
@@ -437,10 +436,10 @@ struct SearchDock: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
                     .frame(width: 30, height: 30)
-                    .liquidGlass(
+                    .glassSurface(
                         in: Circle(),
                         tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                        strokeStrength: 0.06
+                        interactive: true
                     )
             }
             .buttonStyle(BouncyIconButtonStyle(pressedScale: 0.9))
@@ -505,11 +504,15 @@ struct SearchDock: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 13)
             .padding(.vertical, 10)
-            .liquidGlass(
-                in: RoundedRectangle(cornerRadius: 19, style: .continuous),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.62),
-                strokeStrength: 0.08
+            // Chat bubble is content — solid accent-tinted surface, never glass.
+            .background(
+                model.selectedCategoryModel.color.swiftUIColor.opacity(0.30),
+                in: RoundedRectangle(cornerRadius: 19, style: .continuous)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(.white.opacity(0.10), lineWidth: 0.5)
+            }
     }
 
     private func assistantResponse(_ message: AssistantMessage, matches: [Tool]) -> some View {
@@ -644,11 +647,9 @@ struct SearchDock: View {
             .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .liquidGlass(
-                in: Capsule(),
-                tint: category.color.swiftUIColor.opacity(0.55),
-                strokeStrength: 0.08
-            )
+            // Inline message action chip — content layer, solid (glass MAP).
+            .background(category.color.swiftUIColor.opacity(0.30), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
     }
@@ -681,11 +682,9 @@ struct SearchDock: View {
             .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .liquidGlass(
-                in: Capsule(),
-                tint: category.color.swiftUIColor.opacity(0.42),
-                strokeStrength: 0.08
-            )
+            // Inline message action chip — content layer, solid (glass MAP).
+            .background(category.color.swiftUIColor.opacity(0.24), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
         .accessibilityLabel("Add \(suggestion.name)")
