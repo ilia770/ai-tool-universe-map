@@ -6,13 +6,15 @@ PROJECT_PATH="$ROOT_DIR/ios-app/MyAIMap.xcodeproj"
 SCHEME="MyAIMap"
 DERIVED_DATA="$ROOT_DIR/ios-app/build"
 GENERIC_DESTINATION="generic/platform=iOS Simulator"
+UNIT_TEST_BUNDLE="MyAIMapTests"
+RESULT_BUNDLE="$DERIVED_DATA/MyAIMapTests.xcresult"
 
 mode="verify"
 device_id=""
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--full-test --device-id <sim-id>]
+Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--run-tests|--full-test] [--device-id <sim-id>]
 
 Default:
   Runs generic simulator build + build-for-testing. This validates Swift compile,
@@ -20,9 +22,11 @@ Default:
 
 Options:
   --build-only        Run app build only.
-  --test-build-only   Run build-for-testing only.
+  --test-build-only   Run build-for-testing only (fast compile gate, no assertions).
+  --run-tests | test  Run `xcodebuild test -only-testing:MyAIMapTests` on a booted
+                      simulator id, writing an xcresult bundle. Executes assertions.
   --full-test         Run build-for-testing, then test-without-building on a booted simulator id.
-  --device-id <id>    Simulator UDID for --full-test.
+  --device-id <id>    Simulator UDID for --run-tests / --full-test.
   -h, --help          Show this help.
 USAGE
 }
@@ -35,6 +39,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --test-build-only)
       mode="test-build"
+      shift
+      ;;
+    --run-tests|test)
+      mode="run-tests"
       shift
       ;;
     --full-test)
@@ -117,6 +125,29 @@ run_full_test() {
     test-without-building
 }
 
+run_tests() {
+  if [[ -z "$device_id" ]]; then
+    echo "--run-tests requires --device-id <sim-id>." >&2
+    echo "Find one with: xcrun simctl list devices available" >&2
+    exit 2
+  fi
+
+  echo "== iOS unit tests ($UNIT_TEST_BUNDLE) on $device_id =="
+  xcrun simctl boot "$device_id" 2>/dev/null || true
+  xcrun simctl bootstatus "$device_id" -b
+  rm -rf "$RESULT_BUNDLE"
+  xcodebuild \
+    -project "$PROJECT_PATH" \
+    -scheme "$SCHEME" \
+    -destination "platform=iOS Simulator,id=$device_id" \
+    -derivedDataPath "$DERIVED_DATA" \
+    -resultBundlePath "$RESULT_BUNDLE" \
+    -only-testing:"$UNIT_TEST_BUNDLE" \
+    ENABLE_DEBUG_DYLIB=NO \
+    test
+  echo "== xcresult bundle: $RESULT_BUNDLE =="
+}
+
 case "$mode" in
   build)
     run_build
@@ -127,6 +158,9 @@ case "$mode" in
   verify)
     run_build
     run_test_build
+    ;;
+  run-tests)
+    run_tests
     ;;
   full-test)
     run_full_test
