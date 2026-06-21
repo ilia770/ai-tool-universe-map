@@ -37,6 +37,30 @@ enum UniverseAssistantCore {
         )
 
         let folded = fold(trimmed)
+
+        // If the user names a specific tool (every token of a tool's name is
+        // present in the query), answer about it directly — even when the query
+        // also contains a domain word — so domain routing can't drop the exact
+        // hit by filtering directMatches to the inferred domain (H2). Match
+        // against all tools, not just `matches`, since a name buried in a phrase
+        // ("Supabase for video") may not survive ranked search.
+        let queryTokens = Set(folded.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        let namedTool = tools.first { tool in
+            let nameTokens = fold(tool.name).split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            return !nameTokens.isEmpty && nameTokens.allSatisfy { queryTokens.contains($0) }
+        }
+        if let namedTool, !isFullAppWorkflow(folded) {
+            let direct = [namedTool] + matches.filter { $0.id != namedTool.id }
+            return directMatchReply(
+                for: trimmed,
+                matches: Array(direct.prefix(4)),
+                tools: tools,
+                categoryName: categoryName,
+                knowledge: knowledge,
+                recentActivity: recentActivity
+            )
+        }
+
         if let domain = domainIntent(for: folded),
            !isFullAppWorkflow(folded) {
             return domainReply(
@@ -278,6 +302,8 @@ enum UniverseAssistantCore {
         let serviceWords = [
             "add", "tool", "service", "website", "url", "app", "platform", "find",
             "lookup", "search", "добав", "сервис", "инструмент", "сайт", "найди",
+            // Common Latin-transliterated RU intent words.
+            "dobav", "servis", "instrument", "sayt", "naydi",
         ]
         if containsAny(folded, serviceWords) {
             return false
@@ -287,6 +313,9 @@ enum UniverseAssistantCore {
             "hi", "hello", "hey", "yo", "how are you", "how r u", "whats up",
             "what's up", "thanks", "thank you", "привет", "здравствуи",
             "здравствуй", "как дела", "как ты", "спасибо",
+            // Latin-transliterated RU small talk (single-token greetings would
+            // otherwise fall through to the missing-service reply).
+            "privet", "poka", "spasibo", "zdravstvuy", "kak dela", "kak ty",
         ]
         if containsAny(folded, smallTalk) {
             return true

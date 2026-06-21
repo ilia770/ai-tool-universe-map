@@ -124,4 +124,20 @@ struct UniverseAssistantCoreTests {
         #expect(reply.text.contains("Pricing unknown") || reply.text.contains("Unknown pricing model"))
         #expect(reply.text.contains("Use cautious claims"))
     }
+
+    // H2: naming a specific tool routes to the direct answer even when the
+    // query also contains a domain word, so the exact hit is never dropped.
+    @Test func namingAToolRoutesDirectEvenWithDomainWord() {
+        let reply = reply("Supabase for video")
+        #expect(reply.matchIDs.contains("supabase"))
+    }
+
+    // M4: Latin-transliterated RU small talk must not fall through to the
+    // missing-service reply.
+    @Test func transliteratedSingleWordGreetingIsSmallTalk() {
+        let reply = reply("privet")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("website URL"))
+        #expect(!reply.text.contains("I did not find this service"))
+    }
 }

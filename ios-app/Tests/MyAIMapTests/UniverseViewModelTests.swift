@@ -385,4 +385,17 @@ struct UniverseViewModelTests {
         let reloaded = UniverseViewModel(store: store)
         #expect(!reloaded.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
     }
+
+    // U1: the assistant can't read attachments, so an attachment-only send gets
+    // an honest reply instead of matching tools against the placeholder text.
+    @Test func attachmentOnlyMessageGetsHonestCannotReadReply() {
+        let model = makeModel(sample: true)
+        model.assistantQuery = "Attached photo"
+        model.askAssistant(attachmentOnly: true)
+
+        let last = model.assistantMessages.last
+        #expect(last?.role == .assistant)
+        #expect(last?.matchIDs.isEmpty == true)
+        #expect(last?.text.contains("can't read attachments") == true)
+    }
 }

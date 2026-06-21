@@ -773,11 +773,16 @@ struct SearchDock: View {
             query: model.assistantQuery,
             attachmentTitle: selectedAttachment?.messageTitle
         ) else { return }
+        // The assistant can't read attachments, so flag an attachment-only send
+        // (no real text) and let it answer honestly instead of matching tools
+        // against the "attached photo/file" placeholder (U1).
+        let attachmentOnly = model.assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && selectedAttachment != nil
         BrandHaptics.fire(.light)
         conversationCollapsed = false
         attachmentMenuOpen = false
         model.assistantQuery = outgoingText
-        withAnimation(BrandMotion.flow) { model.askAssistant() }
+        withAnimation(BrandMotion.flow) { model.askAssistant(attachmentOnly: attachmentOnly) }
         selectedAttachment = nil
         fieldFocused = false
     }

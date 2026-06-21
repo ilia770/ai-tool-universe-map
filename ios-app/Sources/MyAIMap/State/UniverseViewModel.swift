@@ -244,11 +244,27 @@ final class UniverseViewModel {
         return true
     }
 
-    func askAssistant() {
+    func askAssistant(attachmentOnly: Bool = false) {
         let query = assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
         assistantMessages.append(AssistantMessage(role: .user, text: query))
+
+        // The assistant is a local tool-matcher; it cannot read attachments.
+        // For an attachment-only message, answer honestly instead of matching
+        // tools against the literal "attached photo/file" text (U1).
+        if attachmentOnly {
+            assistantMessages.append(
+                AssistantMessage(
+                    role: .assistant,
+                    text: "I can't read attachments yet. Tell me what you want to build, compare, or add — or paste the tool's website link."
+                )
+            )
+            assistantQuery = ""
+            recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: nil)
+            return
+        }
+
         let reply = UniverseAssistantCore.reply(
             for: query,
             tools: visibleAllTools,
