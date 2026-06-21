@@ -11,6 +11,7 @@ struct UniverseOverlayView: View {
     let selectedTool: Tool
     let onCategorySelect: (ToolCategoryId) -> Void
     let onToolSelect: (String) -> Void
+    let onOpenToolDetail: (String) -> Void
     let onChatActivityChange: (Bool) -> Void
     let onDetails: () -> Void
     let onAccount: () -> Void
@@ -33,17 +34,17 @@ struct UniverseOverlayView: View {
 
     var body: some View {
         ZStack {
-            if mode.showsPlanetLabels && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolAnchor && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsToolAnchor && labelsQuiescent {
                 toolAnchorLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolLabels && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsToolLabels && labelsQuiescent {
                 toolLabelLayer
                     .allowsHitTesting(false)
             }
@@ -482,49 +483,40 @@ struct UniverseOverlayView: View {
     }
 
     private var visualizationControl: some View {
-        @Bindable var model = model
-        return HStack(spacing: 10) {
-            Text(model.visualizationStyle.shortLabel)
+        HStack(spacing: 10) {
+            Text(model.renderMode.shortLabel)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(.black.opacity(0.82))
-                .frame(width: 30, height: 30)
+                .frame(width: 36, height: 30)
                 .background(selectedPlanet.swiftUIColor, in: Circle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.visualizationStyle.title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(model.renderMode.title)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .lineLimit(1)
 
-                Slider(value: styleIndexBinding, in: 0...Double(VisualizationStyle.allCases.count - 1), step: 1)
-                    .tint(selectedPlanet.swiftUIColor)
-                    .frame(width: 104)
-                    .accessibilityLabel("Visualization style")
+                    if model.renderMode.isExperimental {
+                        Text("Beta")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundStyle(selectedPlanet.swiftUIColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
+                    }
+                }
+
+                Text("Switch in Settings")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(BrandColor.textMuted)
+                    .lineLimit(1)
             }
         }
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 8)
         .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
-    }
-
-    private var styleIndexBinding: Binding<Double> {
-        Binding(
-            get: {
-                Double(VisualizationStyle.allCases.firstIndex(of: model.visualizationStyle) ?? 0)
-            },
-            set: { newValue in
-                let index = Int(newValue.rounded())
-                let styles = VisualizationStyle.allCases
-                guard styles.indices.contains(index) else { return }
-                let nextStyle = styles[index]
-                guard nextStyle != model.visualizationStyle else { return }
-                BrandHaptics.fire(.light)
-                withAnimation(BrandMotion.flow) {
-                    model.visualizationStyle = nextStyle
-                }
-            }
-        )
     }
 
     private var bottomControls: some View {
@@ -545,6 +537,7 @@ struct UniverseOverlayView: View {
                 SearchDock(
                     onAddTool: onAddTool,
                     onToolSelect: onToolSelect,
+                    onOpenToolDetail: onOpenToolDetail,
                     onChatActivityChange: onChatActivityChange
                 )
             }

@@ -111,6 +111,22 @@ struct UniverseViewModelTests {
         #expect(model.clarityMode == .focus)
     }
 
+    @Test func renderModeDefaultsToReadableGraph2D() {
+        let model = makeModel()
+        #expect(model.renderMode == .graph2D)
+    }
+
+    @Test func renderModePersistsAcrossModelReloads() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+
+        let first = UniverseViewModel(store: store)
+        first.renderMode = .spatial3D
+
+        let reloaded = UniverseViewModel(store: store)
+        #expect(reloaded.renderMode == .spatial3D)
+    }
+
     @Test func selectCategoryAutoSelectsItsFirstTool() {
         let model = makeModel(sample: true)
         model.selectCategory(.design)
@@ -251,6 +267,43 @@ struct UniverseViewModelTests {
         #expect(model.selectedTool?.name == "New Analytics Tool")
         #expect(model.selection.activeCategory == .analytics)
         #expect(model.activityHistory.contains { $0.kind == .added && $0.title.contains("New Analytics Tool") })
+    }
+
+    @Test func addedToolStoresSourceDomainWhenWebsiteExists() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "https://www.posthog.com", category: .analytics))
+
+        let tool = model.visibleAllTools.first { $0.name == "PostHog" }
+        #expect(tool?.category == .analytics)
+        #expect(tool?.url?.absoluteString == "https://www.posthog.com")
+        #expect(tool?.logoDomain == "posthog.com")
+        #expect(tool?.summary.contains("Source domain: posthog.com") == true)
+    }
+
+    @Test func addedToolWithoutWebsiteIsMarkedUnverified() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "Random User Tool", urlString: "", category: .design))
+
+        let tool = model.visibleAllTools.first { $0.name == "Random User Tool" }
+        #expect(tool?.url == nil)
+        #expect(tool?.logoDomain == nil)
+        #expect(tool?.summary.contains("Website not provided") == true)
+        #expect(tool?.classification?.reason.contains("without a website") == true)
+    }
+
+    @Test func assistantCanReferenceToolAfterSuccessfulAdd() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "Random User Tool", urlString: "", category: .design))
+        model.assistantQuery = "Random User Tool"
+        model.askAssistant()
+
+        let assistantReply = model.assistantMessages.last
+        #expect(assistantReply?.role == .assistant)
+        #expect(assistantReply?.matchIDs.contains("random-user-tool") == true)
+        #expect(assistantReply?.text.contains("I did not find this service") == false)
     }
 
     @Test func assistantMissingToolDoesNotInventMatch() {

@@ -47,17 +47,30 @@ struct UniverseMapView: View {
 
     private var universeStack: some View {
         ZStack {
-            UniverseRealityView(
-                planets: planets,
-                mode: mode,
-                visualizationStyle: model.visualizationStyle,
-                sceneController: sceneController,
-                cameraRig: cameraRig,
-                gestureController: gestureController,
-                onPlanetTap: selectCategory,
-                onToolTap: focusToolFromMap,
-                onEmptyTap: handleEmptySpaceTap
-            )
+            Group {
+                switch model.renderMode {
+                case .graph2D:
+                    UniverseGraphView(
+                        planets: planets,
+                        mode: mode,
+                        onPlanetTap: selectCategory,
+                        onToolTap: focusToolFromMap,
+                        onEmptyTap: handleEmptySpaceTap
+                    )
+                case .spatial3D:
+                    UniverseRealityView(
+                        planets: planets,
+                        mode: mode,
+                        visualizationStyle: model.visualizationStyle,
+                        sceneController: sceneController,
+                        cameraRig: cameraRig,
+                        gestureController: gestureController,
+                        onPlanetTap: selectCategory,
+                        onToolTap: focusToolFromMap,
+                        onEmptyTap: handleEmptySpaceTap
+                    )
+                }
+            }
             .ignoresSafeArea()
 
             Color.black
@@ -73,6 +86,7 @@ struct UniverseMapView: View {
                 selectedTool: selectedTool,
                 onCategorySelect: selectCategory,
                 onToolSelect: focusToolFromMap,
+                onOpenToolDetail: openToolDetailFromChat,
                 onChatActivityChange: setChatOpen,
                 onDetails: presentDetail,
                 onAccount: presentAccount,
@@ -127,6 +141,11 @@ struct UniverseMapView: View {
         }
         .onChange(of: model.universeMode) { _, newMode in
             focusCamera(for: newMode, animated: true)
+        }
+        .onChange(of: model.renderMode) { _, renderMode in
+            if renderMode == .spatial3D {
+                focusCamera(for: mode, animated: false)
+            }
         }
         .onChange(of: detailPresented) { _, isPresented in
             if isPresented {
@@ -203,6 +222,13 @@ struct UniverseMapView: View {
         withAnimation(BrandMotion.flow) {
             _ = model.focusTool(id)
         }
+    }
+
+    private func openToolDetailFromChat(_ id: String) {
+        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
+        modeBeforeDetail = .toolSelected(tool.category, tool.id)
+        model.universeMode = .detail(tool.category, tool.id)
+        detailPresented = true
     }
 
     private func resetToOverview() {

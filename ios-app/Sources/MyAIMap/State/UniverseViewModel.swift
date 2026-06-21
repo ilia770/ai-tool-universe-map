@@ -21,6 +21,12 @@ final class UniverseViewModel {
     var searchQuery: String = ""
     var assistantQuery: String = ""
     var assistantMessages: [AssistantMessage] = []
+    var renderMode: UniverseRenderMode = .graph2D {
+        didSet {
+            guard oldValue != renderMode else { return }
+            persist()
+        }
+    }
     var visualizationStyle: VisualizationStyle = .orbitalGlass
     var appLanguage: AppLanguage = .system
     var hapticsEnabled: Bool = true
@@ -37,10 +43,11 @@ final class UniverseViewModel {
         let saved = store.load()
         self.customTools = saved.tools
         self.hiddenToolIDs = saved.hidden
+        self.renderMode = saved.renderMode
     }
 
     private func persist() {
-        store.save(tools: customTools, hidden: hiddenToolIDs)
+        store.save(tools: customTools, hidden: hiddenToolIDs, renderMode: renderMode)
     }
 
     // MARK: - Derived state
@@ -227,9 +234,17 @@ final class UniverseViewModel {
             for: query,
             tools: visibleAllTools,
             categoryName: { UniverseSeed.category($0).shortName },
-            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
+            knowledge: { ToolKnowledgeBook.knowledge(for: $0) },
+            recentActivity: activityHistory
         )
-        assistantMessages.append(AssistantMessage(role: .assistant, text: reply.text, matchIDs: reply.matchIDs))
+        assistantMessages.append(
+            AssistantMessage(
+                role: .assistant,
+                text: reply.text,
+                matchIDs: reply.matchIDs,
+                missingToolSuggestions: reply.missingToolSuggestions
+            )
+        )
         assistantQuery = ""
         recordActivity(
             kind: .asked,
@@ -279,26 +294,37 @@ final class UniverseViewModel {
         guard !cleanName.isEmpty, category != .core else { return false }
 
         let url = normalizedURL(from: urlString)
+        let sourceHost = url.flatMap { normalizedSourceHost(from: $0) }
         let id = uniqueID(base: slug(cleanName))
         let categoryTools = allTools.filter { $0.category == category }
         let categoryAngle = UniverseSeed.category(category).angle
         let relationIds = suggestedRelations(for: cleanName, category: category)
+        let summary = if let sourceHost {
+            "User-added service. Source domain: \(sourceHost). Claims stay cautious until website-backed enrichment."
+        } else {
+            "User-added service. Website not provided; claims remain unverified."
+        }
+        let classificationReason = if let sourceHost {
+            "Added from account intake with source domain \(sourceHost). Needs enrichment before precise claims."
+        } else {
+            "Added from account intake without a website. Claims remain unverified until a source is provided."
+        }
 
         let tool = Tool(
             id: id,
             name: cleanName,
             category: category,
-            summary: "User-added service. Website verified by URL before deep claims are made.",
+            summary: summary,
             stage: .research,
             orbit: categoryTools.count.isMultiple(of: 2) ? .middle : .inner,
             angle: categoryAngle,
             url: url,
-            logoDomain: url?.host,
+            logoDomain: sourceHost,
             relationIds: relationIds,
             classification: Tool.Classification(
                 confidence: url == nil ? 0.48 : 0.74,
                 matchedKeywords: [category.rawValue],
-                reason: "Added from account intake. Needs website-backed enrichment before precise claims."
+                reason: classificationReason
             )
         )
         customTools.append(tool)
@@ -335,6 +361,14 @@ final class UniverseViewModel {
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else { return nil }
         return url
+    }
+
+    private func normalizedSourceHost(from url: URL) -> String? {
+        guard var host = url.host()?.lowercased(), !host.isEmpty else { return nil }
+        if host.hasPrefix("www.") {
+            host.removeFirst(4)
+        }
+        return host
     }
 
     private func uniqueID(base: String) -> String {

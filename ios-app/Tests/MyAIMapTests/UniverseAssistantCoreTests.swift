@@ -3,6 +3,14 @@ import Testing
 
 @Suite("UniverseAssistantCore — truthful tool answers")
 struct UniverseAssistantCoreTests {
+    private func reply(_ query: String, tools: [Tool] = UniverseSeed.tools) -> AssistantReply {
+        UniverseAssistantCore.reply(
+            for: query,
+            tools: tools,
+            categoryName: { UniverseSeed.category($0).shortName },
+            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
+        )
+    }
 
     @Test func postHogLivesInAnalytics() {
         let postHog = UniverseSeed.tools.first { $0.id == "posthog" }
@@ -10,35 +18,83 @@ struct UniverseAssistantCoreTests {
     }
 
     @Test func databaseQueryFindsSupabaseFromKnowledge() {
-        let reply = UniverseAssistantCore.reply(
-            for: "fast postgres database",
-            tools: UniverseSeed.tools,
-            categoryName: { UniverseSeed.category($0).shortName },
-            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
-        )
+        let reply = reply("fast postgres database")
         #expect(reply.matchIDs.contains("supabase"))
         #expect(reply.text.contains("Supabase"))
     }
 
     @Test func missingServiceAsksForWebsite() {
-        let reply = UniverseAssistantCore.reply(
-            for: "totally missing ai app",
-            tools: UniverseSeed.tools,
-            categoryName: { UniverseSeed.category($0).shortName },
-            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
-        )
+        let reply = reply("zzzapflow unknown service")
         #expect(reply.matchIDs.isEmpty)
         #expect(reply.text.contains("website URL"))
     }
 
     @Test func broadPlatformAsksForSpecificProduct() {
-        let reply = UniverseAssistantCore.reply(
-            for: "google",
-            tools: UniverseSeed.tools,
-            categoryName: { UniverseSeed.category($0).shortName },
-            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
-        )
+        let reply = reply("google")
         #expect(reply.matchIDs.isEmpty)
         #expect(reply.text.contains("broad platform"))
+    }
+
+    @Test func appWorkflowRecommendsExistingStackAndMissingTools() {
+        let reply = reply("I need to create an app. Which tools should I use?")
+
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(reply.matchIDs.contains("figma"))
+        #expect(reply.matchIDs.contains("codex"))
+        #expect(reply.matchIDs.contains("supabase"))
+        #expect(reply.text.contains("Fastest:"))
+        #expect(reply.text.contains("Cheapest/free:"))
+        #expect(reply.text.contains("Advanced/pro:"))
+        #expect(reply.text.contains("Caveats / tradeoffs"))
+        #expect(reply.missingToolSuggestions.map(\.name).contains("GitHub"))
+        #expect(reply.missingToolSuggestions.map(\.name).contains("Sentry"))
+    }
+
+    @Test func designDomainUsesExistingToolsAndSuggestsAddableGaps() {
+        let reply = reply("Which tool should I use for app design?")
+
+        #expect(reply.matchIDs.contains("figma"))
+        #expect(reply.matchIDs.contains("dessn"))
+        // Framer ships in the sample seed, so it is an existing design tool and
+        // must NOT be re-suggested as a gap (the suggestion filter drops tools
+        // already present in the universe). Mobbin is absent, so it stays a gap.
+        #expect(!reply.missingToolSuggestions.map(\.name).contains("Framer"))
+        #expect(reply.missingToolSuggestions.map(\.name).contains("Mobbin"))
+        #expect(reply.text.contains("Recommended tools"))
+    }
+
+    @Test func domainWithoutExistingToolSaysSoAndSuggestsMissingTools() {
+        let tools = UniverseSeed.tools.filter { $0.category != .design }
+        let reply = reply("Which tool should I use for app design?", tools: tools)
+
+        #expect(reply.matchIDs.isEmpty)
+        #expect(reply.text.contains("No strong existing design tool"))
+        #expect(reply.missingToolSuggestions.count == 3)
+        #expect(reply.missingToolSuggestions.allSatisfy { $0.pricingNote == "Pricing unknown, verify website." })
+    }
+
+    @Test func userAddedToolsAreVisibleInFutureAnswers() {
+        let custom = Tool(
+            id: "internal-builder",
+            name: "Internal Builder",
+            category: .coding,
+            summary: "User-added internal app builder for admin tools.",
+            stage: .execution,
+            orbit: .inner,
+            angle: -120,
+            url: nil,
+            logoDomain: nil,
+            relationIds: [],
+            classification: Tool.Classification(
+                confidence: 0.48,
+                matchedKeywords: ["coding"],
+                reason: "User-added tool; needs website-backed enrichment."
+            )
+        )
+        let reply = reply("internal app builder", tools: UniverseSeed.tools + [custom])
+
+        #expect(reply.matchIDs.contains("internal-builder"))
+        #expect(reply.text.contains("Pricing unknown") || reply.text.contains("Unknown pricing model"))
+        #expect(reply.text.contains("Use cautious claims"))
     }
 }

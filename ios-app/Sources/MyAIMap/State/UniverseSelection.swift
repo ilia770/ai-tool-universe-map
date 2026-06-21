@@ -19,6 +19,42 @@ enum ClarityMode: String, CaseIterable, Equatable, Sendable {
     case atlas
 }
 
+/// User-facing renderer choice. `graph2D` is the stable readable fallback and
+/// stays default until the spatial renderer meets the no-defect bar.
+enum UniverseRenderMode: String, CaseIterable, Identifiable, Codable, Equatable, Sendable {
+    case graph2D
+    case spatial3D
+
+    var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .graph2D: return "2D"
+        case .spatial3D: return "3D"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .graph2D: return "2D Graph"
+        case .spatial3D: return "3D Spatial"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .graph2D:
+            return "Readable connected nodes for daily use."
+        case .spatial3D:
+            return "Experimental spatial scene while 3D readability is being polished."
+        }
+    }
+
+    var isExperimental: Bool {
+        self == .spatial3D
+    }
+}
+
 /// User-facing visualization presets. The letters intentionally match
 /// the design research shortlist: A/K/N/O, with N as the force-3D view.
 enum VisualizationStyle: String, CaseIterable, Identifiable, Equatable, Sendable {
@@ -142,6 +178,37 @@ struct UniverseActivity: Identifiable, Equatable, Sendable {
     }
 }
 
+struct MissingToolSuggestion: Identifiable, Equatable, Sendable {
+    let id: String
+    let name: String
+    let category: ToolCategoryId
+    let reason: String
+    let pricingNote: String
+
+    init(
+        id: String? = nil,
+        name: String,
+        category: ToolCategoryId,
+        reason: String,
+        pricingNote: String = "Pricing unknown, verify website."
+    ) {
+        self.id = id ?? Self.slug(for: name)
+        self.name = name
+        self.category = category
+        self.reason = reason
+        self.pricingNote = pricingNote
+    }
+
+    static func slug(for value: String) -> String {
+        let folded = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let raw = folded.unicodeScalars
+            .map { scalar in CharacterSet.alphanumerics.contains(scalar) ? String(scalar) : "-" }
+            .joined()
+        let parts = raw.split(separator: "-").map(String.init)
+        return parts.joined(separator: "-")
+    }
+}
+
 struct AssistantMessage: Identifiable, Equatable, Sendable {
     enum Role: String, Equatable, Sendable {
         case user
@@ -152,6 +219,7 @@ struct AssistantMessage: Identifiable, Equatable, Sendable {
     let role: Role
     let text: String
     let matchIDs: [String]
+    let missingToolSuggestions: [MissingToolSuggestion]
     let createdAt: Date
 
     init(
@@ -159,12 +227,14 @@ struct AssistantMessage: Identifiable, Equatable, Sendable {
         role: Role,
         text: String,
         matchIDs: [String] = [],
+        missingToolSuggestions: [MissingToolSuggestion] = [],
         createdAt: Date = Date()
     ) {
         self.id = id
         self.role = role
         self.text = text
         self.matchIDs = matchIDs
+        self.missingToolSuggestions = missingToolSuggestions
         self.createdAt = createdAt
     }
 }

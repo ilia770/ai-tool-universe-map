@@ -59,3 +59,30 @@ map highlights; no navigation/selection state was added.
 - No remote logo fetch by design (local-only invariant); if bundled per-tool
   logo assets are ever added, `ToolLogoView` would need an asset lookup branch
   ahead of the monogram.
+
+### Agent 8 — detail IA / pricing / fallback polish (landed)
+
+Canonical behavior for this pass is captured in `TOOL_DETAIL_SPEC.md`.
+
+**Changed files**
+- `UI/Sheets/ToolDetailSection.swift` — product-profile IA, header CTA,
+  structured pricing rows, neutral section surfaces, related tools, and
+  collapsed metadata.
+- `UI/Sheets/ToolLogoView.swift` — bundled-logo lookup plus richer category
+  fallback icon.
+- `Tests/MyAIMapTests/ToolPricingPresenterTests.swift` — pricing presenter
+  coverage without invented exact prices.
+
+**QA done**
+- `git diff --check` clean.
+- XcodeBuildMCP `build_sim` on `iPhone 17 Pro` succeeded with
+  `ENABLE_DEBUG_DYLIB=NO`.
+- `npm run ios:verify` succeeded, including build-for-testing.
+- XcodeBuildMCP `test_sim` reached the MCP timeout, but the underlying
+  `xcodebuild ... test-without-building` process completed and produced
+  `.xcresult`: `result` Passed, `passedTests` 162, `failedTests` 0,
+  `skippedTests` 0.
+
+**Remaining issues**
+- Manual visual QA remains required for compactness, Dynamic Type, iPad width,
+  and no-URL/user-added fallback states.

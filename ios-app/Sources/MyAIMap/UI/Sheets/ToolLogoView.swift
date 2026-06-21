@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Pure logic for the tool logo fallback. Decides the monogram initials
 /// from a tool's display name, mirroring the web app's `getToolInitials`
@@ -67,6 +68,21 @@ struct ToolLogoView: View {
     let accent: Color
     var size: CGFloat = 56
 
+    private var bundledLogo: UIImage? {
+        let candidates = [
+            tool.id,
+            tool.logoDomain?.replacingOccurrences(of: ".", with: "-"),
+            tool.logoDomain,
+        ].compactMap { $0 }
+
+        for candidate in candidates {
+            if let image = UIImage(named: candidate) {
+                return image
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
@@ -80,14 +96,40 @@ struct ToolLogoView: View {
             RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
                 .stroke(.white.opacity(0.14), lineWidth: 1)
 
-            Text(ToolMonogram.initials(for: tool.name))
-                .font(.system(size: size * 0.4, weight: .heavy, design: .rounded))
-                .minimumScaleFactor(0.6)
-                .foregroundStyle(.white.opacity(0.95))
-                .padding(size * 0.18)
+            if let bundledLogo {
+                Image(uiImage: bundledLogo)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(size * 0.18)
+            } else {
+                Image(systemName: categorySymbol(for: tool.category))
+                    .font(.system(size: size * 0.52, weight: .semibold))
+                    .foregroundStyle(accent.opacity(0.22))
+                    .offset(x: size * 0.22, y: size * 0.18)
+
+                Text(ToolMonogram.initials(for: tool.name))
+                    .font(.system(size: size * 0.4, weight: .heavy, design: .rounded))
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(.white.opacity(0.95))
+                    .padding(size * 0.18)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityLabel("\(tool.name) logo")
+    }
+
+    private func categorySymbol(for category: ToolCategoryId) -> String {
+        switch category {
+        case .coding: return "chevron.left.forwardslash.chevron.right"
+        case .design: return "paintpalette"
+        case .research: return "doc.text.magnifyingglass"
+        case .analytics: return "chart.xyaxis.line"
+        case .media: return "sparkles.tv"
+        case .distribution: return "paperplane"
+        case .infrastructure: return "server.rack"
+        case .knowledge: return "books.vertical"
+        case .core: return "sparkles"
+        }
     }
 }
 

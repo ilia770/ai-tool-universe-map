@@ -75,13 +75,13 @@ struct AccountSettingsSheet: View {
         return VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             settingsGroup(title: "Visualization", systemImage: "circle.hexagongrid.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
-                    ForEach(VisualizationStyle.allCases) { style in
+                    ForEach(UniverseRenderMode.allCases) { renderMode in
                         Button {
                             withAnimation(BrandMotion.flow) {
-                                model.visualizationStyle = style
+                                model.renderMode = renderMode
                             }
                         } label: {
-                            visualizationRow(style)
+                            renderModeRow(renderMode)
                         }
                         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                     }
@@ -223,20 +223,31 @@ struct AccountSettingsSheet: View {
         )
     }
 
-    private func visualizationRow(_ style: VisualizationStyle) -> some View {
-        let isSelected = style == model.visualizationStyle
+    private func renderModeRow(_ renderMode: UniverseRenderMode) -> some View {
+        let isSelected = renderMode == model.renderMode
         return HStack(spacing: BrandSpacing.m.value) {
-            Text(style.shortLabel)
+            Text(renderMode.shortLabel)
                 .font(.headline.weight(.bold))
                 .foregroundStyle(isSelected ? .black.opacity(0.82) : .white)
-                .frame(width: 34, height: 34)
+                .frame(width: 42, height: 34)
                 .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.muted, in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                Text(style.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text(style.detail)
+                HStack(spacing: 6) {
+                    Text(renderMode.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    if renderMode.isExperimental {
+                        Text("Experimental")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(model.selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                    }
+                }
+                Text(renderMode.detail)
                     .font(.caption)
                     .foregroundStyle(BrandColor.textMuted)
                     .lineLimit(2)

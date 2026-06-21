@@ -15,7 +15,7 @@ chat presentation conflicts with it.
 
 ## Attachment button (single control, three states)
 - Empty → paperclip icon.
-- Menu open → menu listing Files and Photo (above the input).
+- Menu open → inline menu listing Files and Photo (above the input).
 - Attached → a small file/photo pill indicator.
 - "Remove attachment" available ONLY when an attachment exists.
 - No random flipping between plus / file / paperclip. The trailing button is a
@@ -36,7 +36,8 @@ chat presentation conflicts with it.
 - Collapse/expand is consistent (`conversationCollapsed`).
 
 ## Send / plus button
-- Trailing button is Send when input is focused, Add-tool otherwise.
+- Trailing button is Send when input is focused, has text, or has an
+  attachment. It is Add-tool only when the composer is fully idle.
 - Send disabled when there is no text AND no attachment; enabled when either
   exists. Clear icon state.
 - Successful send clears the text (`clearComposer`).
@@ -143,3 +144,53 @@ from the overview projection fallback.
 - `rail-edge-swallows-map-pan` still needs manual gesture arbitration QA.
 - `scene-rebuild-on-opacity` remains a risky performance refactor and was not
   touched.
+
+### Agent 2c — bubble layout, collapse/expand, inline attachment menu (landed)
+
+**Message layout.** User messages now align trailing and use natural-width
+`ViewThatFits` bubbles: short Russian/English text stays compact, while long
+text wraps inside a max width of 80% of the available phone width. Assistant
+messages align leading and are capped separately so short
+answers do not become huge full-width blocks, while structured tables/chips can
+still use readable width.
+
+**Collapse / expand.** `conversationCollapsed` now keeps chat active while
+there is a transcript, draft, attachment, or open attachment menu. Collapsing
+hides the transcript and dismisses focus/menu; reopening restores the existing
+messages without duplicating or clearing them. This avoids the old parent
+`chatOpen -> previous map mode` flip during collapse.
+
+**Attachment menu.** The SwiftUI `Menu` was replaced by a custom inline
+popover rendered above the composer row. The trigger stays a paperclip. Files
+and Photo are explicit rows; Remove appears only when attached. The popover
+dismisses on selection, remove, send, and focus loss/outside tap.
+
+**Send / plus behavior.** The trailing button is Send whenever the composer is
+focused, has text, or has an attachment. It is the Add-tool plus only when the
+composer is idle. Attachment-only send now creates a compact "Attached file" /
+"Attached photo" user message instead of becoming a no-op.
+
+**Changed files**
+- `UI/Search/SearchCore.swift` — added pure `ComposerLogic` rules for send
+  button visibility, attachment-only outgoing message text, collapsed-chat
+  activity, and bubble max-width ratio.
+- `UI/Search/SearchDock.swift` — compact user/assistant message layout; inline
+  attachment popover; collapse/reopen state fix; attachment-only submit; stable
+  send-vs-plus trailing button behavior.
+- `Tests/MyAIMapTests/ComposerLogicTests.swift` — added rule coverage for
+  send/plus visibility, outgoing message text, collapsed chat activity, and
+  bubble width ratio.
+
+**QA done**
+- `git diff --check` clean.
+- `npm run ios:verify` passed outside sandbox: `TEST BUILD SUCCEEDED`.
+- XcodeBuildMCP `MyAIMapTests` passed on iPhone 17 Pro:
+  `passedTests = 145`, `failedTests = 0`.
+- Direct UI smoke passed on iPhone 17 Pro:
+  `UniverseUISmokeTests/testCaptureKeyStates`, 1 test, 0 failures. It covered
+  input focus, attachment menu, Files selection, and attached pill screenshots.
+
+**Remaining issues**
+- Manual device QA is still needed for keyboard/safe-area feel and visual bubble
+  compactness on small iPhone and iPad sizes; automated smoke confirms the
+  state path but does not judge final visual density.
