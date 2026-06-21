@@ -36,6 +36,104 @@ current glass helper and the new specs still contain foundation-level risks:
 4. The verification gate is weaker than the plan says: `ios:verify` and CI build
    tests but do not execute the claimed 182-test suite.
 
+## Review Method
+
+The sweep used one coordinator plus six read-only explorer agents. Each agent
+was asked to return only confirmed findings with file/line evidence, severity,
+why it matters, and an exact fix. Refuted and uncertain findings were separated
+so they do not inflate the backlog.
+
+Agent lanes:
+
+| Lane | Scope | Result |
+|---|---|---|
+| State / root / navigation | `UniverseMapView`, `UniverseViewModel`, sheet state, route ownership | 1 confirmed P1, 4 spec gaps, 2 refuted |
+| Chat / assistant / composer | `SearchDock`, `UniverseAssistantCore`, bubbles, attachments, intent routing | 1 repeated P1, 3 confirmed P2, 2 spec gaps |
+| Visualization | 2D graph, 3D RealityKit, selection/camera sync, render-mode specs | 1 confirmed P1, 3 confirmed P2, 4 spec gaps |
+| Sheets / settings | Add Tool, Tool Detail, Account Settings, rail, current design specs | 1 repeated P1, 3 confirmed P2, 3 spec gaps |
+| Motion / haptics | `BrandMotion`, `BrandHaptics`, `CoreHapticsEngine`, SwiftUI/iOS 26 API validity | 4 confirmed P1, 4 confirmed P2, 4 spec gaps |
+| Tests / build config / data | `package.json`, CI, UI tests, seed drift, asset/project references | 1 confirmed P1, 3 confirmed P2, 4 missing test gates |
+
+Independent API verification:
+
+- Context7 official Apple SwiftUI docs confirmed `glassEffect(_:in:)`,
+  `glassEffectID(_:in:)`, `GlassEffectContainer`, `.buttonStyle(.glass)`,
+  `.glassProminent`, `navigationTransition(.zoom(sourceID:in:))`,
+  `matchedTransitionSource(id:in:)`, `scrollEdgeEffectStyle(_:for:)`,
+  `backgroundExtensionEffect(isEnabled:)`, and
+  `sensoryFeedback(_:trigger:)`.
+- The installed Xcode 26.5 SDK interface was used by the motion/haptics agent to
+  validate exact Swift signatures where docs snippets were too high level.
+
+No simulator/manual UI run was performed in this sweep. Findings that require
+rendered screenshots are marked with explicit QA gates below.
+
+## Severity Definitions
+
+| Severity | Meaning |
+|---|---|
+| P0 | Blocks launch/build or can corrupt user data. None confirmed. |
+| P1 | Blocks Phase 0/Phase 2 foundation, can fail build if implemented as written, or breaks primary selected/navigation/readability contracts. |
+| P2 | Important stabilization or design-system correctness issue that should be fixed before TestFlight polish or chat-first launch. |
+| P3 | Documentation/checklist drift or lower-risk follow-up. |
+
+## Phase Backlog
+
+| ID | Severity | Phase | Area | Summary | Primary files |
+|---|---:|---|---|---|---|
+| R1 | P1 | Phase 0 | Glass | Replace old `liquidGlass` contract with real `glassSurface` and reduce-transparency fallback | `LiquidGlass.swift`, `BrandColor.swift` |
+| R2 | P1 | Phase 0 | Specs | Fix invalid SwiftUI/motion/haptics snippets before agents implement from docs | redesign plan, motion spec |
+| R3 | P1 | Phase 0 | Tests | Add real `ios:test`; current verify/CI compiles tests but does not run assertions | `package.json`, `scripts/ios-verify.sh`, `.github/workflows/ios.yml` |
+| R4 | P1 | Phase 0 | Tests | Add missing chrome snapshot/render tests promised in release review | `ios-app/Tests/MyAIMapTests` |
+| R5 | P1 | Phase 1/2 | State | Detail sheet can stay presented after model leaves `.detail` | `UniverseMapView.swift`, `ToolDetailSection.swift`, `UniverseViewModel.swift` |
+| R6 | P1 | Phase 7 | 2D Graph | Layout tests circle distance, not rendered label/card overlap | `UniverseGraphView.swift`, `UniverseGraphLayoutTests.swift` |
+| R7 | P2 | Phase 0 | Glass | Current glass call sites include content surfaces; need allowlist | `SearchDock.swift`, `PlanetInfoCard.swift`, sheets/settings |
+| R8 | P2 | Phase 0 | Haptics | New `.sensoryFeedback` calls will not honor in-app Haptics toggle unless wrapped | `BrandHaptics.swift`, settings, future call sites |
+| R9 | P2 | Phase 0 | Motion | Direct `withAnimation(BrandMotion.*)` bypasses reduce-motion resolver | `SearchDock.swift`, `UniverseMapView.swift` |
+| R10 | P2 | Phase 0 | Haptics | Core Haptics engine does not lazily restart after stop | `CoreHapticsEngine.swift` |
+| R11 | P2 | Phase 0 | Haptics | Duplicate press/action haptics already produce two felt meanings per tap | `PressBounce.swift`, `SearchDock.swift`, `PlanetInfoCard.swift` |
+| R12 | P2 | Phase 2 | Root IA | Root route owner for chat-first is undefined | `MyAIMapApp.swift`, new `RootShell`, `UniverseMode.swift` |
+| R13 | P2 | Phase 2 | Onboarding | First-run chat starter data source is unresolved with empty user map | `UniverseViewModel.swift`, `UniverseStore.swift`, seed data |
+| R14 | P2 | Phase 3 | Chat | Domain recommendation phrasing can still fall into missing-service path | `UniverseAssistantCore.swift`, assistant tests |
+| R15 | P2 | Phase 3 | Chat | Multi-word unknown product can fall into generic chat instead of add-tool path | `UniverseAssistantCore.swift`, assistant tests |
+| R16 | P2 | Phase 3 | Composer | Attachment menu is normal layout, not anchored overlay | `SearchDock.swift` |
+| R17 | P2 | Phase 5 | Add Tool | Add Tool form uses a medium detent despite keyboard-heavy form usage | `UniverseMapView.swift`, `AddToolSheet.swift` |
+| R18 | P2 | Phase 7 | 3D | Core satellites do not camera-focus when selected | `UniverseMapView.swift`, `UniverseSceneController.swift` |
+| R19 | P2 | Phase 7 | 3D | Add-tool selection can race stale cached `planets` projection | `UniverseMapView.swift`, `UniverseViewModel.swift` |
+| R20 | P2 | Data | Catalog | iOS seed is 53-tool fork while comments claim canonical web seed | `UniverseSeed.swift`, iOS seed JSON, web seed |
+| R21 | P2 | UI | Right rail | Active right rail draws full-screen scrim contrary to spec | `UniverseOverlayView.swift`, `RIGHT_RAIL_SPEC.md` |
+| R22 | P2 | A11y | Dynamic Type | Fixed-size typography can contradict accessibility checklist | `BrandTypography.swift`, `ToolDetailSection.swift`, `PlanetInfoCard.swift` |
+
+## File Ownership Map
+
+Primary implementation files likely touched by follow-up fixes:
+
+- `ios-app/Sources/MyAIMap/UI/Effects/LiquidGlass.swift` - Phase 0 wrapper.
+- `ios-app/Sources/MyAIMap/UI/Theme/BrandColor.swift` - `glassSolid`, accent
+  ramp, chat ramp.
+- `ios-app/Sources/MyAIMap/UI/Theme/BrandMotion.swift` - seven new motion
+  tokens and reduce-motion-safe helper for action blocks.
+- `ios-app/Sources/MyAIMap/UI/Haptics/BrandHaptics.swift` - app-level haptic
+  gate and future sensory-feedback helper.
+- `ios-app/Sources/MyAIMap/UI/Haptics/CoreHapticsEngine.swift` - lazy restart,
+  `toolLand`, `ticker(count:)`.
+- `ios-app/Sources/MyAIMap/Universe/UniverseMapView.swift` - detail ownership,
+  Add Tool detent, 3D camera focus, cached `planets` race.
+- `ios-app/Sources/MyAIMap/Universe/UniverseGraphView.swift` - rendered-frame
+  overlap behavior.
+- `ios-app/Sources/MyAIMap/UI/Search/SearchDock.swift` - attachment overlay,
+  glass/content split, duplicate haptics, future chat-first extraction.
+- `ios-app/Sources/MyAIMap/UI/Search/UniverseAssistantCore.swift` - intent
+  routing for recommendation vs lookup vs general chat.
+- `ios-app/Sources/MyAIMap/UI/Settings/AddToolSheet.swift` - large-only form,
+  dirty-state dismissal protection.
+- `ios-app/Sources/MyAIMap/State/UniverseViewModel.swift` - first-run chat data
+  source and add-tool focus sequence.
+- `ios-app/Tests/MyAIMapTests/*` - new glass, chrome render, assistant intent,
+  2D rendered-frame, 3D focus tests.
+- `scripts/ios-verify.sh`, `package.json`, `.github/workflows/ios.yml` - test
+  execution gate.
+
 ## Confirmed Findings
 
 ### P1 - Liquid Glass foundation violates the redesign contract
@@ -360,6 +458,164 @@ seed. Add a parity/generation test so drift is intentional.
 7. Expand fallback wording to iOS 18-25, not only iOS 25.
 8. Gate every iOS 26-only chrome API, not just `glassEffect`: glass button
    styles and `scrollEdgeEffectStyle` also need availability wrappers.
+
+## Required Phase 0 Acceptance Gates
+
+Phase 0 is only done when all of these are true:
+
+1. `LiquidGlass.swift` exposes the new `glassSurface(in:tint:interactive:)`
+   helper or an equivalent API with the same semantics.
+2. `accessibilityReduceTransparency == true` produces an opaque surface and does
+   not use `.ultraThinMaterial` or native glass.
+3. iOS 26 path uses native `.glassEffect(_:in:)` without manual stroke/clip
+   overlays.
+4. iOS 18-25 fallback renders without compile-time references to iOS 26-only API
+   outside availability guards.
+5. `interactive` defaults to `false`; only actual controls opt into
+   `.interactive()`.
+6. Existing content surfaces are not blindly migrated to glass. Each old
+   `.liquidGlass` call site is classified as glass, solid/material, or removed.
+7. Specs no longer contain copy-paste-invalid API snippets.
+8. A real `xcodebuild test` path exists and is run locally at least once.
+9. A chrome render/snapshot test covers normal and reduce-transparency output.
+10. Screenshots are captured for one existing sheet, the composer/dock, and a
+    small-device run after the helper lands.
+
+## Required Tests To Add Or Harden
+
+| Area | Test |
+|---|---|
+| Glass wrapper | Static/compile test that direct `.glassEffect` use is centralized and availability-gated. |
+| Reduce transparency | Render `glassSurface` under `accessibilityReduceTransparency` and assert opaque fallback path. |
+| Brand tokens | Extend `BrandTokensTests` for `glassSolid`, `accent`, `accentInk`, `accentSubtle`, glass radii, and chat typography. |
+| Chrome render | Add `ChromeSnapshotTests.swift` or equivalent `ImageRenderer` tests for `SearchDock`, `CategoryRail`, `ToolDetailSection`, `AddToolSheet`, `AccountSettingsSheet`. |
+| Assistant intent | Add tests for `как дела`, `yak дела`, `I need a design tool`, `looking for analytics`, `Magic Canvas`, and single-token unknown service. |
+| Detail ownership | Removing selected tool from compact detail dismisses/updates detail sheet state. |
+| 2D graph | Rendered node frames do not overlap at SE, regular iPhone, and iPad widths. |
+| 3D focus | Selecting `openswarm` in `.core` focuses a satellite instead of overview. |
+| Add tool focus | Adding a tool in 3D rebuilds planets before camera focus. |
+| UI smoke | Convert current screenshot harness to hard assertions for launch, account/settings, composer, graph node, and Add Tool sheet. |
+
+## Manual QA Matrix
+
+Run after Phase 0 foundation and again after Phase 2 chat-first root:
+
+| Device / mode | Required states |
+|---|---|
+| iPhone SE-class | Launch, composer, attachment menu, Add Tool keyboard, detail sheet, reduce transparency. |
+| Modern iPhone | 2D Graph default, chat open/collapse, tool detail, settings visualization switch, haptics toggle. |
+| iPad regular width | Trailing inspector, compact sheet avoidance, right rail, split/Stage Manager width. |
+| iOS 18-25 fallback | No iOS 26 API compile/runtime crash, fallback surfaces readable. |
+| iOS 26 native | Glass chrome only, no over-glassed content, no manual stroke/clip artifacts. |
+| Reduce Motion | Direct `withAnimation` paths resolved or disabled; haptics still follow policy. |
+| Reduce Transparency | Opaque fallback, no translucent material in glass wrapper. |
+| VoiceOver / Dynamic Type | Selected card/detail text not clipped; Map count has accessibility value. |
+
+## Fix Ticket Drafts
+
+These are ready to convert into issues/PRs:
+
+### Ticket 1 - Phase 0 glass foundation
+
+Files:
+
+- `UI/Effects/LiquidGlass.swift`
+- `UI/Theme/BrandColor.swift`
+- `UI/Theme/BrandRadius.swift`
+
+Tasks:
+
+- Add `glassSurface(in:tint:interactive:)`.
+- Add opaque `glassSolid`.
+- Remove native manual stroke/clip from glass path.
+- Add reduce-transparency branch.
+- Keep old `.liquidGlass` temporarily as a deprecated wrapper only if it helps
+  mechanical migration.
+
+Exit:
+
+- Build green.
+- New glass contract tests pass.
+- Manual screenshot of one sheet and composer.
+
+### Ticket 2 - Verification gate
+
+Files:
+
+- `package.json`
+- `scripts/ios-verify.sh`
+- `.github/workflows/ios.yml`
+- `ios-app/Tests/MyAIMapTests`
+
+Tasks:
+
+- Add `ios:test` that runs `xcodebuild test`.
+- Preserve compile-only as explicit `ios:test-build`.
+- Add chrome render tests.
+- Make UI smoke hard-fail on missing critical states.
+
+Exit:
+
+- `ios:test` produces an xcresult and reports passed test count.
+
+### Ticket 3 - State ownership cleanup
+
+Files:
+
+- `UniverseMapView.swift`
+- `ToolDetailSection.swift`
+- `UniverseViewModel.swift`
+- `UI_STATE_MACHINE.md`
+
+Tasks:
+
+- Derive compact detail sheet from `.detail`, or centrally clear
+  `detailPresented` when mode leaves `.detail`.
+- Document sheet ownership before `RootShell`.
+
+Exit:
+
+- Delete selected tool from detail cannot leave stale sheet.
+
+### Ticket 4 - Chat intent cleanup
+
+Files:
+
+- `UniverseAssistantCore.swift`
+- `UniverseAssistantCoreTests.swift`
+
+Tasks:
+
+- Expand recommendation phrase detection.
+- Split general chat from name-like missing-service lookup.
+- Add regression tests for RU/EN small talk, recommendations, unknown single
+  and multi-word tools.
+
+Exit:
+
+- General chat does not ask for website.
+- Recommendation asks return tool/category recommendations.
+- Unknown product names route to add-tool URL request.
+
+### Ticket 5 - 2D/3D visualization stabilization
+
+Files:
+
+- `UniverseGraphView.swift`
+- `UniverseGraphLayoutTests.swift`
+- `UniverseMapView.swift`
+- `UniverseViewModel.swift`
+
+Tasks:
+
+- Add rendered-frame overlap model or cull non-focused labels.
+- Handle core satellite selected camera focus.
+- Rebuild `planets` before focus after add.
+
+Exit:
+
+- 2D default is readable on SE/modern/iPad widths.
+- 3D selected card/camera/node stay in sync after core select and Add Tool.
 
 ## Recommended Order
 
