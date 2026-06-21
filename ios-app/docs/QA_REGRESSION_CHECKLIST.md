@@ -27,6 +27,14 @@ count, not "Executed 0 tests".
 - [ ] Send disabled with no text + no attachment; enabled otherwise; clears on
       successful send.
 - [ ] Exactly one Add-tool and one Attach-files control visible per state.
+- [ ] Missing-tool suggestion chip opens Add Tool with that tool name and
+      branch prefilled.
+
+## Add Tool
+- [ ] Adding an already-visible tool by same name/domain focuses it instead of
+      creating a suffixed duplicate.
+- [ ] Adding a hidden tool by same name/domain restores and focuses it.
+- [ ] `http://` website input is stored/opened as `https://`.
 
 ## Right rail
 - [ ] Rail is edge-only, never a wide panel; does not cover the map.
@@ -43,6 +51,15 @@ count, not "Executed 0 tests".
 - [ ] Logo fallback renders (no broken-image box) for tools without a logo.
 - [ ] Card shows the same tool as the map highlight.
 - [ ] Reads as a product card, not an admin dashboard.
+- [ ] Related tools update compact detail in-place.
+- [ ] On iPad, related tools update the trailing inspector without dimming the
+      map.
+
+## UI smoke
+- [ ] Launch smoke with `-uitestStatic -uitestSampleUniverse` so graph mode is
+      deterministic and populated.
+- [ ] Prefer accessibility labels (`Category node,...`, `Tool node,...`) over
+      stale 3D coordinates for functional taps.
 
 ## Device matrix (visual)
 - [ ] iPhone 17 (and a Pro Max) — no overlap/clipping.

@@ -90,9 +90,14 @@ enum ToolPricingPresenter {
 /// admin dashboard.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    let onOpenRelatedTool: ((String) -> Void)?
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+
+    init(onOpenRelatedTool: ((String) -> Void)? = nil) {
+        self.onOpenRelatedTool = onOpenRelatedTool
+    }
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
@@ -512,7 +517,11 @@ struct ToolDetailSection: View {
         guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         BrandHaptics.fire(.light)
         withAnimation(BrandMotion.nudge) {
-            model.universeMode = .detail(tool.category, tool.id)
+            if let onOpenRelatedTool {
+                onOpenRelatedTool(tool.id)
+            } else {
+                model.universeMode = .detail(tool.category, tool.id)
+            }
         }
     }
 

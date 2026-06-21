@@ -12,30 +12,44 @@ final class UniverseUISmokeTests: XCTestCase {
     @MainActor
     func testCaptureKeyStates() {
         let app = XCUIApplication()
-        app.launchArguments = ["-uitestStatic"]
+        app.launchArguments = ["-uitestStatic", "-uitestSampleUniverse"]
         app.launch()
         wait(2.5)
         snap("01-overview")
         attachText("tree-overview", app.debugDescription)
 
-        // Branch focus via a bottom chip.
-        for label in ["Design", "Coding", "Research", "Analytics", "Media", "Infrastructure", "Knowledge", "Distribution"] {
-            let chip = app.buttons[label]
-            if chip.waitForExistence(timeout: 2), chip.isHittable {
-                chip.tap(); wait(1.6); snap("02-branch-\(label)")
-                attachText("tree-branch", app.debugDescription)
-                break
-            }
+        // Branch focus via the 2D graph node accessibility label.
+        let analyticsNode = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Category node, Analytics")
+        ).firstMatch
+        if analyticsNode.waitForExistence(timeout: 4), analyticsNode.isHittable {
+            analyticsNode.tap()
+            wait(1.6)
+            snap("02-branch-Analytics")
+            attachText("tree-branch", app.debugDescription)
         }
 
-        // Tool selection: tap a satellite orb (3D hit target), then open its
-        // detail via the bottom "Selected tool details" card.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.66)).tap()
+        // Tool selection: tap a graph tool node, then open its detail card.
+        let toolNode = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Tool node,")
+        ).firstMatch
+        if toolNode.waitForExistence(timeout: 4), toolNode.isHittable {
+            toolNode.tap()
+        }
         wait(1.4); snap("03a-tool-selected")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.773)).tap()
+        let selectedDetails = app.buttons["Selected planet details"]
+        if selectedDetails.waitForExistence(timeout: 3), selectedDetails.isHittable {
+            selectedDetails.tap()
+        }
         wait(1.6); snap("03b-detail")
         app.swipeDown(velocity: .fast); wait(0.8)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30)).tap(); wait(0.8) // reset
+        let coreNode = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Core node,")
+        ).firstMatch
+        if coreNode.waitForExistence(timeout: 2), coreNode.isHittable {
+            coreNode.tap()
+        }
+        wait(0.8)
 
         // Input focus (not-black confirmation).
         let field = app.textFields.firstMatch
@@ -72,6 +86,7 @@ final class UniverseUISmokeTests: XCTestCase {
         wait(for: [exp], timeout: seconds + 2)
     }
 
+    @MainActor
     private func snap(_ name: String) {
         let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         a.name = name; a.lifetime = .keepAlways; add(a)

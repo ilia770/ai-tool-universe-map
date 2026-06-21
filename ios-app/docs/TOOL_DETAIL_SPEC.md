@@ -44,6 +44,13 @@ The detail sheet is ordered as:
 
 Metadata is collapsed by default and visually lower priority.
 
+### Related Tool Navigation
+- Related-tool taps are routed through the owner map view when available.
+- On compact width, a related-tool tap keeps the detail sheet open and updates
+  the detail mode to the related tool.
+- On regular width/iPad, a related-tool tap selects the related tool without
+  entering `.detail`, so the trailing inspector updates without dimming the map.
+
 ### Visual Style
 - Cards use a consistent neutral surface.
 - Accent color is used mainly for headings, icons, and small status elements.
@@ -77,3 +84,23 @@ Metadata is collapsed by default and visually lower priority.
 **Remaining issues**
 - Manual visual QA should inspect Figma, PostHog, a no-URL seed tool, and a
   user-added no-website tool at small iPhone and iPad widths.
+
+### Codex follow-up - related-tool routing (2026-06-21)
+
+**Changed files**
+- `UI/Sheets/RootSheet.swift` - optional related-tool callback.
+- `UI/Sheets/ToolDetailSection.swift` - related buttons delegate navigation to
+  the callback instead of mutating `UniverseViewModel.universeMode` directly.
+- `Universe/UniverseMapView.swift` - compact and regular-width related-tool
+  routing now matches the owning detail presentation.
+
+**QA done**
+- `git diff --check` clean.
+- `npm run ios:test-build` succeeded with `TEST BUILD SUCCEEDED`.
+- `xcodebuild ... -only-testing:MyAIMapTests test-without-building` passed on
+  iPhone 17 Pro (`/tmp/aimap-codex-unit.xcresult`): `passedTests = 171`,
+  `failedTests = 0`, `skippedTests = 0`.
+
+**Remaining issues**
+- Manual iPad QA should confirm related-tool taps update the trailing inspector
+  while leaving the map undimmed.

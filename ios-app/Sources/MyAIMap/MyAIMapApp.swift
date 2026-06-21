@@ -13,6 +13,11 @@ struct MyAIMapApp: App {
             UniverseScreen()
                 .environment(model)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    if ProcessInfo.processInfo.arguments.contains("-uitestSampleUniverse"), model.isUniverseEmpty {
+                        _ = model.loadSampleUniverse()
+                    }
+                }
         }
     }
 }

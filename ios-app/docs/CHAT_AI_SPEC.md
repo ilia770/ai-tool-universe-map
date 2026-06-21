@@ -59,6 +59,8 @@ Broad platforms such as "google" still require a specific product or use case.
 - Existing tool chip opens the tool detail sheet for that tool.
 - Missing suggested tool chip opens Add Tool. It is a specific recommendation
   chip ("Add Framer"), not a duplicate generic Add Tool control.
+- Missing suggested tool chips pass their suggestion into Add Tool, so the sheet
+  opens with the suggested name and branch prefilled.
 - Missing suggestions carry category, reason, and the pricing note
   "Pricing unknown, verify website."
 
@@ -97,3 +99,24 @@ until enriched with verified website-backed details.
 - Manual simulator QA should verify chip tap behavior: existing chip opens the
   correct detail sheet; missing chip opens Add Tool; chat transcript remains
   stable after returning.
+
+### Codex follow-up - missing-chip prefill (2026-06-21)
+
+**Changed files**
+- `UI/Search/SearchDock.swift` - missing suggestion chips now call a
+  suggestion-specific add callback.
+- `Universe/UniverseOverlayView.swift`, `Universe/UniverseMapView.swift` -
+  carry missing-tool drafts into the Add Tool sheet and clear drafts on dismiss.
+- `UI/Settings/AddToolSheet.swift` - applies the suggested name and category
+  draft once on appear.
+
+**QA done**
+- `git diff --check` clean.
+- `npm run ios:test-build` succeeded with `TEST BUILD SUCCEEDED`.
+- `xcodebuild ... -only-testing:MyAIMapTests test-without-building` passed on
+  iPhone 17 Pro (`/tmp/aimap-codex-unit.xcresult`): `passedTests = 171`,
+  `failedTests = 0`, `skippedTests = 0`.
+
+**Remaining issues**
+- Manual simulator QA should verify "Add Framer" style chips show the matching
+  name in the Add Tool sheet and keep the suggested branch selected.

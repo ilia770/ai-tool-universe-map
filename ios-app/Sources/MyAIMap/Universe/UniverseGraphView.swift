@@ -436,16 +436,7 @@ struct UniverseGraphView: View {
                         onEmptyTap()
                     }
 
-                if effectiveReduceMotion || mode.pausesAmbientMotion {
-                    graphContent(layout: layout, phase: 0)
-                } else {
-                    TimelineView(.animation) { timeline in
-                        graphContent(
-                            layout: layout,
-                            phase: timeline.date.timeIntervalSinceReferenceDate
-                        )
-                    }
-                }
+                graphContent(layout: layout)
             }
             .scaleEffect(currentScale, anchor: .center)
             .offset(currentPan)
@@ -485,12 +476,9 @@ struct UniverseGraphView: View {
         .ignoresSafeArea()
     }
 
-    private func graphContent(layout: UniverseGraphLayoutResult, phase: TimeInterval) -> some View {
+    private func graphContent(layout: UniverseGraphLayoutResult) -> some View {
         ZStack {
-            Canvas { context, _ in
-                drawEdges(layout.edges, context: &context, phase: phase)
-            }
-            .allowsHitTesting(false)
+            edgeLayer(edges: layout.edges)
 
             ForEach(layout.nodes) { node in
                 GraphNodeButton(
@@ -512,6 +500,27 @@ struct UniverseGraphView: View {
                 .zIndex(node.isSelected ? 20 : node.isContext ? 10 : Double(node.radius))
             }
         }
+    }
+
+    @ViewBuilder
+    private func edgeLayer(edges: [UniverseGraphEdge]) -> some View {
+        if effectiveReduceMotion || mode.pausesAmbientMotion {
+            edgeCanvas(edges: edges, phase: 0)
+        } else {
+            TimelineView(.animation) { timeline in
+                edgeCanvas(
+                    edges: edges,
+                    phase: timeline.date.timeIntervalSinceReferenceDate
+                )
+            }
+        }
+    }
+
+    private func edgeCanvas(edges: [UniverseGraphEdge], phase: TimeInterval) -> some View {
+        Canvas { context, _ in
+            drawEdges(edges, context: &context, phase: phase)
+        }
+        .allowsHitTesting(false)
     }
 
     private func drawEdges(_ edges: [UniverseGraphEdge], context: inout GraphicsContext, phase: TimeInterval) {

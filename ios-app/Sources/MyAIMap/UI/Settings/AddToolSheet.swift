@@ -104,11 +104,17 @@ enum AddToolLogic {
 struct AddToolSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    private let draft: MissingToolSuggestion?
     @State private var name = ""
     @State private var website = ""
     @State private var category: ToolCategoryId = .analytics
     @State private var branchMode: AddToolBranchMode = .auto
+    @State private var didApplyDraft = false
     @FocusState private var nameFocused: Bool
+
+    init(draft: MissingToolSuggestion? = nil) {
+        self.draft = draft
+    }
 
     private var canAdd: Bool {
         AddToolLogic.canAdd(name: name)
@@ -153,7 +159,12 @@ struct AddToolSheet: View {
         .preferredColorScheme(.dark)
         .onAppear {
             nameFocused = true
-            if model.selection.activeCategory != .core {
+            if !didApplyDraft, let draft {
+                name = draft.name
+                category = draft.category
+                branchMode = .manual
+                didApplyDraft = true
+            } else if model.selection.activeCategory != .core {
                 category = model.selection.activeCategory
             }
         }

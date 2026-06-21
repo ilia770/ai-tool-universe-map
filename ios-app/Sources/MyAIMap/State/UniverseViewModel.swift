@@ -295,6 +295,21 @@ final class UniverseViewModel {
 
         let url = normalizedURL(from: urlString)
         let sourceHost = url.flatMap { normalizedSourceHost(from: $0) }
+        if let existingTool = existingToolMatching(name: cleanName, sourceHost: sourceHost) {
+            let wasHidden = hiddenToolIDs.remove(existingTool.id) != nil
+            if wasHidden {
+                persist()
+                recordActivity(
+                    kind: .restored,
+                    title: "Restored \(existingTool.name)",
+                    detail: UniverseSeed.category(existingTool.category).name,
+                    toolID: existingTool.id
+                )
+            }
+            _ = focusTool(existingTool.id)
+            return true
+        }
+
         let id = uniqueID(base: slug(cleanName))
         let categoryTools = allTools.filter { $0.category == category }
         let categoryAngle = UniverseSeed.category(category).angle
@@ -356,11 +371,35 @@ final class UniverseViewModel {
     private func normalizedURL(from value: String) -> URL? {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return nil }
-        let candidate = clean.hasPrefix("http://") || clean.hasPrefix("https://") ? clean : "https://\(clean)"
+        let lower = clean.lowercased()
+        guard !lower.contains("://") || lower.hasPrefix("http://") || lower.hasPrefix("https://") else { return nil }
+
+        let candidate: String
+        if lower.hasPrefix("http://") {
+            candidate = "https://\(clean.dropFirst("http://".count))"
+        } else if lower.hasPrefix("https://") {
+            candidate = clean
+        } else {
+            candidate = "https://\(clean)"
+        }
+
         guard let url = URL(string: candidate),
               let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else { return nil }
+              scheme == "https",
+              url.host() != nil else { return nil }
         return url
+    }
+
+    private func existingToolMatching(name: String, sourceHost: String?) -> Tool? {
+        let nameSlug = slug(name)
+        if let sourceHost,
+           let hostMatch = allTools.first(where: { $0.logoDomain == sourceHost }) {
+            return hostMatch
+        }
+
+        return allTools.first { tool in
+            tool.id == nameSlug || slug(tool.name) == nameSlug
+        }
     }
 
     private func normalizedSourceHost(from url: URL) -> String? {

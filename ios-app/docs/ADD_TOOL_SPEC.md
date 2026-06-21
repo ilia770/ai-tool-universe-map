@@ -27,7 +27,8 @@ visual design here.
 ### Validation
 - Name is required.
 - Website is optional.
-- Website input is normalized by adding `https://` when needed.
+- Website input is normalized by adding `https://` when needed. `http://`
+  entries are upgraded to `https://`; unsupported schemes are ignored.
 - If website exists, the normalized source domain is stored on `Tool.logoDomain`
   with leading `www.` removed.
 - If website is missing, the tool summary and classification reason explicitly
@@ -35,9 +36,16 @@ visual design here.
 
 ### Add Action
 - Add is enabled when name is non-empty.
+- If the name slug or normalized source domain already exists, Add focuses the
+  existing tool instead of creating a suffixed copy.
+- If the matching existing tool is hidden, Add restores it, persists the
+  unhidden state, then focuses it.
 - After add, the tool is appended to the visible universe, persisted, focused,
   searchable, and available to Ask AI Universe via `visibleAllTools`.
 - Added tools can be selected and opened through the existing detail flow.
+- Add Tool may open with a draft from an Ask AI missing-tool suggestion. In
+  that case the sheet pre-fills the suggested name and uses Manual branch mode
+  for the suggested category.
 
 ## Changed files / QA done / Remaining issues
 
@@ -67,3 +75,24 @@ visual design here.
 - Manual simulator QA should confirm the segmented buttons feel correct and
   that a newly added tool is visible on the selected branch immediately after
   the sheet dismisses.
+
+### Codex follow-up - duplicate and suggestion bugs (2026-06-21)
+
+**Changed files**
+- `State/UniverseViewModel.swift` - duplicate detection by name slug/domain,
+  hidden-tool restore on duplicate add, and `http://` -> `https://` URL
+  normalization.
+- `UI/Settings/AddToolSheet.swift` - optional missing-tool draft prefill.
+- `Tests/MyAIMapTests/UniverseViewModelTests.swift` - duplicate visible,
+  duplicate hidden restore, and HTTP upgrade coverage.
+
+**QA done**
+- `git diff --check` clean.
+- `npm run ios:test-build` succeeded with `TEST BUILD SUCCEEDED`.
+- `xcodebuild ... -only-testing:MyAIMapTests test-without-building` passed on
+  iPhone 17 Pro (`/tmp/aimap-codex-unit.xcresult`): `passedTests = 171`,
+  `failedTests = 0`, `skippedTests = 0`.
+
+**Remaining issues**
+- Manual simulator QA should verify duplicate-focus and hidden-restore behavior
+  from the real Add Tool sheet, not only the model tests.

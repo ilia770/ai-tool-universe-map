@@ -281,6 +281,41 @@ struct UniverseViewModelTests {
         #expect(tool?.summary.contains("Source domain: posthog.com") == true)
     }
 
+    @Test func duplicateAddFocusesExistingVisibleToolInsteadOfCreatingCopy() {
+        let model = makeModel(sample: true)
+        let initialCount = model.allTools.count
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "https://www.posthog.com", category: .analytics))
+
+        #expect(model.allTools.count == initialCount)
+        #expect(model.selectedTool?.id == "posthog")
+        #expect(!model.allTools.contains { $0.id == "posthog-2" })
+    }
+
+    @Test func duplicateAddRestoresHiddenToolInsteadOfCreatingCopy() {
+        let model = makeModel(sample: true)
+        let initialCount = model.allTools.count
+        #expect(model.deleteTool("posthog"))
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "", category: .analytics))
+
+        #expect(model.allTools.count == initialCount)
+        #expect(!model.removedTools.contains { $0.id == "posthog" })
+        #expect(model.selectedTool?.id == "posthog")
+        #expect(model.activityHistory.contains { $0.kind == .restored && $0.toolID == "posthog" })
+    }
+
+    @Test func httpWebsiteIsStoredAsHttpsSoDetailCanOpenIt() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "HTTP Tool", urlString: "http://example.com/docs", category: .analytics))
+
+        let tool = model.visibleAllTools.first { $0.name == "HTTP Tool" }
+        #expect(tool?.url?.scheme == "https")
+        #expect(tool?.url?.absoluteString == "https://example.com/docs")
+        #expect(tool?.logoDomain == "example.com")
+    }
+
     @Test func addedToolWithoutWebsiteIsMarkedUnverified() {
         let model = makeModel()
 

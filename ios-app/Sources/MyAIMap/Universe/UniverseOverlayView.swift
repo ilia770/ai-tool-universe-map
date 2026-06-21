@@ -16,6 +16,7 @@ struct UniverseOverlayView: View {
     let onDetails: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
+    let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
 
@@ -536,6 +537,7 @@ struct UniverseOverlayView: View {
             if !mode.isDetailOpen {
                 SearchDock(
                     onAddTool: onAddTool,
+                    onAddSuggestedTool: onAddSuggestedTool,
                     onToolSelect: onToolSelect,
                     onOpenToolDetail: onOpenToolDetail,
                     onChatActivityChange: onChatActivityChange

@@ -12,6 +12,7 @@ struct UniverseMapView: View {
     @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
+    @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
 
@@ -90,7 +91,8 @@ struct UniverseMapView: View {
                 onChatActivityChange: setChatOpen,
                 onDetails: presentDetail,
                 onAccount: presentAccount,
-                onAddTool: presentAddTool
+                onAddTool: { presentAddTool() },
+                onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }
             )
         }
     }
@@ -101,7 +103,7 @@ struct UniverseMapView: View {
     @ViewBuilder
     private var inspectorPanel: some View {
         if !model.isUniverseEmpty, mode.selectedToolID != nil {
-            RootSheet()
+            RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .frame(width: 360)
                 .background {
                     ZStack {
@@ -156,7 +158,7 @@ struct UniverseMapView: View {
             }
         }
         .sheet(isPresented: $detailPresented) {
-            RootSheet()
+            RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .presentationDetents([.fraction(0.72), .large])
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.72)))
                 .presentationDragIndicator(.visible)
@@ -170,11 +172,16 @@ struct UniverseMapView: View {
                 .presentationCornerRadius(42)
         }
         .sheet(isPresented: $addToolPresented) {
-            AddToolSheet()
+            AddToolSheet(draft: addToolDraft)
                 .environment(model)
                 .presentationDetents([.fraction(0.72), .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(42)
+        }
+        .onChange(of: addToolPresented) { _, isPresented in
+            if !isPresented {
+                addToolDraft = nil
+            }
         }
         .onAppear { if planets.isEmpty { rebuildPlanets() } }
         .onChange(of: model.visibleAllTools.count) { _, _ in rebuildPlanets() }
@@ -229,6 +236,16 @@ struct UniverseMapView: View {
         modeBeforeDetail = .toolSelected(tool.category, tool.id)
         model.universeMode = .detail(tool.category, tool.id)
         detailPresented = true
+    }
+
+    private func openRelatedToolFromDetail(_ id: String) {
+        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
+        if isCompact {
+            modeBeforeDetail = .toolSelected(tool.category, tool.id)
+            model.universeMode = .detail(tool.category, tool.id)
+        } else {
+            model.universeMode = .toolSelected(tool.category, tool.id)
+        }
     }
 
     private func resetToOverview() {
@@ -351,7 +368,12 @@ struct UniverseMapView: View {
     }
 
     private func presentAddTool() {
+        presentAddTool(draft: nil)
+    }
+
+    private func presentAddTool(draft: MissingToolSuggestion?) {
         BrandHaptics.fire(.medium)
+        addToolDraft = draft
         if detailPresented {
             detailPresented = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {

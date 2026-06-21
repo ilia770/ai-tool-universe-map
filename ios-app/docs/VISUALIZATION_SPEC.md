@@ -30,6 +30,9 @@ The render mode is stored on `UniverseViewModel.renderMode`, persists through
 - Empty universes still use the existing empty-state onboarding overlay.
 - Pan and pinch are local to the graph and do not mutate navigation state.
 - Reduce Motion and `-uitestStatic` disable ambient edge animation.
+- Ambient edge animation is scoped to the Canvas edge layer only; node buttons
+  stay outside `TimelineView(.animation)` so accessibility targets and SwiftUI
+  controls are not rebuilt every frame.
 
 The layout is deterministic and collision-resolved in `UniverseGraphLayout`.
 Tests assert iPhone-width node separation, selected tool/category marking, and
@@ -93,3 +96,24 @@ user-facing control. They remain only as internal parameters for the existing
 **Remaining issues**
 - Manual visual QA should inspect small iPhone, regular iPhone, and iPad widths.
 - 3D spatial defects remain out of scope for this pass.
+
+### Codex follow-up - graph animation and UI smoke (2026-06-21)
+
+**Changed files**
+- `Universe/UniverseGraphView.swift` - moved `TimelineView(.animation)` inside
+  the Canvas edge layer only.
+- `MyAIMapApp.swift` - `-uitestSampleUniverse` launch argument loads the sample
+  universe for UI smoke without changing the product default.
+- `Tests/MyAIMapUITests/UniverseUISmokeTests.swift` - launches with sample data
+  and taps graph accessibility labels instead of stale 3D coordinates.
+
+**QA done**
+- `git diff --check` clean.
+- `npm run ios:test-build` succeeded with `TEST BUILD SUCCEEDED`.
+- `xcodebuild ... -only-testing:MyAIMapTests test-without-building` passed on
+  iPhone 17 Pro (`/tmp/aimap-codex-unit.xcresult`): `passedTests = 171`,
+  `failedTests = 0`, `skippedTests = 0`.
+
+**Remaining issues**
+- Full UI smoke with screenshots remains manual/run-on-demand; build-for-testing
+  validates the target compiles.

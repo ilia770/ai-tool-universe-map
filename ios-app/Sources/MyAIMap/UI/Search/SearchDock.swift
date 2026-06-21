@@ -14,17 +14,20 @@ struct SearchDock: View {
     @State private var conversationCollapsed = false
 
     let onAddTool: () -> Void
+    let onAddSuggestedTool: ((MissingToolSuggestion) -> Void)?
     let onToolSelect: ((String) -> Void)?
     let onOpenToolDetail: ((String) -> Void)?
     let onChatActivityChange: ((Bool) -> Void)?
 
     init(
         onAddTool: @escaping () -> Void = {},
+        onAddSuggestedTool: ((MissingToolSuggestion) -> Void)? = nil,
         onToolSelect: ((String) -> Void)? = nil,
         onOpenToolDetail: ((String) -> Void)? = nil,
         onChatActivityChange: ((Bool) -> Void)? = nil
     ) {
         self.onAddTool = onAddTool
+        self.onAddSuggestedTool = onAddSuggestedTool
         self.onToolSelect = onToolSelect
         self.onOpenToolDetail = onOpenToolDetail
         self.onChatActivityChange = onChatActivityChange
@@ -624,7 +627,11 @@ struct SearchDock: View {
         return Button {
             BrandHaptics.fire(.light)
             withAnimation(BrandMotion.flow) {
-                onAddTool()
+                if let onAddSuggestedTool {
+                    onAddSuggestedTool(suggestion)
+                } else {
+                    onAddTool()
+                }
             }
         } label: {
             HStack(spacing: 7) {
