@@ -265,13 +265,62 @@ final class UniverseViewModel {
             return
         }
 
-        let reply = UniverseAssistantCore.reply(
+        // Local rule-based reply is always computed first: it stays the default
+        // offline behavior and provides the chip match-IDs the UI relies on.
+        let local = UniverseAssistantCore.reply(
             for: query,
             tools: visibleAllTools,
             categoryName: { UniverseSeed.category($0).shortName },
             knowledge: { ToolKnowledgeBook.knowledge(for: $0) },
             recentActivity: activityHistory
         )
+
+        // If the user supplied a DeepSeek key, prefer its (cheaper) reply text,
+        // grounded in the catalog. On a missing key OR any error we fall back to
+        // the local reply below.
+        if assistantUsesDeepSeek {
+            let tools = visibleAllTools
+            let systemPrompt = Self.deepSeekSystemPrompt(for: tools)
+            Task { [weak self] in
+                do {
+                    let text = try await DeepSeekClient().reply(to: query, systemPrompt: systemPrompt)
+                    await self?.appendAssistantReply(text: text, query: query, fallback: local)
+                } catch {
+                    await self?.appendAssistantReply(text: nil, query: query, fallback: local)
+                }
+            }
+            assistantQuery = ""
+            return
+        }
+
+        appendLocalReply(local, query: query)
+    }
+
+    /// True when a DeepSeek API key is stored in the Keychain.
+    var assistantUsesDeepSeek: Bool {
+        KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    }
+
+    private func appendAssistantReply(text: String?, query: String, fallback: AssistantReply) {
+        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            // Missing-key / network / decode failure → local rule-based reply.
+            appendLocalReply(fallback, query: query)
+            return
+        }
+        // DeepSeek answers the text; the local matcher still supplies chip
+        // match-IDs and missing-tool suggestions so the UI keeps working.
+        assistantMessages.append(
+            AssistantMessage(
+                role: .assistant,
+                text: text,
+                matchIDs: fallback.matchIDs,
+                missingToolSuggestions: fallback.missingToolSuggestions
+            )
+        )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: fallback.matchIDs.first)
+    }
+
+    private func appendLocalReply(_ reply: AssistantReply, query: String) {
         assistantMessages.append(
             AssistantMessage(
                 role: .assistant,
@@ -280,13 +329,27 @@ final class UniverseViewModel {
                 missingToolSuggestions: reply.missingToolSuggestions
             )
         )
-        assistantQuery = ""
-        recordActivity(
-            kind: .asked,
-            title: "Asked AI",
-            detail: query,
-            toolID: reply.matchIDs.first
-        )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: reply.matchIDs.first)
+    }
+
+    /// Grounds the DeepSeek prompt in the user's current catalog so it answers
+    /// about tools that actually exist and keeps the "never fabricate tools"
+    /// principle: when a service is missing, it asks for the website instead of
+    /// inventing facts.
+    private static func deepSeekSystemPrompt(for tools: [Tool]) -> String {
+        let catalog = tools
+            .map { "- \($0.name) (\(UniverseSeed.category($0.category).shortName))" }
+            .joined(separator: "\n")
+        let list = catalog.isEmpty ? "(the user's universe is currently empty)" : catalog
+        return """
+        You are the in-app assistant for "My AI Map", a universe of AI tools the user has added.
+        Only recommend tools from the catalog below. Never invent tools, pricing, or features.
+        If the user asks about a tool not in the catalog, say it isn't in their universe yet and ask for its website URL.
+        Be concise and practical.
+
+        Catalog:
+        \(list)
+        """
     }
 
     @discardableResult
