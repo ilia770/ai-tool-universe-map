@@ -45,9 +45,23 @@ enum UniverseAssistantCore {
         // against all tools, not just `matches`, since a name buried in a phrase
         // ("Supabase for video") may not survive ranked search.
         let queryTokens = Set(folded.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        // Some tools are named after generic domain/stage words ("Research",
+        // "Planning", "Code", "Runway"...). A single-token name equal to one of
+        // those must NOT hijack a domain/workflow query ("which tool for
+        // research" is a domain ask, not a request for the tool named Research).
+        // Multi-token names ("Claude Code") and distinctive single tokens
+        // ("Supabase") are safe.
+        let genericNameTokens: Set<String> = [
+            "research", "planning", "execution", "approval", "review", "design",
+            "code", "coding", "video", "media", "analytics", "build", "ship",
+            "social", "content", "app", "tool", "platform", "data", "cloud",
+            "runway", "flow", "loop", "stage", "terminal",
+        ]
         let namedTool = tools.first { tool in
             let nameTokens = fold(tool.name).split { !$0.isLetter && !$0.isNumber }.map(String.init)
-            return !nameTokens.isEmpty && nameTokens.allSatisfy { queryTokens.contains($0) }
+            guard !nameTokens.isEmpty else { return false }
+            if nameTokens.count == 1, genericNameTokens.contains(nameTokens[0]) { return false }
+            return nameTokens.allSatisfy { queryTokens.contains($0) }
         }
         if let namedTool, !isFullAppWorkflow(folded) {
             let direct = [namedTool] + matches.filter { $0.id != namedTool.id }
