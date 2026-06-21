@@ -242,7 +242,10 @@ enum UniverseAssistantCore {
     private static func missingReply(for query: String) -> AssistantReply {
         let folded = fold(query)
         let broadPlatforms = ["google", "instagram", "facebook", "meta", "apple", "microsoft", "amazon"]
-        if broadPlatforms.contains(where: { folded == $0 || folded.contains($0) }) {
+        // Match whole tokens, not substrings — otherwise "metabase", "metadata",
+        // "apple notes alternative" all falsely trip the broad-platform branch.
+        let tokens = Set(folded.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        if broadPlatforms.contains(where: { folded == $0 || tokens.contains($0) }) {
             return AssistantReply(
                 text: """
                 **Need a specific product**
@@ -470,9 +473,14 @@ enum UniverseAssistantCore {
         tools: [Tool],
         limit: Int
     ) -> [MissingToolSuggestion] {
-        Array(
+        // Dedupe by slug (== MissingToolSuggestion.id) before capping, so two
+        // templates resolving to the same id never collide in SwiftUI ForEach
+        // and never waste a limit slot on a duplicate.
+        var seen = Set<String>()
+        return Array(
             templates
                 .filter { template in !containsTool(named: template.name, in: tools) }
+                .filter { template in seen.insert(MissingToolSuggestion.slug(for: template.name)).inserted }
                 .prefix(limit)
                 .map { $0.suggestion }
         )

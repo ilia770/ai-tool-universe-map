@@ -12,7 +12,10 @@ struct SearchDock: View {
     @State private var selectedAttachment: AssistantAttachmentKind?
     @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
-    @State private var dockWidth: CGFloat = UIScreen.main.bounds.width - 32
+    // Neutral seed; the real width arrives via the width preference key once
+    // layout runs. UIScreen.main is the physical screen (wrong under iPad
+    // Split View / Stage Manager) and is deprecated on iOS 26.
+    @State private var dockWidth: CGFloat = 320
 
     let isChatOpen: Bool
     let onAddTool: () -> Void

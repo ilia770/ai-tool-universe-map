@@ -363,4 +363,26 @@ struct UniverseViewModelTests {
         #expect(assistantReply?.matchIDs.isEmpty == true)
         #expect(assistantReply?.text.contains("website URL") == true)
     }
+
+    // MARK: - Defensive: core tool can never be stranded by a stale hidden set
+
+    @Test func loadSanitizesHiddenCoreToolSoSelectionNeverStrands() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+        // Simulate a stale/corrupt persisted state where the core tool was hidden.
+        store.save(
+            tools: [],
+            hidden: [PlanetData.centralCoreToolID, "some-tool"],
+            renderMode: .graph2D,
+            hapticsEnabled: true
+        )
+
+        let model = UniverseViewModel(store: store)
+        #expect(!model.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
+        #expect(model.hiddenToolIDs.contains("some-tool"))
+
+        // The sanitized set is re-persisted, so a reload stays clean.
+        let reloaded = UniverseViewModel(store: store)
+        #expect(!reloaded.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
+    }
 }

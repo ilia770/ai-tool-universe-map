@@ -47,9 +47,17 @@ final class UniverseViewModel {
         self.store = store
         let saved = store.load()
         self.customTools = saved.tools
-        self.hiddenToolIDs = saved.hidden
+        // Defensive: the core tool (founder-os) must never be hidden. The
+        // selection projection falls back to it, so a stale/corrupt persisted
+        // hidden set containing it would strand selection (selectedTool == nil).
+        // Mirror the deleteTool `.core` guard at load time and re-persist clean.
+        let sanitizedHidden = saved.hidden.subtracting([PlanetData.centralCoreToolID])
+        self.hiddenToolIDs = sanitizedHidden
         self.renderMode = saved.renderMode
         self.hapticsEnabled = saved.hapticsEnabled
+        if sanitizedHidden != saved.hidden {
+            persist()
+        }
     }
 
     private func persist() {
