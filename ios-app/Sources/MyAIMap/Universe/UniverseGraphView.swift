@@ -437,9 +437,9 @@ struct UniverseGraphView: View {
                     }
 
                 graphContent(layout: layout)
+                    .scaleEffect(currentScale, anchor: .center)
+                    .offset(currentPan)
             }
-            .scaleEffect(currentScale, anchor: .center)
-            .offset(currentPan)
             .contentShape(Rectangle())
             .simultaneousGesture(dragGesture)
             .simultaneousGesture(pinchGesture)

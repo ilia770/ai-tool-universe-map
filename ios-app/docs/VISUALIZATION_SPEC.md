@@ -117,3 +117,19 @@ user-facing control. They remain only as internal parameters for the existing
 **Remaining issues**
 - Full UI smoke with screenshots remains manual/run-on-demand; build-for-testing
   validates the target compiles.
+
+### Codex follow-up - graph viewport background stability (2026-06-21)
+
+**Changed files**
+- `Universe/UniverseGraphView.swift` - graph pan/zoom now applies only to the
+  node/edge content, not the full-screen background layer.
+
+**Why**
+- The graph background is the viewport surface. It must remain fixed to the
+  device bounds while the graph content pans/zooms. If the background moves
+  with `currentPan`, the root black view can show through at the edges and read
+  as a persistent side strip / horizontally shifted app.
+
+**Remaining QA**
+- Device QA should pan/zoom the 2D graph on a real iPhone and confirm no black
+  strip appears at either edge.
