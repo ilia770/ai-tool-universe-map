@@ -5,6 +5,8 @@ struct AccountSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
+    @State private var deepSeekKeyInput = ""
+    @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
 
     var body: some View {
         NavigationStack {
@@ -105,6 +107,50 @@ struct AccountSettingsSheet: View {
                     .font(.footnote)
                     .foregroundStyle(BrandColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            settingsGroup(title: "AI assistant", systemImage: "sparkles") {
+                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                    HStack(spacing: BrandSpacing.s.value) {
+                        Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
+                            .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
+                        Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                    }
+
+                    SecureField("DeepSeek API key", text: $deepSeekKeyInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .submitLabel(.done)
+                        .padding(BrandSpacing.m.value)
+                        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                        .foregroundStyle(.white)
+
+                    HStack(spacing: BrandSpacing.s.value) {
+                        Button {
+                            saveDeepSeekKey()
+                        } label: {
+                            universeActionRow("Save key", systemImage: "tray.and.arrow.down", destructive: false)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                        .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button(role: .destructive) {
+                            clearDeepSeekKey()
+                        } label: {
+                            universeActionRow("Clear", systemImage: "trash", destructive: true)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                        .disabled(!deepSeekKeySet)
+                    }
+
+                    Text("Optional, cheaper AI. Paste a DeepSeek API key to answer with DeepSeek instead of the on-device assistant. The key is stored on device (Keychain); without it, the local assistant is used.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
@@ -309,6 +355,20 @@ struct AccountSettingsSheet: View {
         case .focused: return "scope"
         case .asked: return "sparkles"
         }
+    }
+
+    private func saveDeepSeekKey() {
+        let trimmed = deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        KeychainStore.save(trimmed, account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeyInput = ""
+    }
+
+    private func clearDeepSeekKey() {
+        KeychainStore.delete(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = false
+        deepSeekKeyInput = ""
     }
 
     private func open(_ activity: UniverseActivity) {
