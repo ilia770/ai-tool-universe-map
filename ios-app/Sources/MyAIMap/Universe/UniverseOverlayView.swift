@@ -52,12 +52,21 @@ struct UniverseOverlayView: View {
             }
 
             if isRailActive {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.28))
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                // RIGHT_RAIL_SPEC: the rail must not cover the map. Constrain the
+                // readability treatment to a trailing strip behind the rail/list
+                // that fades to clear toward the map, instead of a full-screen scrim.
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(
+                        colors: [.clear, Color.black.opacity(0.34)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: railContrastWidth)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
 
             if model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen {
@@ -439,6 +448,11 @@ struct UniverseOverlayView: View {
         case .review: return "Review"
         }
     }
+
+    /// Width of the trailing readability strip behind the active rail. Sized a
+    /// little wider than the rail list (184pt) so labels read clearly while the
+    /// rest of the map stays uncovered.
+    private var railContrastWidth: CGFloat { 220 }
 
     private var rightUniverseRail: some View {
         HStack {
