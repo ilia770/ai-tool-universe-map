@@ -18,6 +18,7 @@ struct UniverseGraphNode: Identifiable, Equatable {
     let hitRadius: CGFloat
     let isSelected: Bool
     let isContext: Bool
+    let showsLabel: Bool
     let opacity: Double
 }
 
@@ -129,6 +130,16 @@ enum UniverseGraphLayout {
             let isCategorySelected = draft.toolID == nil && draft.category == mode.focusedCategory && selectedToolID == nil
             let isContext = draft.category == mode.focusedCategory
             let opacity = opacity(for: draft, mode: mode, selectedToolID: selectedToolID)
+            // Label-culling contract: the collision solver only guarantees that
+            // node *circles* never overlap (a screen cannot pack ~53 tool labels
+            // without collision). So core and category labels — few, always
+            // useful for orientation — always render, but a *tool* label only
+            // renders when that tool is selected or lives in the focused
+            // category (context). Every other tool node is a bare circle, so no
+            // unfocused tool labels can overlap.
+            let showsLabel = draft.kind != .tool
+                || isToolSelected
+                || isContext
             return UniverseGraphNode(
                 id: draft.id,
                 title: draft.title,
@@ -141,6 +152,7 @@ enum UniverseGraphLayout {
                 hitRadius: draft.hitRadius,
                 isSelected: isToolSelected || isCategorySelected,
                 isContext: isContext,
+                showsLabel: showsLabel,
                 opacity: opacity
             )
         }
@@ -665,18 +677,24 @@ private struct GraphNodeButton: View {
                 }
                 .scaleEffect(node.isSelected && !reduceMotion ? 1.08 : 1)
 
-                VStack(spacing: 1) {
-                    Text(node.title)
-                        .font(labelFont)
-                        .foregroundStyle(.white.opacity(node.opacity))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                    Text(node.subtitle)
-                        .font(.system(size: node.kind == .tool ? 8 : 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(BrandColor.textMuted.opacity(node.opacity))
-                        .lineLimit(1)
+                // Labels are culled for unfocused tool nodes (see the
+                // label-culling contract in UniverseGraphLayout.make), so only
+                // node circles are guaranteed not to overlap. Rendering the
+                // label only when shown also keeps the bare circles compact.
+                if node.showsLabel {
+                    VStack(spacing: 1) {
+                        Text(node.title)
+                            .font(labelFont)
+                            .foregroundStyle(.white.opacity(node.opacity))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                        Text(node.subtitle)
+                            .font(.system(size: node.kind == .tool ? 8 : 9, weight: .semibold, design: .rounded))
+                            .foregroundStyle(BrandColor.textMuted.opacity(node.opacity))
+                            .lineLimit(1)
+                    }
+                    .frame(width: labelWidth)
                 }
-                .frame(width: labelWidth)
             }
             .opacity(node.opacity)
             .contentShape(Rectangle())
