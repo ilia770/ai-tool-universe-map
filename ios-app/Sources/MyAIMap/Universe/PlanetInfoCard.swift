@@ -56,11 +56,15 @@ struct PlanetInfoCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: planet.swiftUIColor,
-            strokeStrength: 0.09
+        // Info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.glassSolid,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(planet.swiftUIColor.opacity(0.45), lineWidth: 0.5)
+        }
     }
 
     private var statusOrb: some View {

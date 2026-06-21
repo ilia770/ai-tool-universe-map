@@ -208,11 +208,15 @@ struct AddToolSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.35),
-            strokeStrength: 0.08
+        // Sheet info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private var fields: some View {
@@ -300,11 +304,15 @@ struct AddToolSheet: View {
             }
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.25),
-            strokeStrength: 0.08
+        // Sheet form card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func branchModeButton(_ mode: AddToolBranchMode) -> some View {
@@ -342,11 +350,15 @@ struct AddToolSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.2),
-            strokeStrength: 0.06
+        // Guardrails info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func field<Content: View>(
