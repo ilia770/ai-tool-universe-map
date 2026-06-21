@@ -1,12 +1,18 @@
 import Foundation
 
-/// Decodable root mirroring `src/data/ai-tool-universe.seed.json`.
+/// Decodable root mirroring the shape of `src/data/ai-tool-universe.seed.json`.
 ///
-/// The iOS port no longer hand-maintains the universe data: it decodes the
-/// exact canonical web seed (`ai-tool-universe.seed.json`) bundled into the
-/// app target. This makes drift between the two ports impossible — there is a
-/// single source of truth committed to `src/data/` and copied verbatim into
-/// `Sources/MyAIMap/Resources/`.
+/// The iOS port decodes a bundled `ai-tool-universe.seed.json` from the app
+/// target. NOTE: this iOS seed is an intentional fork / superset of the web
+/// seed, not a verbatim copy. The iOS seed currently has 9 categories and 53
+/// tools — including an extra `analytics` category and tools such as `posthog`
+/// — whereas the documented web seed in `src/data/` has 8 categories and 49
+/// tools and no `analytics` category. The two payloads share the same schema
+/// but their contents have deliberately diverged. Any future change to the iOS
+/// seed shape must be intentional: the parity/invariants test in
+/// `Tests/MyAIMapTests/UniverseSeedParityTests.swift` pins the current shape
+/// (category/tool counts, `analytics` presence, and core invariants) and will
+/// fail if the seed drifts unexpectedly.
 private struct SeedFile: Decodable {
     let version: Int
     let categories: [ToolCategory]
