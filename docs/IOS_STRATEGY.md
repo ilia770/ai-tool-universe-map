@@ -87,7 +87,7 @@ Reasoning:
   empty `RealityView`, App Icon, splash, dark glassy launch screen
   per Apple skills guidance.
 - Apple Developer enrollment if not done; bundle id
-  `com.iliaturilia.myaimap`.
+  `com.ilyatur.myaimap`.
 
 ### Phase 1 — Data + scene parity (weeks 2–3)
 
@@ -130,7 +130,7 @@ The active native project lives in `ios-app/` and is generated from
 `ios-app/project.yml`. Current release-facing values:
 
 - App name: `My AI Map`
-- Bundle id: `com.iliaturilia.myaimap`
+- Bundle id: `com.ilyatur.myaimap`
 - SKU: `myaimap-ios`
 - Minimum iOS: 18.0
 - Target families: iPhone and iPad
@@ -171,7 +171,7 @@ Before I start cutting code:
 
 1. **Approve Path C** as the long-horizon target. Approve Path A as
    the week-1 stopgap (or skip it).
-2. Confirm the bundle identifier remains `com.iliaturilia.myaimap`.
+2. Confirm the bundle identifier remains `com.ilyatur.myaimap`.
 3. Confirm App Store Connect access / Apple Developer enrollment
    status.
 4. Confirm whether the iOS app should reuse the same brand name

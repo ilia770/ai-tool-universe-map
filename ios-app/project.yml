@@ -32,9 +32,10 @@ targets:
       - Sources/MyAIMap
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap
+        PRODUCT_BUNDLE_IDENTIFIER: com.ilyatur.myaimap
         PRODUCT_NAME: "My AI Map"
         PRODUCT_MODULE_NAME: MyAIMap
+        DEVELOPMENT_TEAM: BKHDFND72R
         INFOPLIST_KEY_CFBundleDisplayName: "My AI Map"
         INFOPLIST_KEY_UIRequiredDeviceCapabilities: "arm64 metal"
         # Lock to dark — the whole experience is a dark cosmic scene; light-mode
@@ -56,7 +57,7 @@ targets:
       - Tests/MyAIMapTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ilyatur.myaimap.tests
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/My AI Map.app/My AI Map"
         BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
@@ -70,7 +71,7 @@ targets:
       - Tests/MyAIMapUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iliaturilia.myaimap.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ilyatur.myaimap.uitests
         TEST_TARGET_NAME: MyAIMap
     dependencies:
       - target: MyAIMap
