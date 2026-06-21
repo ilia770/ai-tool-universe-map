@@ -16,15 +16,19 @@ existing infra — `BrandMotion`, `BrandHaptics`, `CoreHapticsEngine`,
   with graceful fallback (the contract for all new patterns).
 
 ## New `BrandMotion` tokens (add these 7)
+> NOTE: values below are valid Swift `Animation` initializers (review finding
+> R2 — earlier shorthand like `.easeOut(0.18)` / `.spring(0.5,0.86)` does not
+> compile). They are mirrored verbatim in `BrandMotion.swift`.
+
 | Token | Value | Used by |
 |---|---|---|
-| `stream` | `.easeOut(0.18)` | per-token text fade |
-| `cursor` | `.easeInOut(0.62).repeatForever(autoreverses:)` | blinking caret |
-| `thinking` | `.easeInOut(1.1).repeatForever(autoreverses:)` | pre-token dots/glow |
-| `reveal` | `.spring(0.5,0.86)` | tool-card group fade+rise (softer than `entry`) |
-| `morph` | alias of `flow` | hero card→orbit, chat⇄universe (semantic) |
-| `pillPop` | `.spring(0.34,0.55)` (under-damped overshoot) | Map badge / node arrival pop |
-| `composerGrow` | `.spring(0.30,0.88)` (high damp, no wobble) | composer 1→6 lines |
+| `stream` | `.easeOut(duration: 0.18)` | per-token text fade |
+| `cursor` | `.easeInOut(duration: 0.62).repeatForever(autoreverses: true)` | blinking caret |
+| `thinking` | `.easeInOut(duration: 1.1).repeatForever(autoreverses: true)` | pre-token dots/glow |
+| `reveal` | `.spring(response: 0.5, dampingFraction: 0.86)` | tool-card group fade+rise (softer than `entry`) |
+| `morph` | `= flow` (alias) | hero card→orbit, chat⇄universe (semantic) |
+| `pillPop` | `.spring(response: 0.34, dampingFraction: 0.55)` (under-damped overshoot) | Map badge / node arrival pop |
+| `composerGrow` | `.spring(response: 0.30, dampingFraction: 0.88)` (high damp, no wobble) | composer 1→6 lines |
 
 ## Microanimation map (interaction → mechanism → token)
 - **Thinking** (pre-first-token): `PhaseAnimator` dots + glow / reuse `ProgressOrb` → `thinking`.
@@ -42,12 +46,12 @@ existing infra — `BrandMotion`, `BrandHaptics`, `CoreHapticsEngine`,
 ## Haptic vocabulary (keep this tight — feel = meaning)
 | Feel | API | Reserved for |
 |---|---|---|
-| `.selection` | `.sensoryFeedback(.selection,)` | select among peers: category/nav/chrome buttons, node tap, segment, carousel page |
-| light impact 0.3–0.55 | `.impact(.light,)` | open a surface (attach, sheet-present), starter chip, first-token tick |
-| soft impact 0.25–0.5 | `.impact(.soft,)` | gentle settles: stream-complete, **no-match GAP card**, invalid-drop, overscroll peak |
-| medium 0.7 | `.impact(.medium,)` | committal: send, valid drop |
-| rigid 0.45–0.6 | `.impact(.rigid,)` | mechanical detents: mode switch, drag pickup, detent snap, dismiss threshold |
-| `.increase` | `.sensoryFeedback(.increase,)` | Map badge single +1 |
+| `.selection` | `.sensoryFeedback(.selection, trigger:)` | select among peers: category/nav/chrome buttons, node tap, segment, carousel page |
+| light impact 0.3–0.55 | `.sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger:)` | open a surface (attach, sheet-present), starter chip, first-token tick |
+| soft impact 0.25–0.5 | `.sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger:)` | gentle settles: stream-complete, **no-match GAP card**, invalid-drop, overscroll peak |
+| medium 0.7 | `.sensoryFeedback(.impact(weight: .medium, intensity: 0.7), trigger:)` | committal: send, valid drop |
+| rigid 0.45–0.6 | `.sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.55), trigger:)` | mechanical detents: mode switch, drag pickup, detent snap, dismiss threshold |
+| `.increase` | `.sensoryFeedback(.increase, trigger:)` | Map badge single +1 |
 | success/warning/error | existing notification cases | success→data import only · warning→recoverable · error→unrecoverable. NEVER routine UI |
 | `pocketOpen/Close` | `fireRich` | mode-switch world materialize/dematerialize (reuse) |
 | `toolLand` (NEW) | `fireRich` | add-to-universe ONLY |

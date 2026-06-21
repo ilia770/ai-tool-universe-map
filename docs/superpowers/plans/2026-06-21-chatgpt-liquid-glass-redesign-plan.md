@@ -30,7 +30,7 @@ Non-goal: changing the universe *concept* or the tool data model.
 
 ## Real Liquid Glass API surface (iOS 26, via context7 / SwiftUI)
 
-- `.glassEffect(_ glass: Glass = .regular, in: some Shape = .rect, isEnabled:)`
+- `.glassEffect(_ glass: Glass = .regular, in: some Shape = .rect)` (no `isEnabled:` — branch outside the call; review finding R2)
 - `Glass.regular` / `.clear` / `.identity`; `.tint(_:)`; `.interactive()`
 - `GlassEffectContainer(spacing:)` — groups nearby glass elements so they blend
 - `.glassEffectID(_:in:)` + `@Namespace` — morph transitions between glass shapes

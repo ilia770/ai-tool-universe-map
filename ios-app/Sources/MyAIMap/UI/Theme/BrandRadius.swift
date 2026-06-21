@@ -18,5 +18,11 @@ enum BrandRadius: CGFloat {
     /// Containers above containers (e.g. nested glass surfaces).
     case nested = 12
 
+    /// Floating glass control container (composer pill rounded form).
+    case glassControl = 22
+
+    /// Glass icon-button container.
+    case glassButton = 16
+
     var value: CGFloat { rawValue }
 }
