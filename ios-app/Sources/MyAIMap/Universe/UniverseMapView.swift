@@ -142,6 +142,13 @@ struct UniverseMapView: View {
         }
         .onChange(of: model.universeMode) { _, newMode in
             focusCamera(for: newMode, animated: true)
+            // Single source of truth: the model owns whether detail is open.
+            // If the model leaves `.detail` for any reason (e.g. deleting the
+            // selected tool from the sheet), dismiss the local sheet so it
+            // cannot outlive the navigation state.
+            if !newMode.isDetailOpen, detailPresented {
+                detailPresented = false
+            }
         }
         .onChange(of: model.renderMode) { _, renderMode in
             if renderMode == .spatial3D {

@@ -260,6 +260,22 @@ struct UniverseViewModelTests {
         #expect(model.activityHistory.contains { $0.kind == .removed && $0.toolID == "posthog" })
     }
 
+    @Test func deletingSelectedToolWhileInDetailExitsDetailMode() {
+        // R5: the compact detail sheet is derived from `universeMode.isDetailOpen`.
+        // Removing the selected tool from the detail sheet must drop the model out
+        // of `.detail`, otherwise the derived sheet would outlive the navigation
+        // state. We assert the state layer here; the View boolean syncs off this.
+        let model = makeModel(sample: true)
+        #expect(model.focusTool("posthog"))
+        model.universeMode = .detail(.analytics, "posthog")
+        #expect(model.universeMode.isDetailOpen)
+
+        #expect(model.deleteTool("posthog"))
+
+        #expect(!model.universeMode.isDetailOpen)
+        #expect(model.universeMode.selectedToolID != "posthog")
+    }
+
     @Test func restoreToolReturnsItToSearch() {
         let model = makeModel(sample: true)
         #expect(model.deleteTool("posthog"))
