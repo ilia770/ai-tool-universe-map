@@ -48,15 +48,7 @@ struct AccountSettingsSheet: View {
 
     private var accountHeader: some View {
         HStack(spacing: BrandSpacing.m.value) {
-            Circle()
-                .fill(model.selectedCategoryModel.color.swiftUIColor.opacity(0.24))
-                .frame(width: 58, height: 58)
-                .overlay {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.white, model.selectedCategoryModel.color.swiftUIColor)
-                }
-                .liquidGlass(in: Circle(), tint: model.selectedCategoryModel.color.swiftUIColor, strokeStrength: 0.12)
+            UserAvatarImage(size: 58, tint: model.selectedCategoryModel.color.swiftUIColor)
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 Text("AI Universe")

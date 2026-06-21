@@ -471,11 +471,7 @@ struct UniverseOverlayView: View {
                 .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
             Spacer()
             Button(action: onAccount) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white, selectedPlanet.swiftUIColor)
-                    .frame(width: 46, height: 46)
-                    .liquidGlass(in: Circle(), tint: selectedPlanet.swiftUIColor, strokeStrength: 0.12)
+                UserAvatarImage(size: 46, tint: selectedPlanet.swiftUIColor)
             }
             .buttonStyle(BouncyIconButtonStyle())
             .opacity(mode.isDetailOpen ? 0.58 : 1)
