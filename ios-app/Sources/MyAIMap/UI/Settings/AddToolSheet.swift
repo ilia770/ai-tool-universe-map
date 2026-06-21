@@ -101,6 +101,11 @@ enum AddToolLogic {
     }
 }
 
+private enum AddToolFocusedField: Hashable {
+    case name
+    case website
+}
+
 struct AddToolSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -110,7 +115,7 @@ struct AddToolSheet: View {
     @State private var category: ToolCategoryId = .analytics
     @State private var branchMode: AddToolBranchMode = .auto
     @State private var didApplyDraft = false
-    @FocusState private var nameFocused: Bool
+    @FocusState private var focusedField: AddToolFocusedField?
 
     init(draft: MissingToolSuggestion? = nil) {
         self.draft = draft
@@ -134,31 +139,53 @@ struct AddToolSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
-                    intro
-                    fields
-                    guardrails
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
+                        intro
+                        fields
+                        guardrails
+                    }
+                    .padding(BrandSpacing.l.value)
                 }
-                .padding(BrandSpacing.l.value)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 28)
+                }
+                .onChange(of: focusedField) { _, field in
+                    guard let field else { return }
+                    withAnimation(BrandMotion.nudge) {
+                        proxy.scrollTo(field, anchor: .center)
+                    }
+                }
             }
-            .scrollIndicators(.hidden)
             .background(BrandColor.void.ignoresSafeArea())
             .navigationTitle("Add Tool")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        focusedField = nil
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Add") { add() }
                         .disabled(!canAdd)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(keyboardToolbarTitle) {
+                        handleKeyboardToolbarAction()
+                    }
+                    .font(.headline.weight(.semibold))
+                }
             }
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            nameFocused = true
+            focusedField = .name
             if !didApplyDraft, let draft {
                 name = draft.name
                 category = draft.category
@@ -183,7 +210,7 @@ struct AddToolSheet: View {
         .padding(BrandSpacing.l.value)
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
+            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.35),
             strokeStrength: 0.08
         )
     }
@@ -192,17 +219,32 @@ struct AddToolSheet: View {
         VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             field(label: "Name", systemImage: "textformat") {
                 TextField("PostHog, Supabase, Firecrawl...", text: $name)
-                    .focused($nameFocused)
+                    .focused($focusedField, equals: .name)
+                    .submitLabel(.next)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
+                    .onSubmit {
+                        focusedField = .website
+                    }
             }
+            .id(AddToolFocusedField.name)
 
             field(label: "Website optional", systemImage: "link") {
                 TextField("https://example.com", text: $website)
+                    .focused($focusedField, equals: .website)
+                    .submitLabel(canAdd ? .done : .next)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .onSubmit {
+                        if canAdd {
+                            add()
+                        } else {
+                            focusedField = nil
+                        }
+                    }
             }
+            .id(AddToolFocusedField.website)
 
             VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 HStack(spacing: BrandSpacing.s.value) {
@@ -302,7 +344,7 @@ struct AddToolSheet: View {
         .padding(BrandSpacing.l.value)
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.2),
+            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.2),
             strokeStrength: 0.06
         )
     }
@@ -320,15 +362,42 @@ struct AddToolSheet: View {
             content()
                 .font(.subheadline)
                 .foregroundStyle(.white)
-                .tint(model.selectedCategoryModel.color.swiftUIColor)
+                .tint(resolvedCategoryModel.color.swiftUIColor)
                 .padding(BrandSpacing.m.value)
                 .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
         }
     }
 
     private func add() {
+        focusedField = nil
         guard model.addCustomTool(name: name, urlString: website, category: resolvedCategory) else { return }
         dismiss()
+    }
+
+    private var keyboardToolbarTitle: String {
+        switch focusedField {
+        case .name:
+            return "Next"
+        case .website:
+            return canAdd ? "Add" : "Done"
+        case nil:
+            return "Done"
+        }
+    }
+
+    private func handleKeyboardToolbarAction() {
+        switch focusedField {
+        case .name:
+            focusedField = .website
+        case .website:
+            if canAdd {
+                add()
+            } else {
+                focusedField = nil
+            }
+        case nil:
+            focusedField = nil
+        }
     }
 
     private var suggestedCategory: ToolCategoryId {

@@ -104,3 +104,18 @@ Metadata is collapsed by default and visually lower priority.
 **Remaining issues**
 - Manual iPad QA should confirm related-tool taps update the trailing inspector
   while leaving the map undimmed.
+
+### Codex follow-up - pricing hierarchy cleanup (2026-06-21)
+
+**Pricing copy.** `ToolPricingPresenter` no longer invents a generic `Pro`
+plan. Freemium, paid/cloud, subscription, usage, and unknown pricing are shown
+with cautious labels such as `Verify website` or `Hosted options`.
+
+**Visual hierarchy.** Header, pricing, feature sections, and metadata now use a
+shared rounded neutral card background instead of broad flat gray rectangles.
+This keeps metadata secondary and the detail screen closer to a product profile
+than an admin/debug view.
+
+**Tests updated**
+- Freemium/open-source pricing assertions verify the cautious labels and ensure
+  fabricated exact plan names are not introduced.

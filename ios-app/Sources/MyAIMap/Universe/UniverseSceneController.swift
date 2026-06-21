@@ -241,17 +241,12 @@ final class UniverseSceneController {
         lightRoot.addChild(rim)
     }
 
-    /// Cosmic backdrop + image-based lighting (ported from pre-cutover main):
-    /// a textured skybox shell and faint galaxy-dust haze, plus a procedurally
-    /// generated equirectangular environment map that drives real IBL ambient
-    /// and specular on the PBR nodes. All non-tappable, added once. Texture-gen
-    /// failure degrades gracefully (skybox/IBL simply absent).
+    /// Image-based lighting (ported from pre-cutover main). The visible
+    /// procedural skybox/dust layers are intentionally off: their raster stars
+    /// render as square artifacts in TestFlight. The SwiftUI background stays
+    /// visible behind the RealityKit scene, while the generated equirectangular
+    /// map still drives ambient/specular lighting on PBR nodes.
     private func addBackdropAndIBL() {
-        if let skybox = SkyboxEntity.make() {
-            root.addChild(skybox)
-        }
-        root.addChild(GalaxyDustEntity.make())
-
         if let equirect = CosmicEnvironmentTexture.makeEquirectangular(),
            let environment = try? EnvironmentResource(equirectangular: equirect) {
             let ibl = Entity()

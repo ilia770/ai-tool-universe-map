@@ -81,12 +81,21 @@ struct AccountSettingsSheet: View {
             }
 
             settingsGroup(title: "Language", systemImage: "globe") {
-                Picker("Language", selection: $model.appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.title).tag(language)
+                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                    Picker("Language", selection: $model.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.title).tag(language)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .disabled(true)
+                    .opacity(0.58)
+
+                    Text("System follows your device language. Manual language selection is coming soon.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .pickerStyle(.segmented)
             }
 
             settingsGroup(title: "Behavior", systemImage: "hand.tap.fill") {

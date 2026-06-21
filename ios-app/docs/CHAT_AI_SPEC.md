@@ -120,3 +120,20 @@ until enriched with verified website-backed details.
 **Remaining issues**
 - Manual simulator QA should verify "Add Framer" style chips show the matching
   name in the Add Tool sheet and keep the suggested branch selected.
+
+### Codex follow-up - no-match intent routing (2026-06-21)
+
+**General chat vs service lookup.** The no-match path now distinguishes simple
+general conversation from one-service lookup/add intent. Greetings and small
+talk such as `как дела`, `yak дела`, and `hello` get a normal assistant reply
+instead of the "service not found" website-request fallback.
+
+**Lookup still preserved.** A single unknown service-like token still triggers
+the add/website flow, so direct queries such as an unknown product name keep
+the existing service-lookup behavior.
+
+**Tests added**
+- Russian small talk does not return missing-service copy.
+- Transliterated small talk does not return missing-service copy.
+- English greetings do not return missing-service copy.
+- Single unknown service query still asks for a website.

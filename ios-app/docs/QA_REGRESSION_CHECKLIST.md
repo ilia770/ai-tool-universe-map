@@ -67,3 +67,30 @@ count, not "Executed 0 tests".
 - [ ] iPad — layout adapts (TARGETED_DEVICE_FAMILY=1,2).
 - [ ] Dynamic Type larger sizes — text scales, no truncation of key copy.
 - [ ] Dark mode (app is dark-first).
+
+## Stabilization run - 2026-06-21
+
+**Automated**
+- [x] `git diff --check` clean before verification.
+- [x] `npm run ios:test-build` passed after the final visualization cleanup.
+- [x] Clean focused unit run passed on iPhone 17 Pro:
+      `xcodebuild ... -derivedDataPath ios-app/build-final-test
+      -only-testing:MyAIMapTests test`; 178 tests passed, 0 failed.
+- [x] UI smoke passed:
+      `UniverseUISmokeTests/testCaptureKeyStates`; 1 test passed, 0 failed.
+
+**Manual simulator states checked**
+- [x] Fresh launch in 2D Graph with no black side strip.
+- [x] Input focus keeps composer above the keyboard.
+- [x] Attachment Photo/Files popover stays anchored above the input.
+- [x] General chat send does not return the missing-service fallback.
+- [x] Add Tool sheet keeps Name/Website reachable with keyboard open.
+- [x] Auto/Manual branch controls update visible state correctly.
+- [x] Mode chip opens Account settings.
+- [x] Settings switch changes 2D Graph <-> 3D Spatial.
+- [x] 3D Experimental view no longer shows square background artifacts.
+
+**Still needs real-device QA**
+- [ ] iPhone TestFlight pass for the full checklist above.
+- [ ] iPhone SE-class small-width visual pass.
+- [ ] iPad regular-width detail/related-tool pass.

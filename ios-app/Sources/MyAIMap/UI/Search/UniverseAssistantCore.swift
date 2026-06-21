@@ -62,7 +62,7 @@ enum UniverseAssistantCore {
         }
 
         if matches.isEmpty {
-            return missingReply(for: trimmed)
+            return noMatchReply(for: trimmed)
         }
 
         let topMatches = Array(matches.prefix(4))
@@ -219,6 +219,26 @@ enum UniverseAssistantCore {
         )
     }
 
+    private static func noMatchReply(for query: String) -> AssistantReply {
+        if isGeneralConversation(query) {
+            return generalReply(for: query)
+        }
+        return missingReply(for: query)
+    }
+
+    private static func generalReply(for query: String) -> AssistantReply {
+        AssistantReply(
+            text: """
+            **I am here.**
+
+            Ask me normally, or tell me what you are trying to build. I can recommend tools already in your universe, compare branches, or help add a missing service when you name one.
+
+            **Next:** ask for a workflow, a tool recommendation, or a specific service.
+            """,
+            matchIDs: []
+        )
+    }
+
     private static func missingReply(for query: String) -> AssistantReply {
         let folded = fold(query)
         let broadPlatforms = ["google", "instagram", "facebook", "meta", "apple", "microsoft", "amazon"]
@@ -248,6 +268,38 @@ enum UniverseAssistantCore {
             """,
             matchIDs: []
         )
+    }
+
+    private static func isGeneralConversation(_ query: String) -> Bool {
+        let folded = fold(query)
+        let serviceWords = [
+            "add", "tool", "service", "website", "url", "app", "platform", "find",
+            "lookup", "search", "добав", "сервис", "инструмент", "сайт", "найди",
+        ]
+        if containsAny(folded, serviceWords) {
+            return false
+        }
+
+        let smallTalk = [
+            "hi", "hello", "hey", "yo", "how are you", "how r u", "whats up",
+            "what's up", "thanks", "thank you", "привет", "здравствуи",
+            "здравствуй", "как дела", "как ты", "спасибо",
+        ]
+        if containsAny(folded, smallTalk) {
+            return true
+        }
+
+        let tokens = folded
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+        if tokens.contains("yak"), tokens.contains("дела") {
+            return true
+        }
+
+        // Short unmatched natural-language fragments are not enough evidence
+        // for a service lookup. Keep them in general chat unless the user
+        // names a tool/service/add intent above.
+        return tokens.count >= 2
     }
 
     private static func structuredText(

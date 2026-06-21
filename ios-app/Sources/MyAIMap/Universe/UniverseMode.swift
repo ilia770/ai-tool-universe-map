@@ -215,13 +215,11 @@ extension UniverseMode {
         projectedSelectedToolID: String,
         explicitSelectedToolID: String?
     ) -> UniverseMode {
-        if activeCategory == .core {
-            guard let explicitSelectedToolID else {
-                return .chatOpen(nil, nil)
-            }
-            return .chatOpen(.core, explicitSelectedToolID)
+        guard let explicitSelectedToolID else {
+            return activeCategory == .core
+                ? .chatOpen(nil, nil)
+                : .chatOpen(activeCategory, nil)
         }
-
-        return .chatOpen(activeCategory, projectedSelectedToolID)
+        return .chatOpen(activeCategory, explicitSelectedToolID)
     }
 }

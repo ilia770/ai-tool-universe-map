@@ -29,7 +29,12 @@ final class UniverseViewModel {
     }
     var visualizationStyle: VisualizationStyle = .orbitalGlass
     var appLanguage: AppLanguage = .system
-    var hapticsEnabled: Bool = true
+    var hapticsEnabled: Bool = true {
+        didSet {
+            guard oldValue != hapticsEnabled else { return }
+            persist()
+        }
+    }
     private(set) var activityHistory: [UniverseActivity] = []
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
@@ -44,10 +49,16 @@ final class UniverseViewModel {
         self.customTools = saved.tools
         self.hiddenToolIDs = saved.hidden
         self.renderMode = saved.renderMode
+        self.hapticsEnabled = saved.hapticsEnabled
     }
 
     private func persist() {
-        store.save(tools: customTools, hidden: hiddenToolIDs, renderMode: renderMode)
+        store.save(
+            tools: customTools,
+            hidden: hiddenToolIDs,
+            renderMode: renderMode,
+            hapticsEnabled: hapticsEnabled
+        )
     }
 
     // MARK: - Derived state

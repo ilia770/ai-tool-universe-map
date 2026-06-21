@@ -194,3 +194,26 @@ composer is idle. Attachment-only send now creates a compact "Attached file" /
 - Manual device QA is still needed for keyboard/safe-area feel and visual bubble
   compactness on small iPhone and iPad sizes; automated smoke confirms the
   state path but does not judge final visual density.
+
+### Codex follow-up - measured dock width and chat lifecycle (2026-06-21)
+
+**Parent-driven chat visibility.** `SearchDock` now receives `isChatOpen` from
+the overlay. Conversation content and the collapsed transcript pill render only
+while the global navigation machine is in chat mode. Leaving chat clears focus,
+closes the attachment menu, and collapses the transcript without duplicating or
+leaking old assistant text behind the visible card.
+
+**Bubble sizing.** User and assistant bubble widths are computed from the
+measured dock width instead of `UIScreen.main.bounds`. Short user messages stay
+compact and trailing; long Russian/English messages wrap inside the measured
+chat panel.
+
+**Attachment anchoring.** Tapping inside the transcript or reopening the
+collapsed pill closes the attachment popover, so the Photo/Files menu stays
+anchored to the composer instead of floating over unrelated content.
+
+**QA done**
+- Manual simulator checks covered: input focus with keyboard, attachment menu,
+  attachment menu over keyboard, short general chat send, collapse/reopen path.
+- Unit and UI smoke gates passed in the stabilization run (see
+  `QA_REGRESSION_CHECKLIST.md` follow-up).

@@ -135,7 +135,6 @@ struct UniverseMapView: View {
         .onAppear {
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
-            model.universeMode = navigationModeForSelection()
             focusCamera(for: mode, animated: false)
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
@@ -233,9 +232,13 @@ struct UniverseMapView: View {
 
     private func openToolDetailFromChat(_ id: String) {
         guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
-        modeBeforeDetail = .toolSelected(tool.category, tool.id)
-        model.universeMode = .detail(tool.category, tool.id)
-        detailPresented = true
+        if isCompact {
+            modeBeforeDetail = .toolSelected(tool.category, tool.id)
+            model.universeMode = .detail(tool.category, tool.id)
+            detailPresented = true
+        } else {
+            model.universeMode = .toolSelected(tool.category, tool.id)
+        }
     }
 
     private func openRelatedToolFromDetail(_ id: String) {

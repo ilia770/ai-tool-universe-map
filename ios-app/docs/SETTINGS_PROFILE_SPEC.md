@@ -60,3 +60,21 @@ unchanged by Agent 9.
 
 **Remaining issues**
 - Manual QA should verify relaunch persistence on simulator/device.
+
+### Codex follow-up - settings behavior stabilization (2026-06-21)
+
+**Mode chip.** The overlay render-mode chip is now tappable and opens Account
+settings. It uses subtle status copy (`Tap to switch`) instead of looking like
+a dead primary control.
+
+**Language.** Manual language selection is disabled until implemented. The
+sheet explains that System follows the device language, so the setting no
+longer appears functional when it is not.
+
+**Haptics.** The haptics toggle now persists through `UniverseStore`, and the
+view model reloads the saved value on app/model startup.
+
+**QA done**
+- Manual simulator check switched 2D/3D from settings and verified the language
+  explanatory copy and haptics toggle presence.
+- Unit coverage verifies haptics persistence across model reloads.

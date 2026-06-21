@@ -108,4 +108,24 @@ struct UniverseModeTests {
 
         #expect(context == .chatOpen(.core, "openswarm"))
     }
+
+    @Test func branchFocusOpensBranchChatWithoutProjectedFallbackTool() {
+        let context = UniverseMode.chatContext(
+            activeCategory: .design,
+            projectedSelectedToolID: "figma",
+            explicitSelectedToolID: nil
+        )
+
+        #expect(context == .chatOpen(.design, nil))
+    }
+
+    @Test func explicitNonCoreSelectionIsPreservedAsChatContext() {
+        let context = UniverseMode.chatContext(
+            activeCategory: .design,
+            projectedSelectedToolID: "figma",
+            explicitSelectedToolID: "mobbin"
+        )
+
+        #expect(context == .chatOpen(.design, "mobbin"))
+    }
 }

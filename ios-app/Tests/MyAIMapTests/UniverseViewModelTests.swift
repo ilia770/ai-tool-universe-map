@@ -127,6 +127,17 @@ struct UniverseViewModelTests {
         #expect(reloaded.renderMode == .spatial3D)
     }
 
+    @Test func hapticsSettingPersistsAcrossModelReloads() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+
+        let first = UniverseViewModel(store: store)
+        first.hapticsEnabled = false
+
+        let reloaded = UniverseViewModel(store: store)
+        #expect(!reloaded.hapticsEnabled)
+    }
+
     @Test func selectCategoryAutoSelectsItsFirstTool() {
         let model = makeModel(sample: true)
         model.selectCategory(.design)

@@ -133,3 +133,19 @@ user-facing control. They remain only as internal parameters for the existing
 **Remaining QA**
 - Device QA should pan/zoom the 2D graph on a real iPhone and confirm no black
   strip appears at either edge.
+
+### Codex follow-up - TestFlight visualization cleanup (2026-06-21)
+
+**2D pan bounds.** Graph pan limits now derive from the actual layout extents,
+viewport, and current zoom instead of fixed constants. The graph background
+remains fixed to the viewport, while only nodes and edges pan/zoom.
+
+**3D Experimental cleanup.** The visible procedural skybox and dust layer were
+removed because their texel/star cells rendered as square artifacts in the
+background. Image-based lighting remains available for the 3D scene. Category
+planet scale was reduced to avoid one huge planet dominating the first view.
+
+**QA done**
+- Manual simulator screenshots verified 2D full-width layout, 2D pan/zoom
+  without the left black strip, settings-driven 3D switch, and a 3D view without
+  square background artifacts.

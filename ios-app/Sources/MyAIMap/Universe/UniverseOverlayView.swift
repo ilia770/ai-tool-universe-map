@@ -21,7 +21,8 @@ struct UniverseOverlayView: View {
     @State private var isRailActive = false
 
     private var isFocusedOnTool: Bool {
-        mode.selectedToolID != nil && selectedTool.category == selectedPlanet.id && selectedPlanet.id != .core
+        guard let selectedToolID = mode.selectedToolID else { return false }
+        return selectedTool.id == selectedToolID && selectedTool.category == selectedPlanet.id
     }
 
     /// Screen-space labels re-project from the camera every render. While the
@@ -480,40 +481,47 @@ struct UniverseOverlayView: View {
     }
 
     private var visualizationControl: some View {
-        HStack(spacing: 10) {
-            Text(model.renderMode.shortLabel)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.black.opacity(0.82))
-                .frame(width: 36, height: 30)
-                .background(selectedPlanet.swiftUIColor, in: Circle())
+        Button {
+            onAccount()
+        } label: {
+            HStack(spacing: 10) {
+                Text(model.renderMode.shortLabel)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.82))
+                    .frame(width: 36, height: 30)
+                    .background(selectedPlanet.swiftUIColor, in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(model.renderMode.title)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.88))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(model.renderMode.title)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.88))
+                            .lineLimit(1)
 
-                    if model.renderMode.isExperimental {
-                        Text("Beta")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundStyle(selectedPlanet.swiftUIColor)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
+                        if model.renderMode.isExperimental {
+                            Text("Experimental")
+                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .foregroundStyle(selectedPlanet.swiftUIColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
+                        }
                     }
-                }
 
-                Text("Switch in Settings")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(BrandColor.textMuted)
-                    .lineLimit(1)
+                    Text("Tap to switch")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(BrandColor.textMuted)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 8)
         .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityLabel("Visualization mode \(model.renderMode.title)")
+        .accessibilityHint("Opens settings")
     }
 
     private var bottomControls: some View {
@@ -532,6 +540,7 @@ struct UniverseOverlayView: View {
 
             if !mode.isDetailOpen {
                 SearchDock(
+                    isChatOpen: mode.isChatOpen,
                     onAddTool: onAddTool,
                     onAddSuggestedTool: onAddSuggestedTool,
                     onToolSelect: onToolSelect,

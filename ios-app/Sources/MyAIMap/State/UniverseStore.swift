@@ -12,6 +12,7 @@ struct UniverseStore {
     private let toolsKey = "universe.customTools.v1"
     private let hiddenKey = "universe.hiddenToolIDs.v1"
     private let renderModeKey = "universe.renderMode.v1"
+    private let hapticsEnabledKey = "universe.hapticsEnabled.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -19,19 +20,21 @@ struct UniverseStore {
 
     static let standard = UniverseStore()
 
-    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode) {
+    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool) {
         let tools = decode([Tool].self, key: toolsKey) ?? []
         let hidden = decode([String].self, key: hiddenKey) ?? []
         let renderMode = defaults.string(forKey: renderModeKey)
             .flatMap(UniverseRenderMode.init(rawValue:))
             ?? .graph2D
-        return (tools, Set(hidden), renderMode)
+        let hapticsEnabled = defaults.object(forKey: hapticsEnabledKey) as? Bool ?? true
+        return (tools, Set(hidden), renderMode, hapticsEnabled)
     }
 
-    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode) {
+    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool) {
         encode(tools, key: toolsKey)
         encode(Array(hidden).sorted(), key: hiddenKey)
         defaults.set(renderMode.rawValue, forKey: renderModeKey)
+        defaults.set(hapticsEnabled, forKey: hapticsEnabledKey)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, key: String) -> T? {

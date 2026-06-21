@@ -96,3 +96,23 @@ visual design here.
 **Remaining issues**
 - Manual simulator QA should verify duplicate-focus and hidden-restore behavior
   from the real Add Tool sheet, not only the model tests.
+
+### Codex follow-up - keyboard and form reachability (2026-06-21)
+
+**Keyboard handling.** `AddToolSheet` now uses field-specific focus state,
+`ScrollViewReader`, interactive keyboard dismissal, a small bottom safe-area
+inset, and a keyboard toolbar. Name focuses first, `Next` moves to Website,
+and Website can submit Add when the form is valid.
+
+**Field reachability.** Focusing Name or Website scrolls that field to the
+visible center of the sheet, keeping the header/actions usable and preventing
+the keyboard from covering the form controls.
+
+**Branch color and mode.** Intro, field tint, and guardrail surfaces use the
+resolved category, so Auto/Manual state and suggested branch stay visually in
+sync. Manual mode continues to block auto suggestions from overriding the
+selected branch.
+
+**QA done**
+- Manual simulator check opened Add Tool, focused Name and Website with the
+  keyboard visible, and verified Auto/Manual selection text changes.

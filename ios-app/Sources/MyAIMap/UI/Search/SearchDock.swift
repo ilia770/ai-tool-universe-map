@@ -12,7 +12,9 @@ struct SearchDock: View {
     @State private var selectedAttachment: AssistantAttachmentKind?
     @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
+    @State private var dockWidth: CGFloat = UIScreen.main.bounds.width - 32
 
+    let isChatOpen: Bool
     let onAddTool: () -> Void
     let onAddSuggestedTool: ((MissingToolSuggestion) -> Void)?
     let onToolSelect: ((String) -> Void)?
@@ -20,12 +22,14 @@ struct SearchDock: View {
     let onChatActivityChange: ((Bool) -> Void)?
 
     init(
+        isChatOpen: Bool = false,
         onAddTool: @escaping () -> Void = {},
         onAddSuggestedTool: ((MissingToolSuggestion) -> Void)? = nil,
         onToolSelect: ((String) -> Void)? = nil,
         onOpenToolDetail: ((String) -> Void)? = nil,
         onChatActivityChange: ((Bool) -> Void)? = nil
     ) {
+        self.isChatOpen = isChatOpen
         self.onAddTool = onAddTool
         self.onAddSuggestedTool = onAddSuggestedTool
         self.onToolSelect = onToolSelect
@@ -59,11 +63,11 @@ struct SearchDock: View {
     }
 
     private var showsConversation: Bool {
-        !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
+        isChatOpen && !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
     }
 
     private var showsCollapsedConversationPill: Bool {
-        conversationCollapsed && hasConversationContent
+        isChatOpen && conversationCollapsed && hasConversationContent
     }
 
     private var chatIsActive: Bool {
@@ -77,11 +81,15 @@ struct SearchDock: View {
     }
 
     private var userMessageMaxWidth: CGFloat {
-        ComposerLogic.userBubbleMaxWidth(availableWidth: UIScreen.main.bounds.width - 44)
+        ComposerLogic.userBubbleMaxWidth(availableWidth: measuredMessageWidth)
     }
 
     private var assistantMessageMaxWidth: CGFloat {
-        min(420, (UIScreen.main.bounds.width - 44) * ComposerLogic.assistantMessageMaxWidthRatio)
+        min(420, measuredMessageWidth * ComposerLogic.assistantMessageMaxWidthRatio)
+    }
+
+    private var measuredMessageWidth: CGFloat {
+        max(240, dockWidth - 20)
     }
 
     var body: some View {
@@ -115,11 +123,27 @@ struct SearchDock: View {
             onChatActivityChange?(isActive)
         }
         .background {
-            Button("Focus search") { fieldFocused = true }
-                .keyboardShortcut("k", modifiers: .command)
-                .opacity(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            ZStack {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: SearchDockWidthPreferenceKey.self, value: proxy.size.width)
+                }
+
+                Button("Focus search") { fieldFocused = true }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .onPreferenceChange(SearchDockWidthPreferenceKey.self) { width in
+            guard width > 0 else { return }
+            dockWidth = width
+        }
+        .onChange(of: isChatOpen) { _, isOpen in
+            guard !isOpen else { return }
+            fieldFocused = false
+            attachmentMenuOpen = false
+            conversationCollapsed = true
         }
     }
 
@@ -355,11 +379,15 @@ struct SearchDock: View {
             strokeStrength: 0.08
         )
         .shadow(color: .black.opacity(0.32), radius: 16, x: 0, y: 8)
+        .simultaneousGesture(TapGesture().onEnded {
+            attachmentMenuOpen = false
+        })
     }
 
     private var collapsedConversationPill: some View {
         Button {
             BrandHaptics.fire(.light)
+            attachmentMenuOpen = false
             withAnimation(BrandMotion.nudge) {
                 conversationCollapsed = false
             }
@@ -448,11 +476,11 @@ struct SearchDock: View {
         }
         return HStack(alignment: .top, spacing: 0) {
             if isUser {
-                Spacer(minLength: max(24, UIScreen.main.bounds.width * 0.16))
+                Spacer(minLength: max(20, measuredMessageWidth * 0.16))
                 userBubble(message.text)
             } else {
                 assistantResponse(message, matches: matches)
-                Spacer(minLength: max(20, UIScreen.main.bounds.width * 0.12))
+                Spacer(minLength: max(18, measuredMessageWidth * 0.12))
             }
         }
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
@@ -866,4 +894,15 @@ private struct MarkdownMessageText: View {
     }
     .environment(UniverseViewModel())
     .preferredColorScheme(.dark)
+}
+
+private struct SearchDockWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
 }

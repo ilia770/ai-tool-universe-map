@@ -29,6 +29,33 @@ struct UniverseAssistantCoreTests {
         #expect(reply.text.contains("website URL"))
     }
 
+    @Test func singleUnknownServiceStillAsksForWebsite() {
+        let reply = reply("zzzapflow")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(reply.text.contains("website URL"))
+    }
+
+    @Test func russianSmallTalkDoesNotReturnMissingService() {
+        let reply = reply("как дела")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func transliteratedSmallTalkDoesNotReturnMissingService() {
+        let reply = reply("yak дела")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func englishGreetingDoesNotReturnMissingService() {
+        let reply = reply("how are you")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(!reply.text.contains("website URL"))
+    }
+
     @Test func broadPlatformAsksForSpecificProduct() {
         let reply = reply("google")
         #expect(reply.matchIDs.isEmpty)

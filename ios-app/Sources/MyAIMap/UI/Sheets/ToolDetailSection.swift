@@ -36,7 +36,7 @@ enum ToolPricingPresenter {
                 ToolPricingRow(plan: "Free", value: "$0 core", note: "Open-source core is noted locally.", icon: "checkmark.circle"),
             ]
             if lower.contains("paid") || lower.contains("cloud") {
-                rows.append(ToolPricingRow(plan: "Pro", value: "Paid/cloud options", note: "Verify current limits and render/runtime costs.", icon: "creditcard"))
+                rows.append(ToolPricingRow(plan: "Paid/cloud", value: "Hosted options", note: "Verify current limits and render/runtime costs.", icon: "creditcard"))
             }
             rows.append(unknownRow(note: "Exact hosted pricing is not verified locally."))
             return rows
@@ -45,7 +45,7 @@ enum ToolPricingPresenter {
         if lower.contains("freemium") {
             var rows = [
                 ToolPricingRow(plan: "Free", value: "$0 tier", note: "Free tier or trial is noted locally; verify current limits.", icon: "checkmark.circle"),
-                ToolPricingRow(plan: "Pro", value: "Paid tier", note: "Exact Pro price is not stored; verify website.", icon: "creditcard"),
+                ToolPricingRow(plan: "Paid tier", value: "Verify website", note: "Exact paid plan name and price are not stored locally.", icon: "creditcard"),
             ]
             if lower.contains("team") {
                 rows.append(ToolPricingRow(plan: "Team", value: "Team subscription", note: "Team pricing exists in the local note; verify website.", icon: "person.3"))
@@ -58,7 +58,7 @@ enum ToolPricingPresenter {
 
         if lower.contains("subscription") || lower.contains("usage") || lower.contains("api") {
             var rows = [
-                ToolPricingRow(plan: "Pro", value: "Subscription or usage-based", note: clean, icon: "creditcard"),
+                ToolPricingRow(plan: "Subscription / usage", value: "Verify website", note: clean, icon: "creditcard"),
             ]
             if lower.contains("team") {
                 rows.append(ToolPricingRow(plan: "Team", value: "Team plan", note: "Team plan is referenced locally; verify current price.", icon: "person.3"))
@@ -204,7 +204,7 @@ struct ToolDetailSection: View {
             primaryAction
         }
         .padding(BrandSpacing.m.value)
-        .background(neutralSurface)
+        .background(neutralCardBackground)
     }
 
     @ViewBuilder
@@ -385,7 +385,7 @@ struct ToolDetailSection: View {
         }
         .tint(selectedCategoryModel.color.swiftUIColor)
         .padding(BrandSpacing.m.value)
-        .background(neutralSurface)
+        .background(neutralCardBackground)
     }
 
     @ViewBuilder
@@ -417,7 +417,7 @@ struct ToolDetailSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BrandSpacing.m.value)
-        .background(neutralSurface)
+        .background(neutralCardBackground)
     }
 
     private func sectionHeader(title: String, icon: String) -> some View {
@@ -428,8 +428,9 @@ struct ToolDetailSection: View {
             .symbolRenderingMode(.hierarchical)
     }
 
-    private var neutralSurface: some ShapeStyle {
-        .white.opacity(0.045)
+    private var neutralCardBackground: some View {
+        RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+            .fill(.white.opacity(0.045))
     }
 
     private var metadataDivider: some View {

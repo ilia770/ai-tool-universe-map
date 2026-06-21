@@ -429,6 +429,7 @@ struct UniverseGraphView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = UniverseGraphLayout.make(planets: planets, mode: mode, size: proxy.size)
+            let visiblePan = clampedPan(currentPan, layout: layout, viewport: proxy.size, scale: currentScale)
             ZStack {
                 background
                     .onTapGesture {
@@ -438,11 +439,11 @@ struct UniverseGraphView: View {
 
                 graphContent(layout: layout)
                     .scaleEffect(currentScale, anchor: .center)
-                    .offset(currentPan)
+                    .offset(visiblePan)
             }
             .contentShape(Rectangle())
-            .simultaneousGesture(dragGesture)
-            .simultaneousGesture(pinchGesture)
+            .simultaneousGesture(dragGesture(layout: layout, viewport: proxy.size))
+            .simultaneousGesture(pinchGesture(layout: layout, viewport: proxy.size))
             .opacity(mode.mapOpacity)
             .blur(radius: CGFloat(mode.mapBlurRadius))
             .brandAnimation(BrandMotion.flow, value: mode.signature)
@@ -545,7 +546,7 @@ struct UniverseGraphView: View {
         }
     }
 
-    private var dragGesture: some Gesture {
+    private func dragGesture(layout: UniverseGraphLayoutResult, viewport: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 8)
             .updating($dragTranslation) { value, state, _ in
                 guard mode.allowsMapGestures else { return }
@@ -553,12 +554,16 @@ struct UniverseGraphView: View {
             }
             .onEnded { value in
                 guard mode.allowsMapGestures else { return }
-                pan.width = min(max(pan.width + value.translation.width, -120), 120)
-                pan.height = min(max(pan.height + value.translation.height, -92), 92)
+                pan = clampedPan(
+                    CGSize(width: pan.width + value.translation.width, height: pan.height + value.translation.height),
+                    layout: layout,
+                    viewport: viewport,
+                    scale: currentScale
+                )
             }
     }
 
-    private var pinchGesture: some Gesture {
+    private func pinchGesture(layout: UniverseGraphLayoutResult, viewport: CGSize) -> some Gesture {
         MagnifyGesture()
             .updating($magnification) { value, state, _ in
                 guard mode.allowsMapGestures else { return }
@@ -566,8 +571,57 @@ struct UniverseGraphView: View {
             }
             .onEnded { value in
                 guard mode.allowsMapGestures else { return }
-                scale = min(max(scale * value.magnification, 0.5), 1.55)
+                let nextScale = min(max(scale * value.magnification, 0.5), 1.55)
+                scale = nextScale
+                pan = clampedPan(pan, layout: layout, viewport: viewport, scale: nextScale)
             }
+    }
+
+    private func clampedPan(
+        _ proposed: CGSize,
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        let limit = panLimit(layout: layout, viewport: viewport, scale: scale)
+        return CGSize(
+            width: min(max(proposed.width, -limit.width), limit.width),
+            height: min(max(proposed.height, -limit.height), limit.height)
+        )
+    }
+
+    private func panLimit(
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        guard !layout.nodes.isEmpty else { return .zero }
+
+        let minX = layout.nodes.map { $0.position.x - $0.hitRadius }.min() ?? 0
+        let maxX = layout.nodes.map { $0.position.x + $0.hitRadius }.max() ?? viewport.width
+        let minY = layout.nodes.map { $0.position.y - $0.hitRadius }.min() ?? 0
+        let maxY = layout.nodes.map { $0.position.y + $0.hitRadius }.max() ?? viewport.height
+
+        let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+        let scaledMinX = center.x + (minX - center.x) * scale
+        let scaledMaxX = center.x + (maxX - center.x) * scale
+        let scaledMinY = center.y + (minY - center.y) * scale
+        let scaledMaxY = center.y + (maxY - center.y) * scale
+        let edgePadding: CGFloat = 48
+
+        let horizontalNeed = max(
+            max(0, edgePadding - scaledMinX),
+            max(0, scaledMaxX - viewport.width + edgePadding)
+        )
+        let verticalNeed = max(
+            max(0, edgePadding - scaledMinY),
+            max(0, scaledMaxY - viewport.height + edgePadding)
+        )
+
+        return CGSize(
+            width: max(120, horizontalNeed),
+            height: max(92, verticalNeed)
+        )
     }
 }
 
