@@ -342,10 +342,20 @@ enum UniverseAssistantCore {
             return true
         }
 
-        // Short unmatched natural-language fragments are not enough evidence
+        // R15: A short unmatched query that looks like a product name (1-3
+        // tokens, none of them small talk, not a recognized intent) is most
+        // likely an unknown tool the user wants to add — route it to the
+        // missing-service / add-tool path, not general chat. Genuine small talk
+        // is already returned above, so anything reaching here that is name-like
+        // should NOT be treated as general conversation.
+        if (1...3).contains(tokens.count) {
+            return false
+        }
+
+        // Longer unmatched natural-language fragments are not enough evidence
         // for a service lookup. Keep them in general chat unless the user
         // names a tool/service/add intent above.
-        return tokens.count >= 2
+        return true
     }
 
     private static func structuredText(
@@ -572,8 +582,18 @@ enum UniverseAssistantCore {
             folded,
             [
                 "which tool", "which tools", "what tool", "what tools", "should i use",
-                "recommend", "best for", "use for", "какой", "какие", "что использовать",
+                "recommend", "best for", "use for",
+                // Recommendation phrasings that previously fell through to the
+                // missing-service path (R14): "I need …", "looking for …",
+                // "want …", "help me choose …", "which … for …".
+                "i need", "need a", "need an", "need some", "looking for", "look for",
+                "i want", "want a", "want an", "help me choose", "help me pick",
+                "which", "what should",
+                "какой", "какие", "что использовать",
                 "посовет", "подбери", "нужно", "надо",
+                // RU recommendation equivalents (R14): "нужен", "ищу",
+                // "посоветуй", "что для …".
+                "нужен", "нужна", "ищу", "посоветуй", "что для", "для чего",
             ]
         ) else { return nil }
 
