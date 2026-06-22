@@ -75,6 +75,21 @@ enum UniverseAssistantCore {
             )
         }
 
+        // §6 intent #4: existing-universe inventory query ("what do I have for
+        // X") — list the user's OWN tools, optionally scoped to a domain. Runs
+        // before domain/workflow routing so possessive phrasing isn't treated
+        // as a fresh recommendation.
+        if isInventoryQuery(folded), !isFullAppWorkflow(folded) {
+            return inventoryReply(
+                for: trimmed,
+                domain: domainKeyword(for: folded),
+                tools: tools,
+                categoryName: categoryName,
+                knowledge: knowledge,
+                recentActivity: recentActivity
+            )
+        }
+
         if let domain = domainIntent(for: folded),
            !isFullAppWorkflow(folded) {
             return domainReply(
@@ -220,6 +235,77 @@ enum UniverseAssistantCore {
             matchIDs: domainTools.map(\.id),
             missingToolSuggestions: suggestions
         )
+    }
+
+    /// §6 intent #4 — existing-universe query ("what do I have for X"). Lists
+    /// the user's OWN tools (optionally scoped to a domain) as a plain inventory,
+    /// not a workflow recommendation. Empty scope → suggest adding instead.
+    private static func inventoryReply(
+        for query: String,
+        domain: ToolCategoryId?,
+        tools: [Tool],
+        categoryName: (ToolCategoryId) -> String,
+        knowledge: (Tool) -> ToolKnowledge,
+        recentActivity: [UniverseActivity]
+    ) -> AssistantReply {
+        let scoped = domain.map { d in tools.filter { $0.category == d } } ?? tools
+        let listed = Array(scoped.prefix(8))
+
+        if listed.isEmpty {
+            let label = domain.map { categoryName($0).lowercased() } ?? "universe"
+            let suggestions = domain
+                .map { missingSuggestions(from: suggestionTemplates(for: $0), tools: tools, limit: 3) }
+                ?? []
+            let scopeWord = domain == nil ? "any tools yet" : "any \(label) tools yet"
+            return AssistantReply(
+                text: """
+                **Your universe**
+                You do not have \(scopeWord). Add one from the chips below — each tool becomes a node you can ask about later.
+                """,
+                matchIDs: [],
+                missingToolSuggestions: suggestions
+            )
+        }
+
+        let scopeLabel = domain.map { "\(categoryName($0).lowercased()) " } ?? ""
+        let countWord = listed.count == 1 ? "tool" : "tools"
+        let heading = domain == nil
+            ? "Your universe has \(listed.count) \(countWord)."
+            : "You have \(listed.count) \(scopeLabel)\(countWord) in your universe."
+        let lines = recommendedLines(
+            for: listed,
+            allTools: tools,
+            categoryName: categoryName,
+            knowledge: knowledge
+        ).map { "- \($0)" }.joined(separator: "\n")
+        return AssistantReply(
+            text: """
+            **Your \(scopeLabel.isEmpty ? "tools" : scopeLabel + "tools")**
+            \(heading)
+
+            \(lines)
+
+            **Next**
+            Open any chip for its details. Pricing shown is from the universe; verify the website before relying on it.
+            """,
+            matchIDs: listed.map(\.id),
+            missingToolSuggestions: []
+        )
+    }
+
+    /// Detects possessive inventory phrasing ("what do I have", "my tools",
+    /// "что у меня есть") asking about the user's OWN universe — distinct from a
+    /// recommendation ("which tool for X") or a full workflow ask.
+    private static func isInventoryQuery(_ folded: String) -> Bool {
+        let phrases = [
+            "what do i have", "what tools do i have", "which of my tools",
+            "do i have", "what is in my universe", "in my universe",
+            "my current tools", "list my tools", "show my tools",
+            "my stack", "my tools",
+            "что у меня", "какие у меня", "что в моей вселенной",
+            "мои инструменты", "у меня есть",
+        ]
+        return phrases.contains { folded.contains($0) }
     }
 
     private static func directMatchReply(
@@ -597,6 +683,13 @@ enum UniverseAssistantCore {
             ]
         ) else { return nil }
 
+        return domainKeyword(for: folded)
+    }
+
+    /// Maps a folded query to a domain purely by topic keywords, without the
+    /// recommendation-trigger gate of `domainIntent`. Used by the inventory
+    /// path ("what do I have for design"), which is possessive, not a request.
+    private static func domainKeyword(for folded: String) -> ToolCategoryId? {
         let domains: [(ToolCategoryId, [String])] = [
             (.design, ["design", "ui", "ux", "prototype", "mockup", "wireframe", "figma", "дизайн", "интерфейс", "макет", "прототип"]),
             (.coding, ["code", "coding", "developer", "development", "repo", "refactor", "agentic dev", "код", "разработ", "репозитор"]),

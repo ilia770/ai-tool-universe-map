@@ -59,12 +59,26 @@ struct UniverseOverlayView: View {
                 // that fades to clear toward the map, instead of a full-screen scrim.
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    LinearGradient(
-                        colors: [.clear, Color.black.opacity(0.34)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: railContrastWidth)
+                    // Frosted dim strip behind the rail text picker: a real material
+                    // blur softened by a mask that fades to clear toward the map, so
+                    // the readability treatment never covers the map (RIGHT_RAIL_SPEC).
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            LinearGradient(
+                                colors: [.clear, Color.black.opacity(0.34)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .mask(
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: railContrastWidth)
                 }
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -636,6 +650,20 @@ struct UniverseOverlayView: View {
                 .background(.white.opacity(0.14), in: Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
+
+                Button {
+                    BrandHaptics.fire(.light)
+                    onChatActivityChange(true)
+                } label: {
+                    Label("Ask AI", systemImage: "sparkle")
+                        .font(.callout.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+                .padding(.vertical, 9)
+                .padding(.horizontal, 16)
+                .glassSurface(in: Capsule(), interactive: true)
+                .foregroundStyle(.white.opacity(0.9))
 
                 Button {
                     BrandHaptics.fire(.light)

@@ -172,4 +172,36 @@ struct UniverseAssistantCoreTests {
         #expect(reply.matchIDs.isEmpty)
         #expect(reply.text.contains("website URL"))
     }
+
+    // §6 intent #4: an existing-universe inventory query ("what do I have for X")
+    // lists the user's OWN tools — not a workflow recommendation and not a
+    // missing-service prompt.
+    @Test func inventoryQueryForDomainListsExistingTools() {
+        let reply = reply("what tools do I have for analytics")
+        #expect(reply.matchIDs.contains("posthog"))
+        #expect(reply.text.contains("Your"))
+        // Inventory answers are a plain listing, not the workflow Options block.
+        #expect(!reply.text.contains("Fastest:"))
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func inventoryQueryWholeUniverseListsTools() {
+        let reply = reply("what do I have in my universe")
+        #expect(!reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("website URL"))
+        #expect(!reply.text.contains("I did not find this service"))
+    }
+
+    @Test func russianInventoryQueryListsTools() {
+        let reply = reply("что у меня есть")
+        #expect(!reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func inventoryQueryForEmptyDomainSuggestsAdding() {
+        let postHog = UniverseSeed.tools.first { $0.id == "posthog" }!
+        let reply = reply("what do I have for design", tools: [postHog])
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.missingToolSuggestions.isEmpty)
+    }
 }
