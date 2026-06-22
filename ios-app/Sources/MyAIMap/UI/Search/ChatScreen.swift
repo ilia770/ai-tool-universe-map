@@ -405,7 +405,9 @@ private struct ChatMessageTurn: View {
             .multilineTextAlignment(.leading)
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
-            .background(BrandColor.core.opacity(0.24), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            // Neutral content surface (LIQUID_GLASS_VISUAL_SPEC C2): no accent
+            // fill on the bubble. Speaker conveyed by right alignment + tone.
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(.white.opacity(0.10), lineWidth: 0.5)
@@ -615,9 +617,11 @@ private struct ChatToolChip: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3): neutral fill + neutral
+            // hairline; accent lives only on the tool logo glyph.
             .background(ChatTheme.surfaceRaised, in: Capsule())
             .overlay {
-                Capsule().stroke(category.color.swiftUIColor.opacity(0.28), lineWidth: 0.8)
+                Capsule().stroke(BrandColor.stroke, lineWidth: 0.8)
             }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))

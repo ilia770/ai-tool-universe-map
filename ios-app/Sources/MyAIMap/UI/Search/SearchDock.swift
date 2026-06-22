@@ -211,12 +211,10 @@ struct SearchDock: View {
         }
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(5)
-        .background(.black.opacity(0.12), in: Capsule())
-        .glassSurface(
-            in: Capsule(),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.5),
-            interactive: true
-        )
+        // Clean dark-translucent glass capsule (CHAT_INPUT_SPEC §1): no accent
+        // tint, no black backing plate, no glowing outline. Accent shows only
+        // as the field's caret/selection tint above. One soft float shadow.
+        .glassSurface(in: Capsule(), interactive: true)
         .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
     }
 
@@ -269,13 +267,10 @@ struct SearchDock: View {
             }
             .padding(7)
             .frame(width: 164)
-            .background(
-                .black.opacity(0.30),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
+            // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
+            // panel, no black backing plate, no heavy accent tint. One shadow.
             .glassSurface(
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.34),
                 interactive: true
             )
             .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
@@ -353,19 +348,19 @@ struct SearchDock: View {
             HStack(spacing: 5) {
                 Image(systemName: kind.icon)
                     .font(.system(size: 11, weight: .bold))
+                    // Accent lives only on the icon (tiny highlight), not the fill.
+                    .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
                 Text(kind.shortTitle)
                     .font(.system(.caption2, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.84))
                     .lineLimit(1)
             }
-            .foregroundStyle(.white.opacity(0.84))
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            // Staged-attachment pill is content (per glass MAP), and sits inside
-            // the glass composer pill — keep it solid to avoid nested lensing.
-            .background(
-                model.selectedCategoryModel.color.swiftUIColor.opacity(0.28),
-                in: Capsule()
-            )
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3): neutral capsule + hairline,
+            // solid (sits inside the glass composer pill, avoids nested lensing).
+            .background(.white.opacity(0.08), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
         .accessibilityLabel("Remove \(kind.title)")
@@ -436,11 +431,8 @@ struct SearchDock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(maxWidth: 152)
-            .glassSurface(
-                in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                interactive: true
-            )
+            // Floating chrome — neutral glass, no accent fill (visual spec §2/§4).
+            .glassSurface(in: Capsule(), interactive: true)
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
     }
@@ -465,11 +457,8 @@ struct SearchDock: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
                     .frame(width: 30, height: 30)
-                    .glassSurface(
-                        in: Circle(),
-                        tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                        interactive: true
-                    )
+                    // Floating chrome — neutral glass icon button (visual spec §2).
+                    .glassSurface(in: Circle(), interactive: true)
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
             .accessibilityLabel("Collapse chat")
@@ -533,9 +522,10 @@ struct SearchDock: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 13)
             .padding(.vertical, 10)
-            // Chat bubble is content — solid accent-tinted surface, never glass.
+            // Chat bubble is content — neutral solid surface, never accent fill
+            // (LIQUID_GLASS_VISUAL_SPEC C2). Speaker conveyed by alignment + tone.
             .background(
-                model.selectedCategoryModel.color.swiftUIColor.opacity(0.30),
+                .white.opacity(0.07),
                 in: RoundedRectangle(cornerRadius: 19, style: .continuous)
             )
             .overlay {
@@ -669,15 +659,17 @@ struct SearchDock: View {
             HStack(spacing: 7) {
                 Image(systemName: "arrow.up.right.circle.fill")
                     .font(.system(size: 13, weight: .bold))
+                    // Accent on the icon only (tiny highlight), not the fill.
+                    .foregroundStyle(category.color.swiftUIColor)
                 Text(tool.name)
                     .font(.system(.footnote, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(1)
             }
-            .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            // Inline message action chip — content layer, solid (glass MAP).
-            .background(category.color.swiftUIColor.opacity(0.30), in: Capsule())
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
+            .background(.white.opacity(0.08), in: Capsule())
             .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
@@ -698,9 +690,12 @@ struct SearchDock: View {
             HStack(spacing: 7) {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 13, weight: .bold))
+                    // Accent on the icon only (tiny highlight), not the fill.
+                    .foregroundStyle(category.color.swiftUIColor)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Add \(suggestion.name)")
                         .font(.system(.footnote, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.88))
                         .lineLimit(1)
                     Text(category.shortName)
                         .font(.system(.caption2, weight: .medium))
@@ -708,11 +703,10 @@ struct SearchDock: View {
                         .lineLimit(1)
                 }
             }
-            .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            // Inline message action chip — content layer, solid (glass MAP).
-            .background(category.color.swiftUIColor.opacity(0.24), in: Capsule())
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
+            .background(.white.opacity(0.08), in: Capsule())
             .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
