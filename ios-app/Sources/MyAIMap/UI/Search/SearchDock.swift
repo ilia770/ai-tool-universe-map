@@ -153,15 +153,24 @@ struct SearchDock: View {
     }
 
     private var composerWithAttachmentOverlay: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if attachmentMenuOpen {
-                attachmentMenuPopover
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .zIndex(2)
+        // The menu floats as an overlay anchored above the composer instead of
+        // stacking inline in the VStack. Inline stacking pushed the composer
+        // down and could clip against the keyboard/transcript on small devices
+        // (review finding R16). As an overlay it has no layout footprint, so the
+        // composer stays put and the menu floats over the transcript above it.
+        composerRow
+            .overlay(alignment: .bottomLeading) {
+                if attachmentMenuOpen {
+                    attachmentMenuPopover
+                        .alignmentGuide(.bottom) { dimensions in
+                            // Pin the menu's bottom to the composer's top so it
+                            // floats upward (with an 8pt gap), not over the row.
+                            dimensions[.top] - 8
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .zIndex(2)
+                }
             }
-
-            composerRow
-        }
     }
 
     private var composerRow: some View {
