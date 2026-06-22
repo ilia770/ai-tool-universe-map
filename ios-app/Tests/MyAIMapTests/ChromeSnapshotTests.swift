@@ -79,6 +79,32 @@ struct ChromeSnapshotTests {
 
     // MARK: - SearchDock (composer / assistant dock)
 
+    @Test func chatScreenRenders() throws {
+        for reduce in [false, true] {
+            let model = makeModel(sample: true)
+            try assertRenders("ChatScreen", reduceTransparency: reduce) {
+                ChatScreen(
+                    onShowUniverse: {},
+                    onOpenSettings: {},
+                    onAddTool: {},
+                    onAddSuggestedTool: { _ in },
+                    onOpenToolInUniverse: { _ in }
+                )
+                .environment(model)
+            }
+        }
+    }
+
+    @Test func rootShellRendersChatFirst() throws {
+        for reduce in [false, true] {
+            let model = makeModel(sample: true)
+            try assertRenders("RootShell", reduceTransparency: reduce) {
+                RootShell()
+                    .environment(model)
+            }
+        }
+    }
+
     @Test func searchDockRenders() throws {
         for reduce in [false, true] {
             let model = makeModel(sample: true)

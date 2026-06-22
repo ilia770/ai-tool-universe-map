@@ -180,6 +180,7 @@ struct SearchDock: View {
                         attachmentMenuOpen = false
                     }
                 }
+                .accessibilityIdentifier("chat-composer-field")
 
             if let selectedAttachment {
                 attachmentPill(selectedAttachment)
@@ -214,6 +215,7 @@ struct SearchDock: View {
         }
         .buttonStyle(BouncyIconButtonStyle())
         .accessibilityLabel("Attach photo or file")
+        .accessibilityIdentifier("chat-attach-button")
     }
 
     private var attachmentMenuPopover: some View {
@@ -278,6 +280,7 @@ struct SearchDock: View {
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel(kind.title)
+        .accessibilityIdentifier(kind.accessibilityIdentifier)
     }
 
     private var trailingActionButton: some View {
@@ -298,6 +301,7 @@ struct SearchDock: View {
                 .buttonStyle(BouncyIconButtonStyle())
                 .disabled(!canSend)
                 .accessibilityLabel(canSend ? "Send" : "Send unavailable")
+                .accessibilityIdentifier("chat-send-button")
             } else {
                 Button {
                     onAddTool()
@@ -311,6 +315,7 @@ struct SearchDock: View {
                 }
                 .buttonStyle(BouncyIconButtonStyle())
                 .accessibilityLabel("Add tool")
+                .accessibilityIdentifier("chat-add-tool-button")
             }
         }
         .frame(width: 44, height: 44)
@@ -364,6 +369,7 @@ struct SearchDock: View {
             .frame(maxWidth: .infinity, maxHeight: 284)
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("chat-transcript")
             .onChange(of: model.assistantMessages.count) { _, _ in
                 guard let last = model.assistantMessages.last else { return }
                 withAnimation(BrandMotion.nudge) {
@@ -824,6 +830,13 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         switch self {
         case .photo: return "photo"
         case .files: return "doc"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .photo: return "chat-attachment-photo"
+        case .files: return "chat-attachment-files"
         }
     }
 }

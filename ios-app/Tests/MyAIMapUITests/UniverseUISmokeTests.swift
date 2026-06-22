@@ -15,7 +15,18 @@ final class UniverseUISmokeTests: XCTestCase {
         app.launchArguments = ["-uitestStatic", "-uitestSampleUniverse"]
         app.launch()
         wait(2.5)
-        snap("01-overview")
+        let composer = app.textFields["chat-composer-field"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5), "Chat-first launch should show the composer")
+        snap("01-chat")
+        attachText("tree-chat", app.debugDescription)
+
+        let openUniverse = app.buttons["RootShell.ShowUniverse"]
+        XCTAssertTrue(openUniverse.waitForExistence(timeout: 4), "Chat-first root should expose the Map route")
+        if openUniverse.isHittable {
+            openUniverse.tap()
+        }
+        wait(2.0)
+        snap("02-overview")
         attachText("tree-overview", app.debugDescription)
 
         // Branch focus via the 2D graph node accessibility label.
@@ -51,33 +62,41 @@ final class UniverseUISmokeTests: XCTestCase {
         }
         wait(0.8)
 
-        // Input focus (not-black confirmation).
-        let field = app.textFields.firstMatch
-        if field.waitForExistence(timeout: 3) {
-            field.tap(); wait(1.4); snap("04-input-focus")
-            // Attachment menu while focused.
-            let attach = app.buttons["Attach photo or file"]
-            if attach.waitForExistence(timeout: 2) {
-                attach.tap(); wait(1.0); snap("05-attach-menu")
-                if app.buttons["Files"].waitForExistence(timeout: 2) {
-                    app.buttons["Files"].tap(); wait(0.8); snap("06-attached-pill")
-                }
-            }
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30)).tap(); wait(0.8)
-        }
+        // Rail — press-drag the right edge while the map is active (best-effort).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.52))
+            .press(forDuration: 0.6,
+                   thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.42)))
+        wait(0.6); snap("08-after-rail-drag")
 
-        // Account sheet.
-        let account = app.buttons["Account"]
+        let showChat = app.buttons["RootShell.ShowChat"]
+        XCTAssertTrue(showChat.waitForExistence(timeout: 3), "Map route should expose the Chat return control")
+        if showChat.isHittable {
+            showChat.tap()
+        }
+        wait(1.2)
+
+        // Account sheet from the chat shell, before keyboard focus can affect idle waits.
+        let account = app.buttons["ChatScreen.Account"]
         if account.waitForExistence(timeout: 3), account.isHittable {
             account.tap(); wait(1.4); snap("07-account")
             app.swipeDown(velocity: .fast); wait(0.8)
         }
 
-        // Rail — press-drag the right edge (best-effort).
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.52))
-            .press(forDuration: 0.6,
-                   thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.42)))
-        wait(0.6); snap("08-after-rail-drag")
+        // Input focus (not-black confirmation).
+        let field = app.textFields["chat-composer-field"]
+        if field.waitForExistence(timeout: 3) {
+            field.tap(); wait(1.4); snap("04-input-focus")
+            // Attachment menu while focused.
+            let attach = app.buttons["chat-attach-button"]
+            if attach.waitForExistence(timeout: 2) {
+                attach.tap(); wait(1.0); snap("05-attach-menu")
+                let files = app.buttons["chat-attachment-files"]
+                XCTAssertTrue(files.waitForExistence(timeout: 2), "Attachment menu should expose Files")
+                if files.isHittable {
+                    files.tap(); wait(0.8); snap("06-attached-pill")
+                }
+            }
+        }
     }
 
     private func wait(_ seconds: TimeInterval) {

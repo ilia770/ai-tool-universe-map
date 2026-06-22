@@ -10,7 +10,7 @@ struct MyAIMapApp: App {
 
     var body: some Scene {
         WindowGroup {
-            UniverseScreen()
+            RootShell()
                 .environment(model)
                 .preferredColorScheme(.dark)
                 .onAppear {
