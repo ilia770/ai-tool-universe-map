@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum ChatTheme {
     static let background = Color(red: 11.0 / 255, green: 13.0 / 255, blue: 18.0 / 255)
@@ -252,22 +253,28 @@ private struct ChatMessageTurn: View {
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            if isUser {
+        if isUser {
+            // User bubble hugs its content, right-aligned, capped at ~78% width.
+            HStack(spacing: 0) {
                 Spacer(minLength: 42)
                 userBubble
-            } else {
-                assistantTurn
-                Spacer(minLength: 28)
             }
+        } else {
+            assistantTurn
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var userBubble: some View {
-        ChatMarkdownText(text: message.text, font: .system(.body, weight: .medium), color: .white.opacity(0.92))
+        // Hug-content text (NOT stretched to full width); the outer HStack's
+        // Spacer caps the bubble at ~78% of the row width and right-aligns it.
+        Text(message.text)
+            .font(.system(.body, weight: .medium))
+            .foregroundStyle(.white.opacity(0.92))
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.leading)
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
-            .frame(maxWidth: 560, alignment: .leading)
             .background(BrandColor.core.opacity(0.24), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -276,43 +283,52 @@ private struct ChatMessageTurn: View {
     }
 
     private var assistantTurn: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(BrandColor.core.opacity(0.15))
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(BrandColor.core)
-            }
-            .frame(width: 30, height: 30)
-            .padding(.top, 1)
+        // No leading avatar: assistant content spans the column, left-aligned.
+        VStack(alignment: .leading, spacing: 12) {
+            ChatMarkdownText(text: assistantProse(from: message.text), font: .system(.body), color: ChatTheme.text)
+                .lineSpacing(5)
 
-            VStack(alignment: .leading, spacing: 14) {
-                ChatMarkdownText(text: assistantProse(from: message.text), font: .system(.body), color: ChatTheme.text)
-                    .lineSpacing(5)
-
-                if !matches.isEmpty {
-                    VStack(spacing: 10) {
-                        ForEach(matches.prefix(3)) { tool in
-                            ChatToolCard(tool: tool) {
-                                onOpenTool(tool.id)
-                            }
-                        }
+            if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
+                ChatChipRow {
+                    ForEach(matches.prefix(4)) { tool in
+                        ChatToolChip(tool: tool) { onOpenTool(tool.id) }
                     }
-                }
-
-                if !message.missingToolSuggestions.isEmpty {
-                    VStack(spacing: 10) {
-                        ForEach(message.missingToolSuggestions.prefix(3)) { suggestion in
-                            ChatMissingToolCard(suggestion: suggestion) {
-                                onAddSuggestedTool(suggestion)
-                            }
-                        }
+                    ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
+                        ChatMissingToolChip(suggestion: suggestion) { onAddSuggestedTool(suggestion) }
                     }
                 }
             }
-            .frame(maxWidth: 640, alignment: .leading)
+
+            assistantActionRow
         }
+    }
+
+    private var assistantActionRow: some View {
+        HStack(spacing: 18) {
+            Button {
+                UIPasteboard.general.string = message.text
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
+            .accessibilityLabel("Copy message")
+            .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
+
+            if !matches.isEmpty {
+                Button {
+                    if let first = matches.first { onOpenTool(first.id) }
+                } label: {
+                    Image(systemName: "map")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
+                .accessibilityLabel("Open in Universe")
+                .accessibilityIdentifier("ChatScreen.Action.Open.\(message.id)")
+            }
+        }
+        .foregroundStyle(ChatTheme.secondaryText)
+        .padding(.top, 2)
     }
 
     private func assistantProse(from text: String) -> String {
@@ -333,7 +349,62 @@ private struct ChatMessageTurn: View {
     }
 }
 
-private struct ChatToolCard: View {
+/// Wrapping horizontal flow: lays chips out in a line, wrapping to the next
+/// row when they no longer fit (ChatGPT-style inline source pills).
+private struct ChatChipRow: Layout {
+    var hSpacing: CGFloat = 8
+    var vSpacing: CGFloat = 8
+
+    init(hSpacing: CGFloat = 8, vSpacing: CGFloat = 8) {
+        self.hSpacing = hSpacing
+        self.vSpacing = vSpacing
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var maxRowWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if rowWidth > 0, rowWidth + hSpacing + size.width > maxWidth {
+                totalHeight += rowHeight + vSpacing
+                maxRowWidth = max(maxRowWidth, rowWidth)
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? hSpacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+        totalHeight += rowHeight
+        maxRowWidth = max(maxRowWidth, rowWidth)
+        return CGSize(width: min(maxRowWidth, maxWidth), height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + vSpacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + hSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+/// Compact source/tool pill: favicon-sized logo + short name, sized to content.
+private struct ChatToolChip: View {
     let tool: Tool
     let onOpen: () -> Void
 
@@ -343,40 +414,28 @@ private struct ChatToolCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(alignment: .center, spacing: 12) {
-                ToolLogoView(tool: tool, accent: category.color.swiftUIColor, size: 46)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(tool.name)
-                        .font(.system(.headline, weight: .semibold))
-                        .foregroundStyle(ChatTheme.text)
-                        .lineLimit(1)
-                    Text(tool.summary)
-                        .font(.system(.subheadline))
-                        .foregroundStyle(ChatTheme.secondaryText)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "map")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(category.color.swiftUIColor)
+            HStack(spacing: 6) {
+                ToolLogoView(tool: tool, accent: category.color.swiftUIColor, size: 16)
+                Text(tool.name)
+                    .font(.system(.footnote, weight: .medium))
+                    .foregroundStyle(ChatTheme.text)
+                    .lineLimit(1)
             }
-            .padding(12)
-            .background(ChatTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(ChatTheme.surfaceRaised, in: Capsule())
             .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(category.color.swiftUIColor.opacity(0.22), lineWidth: 0.8)
+                Capsule().stroke(category.color.swiftUIColor.opacity(0.28), lineWidth: 0.8)
             }
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: .light))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
         .accessibilityLabel("Open \(tool.name) on map")
         .accessibilityIdentifier("ChatScreen.ToolCard.\(tool.id)")
     }
 }
 
-private struct ChatMissingToolCard: View {
+/// Compact "add suggested tool" pill.
+private struct ChatMissingToolChip: View {
     let suggestion: MissingToolSuggestion
     let onAdd: () -> Void
 
@@ -386,41 +445,22 @@ private struct ChatMissingToolCard: View {
 
     var body: some View {
         Button(action: onAdd) {
-            HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(category.color.swiftUIColor.opacity(0.62), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(category.color.swiftUIColor)
-                }
-                .frame(width: 46, height: 46)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Add \(suggestion.name)")
-                        .font(.system(.headline, weight: .semibold))
-                        .foregroundStyle(ChatTheme.text)
-                        .lineLimit(1)
-                    Text(suggestion.reason)
-                        .font(.system(.subheadline))
-                        .foregroundStyle(ChatTheme.secondaryText)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(category.color.swiftUIColor)
+            HStack(spacing: 5) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                Text(suggestion.name)
+                    .font(.system(.footnote, weight: .medium))
+                    .lineLimit(1)
             }
-            .padding(12)
-            .background(category.color.swiftUIColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .foregroundStyle(category.color.swiftUIColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(category.color.swiftUIColor.opacity(0.10), in: Capsule())
             .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(category.color.swiftUIColor.opacity(0.24), lineWidth: 0.8)
+                Capsule().stroke(category.color.swiftUIColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             }
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: .light))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
         .accessibilityLabel("Add \(suggestion.name) to my map")
         .accessibilityIdentifier("ChatScreen.MissingTool.\(suggestion.id)")
     }
