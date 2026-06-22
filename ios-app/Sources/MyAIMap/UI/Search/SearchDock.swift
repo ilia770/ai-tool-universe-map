@@ -152,24 +152,39 @@ struct SearchDock: View {
         }
     }
 
+    private var showsAttachmentMenu: Bool {
+        ComposerLogic.showsAttachmentMenu(menuOpen: attachmentMenuOpen)
+    }
+
+    private var showsAttachmentPreview: Bool {
+        ComposerLogic.showsAttachmentPreview(
+            menuOpen: attachmentMenuOpen,
+            hasAttachment: selectedAttachment != nil
+        )
+    }
+
     private var composerWithAttachmentOverlay: some View {
-        // The menu floats as an overlay anchored above the composer instead of
-        // stacking inline in the VStack. Inline stacking pushed the composer
-        // down and could clip against the keyboard/transcript on small devices
-        // (review finding R16). As an overlay it has no layout footprint, so the
-        // composer stays put and the menu floats over the transcript above it.
+        // The float lane above the composer hosts the menu OR the staged-
+        // attachment preview — mutually exclusive (CHAT_INPUT_SPEC §4). Both
+        // float as an overlay with no layout footprint, so the composer stays
+        // put and the panel floats over the transcript above it (review finding
+        // R16). Inline stacking pushed the composer down / clipped the keyboard.
         composerRow
             .overlay(alignment: .bottomLeading) {
-                if attachmentMenuOpen {
-                    attachmentMenuPopover
-                        .alignmentGuide(.bottom) { dimensions in
-                            // Pin the menu's bottom to the composer's top so it
-                            // floats upward (with an 8pt gap), not over the row.
-                            dimensions[.top] - 8
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        .zIndex(2)
+                Group {
+                    if showsAttachmentMenu {
+                        attachmentMenuPopover
+                    } else if let selectedAttachment, showsAttachmentPreview {
+                        attachmentPreview(selectedAttachment)
+                    }
                 }
+                .alignmentGuide(.bottom) { dimensions in
+                    // Pin the panel's bottom to the composer's top so it floats
+                    // upward (with an 8pt gap), not over the row.
+                    dimensions[.top] - 8
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(2)
             }
     }
 
@@ -204,10 +219,6 @@ struct SearchDock: View {
                     }
                 }
                 .accessibilityIdentifier("chat-composer-field")
-
-            if let selectedAttachment {
-                attachmentPill(selectedAttachment)
-            }
         }
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(5)
@@ -242,27 +253,10 @@ struct SearchDock: View {
     private var attachmentMenuPopover: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
+                // Two items only (CHAT_INPUT_SPEC §2). The remove path lives on
+                // the floating preview's remove button (§3), not in this menu.
                 ForEach(AssistantAttachmentKind.allCases) { kind in
                     attachmentMenuItem(kind)
-                }
-
-                if ComposerLogic.showsRemoveAttachment(hasAttachment: selectedAttachment != nil) {
-                    Divider()
-                        .overlay(.white.opacity(0.12))
-                    Button {
-                        BrandHaptics.fire(.light)
-                        selectedAttachment = nil
-                        attachmentMenuOpen = false
-                    } label: {
-                        Label("Remove attachment", systemImage: "xmark.circle")
-                            .font(.system(.footnote, weight: .semibold))
-                            .foregroundStyle(.red.opacity(0.9))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 9)
-                    }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
-                    .accessibilityLabel("Remove attachment")
                 }
             }
             .padding(7)
@@ -339,31 +333,66 @@ struct SearchDock: View {
         .frame(width: 44, height: 44)
     }
 
-    private func attachmentPill(_ kind: AssistantAttachmentKind) -> some View {
-        Button {
-            BrandHaptics.fire(.light)
-            selectedAttachment = nil
-            attachmentMenuOpen = false
-        } label: {
-            HStack(spacing: 5) {
+    /// Floating Liquid Glass attachment preview above the input (CHAT_INPUT_SPEC
+    /// §3): thumbnail / type glyph, name + type, and a trailing remove button.
+    /// Same float lane as the menu and mutually exclusive with it. It floats with
+    /// no layout footprint, so it never crowds the text field or covers the chat.
+    private func attachmentPreview(_ kind: AssistantAttachmentKind) -> some View {
+        HStack(alignment: .bottom) {
+            HStack(spacing: 10) {
+                // Thumbnail / type glyph — neutral rounded square (no photo
+                // library wired up yet, so the photo case shows its glyph too).
                 Image(systemName: kind.icon)
-                    .font(.system(size: 11, weight: .bold))
-                    // Accent lives only on the icon (tiny highlight), not the fill.
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
-                Text(kind.shortTitle)
-                    .font(.system(.caption2, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.84))
-                    .lineLimit(1)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        .white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: BrandRadius.tight.value, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kind.previewName)
+                        .font(.system(.footnote, weight: .semibold))
+                        .foregroundStyle(BrandColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(kind.previewType)
+                        .font(.system(.caption2, weight: .medium))
+                        .foregroundStyle(BrandColor.textMuted)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    BrandHaptics.fire(.light)
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                        selectedAttachment = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.74))
+                        .frame(width: 28, height: 28)
+                        .background(.white.opacity(0.08), in: Circle())
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
+                .accessibilityLabel("Remove attachment")
+                .accessibilityIdentifier("chat-attachment-remove")
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3): neutral capsule + hairline,
-            // solid (sits inside the glass composer pill, avoids nested lensing).
-            .background(.white.opacity(0.08), in: Capsule())
-            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
+            // card, no accent backing, one soft shadow.
+            .glassSurface(
+                in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
+                interactive: true
+            )
+            .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
-        .accessibilityLabel("Remove \(kind.title)")
+        .padding(.leading, 2)
+        // Width follows the dock, not full-bleed past the composer.
+        .frame(maxWidth: dockWidth)
     }
 
     private var conversationPanel: some View {
@@ -829,13 +858,6 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         }
     }
 
-    var shortTitle: String {
-        switch self {
-        case .photo: return "Photo"
-        case .files: return "File"
-        }
-    }
-
     var messageTitle: String {
         switch self {
         case .photo: return "photo"
@@ -847,6 +869,22 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         switch self {
         case .photo: return "photo"
         case .files: return "doc"
+        }
+    }
+
+    /// Floating preview primary line (CHAT_INPUT_SPEC §3). No real picker is
+    /// wired up yet, so these are the placeholder name/type for the staged item.
+    var previewName: String {
+        switch self {
+        case .photo: return "Photo"
+        case .files: return "File"
+        }
+    }
+
+    var previewType: String {
+        switch self {
+        case .photo: return "Image"
+        case .files: return "Document"
         }
     }
 
