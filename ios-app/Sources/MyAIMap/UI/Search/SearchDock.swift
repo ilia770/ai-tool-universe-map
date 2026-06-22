@@ -17,6 +17,7 @@ struct SearchDock: View {
     // layout runs. UIScreen.main is the physical screen (wrong under iPad
     // Split View / Stage Manager) and is deprecated on iOS 26.
     @State private var dockWidth: CGFloat = 320
+    @Namespace private var chatChromeNamespace
 
     let isChatOpen: Bool
     let dismissAttachmentMenuToken: UUID?
@@ -74,7 +75,7 @@ struct SearchDock: View {
     }
 
     private var showsCollapsedConversationPill: Bool {
-        isChatOpen && conversationCollapsed && hasConversationContent
+        conversationCollapsed && hasConversationContent
     }
 
     private var chatIsActive: Bool {
@@ -100,6 +101,16 @@ struct SearchDock: View {
     }
 
     var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 12) {
+                dockContent
+            }
+        } else {
+            dockContent
+        }
+    }
+
+    private var dockContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsConversation {
                 conversationPanel
@@ -446,6 +457,7 @@ struct SearchDock: View {
             withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 conversationCollapsed = false
             }
+            onChatActivityChange?(true)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "text.bubble.fill")
@@ -462,8 +474,10 @@ struct SearchDock: View {
             .frame(maxWidth: 152)
             // Floating chrome — neutral glass, no accent fill (visual spec §2/§4).
             .glassSurface(in: Capsule(), interactive: true)
+            .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .brandAnimation(BrandMotion.morph, value: conversationCollapsed)
     }
 
     private var conversationHeader: some View {
@@ -488,6 +502,7 @@ struct SearchDock: View {
                     .frame(width: 30, height: 30)
                     // Floating chrome — neutral glass icon button (visual spec §2).
                     .glassSurface(in: Circle(), interactive: true)
+                    .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
             .accessibilityLabel("Collapse chat")

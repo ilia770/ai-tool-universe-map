@@ -90,8 +90,9 @@ enum ComposerLogic {
         return "Attached \(attachmentTitle.lowercased())"
     }
 
-    /// Collapsing hides the transcript, but it should not dismiss the chat mode
-    /// while there is a transcript/draft to reopen.
+    /// Collapsing keeps the transcript resumable but returns map interaction to
+    /// the normal navigation mode. Only active input, visible chat chrome, or an
+    /// attachment affordance should keep the map suppressed.
     static func keepsChatActive(
         isFocused: Bool,
         showsConversation: Bool,
@@ -99,7 +100,7 @@ enum ComposerLogic {
         attachmentMenuOpen: Bool,
         hasAttachment: Bool
     ) -> Bool {
-        isFocused || showsConversation || isCollapsedWithContent || attachmentMenuOpen || hasAttachment
+        isFocused || showsConversation || attachmentMenuOpen || hasAttachment
     }
 
     /// User bubbles should be compact for short text and wrap before becoming a

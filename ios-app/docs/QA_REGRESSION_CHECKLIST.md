@@ -94,3 +94,39 @@ count, not "Executed 0 tests".
 - [ ] iPhone TestFlight pass for the full checklist above.
 - [ ] iPhone SE-class small-width visual pass.
 - [ ] iPad regular-width detail/related-tool pass.
+
+## First-run / Liquid Glass navigation check - 2026-06-22
+
+**Automated**
+- [x] All required UX specs were present before code review:
+      `FIRST_RUN_SPEC.md`, `LAYERING_AND_NAVIGATION_SPEC.md`,
+      `LIQUID_GLASS_VISUAL_SPEC.md`, `CHAT_INPUT_SPEC.md`,
+      `CHAT_AI_SPEC.md`, `ADD_TOOL_SPEC.md`,
+      `SETTINGS_PROFILE_SPEC.md`, `IMPLEMENTATION_ROADMAP.md`.
+- [x] `git diff --check` clean before verification.
+- [x] Targeted composer-state regression passed:
+      `xcodebuild ... -only-testing:MyAIMapTests/ComposerLogicTests test`;
+      25 tests passed, 0 failed.
+- [x] Full unit gate passed through the project script:
+      `bash scripts/ios-verify.sh --run-tests --device-id
+      EAC2C682-5C38-44DB-8FEC-034E296E8EEA`; 263 tests passed in 32 suites,
+      0 failed.
+- [x] UI smoke passed:
+      `UniverseUISmokeTests/testCaptureKeyStates`; 1 test passed, 0 failed.
+
+**States covered by UI smoke**
+- [x] Fresh launch exposes the map-first route and the Ask AI control.
+- [x] Ask AI opens the chat composer.
+- [x] Map control returns from chat to the map.
+- [x] Category and tool graph nodes are tappable.
+- [x] Tool detail opens from the selected card.
+- [x] Settings opens from the chat surface.
+- [x] Input focus works; attachment menu opens, dismisses on outside tap, then
+      reopens and selects Files.
+
+**Still needs real-device QA**
+- [ ] Liquid Glass morph smoothness on a physical iPhone.
+- [ ] TestFlight pass for collapsed chat: collapse with transcript, then tap/pan
+      the map and confirm no transparent chat layer blocks gestures.
+- [ ] Attachment preview currently verifies the staged Photo/File affordance;
+      a real file/photo picker preview remains out of scope for this pass.

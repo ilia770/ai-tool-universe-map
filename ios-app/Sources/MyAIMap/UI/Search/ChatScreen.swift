@@ -202,7 +202,7 @@ struct ChatScreen: View {
             model.assistantMessages.append(
                 AssistantMessage(
                     role: .assistant,
-                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node, then the map will unlock once your stack has three tools.",
+                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node on the map, then you can keep growing the branch.",
                     missingToolSuggestions: [suggestion]
                 )
             )

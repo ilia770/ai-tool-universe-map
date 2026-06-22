@@ -15,13 +15,22 @@ final class UniverseUISmokeTests: XCTestCase {
         app.launchArguments = ["-uitestStatic", "-uitestSampleUniverse"]
         app.launch()
         wait(2.5)
+        let showChatInitial = app.buttons["RootShell.ShowChat"]
+        XCTAssertTrue(showChatInitial.waitForExistence(timeout: 5), "Map-first launch should expose the Ask AI route")
+        snap("01-map-first")
+        attachText("tree-map-first", app.debugDescription)
+
+        if showChatInitial.isHittable {
+            showChatInitial.tap()
+        }
+        wait(1.2)
         let composer = app.textFields["chat-composer-field"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5), "Chat-first launch should show the composer")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5), "Ask AI route should show the composer")
         snap("01-chat")
         attachText("tree-chat", app.debugDescription)
 
         let openUniverse = app.buttons["RootShell.ShowUniverse"]
-        XCTAssertTrue(openUniverse.waitForExistence(timeout: 4), "Chat-first root should expose the Map route")
+        XCTAssertTrue(openUniverse.waitForExistence(timeout: 4), "Chat root should expose the Map route")
         if openUniverse.isHittable {
             openUniverse.tap()
         }
@@ -54,8 +63,8 @@ final class UniverseUISmokeTests: XCTestCase {
         XCTAssertTrue(selectedDetails.isHittable, "Selected tool details button should be hittable")
         selectedDetails.tap()
         wait(1.6); snap("03b-detail")
-        let detailRoot = app.descendants(matching: .any)["ToolDetailSection.Root"]
-        XCTAssertTrue(detailRoot.waitForExistence(timeout: 3), "Tapping selected details should open the tool detail sheet")
+        let detailRoot = app.descendants(matching: .any)["RootSheet.ToolDetail"]
+        XCTAssertTrue(detailRoot.waitForExistence(timeout: 5), "Tapping selected details should open the tool detail sheet")
         app.swipeDown(velocity: .fast); wait(0.8)
         let coreNode = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Core node,")
@@ -101,8 +110,18 @@ final class UniverseUISmokeTests: XCTestCase {
                 attach.tap(); wait(1.0); snap("05-attach-menu")
                 let files = app.buttons["chat-attachment-files"]
                 XCTAssertTrue(files.waitForExistence(timeout: 2), "Attachment menu should expose Files")
-                if files.isHittable {
-                    files.tap(); wait(0.8); snap("06-attached-pill")
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30)).tap()
+                wait(0.5)
+                XCTAssertFalse(
+                    files.exists,
+                    "Tapping outside the attachment menu should dismiss it"
+                )
+
+                attach.tap(); wait(0.8)
+                let reopenedFiles = app.buttons["chat-attachment-files"]
+                XCTAssertTrue(reopenedFiles.waitForExistence(timeout: 2), "Attachment menu should reopen from the paperclip")
+                if reopenedFiles.isHittable {
+                    reopenedFiles.tap(); wait(0.8); snap("06-attached-pill")
                 }
             }
         }

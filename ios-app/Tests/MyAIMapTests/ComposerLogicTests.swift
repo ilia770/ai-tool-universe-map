@@ -112,14 +112,14 @@ struct ComposerLogicTests {
 
     // MARK: - Collapse / expand state
 
-    @Test func collapsedConversationKeepsChatActiveWhenItHasContent() {
+    @Test func collapsedConversationReturnsMapInteractionEvenWithContent() {
         #expect(ComposerLogic.keepsChatActive(
             isFocused: false,
             showsConversation: false,
             isCollapsedWithContent: true,
             attachmentMenuOpen: false,
             hasAttachment: false
-        ))
+        ) == false)
     }
 
     @Test func idleCollapsedConversationWithoutContentDoesNotKeepChatActive() {
