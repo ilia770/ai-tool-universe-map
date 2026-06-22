@@ -27,7 +27,9 @@ struct UniverseMapView: View {
     private var isCompact: Bool { AdaptiveLayout.isCompact(hSizeClass) }
 
     private func rebuildPlanets() {
-        planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: model.visibleAllTools)
+        // Feed seed branches AND user/AI-created custom branches; makePlanets
+        // only emits planets for categories that hold a visible tool.
+        planets = PlanetData.makePlanets(categories: model.allCategories, tools: model.visibleAllTools)
     }
 
     private var selectedPlanet: PlanetData {

@@ -350,8 +350,9 @@ struct UniverseOverlayView: View {
         )
 
         return packed.compactMap { placement -> PlanetLabelPlacement? in
-            guard let id = ToolCategoryId(rawValue: placement.id),
-                  var resolved = byID[id] else { return nil }
+            // `ToolCategoryId` is now a non-failable string wrapper; the
+            // `byID` lookup is what filters ids that have no planet.
+            guard var resolved = byID[ToolCategoryId(rawValue: placement.id)] else { return nil }
             resolved.position = placement.position
             return resolved
         }
@@ -365,18 +366,23 @@ struct UniverseOverlayView: View {
     }
 
     private func overviewLabelPriority(for id: ToolCategoryId) -> Int {
-        switch id {
-        case .media: return 0
-        case .coding: return 1
-        case .design: return 2
-        case .research: return 3
-        case .analytics: return 4
-        case .infrastructure: return 5
-        case .knowledge: return 6
-        case .distribution: return 7
-        case .core: return 8
-        }
+        // Lower wins more label space. Built-ins keep their tuned order; custom
+        // (user/AI-created) branches sort last so they never displace a seed
+        // label, but still appear once seed labels are placed.
+        Self.overviewLabelPriorityByCategory[id] ?? 9
     }
+
+    private static let overviewLabelPriorityByCategory: [ToolCategoryId: Int] = [
+        .media: 0,
+        .coding: 1,
+        .design: 2,
+        .research: 3,
+        .analytics: 4,
+        .infrastructure: 5,
+        .knowledge: 6,
+        .distribution: 7,
+        .core: 8,
+    ]
 
     private func labelPosition(for planet: PlanetData, projection: UniverseLabelProjection, in size: CGSize) -> CGPoint {
         let center = CGPoint(x: size.width * 0.5, y: size.height * 0.39)
@@ -476,9 +482,12 @@ struct UniverseOverlayView: View {
     private var railCategories: [ToolCategory] {
         // Only categories that actually have a planet (>=1 tool). Otherwise a
         // sparse universe exposes empty chips that dead-end on tap (ES-1).
+        // Sourced from `allCategories` (seed + custom) so user/AI-created
+        // branches get rail chips once they hold a tool.
         let present = Set(planets.map(\.id))
-        let core = UniverseSeed.categories.filter { $0.id == .core && present.contains(.core) }
-        let branches = UniverseSeed.categories.filter { $0.id != .core && present.contains($0.id) }
+        let all = model.allCategories
+        let core = all.filter { $0.id == .core && present.contains(.core) }
+        let branches = all.filter { $0.id != .core && present.contains($0.id) }
         return core + branches
     }
 

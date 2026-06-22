@@ -57,4 +57,48 @@ struct AddToolLogicTests {
         #expect(AddToolLogic.canAdd(name: "PostHog"))
         #expect(!AddToolLogic.canAdd(name: "   "))
     }
+
+    // MARK: - Auto proposes a NEW branch when nothing fits (blueprint §8)
+
+    @Test func autoProposesNewBranchFromCoreWhenNoKeywordFits() {
+        // A novel domain with no built-in keyword, added from the centre.
+        // (Fixture must avoid keyword substrings — e.g. "Agents" ⊃ "agent".)
+        let proposed = AddToolLogic.proposedBranchName(
+            name: "Zencove Whisper",
+            website: "https://zencove.example",
+            activeCategory: .core
+        )
+        #expect(proposed == "Zencove Whisper")
+    }
+
+    @Test func autoDoesNotProposeWhenAKeywordFits() {
+        // "design" keyword hits → an existing branch is a good home.
+        let proposed = AddToolLogic.proposedBranchName(
+            name: "SomeDesignTool",
+            website: "",
+            activeCategory: .core
+        )
+        #expect(proposed == nil)
+    }
+
+    @Test func autoDoesNotProposeWhenFocusedOnABranch() {
+        // From a real branch context, that branch is the natural home.
+        let proposed = AddToolLogic.proposedBranchName(
+            name: "Acme Voice Agents",
+            website: "",
+            activeCategory: .design
+        )
+        #expect(proposed == nil)
+    }
+
+    @Test func autoReasonAnnouncesNewBranchProposal() {
+        let reason = AddToolLogic.autoReason(
+            name: "Zencove Whisper",
+            website: "",
+            activeCategory: .core,
+            suggestedCategory: .analytics
+        )
+        #expect(reason.contains("Zencove Whisper"))
+        #expect(reason.contains("No existing branch fits"))
+    }
 }

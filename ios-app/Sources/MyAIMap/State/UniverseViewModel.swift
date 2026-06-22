@@ -41,6 +41,10 @@ final class UniverseViewModel {
     private(set) var activityHistory: [UniverseActivity] = []
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
+    /// User/AI-created branches (blueprint §8). Persisted alongside custom tools
+    /// and mirrored into `UniverseSeed`'s registry so the seed's `category(_:)`
+    /// resolver can label and color them everywhere.
+    private(set) var customCategories: [ToolCategory] = []
 
     /// True once the user has completed (or skipped) first-run onboarding.
     /// Persisted so the one-screen overlay shows only on a true first launch.
@@ -56,6 +60,10 @@ final class UniverseViewModel {
         self.store = store
         let saved = store.load()
         self.customTools = saved.tools
+        self.customCategories = saved.customCategories
+        // Make persisted custom branches resolvable before any view reads the
+        // seed's `category(_:)` (rail labels, logos, assistant grounding).
+        UniverseSeed.registerCustomCategories(saved.customCategories)
         // Defensive: the core tool (founder-os) must never be hidden. The
         // selection projection falls back to it, so a stale/corrupt persisted
         // hidden set containing it would strand selection (selectedTool == nil).
@@ -72,8 +80,12 @@ final class UniverseViewModel {
     }
 
     private func persist() {
+        // Keep the seed registry in lockstep with the persisted set so any
+        // mutation (createBranch, reset) immediately reflects in resolution.
+        UniverseSeed.registerCustomCategories(customCategories)
         store.save(
             tools: customTools,
+            customCategories: customCategories,
             hidden: hiddenToolIDs,
             renderMode: renderMode,
             hapticsEnabled: hapticsEnabled,
@@ -114,6 +126,14 @@ final class UniverseViewModel {
     /// sample data (`loadSampleUniverse()`), never a silent default.
     var allTools: [Tool] {
         customTools
+    }
+
+    /// Every category the renderer may need to lay out: the seed branches plus
+    /// any user/AI-created custom branches. `PlanetData.makePlanets` filters
+    /// this down to categories that actually hold a visible tool, so passing the
+    /// full set is safe — empty branches simply don't light up a planet.
+    var allCategories: [ToolCategory] {
+        UniverseSeed.categories + customCategories
     }
 
     /// True before the user has added (or sampled) anything — drives the
@@ -207,6 +227,7 @@ final class UniverseViewModel {
     /// Wipes the user's universe back to empty (custom tools + hidden ids).
     func resetUniverse() {
         customTools.removeAll()
+        customCategories.removeAll()
         hiddenToolIDs.removeAll()
         universeMode = .overview
         persist()
@@ -421,6 +442,67 @@ final class UniverseViewModel {
             toolID: id
         )
         return true
+    }
+
+    /// Palette for custom branches: hues distinct from the seed branch colors so
+    /// a new branch reads as its own orbit, cycled by creation order.
+    private static let customBranchPalette: [(color: ColorHex, glow: ColorHex)] = [
+        (ColorHex(stringLiteral: "#F472B6"), ColorHex(stringLiteral: "#FBCFE8")),
+        (ColorHex(stringLiteral: "#34D399"), ColorHex(stringLiteral: "#A7F3D0")),
+        (ColorHex(stringLiteral: "#FBBF24"), ColorHex(stringLiteral: "#FDE68A")),
+        (ColorHex(stringLiteral: "#A78BFA"), ColorHex(stringLiteral: "#DDD6FE")),
+        (ColorHex(stringLiteral: "#22D3EE"), ColorHex(stringLiteral: "#A5F3FC")),
+        (ColorHex(stringLiteral: "#FB7185"), ColorHex(stringLiteral: "#FECDD3")),
+    ]
+
+    /// Creates a new user/AI branch (blueprint §8). Builds a `ToolCategory` from
+    /// a slug of `name`, picks a palette color not used by the seed, and places
+    /// it at the next free orbital slot. Idempotent on slug: an existing branch
+    /// (seed or custom) with the same id is returned instead of duplicated.
+    /// Registers + persists so the branch is immediately resolvable, rendered,
+    /// and search/assistant-aware.
+    @discardableResult
+    func createBranch(name: String) -> ToolCategoryId {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseSlug = slug(cleanName)
+        let id = ToolCategoryId(rawValue: baseSlug.isEmpty ? uniqueCategorySlug(base: "branch") : uniqueCategorySlug(base: baseSlug))
+
+        let display = cleanName.isEmpty ? id.rawValue.capitalized : cleanName
+        let palette = Self.customBranchPalette[customCategories.count % Self.customBranchPalette.count]
+        // Next free orbital slot: seed branches occupy 0..<8 conceptually, so
+        // fan custom branches out beyond them in even steps.
+        let branchCount = UniverseSeed.categories.filter { $0.id != .core }.count + customCategories.count
+        let angle = Float((branchCount * 47) % 360)
+
+        let category = ToolCategory(
+            id: id,
+            name: display,
+            shortName: display,
+            description: "Custom branch added from intake.",
+            color: palette.color,
+            glow: palette.glow,
+            angle: angle
+        )
+        customCategories.append(category)
+        persist()
+        recordActivity(
+            kind: .added,
+            title: "Created \(display) branch",
+            detail: "New universe branch",
+            toolID: nil
+        )
+        return id
+    }
+
+    private func uniqueCategorySlug(base: String) -> String {
+        var candidate = base
+        var suffix = 2
+        let existing = Set(allCategories.map { $0.id.rawValue })
+        while existing.contains(candidate) {
+            candidate = "\(base)-\(suffix)"
+            suffix += 1
+        }
+        return candidate
     }
 
     @discardableResult

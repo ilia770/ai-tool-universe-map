@@ -10,6 +10,7 @@ import Foundation
 struct UniverseStore {
     private let defaults: UserDefaults
     private let toolsKey = "universe.customTools.v1"
+    private let categoriesKey = "universe.customCategories.v1"
     private let hiddenKey = "universe.hiddenToolIDs.v1"
     private let renderModeKey = "universe.renderMode.v1"
     private let hapticsEnabledKey = "universe.hapticsEnabled.v1"
@@ -22,8 +23,9 @@ struct UniverseStore {
 
     static let standard = UniverseStore()
 
-    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
+    func load() -> (tools: [Tool], customCategories: [ToolCategory], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
         let tools = decode([Tool].self, key: toolsKey) ?? []
+        let customCategories = decode([ToolCategory].self, key: categoriesKey) ?? []
         let hidden = decode([String].self, key: hiddenKey) ?? []
         let renderMode = defaults.string(forKey: renderModeKey)
             .flatMap(UniverseRenderMode.init(rawValue:))
@@ -32,11 +34,12 @@ struct UniverseStore {
         // Absent key → true first run. Default false so the onboarding overlay shows.
         let hasSeenOnboarding = defaults.bool(forKey: hasSeenOnboardingKey)
         let subscription = decode(SubscriptionState.self, key: subscriptionKey) ?? .free
-        return (tools, Set(hidden), renderMode, hapticsEnabled, hasSeenOnboarding, subscription)
+        return (tools, customCategories, Set(hidden), renderMode, hapticsEnabled, hasSeenOnboarding, subscription)
     }
 
-    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
+    func save(tools: [Tool], customCategories: [ToolCategory], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
         encode(tools, key: toolsKey)
+        encode(customCategories, key: categoriesKey)
         encode(Array(hidden).sorted(), key: hiddenKey)
         defaults.set(renderMode.rawValue, forKey: renderModeKey)
         defaults.set(hapticsEnabled, forKey: hapticsEnabledKey)

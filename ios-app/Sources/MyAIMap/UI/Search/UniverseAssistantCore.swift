@@ -611,77 +611,86 @@ enum UniverseAssistantCore {
     }
 
     private static func preferredIDs(for domain: ToolCategoryId) -> [String] {
-        switch domain {
-        case .coding: return ["codex", "cursor", "claude-code"]
-        case .design: return ["figma", "dessn"]
-        case .research: return ["supadata"]
-        case .analytics: return ["posthog"]
-        case .media: return ["remotion", "runway", "heygen", "higgsfield"]
-        case .distribution: return ["buffer"]
-        case .infrastructure: return ["supabase", "vercel"]
-        case .knowledge: return ["agent-skills", "founder-os"]
-        case .core: return ["founder-os", "openswarm"]
-        }
+        // Keyed by built-in domain; a custom (user/AI-created) branch has no
+        // curated preferred ids and returns `[]` so the assistant simply falls
+        // back to the user's own tools in that branch.
+        preferredIDsByDomain[domain] ?? []
     }
 
+    private static let preferredIDsByDomain: [ToolCategoryId: [String]] = [
+        .coding: ["codex", "cursor", "claude-code"],
+        .design: ["figma", "dessn"],
+        .research: ["supadata"],
+        .analytics: ["posthog"],
+        .media: ["remotion", "runway", "heygen", "higgsfield"],
+        .distribution: ["buffer"],
+        .infrastructure: ["supabase", "vercel"],
+        .knowledge: ["agent-skills", "founder-os"],
+        .core: ["founder-os", "openswarm"],
+    ]
+
     private static func suggestionTemplates(for domain: ToolCategoryId) -> [SuggestionTemplate] {
-        switch domain {
-        case .coding:
-            return [
+        // Custom branches have no built-in suggestion library, so `[]` (the
+        // default) is correct — nothing is fabricated for an unknown branch.
+        suggestionTemplatesByDomain[domain] ?? []
+    }
+
+    private static let suggestionTemplatesByDomain: [ToolCategoryId: [SuggestionTemplate]] = [
+        .coding:
+            [
                 SuggestionTemplate("GitHub", .coding, "Repository hosting, collaboration, and pull-request workflow."),
                 SuggestionTemplate("Replit", .coding, "Cloud coding workspace for quick prototypes."),
                 SuggestionTemplate("Lovable", .coding, "AI app builder for fast full-stack prototypes."),
-            ]
-        case .design:
-            return [
+            ],
+        .design:
+            [
                 SuggestionTemplate("Framer", .design, "Visual website and landing-page builder for polished frontends."),
                 SuggestionTemplate("Mobbin", .design, "UI pattern research for mobile and web product design."),
                 SuggestionTemplate("Relume", .design, "Sitemap and wireframe generation for early product structure."),
-            ]
-        case .research:
-            return [
+            ],
+        .research:
+            [
                 SuggestionTemplate("Perplexity", .research, "Answer and source research before workflow decisions."),
                 SuggestionTemplate("Firecrawl", .research, "Website crawling and extraction for AI-ready context."),
                 SuggestionTemplate("Apify", .research, "Hosted scraping actors and data collection workflows."),
-            ]
-        case .analytics:
-            return [
+            ],
+        .analytics:
+            [
                 SuggestionTemplate("Mixpanel", .analytics, "Product analytics and funnel exploration."),
                 SuggestionTemplate("Amplitude", .analytics, "Behavior analytics for product and growth teams."),
                 SuggestionTemplate("Sentry", .analytics, "Error monitoring and performance visibility."),
-            ]
-        case .media:
-            return [
+            ],
+        .media:
+            [
                 SuggestionTemplate("CapCut", .media, "Fast editing for short-form launch assets."),
                 SuggestionTemplate("ElevenLabs", .media, "Voice generation for explainers and product media."),
                 SuggestionTemplate("Midjourney", .media, "Image ideation for creative direction."),
-            ]
-        case .distribution:
-            return [
+            ],
+        .distribution:
+            [
                 SuggestionTemplate("Hootsuite", .distribution, "Social scheduling and publishing operations."),
                 SuggestionTemplate("Beehiiv", .distribution, "Newsletter publishing and audience growth."),
                 SuggestionTemplate("Taplio", .distribution, "LinkedIn content workflow and scheduling."),
-            ]
-        case .infrastructure:
-            return [
+            ],
+        .infrastructure:
+            [
                 SuggestionTemplate("Neon", .infrastructure, "Serverless Postgres option for database-heavy apps."),
                 SuggestionTemplate("Railway", .infrastructure, "Simple app and service deployment platform."),
                 SuggestionTemplate("Firebase", .infrastructure, "Backend, auth, hosting, and mobile app services."),
-            ]
-        case .knowledge:
-            return [
+            ],
+        .knowledge:
+            [
                 SuggestionTemplate("Notion", .knowledge, "Shared docs, product specs, and team knowledge."),
                 SuggestionTemplate("Obsidian", .knowledge, "Local knowledge base for connected notes."),
                 SuggestionTemplate("Linear", .knowledge, "Issue tracking and product execution memory."),
-            ]
-        case .core:
-            return [
+            ],
+        .core:
+            [
                 SuggestionTemplate("OpenAI Platform", .core, "Model and API layer for AI-native workflows."),
                 SuggestionTemplate("Anthropic Console", .core, "Model console for Claude-based workflows."),
                 SuggestionTemplate("LangSmith", .core, "LLM tracing, evals, and workflow observability."),
-            ]
-        }
-    }
+            ],
+    ]
 
     private static let appWorkflowSuggestions: [SuggestionTemplate] = [
         SuggestionTemplate("GitHub", .coding, "Source control, issues, reviews, and integration hub for the app."),

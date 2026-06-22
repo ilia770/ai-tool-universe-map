@@ -185,14 +185,10 @@ struct UniverseRailView: View {
         guard let category = categories.first(where: { $0.id == id }) else {
             return id.rawValue.capitalized
         }
-        switch category.id {
-        case .core:
-            return "Founder"
-        case .infrastructure:
-            return "Runtime"
-        default:
-            return category.shortName
-        }
+        if category.id == .core { return "Founder" }
+        if category.id == .infrastructure { return "Runtime" }
+        // Built-ins and custom branches alike use their resolved short name.
+        return category.shortName
     }
 }
 
