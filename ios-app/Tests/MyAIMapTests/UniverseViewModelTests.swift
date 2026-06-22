@@ -390,7 +390,8 @@ struct UniverseViewModelTests {
             tools: [],
             hidden: [PlanetData.centralCoreToolID, "some-tool"],
             renderMode: .graph2D,
-            hapticsEnabled: true
+            hapticsEnabled: true,
+            hasSeenOnboarding: true
         )
 
         let model = UniverseViewModel(store: store)
@@ -400,6 +401,35 @@ struct UniverseViewModelTests {
         // The sanitized set is re-persisted, so a reload stays clean.
         let reloaded = UniverseViewModel(store: store)
         #expect(!reloaded.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
+    }
+
+    // MARK: - First-run onboarding flag
+
+    @Test func freshUniverseHasNotSeenOnboarding() {
+        let model = makeModel()
+        #expect(!model.hasSeenOnboarding)
+    }
+
+    @Test func markOnboardingSeenPersistsAcrossReload() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+        let model = UniverseViewModel(store: store)
+        #expect(!model.hasSeenOnboarding)
+
+        model.markOnboardingSeen()
+        #expect(model.hasSeenOnboarding)
+
+        // A relaunch (fresh model on the same store) must not re-show onboarding.
+        let reloaded = UniverseViewModel(store: store)
+        #expect(reloaded.hasSeenOnboarding)
+    }
+
+    @Test func onboardingFlagIsIndependentOfEmptiness() {
+        let model = makeModel()
+        model.markOnboardingSeen()
+        // Completed onboarding but added nothing: still empty, but no re-show.
+        #expect(model.hasSeenOnboarding)
+        #expect(model.isUniverseEmpty)
     }
 
     // U1: the assistant can't read attachments, so an attachment-only send gets

@@ -68,6 +68,10 @@ struct ChatScreen: View {
     let onAddTool: () -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
     let onOpenToolInUniverse: (String) -> Void
+    /// Always-enabled "back to map" control (§3.3 navigation spec): lets the
+    /// user leave the chat surface for the map at any time, regardless of tool
+    /// count. No half-state — it lands cleanly on the map surface.
+    var onBackToMap: () -> Void = {}
     /// Reports the tapped add-card's frame so the shell can fly a ghost of it
     /// toward the Map pill (signature "tool lands in your universe" moment).
     var onCardLand: (CardLandRequest) -> Void = { _ in }
@@ -79,6 +83,7 @@ struct ChatScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             ChatTopBar(
+                onBackToMap: onBackToMap,
                 onOpenSettings: onOpenSettings
             )
             .padding(.horizontal, 16)
@@ -208,10 +213,24 @@ struct ChatScreen: View {
 }
 
 private struct ChatTopBar: View {
+    let onBackToMap: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
+            // Always-visible, always-enabled return to the map (§3.3): chat is
+            // never a dead-end, regardless of tool count.
+            Button(action: onBackToMap) {
+                Image(systemName: "map.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ChatTheme.text)
+                    .frame(width: 40, height: 40)
+                    .glassSurface(in: Circle(), tint: BrandColor.core.opacity(0.16))
+            }
+            .buttonStyle(BouncyIconButtonStyle())
+            .accessibilityLabel("Back to map")
+            .accessibilityIdentifier("ChatScreen.BackToMap")
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("AI Universe")
                     .font(.system(.headline, weight: .semibold))
@@ -281,8 +300,8 @@ private struct ChatStarterPanel: View {
                 }
                 .frame(width: 62, height: 62)
 
-                Text("What are you trying to build?")
-                    .font(.system(size: 30, weight: .semibold))
+                Text("Ask AI about your stack")
+                    .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(ChatTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
 

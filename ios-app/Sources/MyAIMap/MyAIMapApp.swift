@@ -14,11 +14,20 @@ struct MyAIMapApp: App {
                 .environment(model)
                 .preferredColorScheme(.dark)
                 .onAppear {
-                    if ProcessInfo.processInfo.arguments.contains("-uitestSampleUniverse"), model.isUniverseEmpty {
+                    let arguments = ProcessInfo.processInfo.arguments
+                    if arguments.contains("-uitestSampleUniverse"), model.isUniverseEmpty {
                         _ = model.loadSampleUniverse()
                     }
-                    if ProcessInfo.processInfo.arguments.contains("-uitestSeedChat") {
+                    if arguments.contains("-uitestSeedChat") {
                         seedChatForVisualQA()
+                    }
+                    // UI/visual-QA harnesses seed a populated state and assert on
+                    // the map/chat directly; the first-run overlay would cover it.
+                    // Force-quitting and relaunching is the real first-run path.
+                    if arguments.contains("-uitestSampleUniverse")
+                        || arguments.contains("-uitestSeedChat")
+                        || arguments.contains("-uitestStatic") {
+                        model.markOnboardingSeen()
                     }
                 }
         }
