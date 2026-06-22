@@ -95,6 +95,9 @@ struct ToolDetailSection: View {
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+    /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
+    @ScaledMetric(relativeTo: .body) private var pricingIconGlyph: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var pricingIconContainer: CGFloat = 28
 
     init(onOpenRelatedTool: ((String) -> Void)? = nil) {
         self.onOpenRelatedTool = onOpenRelatedTool
@@ -142,6 +145,9 @@ struct ToolDetailSection: View {
             metadataSection
             secondaryActions
         }
+        // Text scales with Dynamic Type; clamp the largest accessibility sizes
+        // so the dense pricing/metadata rows stay readable without clipping.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
         .accessibilityIdentifier("ToolDetailSection.Root")
@@ -197,7 +203,7 @@ struct ToolDetailSection: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
 
             Text(selectedTool.summary)
-                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .font(BrandTypography.bodySecondary)
                 .lineSpacing(4)
                 .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -242,9 +248,9 @@ struct ToolDetailSection: View {
     private func pricingRow(_ row: ToolPricingRow) -> some View {
         HStack(alignment: .top, spacing: BrandSpacing.m.value) {
             Image(systemName: row.icon)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: pricingIconGlyph, weight: .bold))
                 .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
-                .frame(width: 28, height: 28)
+                .frame(width: pricingIconContainer, height: pricingIconContainer)
                 .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {

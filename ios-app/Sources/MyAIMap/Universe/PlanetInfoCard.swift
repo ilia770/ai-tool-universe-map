@@ -6,8 +6,18 @@ struct PlanetInfoCard: View {
     let isFocusedOnTool: Bool
     let mode: UniverseMode
     let onOpenDetails: () -> Void
+    /// Trailing info glyph scales with Dynamic Type within the compact overlay.
+    @ScaledMetric(relativeTo: .subheadline) private var infoGlyph: CGFloat = 18
 
     var body: some View {
+        content
+            // Compact floating map overlay: text scales with Dynamic Type but is
+            // clamped so the single-row card does not clip over the map.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if isFocusedOnTool {
             Button(action: onOpenDetails) {
                 cardContent
@@ -52,7 +62,7 @@ struct PlanetInfoCard: View {
 
             if isFocusedOnTool {
                 Image(systemName: "info.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: infoGlyph, weight: .semibold))
                     .foregroundStyle(planet.swiftUIColor)
             }
         }
