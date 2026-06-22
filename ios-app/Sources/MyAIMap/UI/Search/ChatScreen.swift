@@ -9,10 +9,60 @@ enum ChatTheme {
     static let secondaryText = Color.white.opacity(0.62)
 }
 
+/// Pure transcript-grouping logic: decides whether a day separator row should
+/// precede a turn, and what it should read. Value-only so it is unit testable
+/// without hosting any view.
+enum ChatTranscriptGrouping {
+    /// Returns the separator label to show *above* `current`, or `nil` when the
+    /// previous turn falls on the same calendar day. The first turn always gets
+    /// a separator (`previous == nil`) so a session opens with a dated anchor.
+    static func daySeparatorLabel(
+        for current: Date,
+        previous: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String? {
+        if let previous, calendar.isDate(previous, inSameDayAs: current) {
+            return nil
+        }
+        return label(for: current, now: now, calendar: calendar)
+    }
+
+    /// "Today" / "Yesterday" / weekday (within the past week) / medium date.
+    static func label(for date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return "Today"
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = .current
+
+        if let weekAgo = calendar.date(byAdding: .day, value: -6, to: now), date >= weekAgo {
+            formatter.dateFormat = "EEEE"
+        } else {
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+        }
+        return formatter.string(from: date)
+    }
+}
+
 struct ChatScreen: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dismissComposerChromeToken = UUID()
+    /// True once the bottom of the transcript is scrolled out of view; gates
+    /// the jump-to-latest pill.
+    @State private var showsJumpToLatest = false
+
+    /// Stable scroll target so the jump pill and send-autoscroll land at the
+    /// very bottom even while the last turn is still revealing.
+    private static let transcriptBottomID = "ChatScreen.TranscriptBottom"
 
     let onOpenSettings: () -> Void
     let onAddTool: () -> Void
@@ -50,16 +100,36 @@ struct ChatScreen: View {
                         ChatStarterPanel(onSendPrompt: sendStarterPrompt)
                             .padding(.top, 52)
                     } else {
-                        ForEach(model.assistantMessages) { message in
+                        let messages = model.assistantMessages
+                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                            if let label = ChatTranscriptGrouping.daySeparatorLabel(
+                                for: message.createdAt,
+                                previous: index > 0 ? messages[index - 1].createdAt : nil
+                            ) {
+                                ChatDaySeparator(label: label)
+                            }
+
                             ChatMessageTurn(
                                 message: message,
                                 matches: tools(for: message.matchIDs),
+                                isLatest: index == messages.count - 1,
                                 onOpenTool: onOpenToolInUniverse,
                                 onAddSuggestedTool: onAddSuggestedTool
                             )
                             .id(message.id)
                         }
                     }
+
+                    // Zero-height bottom sentinel: when it leaves the viewport
+                    // the user has scrolled up, so we offer the jump pill.
+                    Color.clear
+                        .frame(height: 1)
+                        .id(Self.transcriptBottomID)
+                        .onScrollVisibilityChange(threshold: 0.1) { visible in
+                            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                                showsJumpToLatest = !visible && !model.assistantMessages.isEmpty
+                            }
+                        }
                 }
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
@@ -73,10 +143,22 @@ struct ChatScreen: View {
                     dismissComposerChromeToken = UUID()
                 }
             )
+            .overlay(alignment: .bottomTrailing) {
+                if showsJumpToLatest {
+                    JumpToLatestPill {
+                        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                            proxy.scrollTo(Self.transcriptBottomID, anchor: .bottom)
+                        }
+                    }
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 14)
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                }
+            }
             .onChange(of: model.assistantMessages.count) { _, _ in
-                guard let last = model.assistantMessages.last else { return }
+                guard !model.assistantMessages.isEmpty else { return }
                 withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
-                    proxy.scrollTo(last.id, anchor: .bottom)
+                    proxy.scrollTo(Self.transcriptBottomID, anchor: .bottom)
                 }
             }
         }
@@ -245,12 +327,28 @@ private struct StarterPrompt: Identifiable {
 }
 
 private struct ChatMessageTurn: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let message: AssistantMessage
     let matches: [Tool]
+    var isLatest: Bool = false
     let onOpenTool: (String) -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
+    /// Drives the assistant turn's fade+rise on arrival. Starts `false` only
+    /// for the newest assistant turn so older turns render statically when the
+    /// transcript scrolls; reduce-motion skips the transient entirely.
+    @State private var appeared = false
+    /// Drives the matched/missing chip group, which reveals a beat after the
+    /// prose (see `assistantTurn`).
+    @State private var chipsRevealed = false
+
     private var isUser: Bool { message.role == .user }
+
+    /// New assistant turns animate in; user bubbles, older turns, and
+    /// reduce-motion render immediately so text legibility is never gated.
+    private var shouldReveal: Bool {
+        !isUser && isLatest && !reduceMotion
+    }
 
     var body: some View {
         if isUser {
@@ -262,6 +360,14 @@ private struct ChatMessageTurn: View {
         } else {
             assistantTurn
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(shouldReveal ? (appeared ? 1 : 0) : 1)
+                .offset(y: shouldReveal ? (appeared ? 0 : 8) : 0)
+                .onAppear {
+                    guard shouldReveal else { return }
+                    withBrandAnimation(BrandMotion.stream, reduceMotion: reduceMotion) {
+                        appeared = true
+                    }
+                }
         }
     }
 
@@ -295,6 +401,16 @@ private struct ChatMessageTurn: View {
                     }
                     ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
                         ChatMissingToolChip(suggestion: suggestion) { onAddSuggestedTool(suggestion) }
+                    }
+                }
+                // The chip group reveals a beat after the prose so the tools
+                // read as a consequence of the answer, not part of it.
+                .opacity(shouldReveal ? (chipsRevealed ? 1 : 0) : 1)
+                .offset(y: shouldReveal ? (chipsRevealed ? 0 : 8) : 0)
+                .onAppear {
+                    guard shouldReveal else { return }
+                    withBrandAnimation(BrandMotion.reveal.delay(0.18), reduceMotion: reduceMotion) {
+                        chipsRevealed = true
                     }
                 }
             }
@@ -346,6 +462,54 @@ private struct ChatMessageTurn: View {
             }
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Subtle centered separator between turns from different calendar days.
+private struct ChatDaySeparator: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            line
+            Text(label)
+                .font(.system(.caption2, weight: .semibold))
+                .foregroundStyle(ChatTheme.secondaryText)
+                .fixedSize()
+            line
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("ChatScreen.DaySeparator")
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(BrandColor.stroke)
+            .frame(height: 0.5)
+    }
+}
+
+/// Small glass capsule, bottom-trailing, that scrolls the transcript to the
+/// latest turn. Appears only while the bottom sentinel is off-screen.
+private struct JumpToLatestPill: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button {
+            BrandHaptics.fire(.light)
+            onTap()
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(ChatTheme.text)
+                .frame(width: 38, height: 38)
+                .glassSurface(in: Circle())
+        }
+        .accessibilityLabel("Jump to latest message")
+        .accessibilityIdentifier("ChatScreen.JumpToLatest")
     }
 }
 
