@@ -8,7 +8,7 @@ Use this when running, verifying, or debugging the native My AI Map app.
 
 - Xcode target: `ios-app/MyAIMap.xcodeproj`
 - Scheme: `MyAIMap`
-- Bundle id: `com.iliaturilia.myaimap`
+- Bundle id: `com.ilyatur.myaimap`
 - Display name: `My AI Map`
 - Minimum iOS: 18.0
 - Current local Xcode seen in this workspace: Xcode 26.5

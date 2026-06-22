@@ -18,11 +18,47 @@ enum BrandMotion {
     /// Repeats forever, auto-reverses, gentle ease.
     static let breath: Animation = .easeInOut(duration: 4.0).repeatForever(autoreverses: true)
 
+    // MARK: - Chat-first redesign tokens (see motion-haptics spec)
+
+    /// Per-token streamed-text fade-in. Driven by the stream's chunk cadence.
+    static let stream: Animation = .easeOut(duration: 0.18)
+
+    /// Blinking streaming caret. Repeating — guard behind reduce-motion.
+    static let cursor: Animation = .easeInOut(duration: 0.62).repeatForever(autoreverses: true)
+
+    /// Pre-first-token "thinking" dots/glow. Repeating — guard behind reduce-motion.
+    static let thinking: Animation = .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+
+    /// Tool-card group fade+rise after text completes. Softer/slower than `entry`.
+    static let reveal: Animation = .spring(response: 0.5, dampingFraction: 0.86)
+
+    /// Liquid Glass morphs (card→orbit, chat⇄universe). Semantic alias of `flow`;
+    /// glass must morph on a one-shot smooth curve, never a repeating one.
+    static let morph: Animation = flow
+
+    /// Map count badge / node-arrival pop. Under-damped → deliberate overshoot.
+    static let pillPop: Animation = .spring(response: 0.34, dampingFraction: 0.55)
+
+    /// Composer height growth (1→6 lines). High damping → no wobble on a field.
+    static let composerGrow: Animation = .spring(response: 0.30, dampingFraction: 0.88)
+
     /// Resolves a curve to its reduce-motion safe counterpart. Pass the
     /// SwiftUI `@Environment(\.accessibilityReduceMotion)` value.
     static func resolved(_ animation: Animation, reduceMotion: Bool) -> Animation {
         reduceMotion ? .linear(duration: 0.001) : animation
     }
+}
+
+/// Reduce-motion-safe `withAnimation` for imperative action blocks, so call
+/// sites stop using bare `withAnimation(BrandMotion.*)` which bypasses the
+/// resolver (review finding R9).
+@MainActor
+func withBrandAnimation<Result>(
+    _ animation: Animation,
+    reduceMotion: Bool,
+    _ body: () throws -> Result
+) rethrows -> Result {
+    try withAnimation(BrandMotion.resolved(animation, reduceMotion: reduceMotion), body)
 }
 
 /// View modifier that gates an animation behind reduce-motion. Lets

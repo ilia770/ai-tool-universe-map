@@ -8,17 +8,19 @@ struct PlanetInfoCard: View {
     let onOpenDetails: () -> Void
 
     var body: some View {
-        Group {
-            if isFocusedOnTool {
-                Button(action: onOpenDetails) {
-                    cardContent
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.94))
-            } else {
+        if isFocusedOnTool {
+            Button(action: onOpenDetails) {
                 cardContent
             }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.94))
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("Opens details")
+            .accessibilityIdentifier("PlanetInfoCard.SelectedDetails")
+        } else {
+            cardContent
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityIdentifier("PlanetInfoCard.SelectedBranch")
         }
-        .accessibilityLabel("Selected planet details")
     }
 
     private var cardContent: some View {
@@ -28,22 +30,22 @@ struct PlanetInfoCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
                     Text(modeLabel)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(.caption2, design: .rounded, weight: .bold))
                         .foregroundStyle(.black.opacity(0.78))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(planet.swiftUIColor, in: Capsule())
 
                     Text(isFocusedOnTool ? selectedTool.name : planet.title)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(BrandColor.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
 
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(.caption, design: .rounded, weight: .medium))
                     .foregroundStyle(BrandColor.textMuted)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
 
             Spacer(minLength: 8)
@@ -56,11 +58,15 @@ struct PlanetInfoCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: planet.swiftUIColor,
-            strokeStrength: 0.09
+        // Info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.glassSolid,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(planet.swiftUIColor.opacity(0.45), lineWidth: 0.5)
+        }
     }
 
     private var statusOrb: some View {
@@ -104,5 +110,12 @@ struct PlanetInfoCard: View {
             return "Tap Remotion or a nearby satellite to inspect the Media branch"
         }
         return "\(planet.toolCount) satellites · \(planet.subtitle)"
+    }
+
+    private var accessibilityLabel: String {
+        if isFocusedOnTool {
+            return "Selected tool, \(selectedTool.name), \(subtitle)"
+        }
+        return "Selected branch, \(planet.title), \(subtitle)"
     }
 }

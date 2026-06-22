@@ -28,6 +28,11 @@ enum BrandColor {
     /// `.background(.thinMaterial)` underneath for the layered look.
     static let glass = Color(red: 5.0 / 255, green: 8.0 / 255, blue: 20.0 / 255, opacity: 0.76)
 
+    /// Opaque surface for the Reduce Transparency fallback of `glassSurface`.
+    /// Slightly above `void` so a glass control still reads as a distinct
+    /// floating layer when translucency is disabled (no blur, no material).
+    static let glassSolid = Color(red: 14.0 / 255, green: 17.0 / 255, blue: 28.0 / 255)
+
     /// Selected-tool card. Layered over the universe canvas.
     static let card = Color.white.opacity(0.06)
 

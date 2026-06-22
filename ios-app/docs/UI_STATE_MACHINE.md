@@ -157,6 +157,21 @@ drive these values.
   `universeMode` for detail; account/add-tool are pure presentation and were
   left as-is.
 
+### Codex follow-up - TestFlight stabilization state fixes (2026-06-21)
+
+**Chat context.** `UniverseMode.chatContext(...)` now preserves only an
+explicitly selected tool. Branch focus still opens branch chat, but the
+projection fallback tool is not smuggled into chat context. This keeps the chat
+panel, selected card, graph, chips, and detail route from disagreeing.
+
+**Mode ownership.** `UniverseMapView` no longer rewrites `model.universeMode`
+from `navigationModeForSelection()` on appear. The model remains the single
+navigation owner, which avoids startup/return-to-view selection jumps.
+
+**Core selection.** Core satellite selections are treated as real focused tools
+for bottom-card state, so OpenSwarm/Founder OS style selections do not get
+silently collapsed back to category focus.
+
 ## Changed files / QA done / Remaining issues
 **Changed files**
 - `State/UniverseViewModel.swift` — `universeMode` storage, computed

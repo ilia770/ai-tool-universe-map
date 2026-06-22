@@ -138,7 +138,7 @@ For device/TestFlight:
 
 - Apple Developer account active.
 - Team ID known and selected on the `MyAIMap` target.
-- Bundle id: `com.iliaturilia.myaimap`.
+- Bundle id: `com.ilyatur.myaimap`.
 - App display name: `My AI Map`.
 - SKU in App Store Connect: `myaimap-ios`.
 - Signing works on a real device before Archive.

@@ -13,10 +13,15 @@ import SwiftUI
 /// native drag indicator and keeps the canvas legible behind it.
 struct RootSheet: View {
     @Environment(UniverseViewModel.self) private var model
+    let onOpenRelatedTool: ((String) -> Void)?
+
+    init(onOpenRelatedTool: ((String) -> Void)? = nil) {
+        self.onOpenRelatedTool = onOpenRelatedTool
+    }
 
     var body: some View {
         ScrollView {
-            ToolDetailSection()
+            ToolDetailSection(onOpenRelatedTool: onOpenRelatedTool)
                 .padding(.horizontal, 20)
                 .padding(.top, 22)
                 .padding(.bottom, 28)

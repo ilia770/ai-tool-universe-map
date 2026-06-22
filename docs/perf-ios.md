@@ -10,7 +10,7 @@ Lighthouse baseline).
 All intervals are emitted via `UniversePerf.signposter`
 (`ios-app/Sources/MyAIMap/Universe/UniversePerf.swift`).
 
-- **Subsystem:** `com.iliaturilia.myaimap`
+- **Subsystem:** `com.ilyatur.myaimap`
 - **Category:** `universe`
 
 Filter Instruments by that subsystem + category to isolate these intervals.
@@ -29,7 +29,7 @@ attached, so they ship un-gated (no `#if DEBUG`).
    numbers are the ones that matter for a budget).
 2. Instruments → **os_signpost** template (or **Time Profiler** + the
    **Logging / os_signpost** instrument).
-3. Filter the os_signpost track by subsystem `com.iliaturilia.myaimap`,
+3. Filter the os_signpost track by subsystem `com.ilyatur.myaimap`,
    category `universe`.
 4. Exercise the two paths:
    - **`scene.build`** — cold launch the app (kill it first). The interval

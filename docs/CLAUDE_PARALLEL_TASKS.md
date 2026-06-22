@@ -62,7 +62,7 @@ Owned files:
 Goal:
 Make the personal TestFlight path actionable for Xcode 26.5:
 - Apple Developer account and team ID checklist
-- bundle id `com.iliaturilia.myaimap`
+- bundle id `com.ilyatur.myaimap`
 - simulator build/run commands
 - archive/upload steps
 - App Store Connect metadata draft

@@ -27,6 +27,14 @@ count, not "Executed 0 tests".
 - [ ] Send disabled with no text + no attachment; enabled otherwise; clears on
       successful send.
 - [ ] Exactly one Add-tool and one Attach-files control visible per state.
+- [ ] Missing-tool suggestion chip opens Add Tool with that tool name and
+      branch prefilled.
+
+## Add Tool
+- [ ] Adding an already-visible tool by same name/domain focuses it instead of
+      creating a suffixed duplicate.
+- [ ] Adding a hidden tool by same name/domain restores and focuses it.
+- [ ] `http://` website input is stored/opened as `https://`.
 
 ## Right rail
 - [ ] Rail is edge-only, never a wide panel; does not cover the map.
@@ -43,6 +51,15 @@ count, not "Executed 0 tests".
 - [ ] Logo fallback renders (no broken-image box) for tools without a logo.
 - [ ] Card shows the same tool as the map highlight.
 - [ ] Reads as a product card, not an admin dashboard.
+- [ ] Related tools update compact detail in-place.
+- [ ] On iPad, related tools update the trailing inspector without dimming the
+      map.
+
+## UI smoke
+- [ ] Launch smoke with `-uitestStatic -uitestSampleUniverse` so graph mode is
+      deterministic and populated.
+- [ ] Prefer accessibility labels (`Category node,...`, `Tool node,...`) over
+      stale 3D coordinates for functional taps.
 
 ## Device matrix (visual)
 - [ ] iPhone 17 (and a Pro Max) — no overlap/clipping.
@@ -50,3 +67,30 @@ count, not "Executed 0 tests".
 - [ ] iPad — layout adapts (TARGETED_DEVICE_FAMILY=1,2).
 - [ ] Dynamic Type larger sizes — text scales, no truncation of key copy.
 - [ ] Dark mode (app is dark-first).
+
+## Stabilization run - 2026-06-21
+
+**Automated**
+- [x] `git diff --check` clean before verification.
+- [x] `npm run ios:test-build` passed after the final visualization cleanup.
+- [x] Clean focused unit run passed on iPhone 17 Pro:
+      `xcodebuild ... -derivedDataPath ios-app/build-final-test
+      -only-testing:MyAIMapTests test`; 178 tests passed, 0 failed.
+- [x] UI smoke passed:
+      `UniverseUISmokeTests/testCaptureKeyStates`; 1 test passed, 0 failed.
+
+**Manual simulator states checked**
+- [x] Fresh launch in 2D Graph with no black side strip.
+- [x] Input focus keeps composer above the keyboard.
+- [x] Attachment Photo/Files popover stays anchored above the input.
+- [x] General chat send does not return the missing-service fallback.
+- [x] Add Tool sheet keeps Name/Website reachable with keyboard open.
+- [x] Auto/Manual branch controls update visible state correctly.
+- [x] Mode chip opens Account settings.
+- [x] Settings switch changes 2D Graph <-> 3D Spatial.
+- [x] 3D Experimental view no longer shows square background artifacts.
+
+**Still needs real-device QA**
+- [ ] iPhone TestFlight pass for the full checklist above.
+- [ ] iPhone SE-class small-width visual pass.
+- [ ] iPad regular-width detail/related-tool pass.

@@ -1,26 +1,110 @@
 import SwiftUI
 
-/// Selected-tool detail card: category eyebrow, tool name, summary,
-/// stage capsule badge, and the horizontal rail of visible tools.
-/// Extracted verbatim from `UniverseScreen`'s inline bottom sheet
-/// (Phase 2 step 7); the container chrome (glass card, grabber, entry
-/// animation) now belongs to the presenting sheet.
+struct ToolPricingRow: Identifiable, Equatable, Sendable {
+    let id: String
+    let plan: String
+    let value: String
+    let note: String
+    let icon: String
+
+    init(plan: String, value: String, note: String, icon: String) {
+        self.id = "\(plan)-\(value)-\(note)"
+        self.plan = plan
+        self.value = value
+        self.note = note
+        self.icon = icon
+    }
+}
+
+enum ToolPricingPresenter {
+    static func rows(for pricing: String) -> [ToolPricingRow] {
+        let clean = pricing.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        guard !clean.isEmpty, !lower.contains("unknown") else {
+            return [unknownRow(note: "No verified pricing is stored for this tool.")]
+        }
+
+        if lower.contains("internal") {
+            return [
+                ToolPricingRow(plan: "Internal", value: "Variable", note: clean, icon: "building.2"),
+                unknownRow(note: "Cost depends on connected model, agent, and storage usage."),
+            ]
+        }
+
+        if lower.contains("open-source") || lower.contains("open source") {
+            var rows = [
+                ToolPricingRow(plan: "Free", value: "$0 core", note: "Open-source core is noted locally.", icon: "checkmark.circle"),
+            ]
+            if lower.contains("paid") || lower.contains("cloud") {
+                rows.append(ToolPricingRow(plan: "Paid/cloud", value: "Hosted options", note: "Verify current limits and render/runtime costs.", icon: "creditcard"))
+            }
+            rows.append(unknownRow(note: "Exact hosted pricing is not verified locally."))
+            return rows
+        }
+
+        if lower.contains("freemium") {
+            var rows = [
+                ToolPricingRow(plan: "Free", value: "$0 tier", note: "Free tier or trial is noted locally; verify current limits.", icon: "checkmark.circle"),
+                ToolPricingRow(plan: "Paid tier", value: "Verify website", note: "Exact paid plan name and price are not stored locally.", icon: "creditcard"),
+            ]
+            if lower.contains("team") {
+                rows.append(ToolPricingRow(plan: "Team", value: "Team subscription", note: "Team pricing exists in the local note; verify website.", icon: "person.3"))
+            }
+            if lower.contains("enterprise") {
+                rows.append(ToolPricingRow(plan: "Enterprise", value: "Paid/custom", note: "Enterprise availability is noted locally; verify terms.", icon: "building.2"))
+            }
+            return rows
+        }
+
+        if lower.contains("subscription") || lower.contains("usage") || lower.contains("api") {
+            var rows = [
+                ToolPricingRow(plan: "Subscription / usage", value: "Verify website", note: clean, icon: "creditcard"),
+            ]
+            if lower.contains("team") {
+                rows.append(ToolPricingRow(plan: "Team", value: "Team plan", note: "Team plan is referenced locally; verify current price.", icon: "person.3"))
+            }
+            rows.append(unknownRow(note: "Exact price is not stored locally."))
+            return rows
+        }
+
+        if lower.contains("depends") || lower.contains("variable") {
+            return [
+                ToolPricingRow(plan: "Variable", value: "Depends on setup", note: clean, icon: "slider.horizontal.3"),
+                unknownRow(note: "Verify website or implementation before budgeting."),
+            ]
+        }
+
+        return [
+            ToolPricingRow(plan: "Pricing note", value: "Verify website", note: clean, icon: "info.circle"),
+            unknownRow(note: "Exact plan prices are not stored locally."),
+        ]
+    }
+
+    private static func unknownRow(note: String) -> ToolPricingRow {
+        ToolPricingRow(plan: "Unknown", value: "Verify website", note: note, icon: "questionmark.circle")
+    }
+}
+
+/// Selected-tool detail card. Reads the selected tool from the single
+/// navigation machine and presents it as a premium product profile, not an
+/// admin dashboard.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let onOpenRelatedTool: ((String) -> Void)?
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
+    @State private var isMetadataExpanded = false
+
+    init(onOpenRelatedTool: ((String) -> Void)? = nil) {
+        self.onOpenRelatedTool = onOpenRelatedTool
+    }
 
     private var selectedCategoryModel: ToolCategory {
         model.selectedCategoryModel
     }
 
-    private var visibleTools: [Tool] {
-        model.visibleTools
-    }
-
     private var selectedTool: Tool {
-        // This sheet is only presented once a tool is selected, so
-        // `model.selectedTool` is non-nil here; fall back defensively.
         model.selectedTool ?? UniverseSeed.tools[0]
     }
 
@@ -28,28 +112,39 @@ struct ToolDetailSection: View {
         ToolKnowledgeBook.knowledge(for: selectedTool)
     }
 
-    private var relatedTools: [Tool] {
+    private var explicitRelatedTools: [Tool] {
         selectedTool.relationIds.compactMap { relationID in
             model.visibleAllTools.first { $0.id == relationID }
         }
     }
 
+    private var relatedDisplayTools: [Tool] {
+        if !explicitRelatedTools.isEmpty {
+            return explicitRelatedTools
+        }
+        return Array(
+            model.visibleTools
+                .filter { $0.id != selectedTool.id }
+                .prefix(4)
+        )
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
+        VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             headerBlock
-            primaryInsightGrid
-            featureStack
+            pricingSection
+            bestForSection
+            bulletSection(title: "Key features", icon: "sparkles", items: knowledge.killerFeatures, symbol: "sparkle")
+            bulletSection(title: "Strengths", icon: "checkmark.seal", items: knowledge.strengths, symbol: "checkmark.circle")
+            bulletSection(title: "Tradeoffs", icon: "exclamationmark.triangle", items: knowledge.tradeoffs, symbol: "minus.circle")
+            commonUsersSection
+            relatedToolsSection
             metadataSection
-            branchRail
-
-            if !relatedTools.isEmpty {
-                connectedSourcesSection
-            }
-
-            actionRow
+            secondaryActions
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
+        .accessibilityIdentifier("ToolDetailSection.Root")
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
             isPresented: $isShowingRemoveConfirmation,
@@ -69,18 +164,26 @@ struct ToolDetailSection: View {
     }
 
     private var headerBlock: some View {
-        VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
+        VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
             HStack(alignment: .top, spacing: BrandSpacing.m.value) {
                 ToolLogoView(
                     tool: selectedTool,
-                    accent: selectedCategoryModel.color.swiftUIColor
+                    accent: selectedCategoryModel.color.swiftUIColor,
+                    size: 64
                 )
 
                 VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-                    Text(selectedCategoryModel.name.uppercased())
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.4)
-                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                    HStack(spacing: BrandSpacing.s.value) {
+                        Label(selectedCategoryModel.shortName, systemImage: categoryIcon(selectedTool.category))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+
+                        stageBadge(selectedTool.stage)
+                    }
+
                     Text(selectedTool.name)
                         .font(BrandTypography.display)
                         .foregroundStyle(.white)
@@ -89,8 +192,6 @@ struct ToolDetailSection: View {
                         .contentTransition(.opacity)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                stageBadge(selectedTool.stage)
             }
             .id(selectedTool.id)
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -98,42 +199,173 @@ struct ToolDetailSection: View {
             Text(selectedTool.summary)
                 .font(.system(size: 16, weight: .regular, design: .rounded))
                 .lineSpacing(4)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
 
-            HStack(spacing: BrandSpacing.s.value) {
-                heroMetric(icon: "circle.grid.3x3", title: "Orbit", value: orbitLabel(selectedTool.orbit))
-                heroMetric(icon: "point.3.connected.trianglepath.dotted", title: "Links", value: "\(relatedTools.count)")
+            primaryAction
+        }
+        .padding(BrandSpacing.m.value)
+        .background(neutralCardBackground)
+    }
+
+    @ViewBuilder
+    private var primaryAction: some View {
+        if let url = selectedTool.url, let item = BrowserSheetItem(url: url) {
+            Button {
+                browserSheet = item
+            } label: {
+                actionLabel("Open website", systemImage: "safari", foreground: .black.opacity(0.84))
+                    .background(selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
+        } else {
+            Label("Website not added", systemImage: "lock.doc")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(BrandColor.textMuted)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 48)
+                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        }
+    }
+
+    private var pricingSection: some View {
+        sectionBlock(title: "Pricing", icon: "creditcard") {
+            VStack(spacing: BrandSpacing.s.value) {
+                ForEach(ToolPricingPresenter.rows(for: knowledge.pricing)) { row in
+                    pricingRow(row)
+                }
             }
         }
     }
 
-    private var primaryInsightGrid: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: BrandSpacing.s.value),
-                GridItem(.flexible(), spacing: BrandSpacing.s.value),
-            ],
-            alignment: .leading,
-            spacing: BrandSpacing.s.value
-        ) {
-            insightCard(title: "Best for", icon: "target", text: knowledge.useCase, tint: selectedCategoryModel.color.swiftUIColor)
-            insightCard(title: "Pricing", icon: "creditcard", text: knowledge.pricing, tint: BrandColor.lime)
+    private func pricingRow(_ row: ToolPricingRow) -> some View {
+        HStack(alignment: .top, spacing: BrandSpacing.m.value) {
+            Image(systemName: row.icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                .frame(width: 28, height: 28)
+                .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(row.plan)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: BrandSpacing.s.value)
+                    Text(row.value)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                Text(row.note)
+                    .font(.caption)
+                    .lineSpacing(3)
+                    .foregroundStyle(BrandColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(BrandSpacing.s.value)
+        .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+    }
+
+    private var bestForSection: some View {
+        sectionBlock(title: "Best for", icon: "target") {
+            Text(knowledge.useCase)
+                .font(.subheadline)
+                .lineSpacing(4)
+                .foregroundStyle(BrandColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var featureStack: some View {
-        VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-            chipSection(title: "Killer features", icon: "sparkles", items: knowledge.killerFeatures, tint: selectedCategoryModel.color.swiftUIColor)
-            chipSection(title: "Strengths", icon: "checkmark.seal", items: knowledge.strengths, tint: BrandColor.teal)
-            textPanel(title: "Tradeoffs", icon: "exclamationmark.triangle", rows: knowledge.tradeoffs, tint: BrandColor.amber)
-            textPanel(title: "Common users", icon: "person.2", rows: [knowledge.typicalUsers], tint: BrandColor.pink)
+    private func bulletSection(title: String, icon: String, items: [String], symbol: String) -> some View {
+        sectionBlock(title: title, icon: icon) {
+            bulletList(items, symbol: symbol)
         }
+    }
+
+    private var commonUsersSection: some View {
+        sectionBlock(title: "Common users", icon: "person.2") {
+            bulletList([knowledge.typicalUsers], symbol: "person.crop.circle")
+        }
+    }
+
+    private func bulletList(_ items: [String], symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+            ForEach(items, id: \.self) { item in
+                Label(item, systemImage: symbol)
+                    .font(.subheadline)
+                    .lineSpacing(3)
+                    .foregroundStyle(BrandColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var relatedToolsSection: some View {
+        sectionBlock(title: "Related tools", icon: "link") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                if explicitRelatedTools.isEmpty {
+                    Text("No explicit relations are verified yet. Showing nearby tools from the same branch.")
+                        .font(.caption)
+                        .foregroundStyle(BrandColor.textMuted)
+                }
+
+                if relatedDisplayTools.isEmpty {
+                    Text("No related tools available in this universe yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(BrandColor.textSecondary)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: BrandSpacing.s.value) {
+                            ForEach(relatedDisplayTools) { tool in
+                                relatedToolButton(tool)
+                                    .id(tool.id)
+                            }
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollClipDisabled()
+                    .contentMargins(.horizontal, 2, for: .scrollContent)
+                }
+            }
+        }
+    }
+
+    private func relatedToolButton(_ tool: Tool) -> some View {
+        let category = UniverseSeed.category(tool.category)
+        return Button {
+            openToolInDetail(tool.id)
+        } label: {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
+                HStack(spacing: BrandSpacing.xs.value) {
+                    Circle()
+                        .fill(category.color.swiftUIColor)
+                        .frame(width: 7, height: 7)
+                    Text(tool.name)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                Text(category.shortName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(BrandColor.textMuted)
+                    .lineLimit(1)
+            }
+            .frame(width: 156, alignment: .leading)
+            .padding(.horizontal, BrandSpacing.m.value)
+            .padding(.vertical, BrandSpacing.s.value)
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
     }
 
     private var metadataSection: some View {
-        infoBlock(title: "Metadata", icon: "info.circle", tint: BrandColor.cyan) {
+        DisclosureGroup(isExpanded: $isMetadataExpanded) {
             VStack(spacing: 0) {
                 metadataRow("Category", selectedCategoryModel.name, icon: "folder")
                 metadataDivider
@@ -149,207 +381,58 @@ struct ToolDetailSection: View {
                     metadataRow("Why it belongs", reason, icon: "text.bubble")
                 }
             }
-        }
-    }
-
-    private var branchRail: some View {
-        infoBlock(title: "Explore this branch", icon: "rectangle.3.group", tint: selectedCategoryModel.color.swiftUIColor) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: BrandSpacing.s.value) {
-                    ForEach(visibleTools) { tool in
-                        Button {
-                            selectTool(tool.id)
-                        } label: {
-                            let isSelected = tool.id == model.selection.selectedToolID
-                            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                                Text(tool.name)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                Text(stageLabel(tool.stage))
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(isSelected ? selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
-                            }
-                            .frame(width: 136, alignment: .leading)
-                            .padding(BrandSpacing.m.value)
-                            .liquidGlass(
-                                in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
-                                tint: isSelected ? selectedCategoryModel.color.swiftUIColor : nil,
-                                strokeStrength: isSelected ? 0.16 : 0.06
-                            )
-                            .scaleEffect(isSelected ? 1.02 : 1)
-                        }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil, pressedOpacity: 0.9))
-                        .id(tool.id)
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.viewAligned)
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollClipDisabled()
-            .contentMargins(.horizontal, 2, for: .scrollContent)
-        }
-    }
-
-    private var connectedSourcesSection: some View {
-        infoBlock(title: "Connected sources", icon: "link", tint: BrandColor.violet) {
-            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-                Text("Related tools and sources connected to this selection.")
-                    .font(.caption)
-                    .foregroundStyle(BrandColor.textMuted)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: BrandSpacing.s.value) {
-                        ForEach(relatedTools) { tool in
-                            connectedSourceButton(tool)
-                                .id(tool.id)
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.viewAligned)
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollClipDisabled()
-                .contentMargins(.horizontal, 2, for: .scrollContent)
-            }
-        }
-    }
-
-    private var actionRow: some View {
-        HStack(spacing: BrandSpacing.s.value) {
-            if let url = selectedTool.url, let item = BrowserSheetItem(url: url) {
-                Button {
-                    browserSheet = item
-                } label: {
-                    actionLabel("Open", systemImage: "safari", foreground: .black.opacity(0.84))
-                        .liquidGlass(
-                            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-                            tint: selectedCategoryModel.color.swiftUIColor,
-                            strokeStrength: 0.18
-                        )
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
-            }
-
-            if selectedTool.category != .core {
-                Button(role: .destructive) {
-                    BrandHaptics.fire(.medium)
-                    isShowingRemoveConfirmation = true
-                } label: {
-                    actionLabel("Remove", systemImage: "trash", foreground: .red.opacity(0.94))
-                        .liquidGlass(
-                            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-                            tint: .red,
-                            strokeStrength: 0.12
-                        )
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: selectedTool.url == nil ? .trailing : .leading)
-    }
-
-    private func connectedSourceButton(_ tool: Tool) -> some View {
-        Button {
-            focus(tool.id)
+            .padding(.top, BrandSpacing.s.value)
         } label: {
-            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                Label(tool.name, systemImage: "point.3.connected.trianglepath.dotted")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text(stageLabel(tool.stage))
-                    .font(.caption2)
-                    .foregroundStyle(BrandColor.textMuted)
-                    .lineLimit(1)
-            }
-            .frame(width: 164, alignment: .leading)
-            .padding(.horizontal, BrandSpacing.m.value)
-            .padding(.vertical, BrandSpacing.s.value)
-            .liquidGlass(
-                in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
-                tint: selectedCategoryModel.color.swiftUIColor,
-                strokeStrength: 0.08
-            )
+            sectionHeader(title: "Metadata / technical details", icon: "info.circle")
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
+        .tint(selectedCategoryModel.color.swiftUIColor)
+        .padding(BrandSpacing.m.value)
+        .background(neutralCardBackground)
     }
 
-    private func infoBlock<Content: View>(
+    @ViewBuilder
+    private var secondaryActions: some View {
+        if selectedTool.category != .core {
+            Button(role: .destructive) {
+                BrandHaptics.fire(.medium)
+                isShowingRemoveConfirmation = true
+            } label: {
+                Label("Remove from map", systemImage: "trash")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red.opacity(0.92))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+                    .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        }
+    }
+
+    private func sectionBlock<Content: View>(
         title: String,
         icon: String,
-        tint: Color,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
-            Label(title.uppercased(), systemImage: icon)
-                .font(.caption2.weight(.bold))
-                .tracking(1.1)
-                .foregroundStyle(tint)
+            sectionHeader(title: title, icon: icon)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BrandSpacing.m.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: tint,
-            strokeStrength: 0.08
-        )
+        .background(neutralCardBackground)
     }
 
-    private func insightCard(title: String, icon: String, text: String, tint: Color) -> some View {
-        infoBlock(title: title, icon: icon, tint: tint) {
-            Text(text)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
-                .lineSpacing(3)
-                .foregroundStyle(BrandColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private func sectionHeader(title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.white.opacity(0.92), selectedCategoryModel.color.swiftUIColor)
+            .labelStyle(.titleAndIcon)
+            .symbolRenderingMode(.hierarchical)
     }
 
-    private func chipSection(title: String, icon: String, items: [String], tint: Color) -> some View {
-        infoBlock(title: title, icon: icon, tint: tint) {
-            chipGrid(items, tint: tint, symbol: icon == "sparkles" ? "sparkle" : "checkmark")
-        }
-    }
-
-    private func textPanel(title: String, icon: String, rows: [String], tint: Color) -> some View {
-        infoBlock(title: title, icon: icon, tint: tint) {
-            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-                ForEach(rows, id: \.self) { row in
-                    Label(row, systemImage: icon == "exclamationmark.triangle" ? "minus.circle" : "person.crop.circle")
-                        .font(.caption)
-                        .lineSpacing(3)
-                        .foregroundStyle(BrandColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func chipGrid(_ items: [String], tint: Color, symbol: String) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 126), spacing: BrandSpacing.s.value)],
-            alignment: .leading,
-            spacing: BrandSpacing.s.value
-        ) {
-            ForEach(items, id: \.self) { item in
-                Label(item, systemImage: symbol)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, BrandSpacing.s.value)
-                    .padding(.vertical, BrandSpacing.s.value)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: BrandRadius.node.value, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: BrandRadius.node.value, style: .continuous)
-                            .stroke(tint.opacity(0.18), lineWidth: 1)
-                    }
-            }
-        }
+    private var neutralCardBackground: some View {
+        RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+            .fill(.white.opacity(0.045))
     }
 
     private var metadataDivider: some View {
@@ -359,7 +442,9 @@ struct ToolDetailSection: View {
 
     private func metadataRow(_ title: String, _ value: String, icon: String) -> some View {
         HStack(alignment: .top, spacing: BrandSpacing.s.value) {
-            metadataLabel(title, icon: icon)
+            Label(title, systemImage: icon)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BrandColor.textMuted)
                 .frame(width: 116, alignment: .leading)
             Text(value)
                 .font(.caption.weight(.medium))
@@ -371,45 +456,13 @@ struct ToolDetailSection: View {
         .padding(.vertical, BrandSpacing.s.value)
     }
 
-    private func metadataLabel(_ title: String, icon: String) -> some View {
-        Label(title, systemImage: icon)
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(BrandColor.textMuted)
-    }
-
     private func stageBadge(_ stage: WorkflowStageId) -> some View {
         Text(stageLabel(stage))
             .font(.caption.weight(.bold))
-            .foregroundStyle(.black.opacity(0.82))
-            .padding(.horizontal, BrandSpacing.m.value)
-            .padding(.vertical, BrandSpacing.s.value)
-            .background(selectedCategoryModel.color.swiftUIColor, in: Capsule())
-    }
-
-    private func heroMetric(icon: String, title: String, value: String) -> some View {
-        HStack(spacing: BrandSpacing.s.value) {
-            Image(systemName: icon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
-                .frame(width: 22, height: 22)
-                .background(selectedCategoryModel.color.swiftUIColor.opacity(0.14), in: Circle())
-            VStack(alignment: .leading, spacing: BrandSpacing.hair.value) {
-                Text(title.uppercased())
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(BrandColor.textMuted)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .padding(.horizontal, BrandSpacing.m.value)
-        .padding(.vertical, BrandSpacing.s.value)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
-            tint: selectedCategoryModel.color.swiftUIColor,
-            strokeStrength: 0.06
-        )
+            .foregroundStyle(.white.opacity(0.84))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.white.opacity(0.08), in: Capsule())
     }
 
     private func actionLabel(_ title: String, systemImage: String, foreground: Color) -> some View {
@@ -417,8 +470,22 @@ struct ToolDetailSection: View {
             .font(.headline.weight(.bold))
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 54)
-            .contentShape(RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous))
+            .frame(minHeight: 50)
+            .contentShape(RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+    }
+
+    private func categoryIcon(_ category: ToolCategoryId) -> String {
+        switch category {
+        case .coding: return "chevron.left.forwardslash.chevron.right"
+        case .design: return "paintpalette"
+        case .research: return "doc.text.magnifyingglass"
+        case .analytics: return "chart.xyaxis.line"
+        case .media: return "sparkles.tv"
+        case .distribution: return "paperplane"
+        case .infrastructure: return "server.rack"
+        case .knowledge: return "books.vertical"
+        case .core: return "sparkles"
+        }
     }
 
     private func orbitLabel(_ orbit: OrbitRing) -> String {
@@ -449,26 +516,20 @@ struct ToolDetailSection: View {
         }
     }
 
-    private func selectTool(_ id: String) {
-        guard model.selection.selectedToolID != id else {
-            BrandHaptics.fire(.light)
-            return
-        }
+    private func openToolInDetail(_ id: String) {
+        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.nudge) {
-            model.selectTool(id)
-        }
-    }
-
-    private func focus(_ id: String) {
-        BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.flow) {
-            _ = model.focusTool(id)
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+            if let onOpenRelatedTool {
+                onOpenRelatedTool(tool.id)
+            } else {
+                model.universeMode = .detail(tool.category, tool.id)
+            }
         }
     }
 
     private func removeSelectedTool() {
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.deleteTool(selectedTool.id)
         }
     }

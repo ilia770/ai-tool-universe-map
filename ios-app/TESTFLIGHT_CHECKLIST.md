@@ -5,7 +5,7 @@ on your own iPhone, then later to an App Store release. The project is
 configured for:
 
 - App name: `My AI Map`
-- Bundle id: `com.iliaturilia.myaimap`
+- Bundle id: `com.ilyatur.myaimap`
 - SKU: `myaimap-ios`
 - Minimum iOS: 18.0
 - Xcode target: Xcode 26.5 installed locally
@@ -36,7 +36,7 @@ Do not edit `MyAIMap.xcodeproj` directly; it is generated from
 - In Xcode, sign in with that Apple ID.
 - Record the Team ID from Apple Developer account membership.
 - In the `MyAIMap` target, set Team to that account/team.
-- Keep bundle id as `com.iliaturilia.myaimap`.
+- Keep bundle id as `com.ilyatur.myaimap`.
 - Let Xcode manage signing for the first personal TestFlight build unless
   manual signing is specifically needed later.
 - If App Store Connect says the bundle id is unavailable, stop and choose a
@@ -64,7 +64,7 @@ Before a personal device/TestFlight attempt, run a simulator build from Xcode:
 - Select the `My AI Map` scheme and the device.
 - Confirm Signing & Capabilities shows:
   - Team: your Apple Developer team
-  - Bundle Identifier: `com.iliaturilia.myaimap`
+  - Bundle Identifier: `com.ilyatur.myaimap`
   - Signing Certificate: Apple Development
 - Run `My AI Map`.
 - Verify:
@@ -81,7 +81,7 @@ profile, or device registration before attempting Archive.
 
 - In App Store Connect, create app:
   - Name: `My AI Map`
-  - Bundle ID: `com.iliaturilia.myaimap`
+  - Bundle ID: `com.ilyatur.myaimap`
   - SKU: `myaimap-ios`
 - In Xcode, select `Any iOS Device` or a real device, not a simulator.
 - Product -> Archive.

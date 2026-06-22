@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Bottom assistant dock. Collapsed it is a ChatGPT-like input plus a
 /// right-side action button; once the user asks something, it grows a compact
@@ -7,21 +8,39 @@ import SwiftUI
 /// Command-K focuses the field on iPad / hardware keyboards.
 struct SearchDock: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
     @State private var selectedAttachment: AssistantAttachmentKind?
+    @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
+    // Neutral seed; the real width arrives via the width preference key once
+    // layout runs. UIScreen.main is the physical screen (wrong under iPad
+    // Split View / Stage Manager) and is deprecated on iOS 26.
+    @State private var dockWidth: CGFloat = 320
 
+    let isChatOpen: Bool
+    let dismissAttachmentMenuToken: UUID?
     let onAddTool: () -> Void
+    let onAddSuggestedTool: ((MissingToolSuggestion) -> Void)?
     let onToolSelect: ((String) -> Void)?
+    let onOpenToolDetail: ((String) -> Void)?
     let onChatActivityChange: ((Bool) -> Void)?
 
     init(
+        isChatOpen: Bool = false,
+        dismissAttachmentMenuToken: UUID? = nil,
         onAddTool: @escaping () -> Void = {},
+        onAddSuggestedTool: ((MissingToolSuggestion) -> Void)? = nil,
         onToolSelect: ((String) -> Void)? = nil,
+        onOpenToolDetail: ((String) -> Void)? = nil,
         onChatActivityChange: ((Bool) -> Void)? = nil
     ) {
+        self.isChatOpen = isChatOpen
+        self.dismissAttachmentMenuToken = dismissAttachmentMenuToken
         self.onAddTool = onAddTool
+        self.onAddSuggestedTool = onAddSuggestedTool
         self.onToolSelect = onToolSelect
+        self.onOpenToolDetail = onOpenToolDetail
         self.onChatActivityChange = onChatActivityChange
     }
 
@@ -38,12 +57,46 @@ struct SearchDock: View {
         ComposerLogic.canSend(hasText: hasQuery, hasAttachment: selectedAttachment != nil)
     }
 
+    private var showsSendButton: Bool {
+        ComposerLogic.showsSendButton(
+            isFocused: fieldFocused,
+            hasText: hasQuery,
+            hasAttachment: selectedAttachment != nil
+        )
+    }
+
+    private var hasConversationContent: Bool {
+        !model.assistantMessages.isEmpty || hasQuery || selectedAttachment != nil
+    }
+
     private var showsConversation: Bool {
-        !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
+        isChatOpen && !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
+    }
+
+    private var showsCollapsedConversationPill: Bool {
+        isChatOpen && conversationCollapsed && hasConversationContent
     }
 
     private var chatIsActive: Bool {
-        fieldFocused || showsConversation
+        ComposerLogic.keepsChatActive(
+            isFocused: fieldFocused,
+            showsConversation: showsConversation,
+            isCollapsedWithContent: showsCollapsedConversationPill,
+            attachmentMenuOpen: attachmentMenuOpen,
+            hasAttachment: selectedAttachment != nil
+        )
+    }
+
+    private var userMessageMaxWidth: CGFloat {
+        ComposerLogic.userBubbleMaxWidth(availableWidth: measuredMessageWidth)
+    }
+
+    private var assistantMessageMaxWidth: CGFloat {
+        min(420, measuredMessageWidth * ComposerLogic.assistantMessageMaxWidthRatio)
+    }
+
+    private var measuredMessageWidth: CGFloat {
+        max(240, dockWidth - 20)
     }
 
     var body: some View {
@@ -51,15 +104,17 @@ struct SearchDock: View {
             if showsConversation {
                 conversationPanel
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if conversationCollapsed && !model.assistantMessages.isEmpty {
+            } else if showsCollapsedConversationPill {
                 collapsedConversationPill
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            composerRow
+            composerWithAttachmentOverlay
         }
         .frame(maxWidth: .infinity)
         .brandAnimation(BrandMotion.nudge, value: showsConversation)
+        .brandAnimation(BrandMotion.nudge, value: showsCollapsedConversationPill)
+        .brandAnimation(BrandMotion.nudge, value: attachmentMenuOpen)
         .brandAnimation(BrandMotion.nudge, value: previewResults.map(\.id))
         .brandAnimation(BrandMotion.nudge, value: fieldFocused)
         .brandAnimation(BrandMotion.nudge, value: selectedAttachment)
@@ -70,11 +125,42 @@ struct SearchDock: View {
             onChatActivityChange?(isActive)
         }
         .background {
-            Button("Focus search") { fieldFocused = true }
-                .keyboardShortcut("k", modifiers: .command)
-                .opacity(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            ZStack {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: SearchDockWidthPreferenceKey.self, value: proxy.size.width)
+                }
+
+                Button("Focus search") { fieldFocused = true }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .onPreferenceChange(SearchDockWidthPreferenceKey.self) { width in
+            guard width > 0 else { return }
+            dockWidth = width
+        }
+        .onChange(of: isChatOpen) { _, isOpen in
+            guard !isOpen else { return }
+            fieldFocused = false
+            attachmentMenuOpen = false
+            conversationCollapsed = true
+        }
+        .onChange(of: dismissAttachmentMenuToken) { _, _ in
+            attachmentMenuOpen = false
+        }
+    }
+
+    private var composerWithAttachmentOverlay: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if attachmentMenuOpen {
+                attachmentMenuPopover
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .zIndex(2)
+            }
+
+            composerRow
         }
     }
 
@@ -101,8 +187,14 @@ struct SearchDock: View {
                 .textInputAutocapitalization(.never)
                 .onSubmit(submit)
                 .onChange(of: fieldFocused) { _, focused in
-                    if focused { BrandHaptics.fire(.light) }
+                    if focused {
+                        BrandHaptics.fire(.light)
+                        conversationCollapsed = false
+                    } else {
+                        attachmentMenuOpen = false
+                    }
                 }
+                .accessibilityIdentifier("chat-composer-field")
 
             if let selectedAttachment {
                 attachmentPill(selectedAttachment)
@@ -111,52 +203,103 @@ struct SearchDock: View {
         .frame(maxWidth: .infinity, minHeight: 44)
         .padding(5)
         .background(.black.opacity(0.12), in: Capsule())
-        .liquidGlass(
+        .glassSurface(
             in: Capsule(),
             tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.5),
-            strokeStrength: 0.08
+            interactive: true
         )
         .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
     }
 
     private var attachmentMenu: some View {
-        Menu {
-            ForEach(AssistantAttachmentKind.allCases) { kind in
-                Button {
-                    BrandHaptics.fire(.light)
-                    selectedAttachment = kind
-                    fieldFocused = true
-                } label: {
-                    Label(kind.title, systemImage: kind.icon)
-                }
-            }
-
-            if ComposerLogic.showsRemoveAttachment(hasAttachment: selectedAttachment != nil) {
-                Button(role: .destructive) {
-                    BrandHaptics.fire(.light)
-                    selectedAttachment = nil
-                } label: {
-                    Label("Remove attachment", systemImage: "xmark.circle")
-                }
+        Button {
+            BrandHaptics.fire(.light)
+            fieldFocused = true
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                attachmentMenuOpen.toggle()
             }
         } label: {
             Image(systemName: ComposerLogic.attachmentTriggerIcon(hasAttachment: selectedAttachment != nil))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(selectedAttachment == nil ? .white.opacity(0.74) : model.selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 36, height: 36)
-                .liquidGlass(
-                    in: Circle(),
-                    tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-                    strokeStrength: 0.07
-                )
+                // Lives inside the composer pill (already glass); a nested glass
+                // here would double-lens. Solid fill keeps the tappable affordance.
+                .background(.white.opacity(0.08), in: Circle())
         }
-        .buttonStyle(BouncyIconButtonStyle())
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
         .accessibilityLabel("Attach photo or file")
+        .accessibilityIdentifier("chat-attach-button")
+    }
+
+    private var attachmentMenuPopover: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(AssistantAttachmentKind.allCases) { kind in
+                    attachmentMenuItem(kind)
+                }
+
+                if ComposerLogic.showsRemoveAttachment(hasAttachment: selectedAttachment != nil) {
+                    Divider()
+                        .overlay(.white.opacity(0.12))
+                    Button {
+                        BrandHaptics.fire(.light)
+                        selectedAttachment = nil
+                        attachmentMenuOpen = false
+                    } label: {
+                        Label("Remove attachment", systemImage: "xmark.circle")
+                            .font(.system(.footnote, weight: .semibold))
+                            .foregroundStyle(.red.opacity(0.9))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 9)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+                    .accessibilityLabel("Remove attachment")
+                }
+            }
+            .padding(7)
+            .frame(width: 164)
+            .background(
+                .black.opacity(0.30),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .glassSurface(
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.34),
+                interactive: true
+            )
+            .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 2)
+        .allowsHitTesting(attachmentMenuOpen)
+    }
+
+    private func attachmentMenuItem(_ kind: AssistantAttachmentKind) -> some View {
+        Button {
+            BrandHaptics.fire(.light)
+            selectedAttachment = kind
+            attachmentMenuOpen = false
+            fieldFocused = true
+        } label: {
+            Label(kind.title, systemImage: kind.icon)
+                .font(.system(.footnote, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .background(.white.opacity(selectedAttachment == kind ? 0.12 : 0.055), in: Capsule())
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityLabel(kind.title)
+        .accessibilityIdentifier(kind.accessibilityIdentifier)
     }
 
     private var trailingActionButton: some View {
         Group {
-            if fieldFocused {
+            if showsSendButton {
                 Button {
                     submit()
                 } label: {
@@ -169,9 +312,10 @@ struct SearchDock: View {
                             Circle().stroke(.white.opacity(canSend ? 0.18 : 0.10), lineWidth: 1)
                         }
                 }
-                .buttonStyle(BouncyIconButtonStyle())
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
                 .disabled(!canSend)
                 .accessibilityLabel(canSend ? "Send" : "Send unavailable")
+                .accessibilityIdentifier("chat-send-button")
             } else {
                 Button {
                     onAddTool()
@@ -183,8 +327,9 @@ struct SearchDock: View {
                         .background(model.selectedCategoryModel.color.swiftUIColor, in: Circle())
                         .shadow(color: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32), radius: 12, x: 0, y: 7)
                 }
-                .buttonStyle(BouncyIconButtonStyle())
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
                 .accessibilityLabel("Add tool")
+                .accessibilityIdentifier("chat-add-tool-button")
             }
         }
         .frame(width: 44, height: 44)
@@ -194,6 +339,7 @@ struct SearchDock: View {
         Button {
             BrandHaptics.fire(.light)
             selectedAttachment = nil
+            attachmentMenuOpen = false
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: kind.icon)
@@ -205,10 +351,11 @@ struct SearchDock: View {
             .foregroundStyle(.white.opacity(0.84))
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .liquidGlass(
-                in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.45),
-                strokeStrength: 0.06
+            // Staged-attachment pill is content (per glass MAP), and sits inside
+            // the glass composer pill — keep it solid to avoid nested lensing.
+            .background(
+                model.selectedCategoryModel.color.swiftUIColor.opacity(0.28),
+                in: Capsule()
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
@@ -236,29 +383,34 @@ struct SearchDock: View {
             .frame(maxWidth: .infinity, maxHeight: 284)
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("chat-transcript")
             .onChange(of: model.assistantMessages.count) { _, _ in
                 guard let last = model.assistantMessages.last else { return }
-                withAnimation(BrandMotion.nudge) {
+                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
         }
+        // Transcript is content, not chrome — solid reading surface (glass MAP).
         .background(
-            .black.opacity(0.18),
+            BrandColor.glassSolid,
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.38),
-            strokeStrength: 0.08
-        )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
         .shadow(color: .black.opacity(0.32), radius: 16, x: 0, y: 8)
+        .simultaneousGesture(TapGesture().onEnded {
+            attachmentMenuOpen = false
+        })
     }
 
     private var collapsedConversationPill: some View {
         Button {
             BrandHaptics.fire(.light)
-            withAnimation(BrandMotion.nudge) {
+            attachmentMenuOpen = false
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 conversationCollapsed = false
             }
         } label: {
@@ -275,10 +427,10 @@ struct SearchDock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(maxWidth: 152)
-            .liquidGlass(
+            .glassSurface(
                 in: Capsule(),
                 tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                strokeStrength: 0.06
+                interactive: true
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
@@ -294,21 +446,23 @@ struct SearchDock: View {
 
             Button {
                 BrandHaptics.fire(.light)
-                withAnimation(BrandMotion.nudge) {
+                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                     conversationCollapsed = true
+                    fieldFocused = false
+                    attachmentMenuOpen = false
                 }
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
                     .frame(width: 30, height: 30)
-                    .liquidGlass(
+                    .glassSurface(
                         in: Circle(),
                         tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                        strokeStrength: 0.06
+                        interactive: true
                     )
             }
-            .buttonStyle(BouncyIconButtonStyle(pressedScale: 0.9))
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
             .accessibilityLabel("Collapse chat")
         }
         .padding(.leading, 2)
@@ -339,30 +493,46 @@ struct SearchDock: View {
 
     private func messageRow(_ message: AssistantMessage) -> some View {
         let isUser = message.role == .user
-        let matches = model.visibleAllTools.filter { message.matchIDs.contains($0.id) }
-        return HStack(alignment: .top) {
+        let matches = message.matchIDs.compactMap { id in
+            model.visibleAllTools.first { $0.id == id }
+        }
+        return HStack(alignment: .top, spacing: 0) {
             if isUser {
-                Spacer(minLength: 56)
+                Spacer(minLength: max(20, measuredMessageWidth * 0.16))
                 userBubble(message.text)
             } else {
                 assistantResponse(message, matches: matches)
-                Spacer(minLength: 24)
+                Spacer(minLength: max(18, measuredMessageWidth * 0.12))
             }
         }
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
 
     private func userBubble(_ text: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            userBubbleContent(text)
+                .fixedSize(horizontal: true, vertical: false)
+            userBubbleContent(text)
+                .frame(maxWidth: userMessageMaxWidth, alignment: .trailing)
+        }
+        .frame(maxWidth: userMessageMaxWidth, alignment: .trailing)
+    }
+
+    private func userBubbleContent(_ text: String) -> some View {
         MarkdownMessageText(text: text, fontSize: 15, weight: .medium, color: .white.opacity(0.92))
-            .multilineTextAlignment(.trailing)
+            .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .frame(maxWidth: 268, alignment: .trailing)
-            .liquidGlass(
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.62),
-                strokeStrength: 0.08
+            .padding(.horizontal, 13)
+            .padding(.vertical, 10)
+            // Chat bubble is content — solid accent-tinted surface, never glass.
+            .background(
+                model.selectedCategoryModel.color.swiftUIColor.opacity(0.30),
+                in: RoundedRectangle(cornerRadius: 19, style: .continuous)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(.white.opacity(0.10), lineWidth: 0.5)
+            }
     }
 
     private func assistantResponse(_ message: AssistantMessage, matches: [Tool]) -> some View {
@@ -374,7 +544,10 @@ struct SearchDock: View {
 
             if !matches.isEmpty {
                 toolSummaryTable(matches)
-                actionStrip(for: matches)
+            }
+
+            if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
+                actionStrip(for: matches, missingSuggestions: message.missingToolSuggestions)
                 nextHint("Next: open one, or ask me to compare them by price, stage, and daily use.")
             } else if needsAccessActions(message) {
                 // Single home for Attach / Add-tool is the composer below. The
@@ -383,7 +556,7 @@ struct SearchDock: View {
                 nextHint("Next: paste the URL, attach files (paperclip), or add it manually (+).")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: assistantMessageMaxWidth, alignment: .leading)
         .padding(.vertical, 2)
         .shadow(color: .black.opacity(0.58), radius: 8, x: 0, y: 2)
     }
@@ -451,12 +624,16 @@ struct SearchDock: View {
         .background(.white.opacity(0.045))
     }
 
-    private func actionStrip(for tools: [Tool]) -> some View {
+    private func actionStrip(for tools: [Tool], missingSuggestions: [MissingToolSuggestion]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: BrandSpacing.s.value) {
                 ForEach(tools) { tool in
                     toolAccessButton(tool)
                         .id(tool.id)
+                }
+                ForEach(missingSuggestions) { suggestion in
+                    missingToolButton(suggestion)
+                        .id("missing-\(suggestion.id)")
                 }
             }
             .scrollTargetLayout()
@@ -478,7 +655,7 @@ struct SearchDock: View {
     private func toolAccessButton(_ tool: Tool) -> some View {
         let category = UniverseSeed.category(tool.category)
         return Button {
-            select(tool)
+            openDetail(tool)
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "arrow.up.right.circle.fill")
@@ -490,13 +667,48 @@ struct SearchDock: View {
             .foregroundStyle(.white.opacity(0.88))
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .liquidGlass(
-                in: Capsule(),
-                tint: category.color.swiftUIColor.opacity(0.55),
-                strokeStrength: 0.08
-            )
+            // Inline message action chip — content layer, solid (glass MAP).
+            .background(category.color.swiftUIColor.opacity(0.30), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
+    }
+
+    private func missingToolButton(_ suggestion: MissingToolSuggestion) -> some View {
+        let category = UniverseSeed.category(suggestion.category)
+        return Button {
+            BrandHaptics.fire(.light)
+            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                if let onAddSuggestedTool {
+                    onAddSuggestedTool(suggestion)
+                } else {
+                    onAddTool()
+                }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 13, weight: .bold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Add \(suggestion.name)")
+                        .font(.system(.footnote, weight: .semibold))
+                        .lineLimit(1)
+                    Text(category.shortName)
+                        .font(.system(.caption2, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(.white.opacity(0.88))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            // Inline message action chip — content layer, solid (glass MAP).
+            .background(category.color.swiftUIColor.opacity(0.24), in: Capsule())
+            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
+        .accessibilityLabel("Add \(suggestion.name)")
+        .accessibilityHint(suggestion.reason)
     }
 
     private func needsAccessActions(_ message: AssistantMessage) -> Bool {
@@ -551,7 +763,7 @@ struct SearchDock: View {
 
     private func select(_ tool: Tool) {
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             if let onToolSelect {
                 onToolSelect(tool.id)
             } else {
@@ -561,11 +773,35 @@ struct SearchDock: View {
         clearComposer()
     }
 
+    private func openDetail(_ tool: Tool) {
+        BrandHaptics.fire(.light)
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+            if let onOpenToolDetail {
+                onOpenToolDetail(tool.id)
+            } else if let onToolSelect {
+                onToolSelect(tool.id)
+            } else {
+                _ = model.focusTool(tool.id)
+            }
+        }
+        clearComposer()
+    }
+
     private func submit() {
-        guard hasQuery else { return }
+        guard let outgoingText = ComposerLogic.outgoingMessageText(
+            query: model.assistantQuery,
+            attachmentTitle: selectedAttachment?.messageTitle
+        ) else { return }
+        // The assistant can't read attachments, so flag an attachment-only send
+        // (no real text) and let it answer honestly instead of matching tools
+        // against the "attached photo/file" placeholder (U1).
+        let attachmentOnly = model.assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && selectedAttachment != nil
         BrandHaptics.fire(.light)
         conversationCollapsed = false
-        withAnimation(BrandMotion.flow) { model.askAssistant() }
+        attachmentMenuOpen = false
+        model.assistantQuery = outgoingText
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.askAssistant(attachmentOnly: attachmentOnly) }
         selectedAttachment = nil
         fieldFocused = false
     }
@@ -597,10 +833,24 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         }
     }
 
+    var messageTitle: String {
+        switch self {
+        case .photo: return "photo"
+        case .files: return "file"
+        }
+    }
+
     var icon: String {
         switch self {
         case .photo: return "photo"
         case .files: return "doc"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .photo: return "chat-attachment-photo"
+        case .files: return "chat-attachment-files"
         }
     }
 }
@@ -678,4 +928,15 @@ private struct MarkdownMessageText: View {
     }
     .environment(UniverseViewModel())
     .preferredColorScheme(.dark)
+}
+
+private struct SearchDockWidthPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
 }

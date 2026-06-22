@@ -21,9 +21,20 @@ final class UniverseViewModel {
     var searchQuery: String = ""
     var assistantQuery: String = ""
     var assistantMessages: [AssistantMessage] = []
+    var renderMode: UniverseRenderMode = .graph2D {
+        didSet {
+            guard oldValue != renderMode else { return }
+            persist()
+        }
+    }
     var visualizationStyle: VisualizationStyle = .orbitalGlass
     var appLanguage: AppLanguage = .system
-    var hapticsEnabled: Bool = true
+    var hapticsEnabled: Bool = true {
+        didSet {
+            guard oldValue != hapticsEnabled else { return }
+            persist()
+        }
+    }
     private(set) var activityHistory: [UniverseActivity] = []
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
@@ -36,11 +47,26 @@ final class UniverseViewModel {
         self.store = store
         let saved = store.load()
         self.customTools = saved.tools
-        self.hiddenToolIDs = saved.hidden
+        // Defensive: the core tool (founder-os) must never be hidden. The
+        // selection projection falls back to it, so a stale/corrupt persisted
+        // hidden set containing it would strand selection (selectedTool == nil).
+        // Mirror the deleteTool `.core` guard at load time and re-persist clean.
+        let sanitizedHidden = saved.hidden.subtracting([PlanetData.centralCoreToolID])
+        self.hiddenToolIDs = sanitizedHidden
+        self.renderMode = saved.renderMode
+        self.hapticsEnabled = saved.hapticsEnabled
+        if sanitizedHidden != saved.hidden {
+            persist()
+        }
     }
 
     private func persist() {
-        store.save(tools: customTools, hidden: hiddenToolIDs)
+        store.save(
+            tools: customTools,
+            hidden: hiddenToolIDs,
+            renderMode: renderMode,
+            hapticsEnabled: hapticsEnabled
+        )
     }
 
     // MARK: - Derived state
@@ -218,25 +244,112 @@ final class UniverseViewModel {
         return true
     }
 
-    func askAssistant() {
+    func askAssistant(attachmentOnly: Bool = false) {
         let query = assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
         assistantMessages.append(AssistantMessage(role: .user, text: query))
-        let reply = UniverseAssistantCore.reply(
+
+        // The assistant is a local tool-matcher; it cannot read attachments.
+        // For an attachment-only message, answer honestly instead of matching
+        // tools against the literal "attached photo/file" text (U1).
+        if attachmentOnly {
+            assistantMessages.append(
+                AssistantMessage(
+                    role: .assistant,
+                    text: "I can't read attachments yet. Tell me what you want to build, compare, or add — or paste the tool's website link."
+                )
+            )
+            assistantQuery = ""
+            recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: nil)
+            return
+        }
+
+        // Local rule-based reply is always computed first: it stays the default
+        // offline behavior and provides the chip match-IDs the UI relies on.
+        let local = UniverseAssistantCore.reply(
             for: query,
             tools: visibleAllTools,
             categoryName: { UniverseSeed.category($0).shortName },
-            knowledge: { ToolKnowledgeBook.knowledge(for: $0) }
+            knowledge: { ToolKnowledgeBook.knowledge(for: $0) },
+            recentActivity: activityHistory
         )
-        assistantMessages.append(AssistantMessage(role: .assistant, text: reply.text, matchIDs: reply.matchIDs))
-        assistantQuery = ""
-        recordActivity(
-            kind: .asked,
-            title: "Asked AI",
-            detail: query,
-            toolID: reply.matchIDs.first
+
+        // If the user supplied a DeepSeek key, prefer its (cheaper) reply text,
+        // grounded in the catalog. On a missing key OR any error we fall back to
+        // the local reply below.
+        if assistantUsesDeepSeek {
+            let tools = visibleAllTools
+            let systemPrompt = Self.deepSeekSystemPrompt(for: tools)
+            Task { [weak self] in
+                do {
+                    let text = try await DeepSeekClient().reply(to: query, systemPrompt: systemPrompt)
+                    await self?.appendAssistantReply(text: text, query: query, fallback: local)
+                } catch {
+                    await self?.appendAssistantReply(text: nil, query: query, fallback: local)
+                }
+            }
+            assistantQuery = ""
+            return
+        }
+
+        appendLocalReply(local, query: query)
+    }
+
+    /// True when a DeepSeek API key is stored in the Keychain.
+    var assistantUsesDeepSeek: Bool {
+        KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    }
+
+    private func appendAssistantReply(text: String?, query: String, fallback: AssistantReply) {
+        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            // Missing-key / network / decode failure → local rule-based reply.
+            appendLocalReply(fallback, query: query)
+            return
+        }
+        // DeepSeek answers the text; the local matcher still supplies chip
+        // match-IDs and missing-tool suggestions so the UI keeps working.
+        assistantMessages.append(
+            AssistantMessage(
+                role: .assistant,
+                text: text,
+                matchIDs: fallback.matchIDs,
+                missingToolSuggestions: fallback.missingToolSuggestions
+            )
         )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: fallback.matchIDs.first)
+    }
+
+    private func appendLocalReply(_ reply: AssistantReply, query: String) {
+        assistantMessages.append(
+            AssistantMessage(
+                role: .assistant,
+                text: reply.text,
+                matchIDs: reply.matchIDs,
+                missingToolSuggestions: reply.missingToolSuggestions
+            )
+        )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: reply.matchIDs.first)
+    }
+
+    /// Grounds the DeepSeek prompt in the user's current catalog so it answers
+    /// about tools that actually exist and keeps the "never fabricate tools"
+    /// principle: when a service is missing, it asks for the website instead of
+    /// inventing facts.
+    private static func deepSeekSystemPrompt(for tools: [Tool]) -> String {
+        let catalog = tools
+            .map { "- \($0.name) (\(UniverseSeed.category($0.category).shortName))" }
+            .joined(separator: "\n")
+        let list = catalog.isEmpty ? "(the user's universe is currently empty)" : catalog
+        return """
+        You are the in-app assistant for "My AI Map", a universe of AI tools the user has added.
+        Only recommend tools from the catalog below. Never invent tools, pricing, or features.
+        If the user asks about a tool not in the catalog, say it isn't in their universe yet and ask for its website URL.
+        Be concise and practical.
+
+        Catalog:
+        \(list)
+        """
     }
 
     @discardableResult
@@ -279,26 +392,52 @@ final class UniverseViewModel {
         guard !cleanName.isEmpty, category != .core else { return false }
 
         let url = normalizedURL(from: urlString)
+        let sourceHost = url.flatMap { normalizedSourceHost(from: $0) }
+        if let existingTool = existingToolMatching(name: cleanName, sourceHost: sourceHost) {
+            let wasHidden = hiddenToolIDs.remove(existingTool.id) != nil
+            if wasHidden {
+                persist()
+                recordActivity(
+                    kind: .restored,
+                    title: "Restored \(existingTool.name)",
+                    detail: UniverseSeed.category(existingTool.category).name,
+                    toolID: existingTool.id
+                )
+            }
+            _ = focusTool(existingTool.id)
+            return true
+        }
+
         let id = uniqueID(base: slug(cleanName))
         let categoryTools = allTools.filter { $0.category == category }
         let categoryAngle = UniverseSeed.category(category).angle
         let relationIds = suggestedRelations(for: cleanName, category: category)
+        let summary = if let sourceHost {
+            "User-added service. Source domain: \(sourceHost). Claims stay cautious until website-backed enrichment."
+        } else {
+            "User-added service. Website not provided; claims remain unverified."
+        }
+        let classificationReason = if let sourceHost {
+            "Added from account intake with source domain \(sourceHost). Needs enrichment before precise claims."
+        } else {
+            "Added from account intake without a website. Claims remain unverified until a source is provided."
+        }
 
         let tool = Tool(
             id: id,
             name: cleanName,
             category: category,
-            summary: "User-added service. Website verified by URL before deep claims are made.",
+            summary: summary,
             stage: .research,
             orbit: categoryTools.count.isMultiple(of: 2) ? .middle : .inner,
             angle: categoryAngle,
             url: url,
-            logoDomain: url?.host,
+            logoDomain: sourceHost,
             relationIds: relationIds,
             classification: Tool.Classification(
                 confidence: url == nil ? 0.48 : 0.74,
                 matchedKeywords: [category.rawValue],
-                reason: "Added from account intake. Needs website-backed enrichment before precise claims."
+                reason: classificationReason
             )
         )
         customTools.append(tool)
@@ -330,11 +469,43 @@ final class UniverseViewModel {
     private func normalizedURL(from value: String) -> URL? {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return nil }
-        let candidate = clean.hasPrefix("http://") || clean.hasPrefix("https://") ? clean : "https://\(clean)"
+        let lower = clean.lowercased()
+        guard !lower.contains("://") || lower.hasPrefix("http://") || lower.hasPrefix("https://") else { return nil }
+
+        let candidate: String
+        if lower.hasPrefix("http://") {
+            candidate = "https://\(clean.dropFirst("http://".count))"
+        } else if lower.hasPrefix("https://") {
+            candidate = clean
+        } else {
+            candidate = "https://\(clean)"
+        }
+
         guard let url = URL(string: candidate),
               let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else { return nil }
+              scheme == "https",
+              url.host() != nil else { return nil }
         return url
+    }
+
+    private func existingToolMatching(name: String, sourceHost: String?) -> Tool? {
+        let nameSlug = slug(name)
+        if let sourceHost,
+           let hostMatch = allTools.first(where: { $0.logoDomain == sourceHost }) {
+            return hostMatch
+        }
+
+        return allTools.first { tool in
+            tool.id == nameSlug || slug(tool.name) == nameSlug
+        }
+    }
+
+    private func normalizedSourceHost(from url: URL) -> String? {
+        guard var host = url.host()?.lowercased(), !host.isEmpty else { return nil }
+        if host.hasPrefix("www.") {
+            host.removeFirst(4)
+        }
+        return host
     }
 
     private func uniqueID(base: String) -> String {

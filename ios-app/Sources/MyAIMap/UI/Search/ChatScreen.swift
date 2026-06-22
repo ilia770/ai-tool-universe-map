@@ -1,0 +1,525 @@
+import SwiftUI
+import UIKit
+
+enum ChatTheme {
+    static let background = Color(red: 11.0 / 255, green: 13.0 / 255, blue: 18.0 / 255)
+    static let surface = Color(red: 19.0 / 255, green: 22.0 / 255, blue: 29.0 / 255)
+    static let surfaceRaised = Color(red: 25.0 / 255, green: 29.0 / 255, blue: 38.0 / 255)
+    static let text = Color.white.opacity(0.92)
+    static let secondaryText = Color.white.opacity(0.62)
+}
+
+struct ChatScreen: View {
+    @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dismissComposerChromeToken = UUID()
+
+    let onOpenSettings: () -> Void
+    let onAddTool: () -> Void
+    let onAddSuggestedTool: (MissingToolSuggestion) -> Void
+    let onOpenToolInUniverse: (String) -> Void
+
+    private var toolCount: Int {
+        model.visibleAllTools.count
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ChatTopBar(
+                onOpenSettings: onOpenSettings
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+
+            transcript
+
+            composer
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ChatTheme.background.ignoresSafeArea())
+    }
+
+    private var transcript: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    if model.assistantMessages.isEmpty {
+                        ChatStarterPanel(onSendPrompt: sendStarterPrompt)
+                            .padding(.top, 52)
+                    } else {
+                        ForEach(model.assistantMessages) { message in
+                            ChatMessageTurn(
+                                message: message,
+                                matches: tools(for: message.matchIDs),
+                                onOpenTool: onOpenToolInUniverse,
+                                onAddSuggestedTool: onAddSuggestedTool
+                            )
+                            .id(message.id)
+                        }
+                    }
+                }
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 28)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    dismissComposerChromeToken = UUID()
+                }
+            )
+            .onChange(of: model.assistantMessages.count) { _, _ in
+                guard let last = model.assistantMessages.last else { return }
+                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    private var composer: some View {
+        SearchDock(
+            isChatOpen: false,
+            dismissAttachmentMenuToken: dismissComposerChromeToken,
+            onAddTool: onAddTool,
+            onAddSuggestedTool: onAddSuggestedTool,
+            onToolSelect: onOpenToolInUniverse,
+            onOpenToolDetail: onOpenToolInUniverse,
+            onChatActivityChange: nil
+        )
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func tools(for ids: [String]) -> [Tool] {
+        ids.compactMap { id in model.visibleAllTools.first { $0.id == id } }
+    }
+
+    private func sendStarterPrompt(_ prompt: StarterPrompt) {
+        if model.isUniverseEmpty {
+            let suggestion = prompt.suggestion
+            model.assistantMessages.append(AssistantMessage(role: .user, text: prompt.query))
+            model.assistantMessages.append(
+                AssistantMessage(
+                    role: .assistant,
+                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node, then the map will unlock once your stack has three tools.",
+                    missingToolSuggestions: [suggestion]
+                )
+            )
+            return
+        }
+
+        model.assistantQuery = prompt.query
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+            model.askAssistant()
+        }
+    }
+}
+
+private struct ChatTopBar: View {
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AI Universe")
+                    .font(.system(.headline, weight: .semibold))
+                    .foregroundStyle(ChatTheme.text)
+                Text("Ask, choose, and grow your map")
+                    .font(.system(.caption, weight: .medium))
+                    .foregroundStyle(ChatTheme.secondaryText)
+            }
+
+            Spacer()
+
+            Button(action: onOpenSettings) {
+                UserAvatarImage(size: 40, tint: BrandColor.core)
+            }
+            .buttonStyle(BouncyIconButtonStyle())
+            .accessibilityLabel("Account")
+            .accessibilityIdentifier("ChatScreen.Account")
+        }
+    }
+}
+
+private struct ChatStarterPanel: View {
+    let onSendPrompt: (StarterPrompt) -> Void
+
+    private let prompts = [
+        StarterPrompt(
+            id: "design-app",
+            title: "Design an app",
+            query: "What tool should I use for app design?",
+            suggestion: MissingToolSuggestion(
+                name: "Figma",
+                category: .design,
+                reason: "Best first node for app UI, prototypes, and design handoff."
+            )
+        ),
+        StarterPrompt(
+            id: "build-mvp",
+            title: "Build an MVP",
+            query: "I need a workflow to build and launch an MVP",
+            suggestion: MissingToolSuggestion(
+                name: "Supabase",
+                category: .infrastructure,
+                reason: "Fast backend/auth/database foundation for a first MVP."
+            )
+        ),
+        StarterPrompt(
+            id: "track-growth",
+            title: "Track growth",
+            query: "Looking for analytics tools for a new product",
+            suggestion: MissingToolSuggestion(
+                name: "PostHog",
+                category: .analytics,
+                reason: "Product analytics and funnels should land early in the stack."
+            )
+        ),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(BrandColor.core.opacity(0.16))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(BrandColor.core)
+                }
+                .frame(width: 62, height: 62)
+
+                Text("What are you trying to build?")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(ChatTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Ask for a workflow or a tool recommendation. Your answers can become a living map of the stack.")
+                    .font(.system(.body))
+                    .lineSpacing(4)
+                    .foregroundStyle(ChatTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
+                ForEach(prompts) { prompt in
+                    Button {
+                        onSendPrompt(prompt)
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12, weight: .bold))
+                            Text(prompt.title)
+                                .font(.system(.subheadline, weight: .semibold))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(ChatTheme.text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 13)
+                        .background(ChatTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(BrandColor.stroke, lineWidth: 0.5)
+                        }
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light))
+                    .accessibilityIdentifier("ChatScreen.StarterPrompt.\(prompt.id)")
+                }
+            }
+        }
+    }
+}
+
+private struct StarterPrompt: Identifiable {
+    let id: String
+    let title: String
+    let query: String
+    let suggestion: MissingToolSuggestion
+}
+
+private struct ChatMessageTurn: View {
+    let message: AssistantMessage
+    let matches: [Tool]
+    let onOpenTool: (String) -> Void
+    let onAddSuggestedTool: (MissingToolSuggestion) -> Void
+
+    private var isUser: Bool { message.role == .user }
+
+    var body: some View {
+        if isUser {
+            // User bubble hugs its content, right-aligned, capped at ~78% width.
+            HStack(spacing: 0) {
+                Spacer(minLength: 42)
+                userBubble
+            }
+        } else {
+            assistantTurn
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var userBubble: some View {
+        // Hug-content text (NOT stretched to full width); the outer HStack's
+        // Spacer caps the bubble at ~78% of the row width and right-aligns it.
+        Text(message.text)
+            .font(.system(.body, weight: .medium))
+            .foregroundStyle(.white.opacity(0.92))
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 11)
+            .background(BrandColor.core.opacity(0.24), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.white.opacity(0.10), lineWidth: 0.5)
+            }
+    }
+
+    private var assistantTurn: some View {
+        // No leading avatar: assistant content spans the column, left-aligned.
+        VStack(alignment: .leading, spacing: 12) {
+            ChatMarkdownText(text: assistantProse(from: message.text), font: .system(.body), color: ChatTheme.text)
+                .lineSpacing(5)
+
+            if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
+                ChatChipRow {
+                    ForEach(matches.prefix(4)) { tool in
+                        ChatToolChip(tool: tool) { onOpenTool(tool.id) }
+                    }
+                    ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
+                        ChatMissingToolChip(suggestion: suggestion) { onAddSuggestedTool(suggestion) }
+                    }
+                }
+            }
+
+            assistantActionRow
+        }
+    }
+
+    private var assistantActionRow: some View {
+        HStack(spacing: 18) {
+            Button {
+                UIPasteboard.general.string = message.text
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
+            .accessibilityLabel("Copy message")
+            .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
+
+            if !matches.isEmpty {
+                Button {
+                    if let first = matches.first { onOpenTool(first.id) }
+                } label: {
+                    Image(systemName: "map")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
+                .accessibilityLabel("Open in Universe")
+                .accessibilityIdentifier("ChatScreen.Action.Open.\(message.id)")
+            }
+        }
+        .foregroundStyle(ChatTheme.secondaryText)
+        .padding(.top, 2)
+    }
+
+    private func assistantProse(from text: String) -> String {
+        text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.hasPrefix("|") else { return true }
+                return false
+            }
+            .filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !trimmed.hasPrefix("**Next:**") && !trimmed.hasPrefix("Next:")
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Wrapping horizontal flow: lays chips out in a line, wrapping to the next
+/// row when they no longer fit (ChatGPT-style inline source pills).
+private struct ChatChipRow: Layout {
+    var hSpacing: CGFloat = 8
+    var vSpacing: CGFloat = 8
+
+    init(hSpacing: CGFloat = 8, vSpacing: CGFloat = 8) {
+        self.hSpacing = hSpacing
+        self.vSpacing = vSpacing
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var maxRowWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if rowWidth > 0, rowWidth + hSpacing + size.width > maxWidth {
+                totalHeight += rowHeight + vSpacing
+                maxRowWidth = max(maxRowWidth, rowWidth)
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? hSpacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+        totalHeight += rowHeight
+        maxRowWidth = max(maxRowWidth, rowWidth)
+        return CGSize(width: min(maxRowWidth, maxWidth), height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + vSpacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            x += size.width + hSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+/// Compact source/tool pill: favicon-sized logo + short name, sized to content.
+private struct ChatToolChip: View {
+    let tool: Tool
+    let onOpen: () -> Void
+
+    private var category: ToolCategory {
+        UniverseSeed.category(tool.category)
+    }
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 6) {
+                ToolLogoView(tool: tool, accent: category.color.swiftUIColor, size: 16)
+                Text(tool.name)
+                    .font(.system(.footnote, weight: .medium))
+                    .foregroundStyle(ChatTheme.text)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(ChatTheme.surfaceRaised, in: Capsule())
+            .overlay {
+                Capsule().stroke(category.color.swiftUIColor.opacity(0.28), lineWidth: 0.8)
+            }
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
+        .accessibilityLabel("Open \(tool.name) on map")
+        .accessibilityIdentifier("ChatScreen.ToolCard.\(tool.id)")
+    }
+}
+
+/// Compact "add suggested tool" pill.
+private struct ChatMissingToolChip: View {
+    let suggestion: MissingToolSuggestion
+    let onAdd: () -> Void
+
+    private var category: ToolCategory {
+        UniverseSeed.category(suggestion.category)
+    }
+
+    var body: some View {
+        Button(action: onAdd) {
+            HStack(spacing: 5) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                Text(suggestion.name)
+                    .font(.system(.footnote, weight: .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(category.color.swiftUIColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(category.color.swiftUIColor.opacity(0.10), in: Capsule())
+            .overlay {
+                Capsule().stroke(category.color.swiftUIColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            }
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
+        .accessibilityLabel("Add \(suggestion.name) to my map")
+        .accessibilityIdentifier("ChatScreen.MissingTool.\(suggestion.id)")
+    }
+}
+
+private struct ChatMarkdownText: View {
+    let text: String
+    let font: Font
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                lineView(line)
+            }
+        }
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var lines: [String] {
+        text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    }
+
+    @ViewBuilder
+    private func lineView(_ line: String) -> some View {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            Color.clear.frame(height: 4)
+        } else if trimmed.hasPrefix("- ") {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•")
+                    .font(.system(.body, weight: .bold))
+                markdownText(String(trimmed.dropFirst(2)))
+                    .font(font)
+            }
+        } else {
+            markdownText(line)
+                .font(font)
+        }
+    }
+
+    private func markdownText(_ markdown: String) -> Text {
+        if let attributed = try? AttributedString(
+            markdown: markdown,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+        ) {
+            return Text(attributed)
+        }
+        return Text(markdown)
+    }
+}
+
+#Preview {
+    ChatScreen(
+        onOpenSettings: {},
+        onAddTool: {},
+        onAddSuggestedTool: { _ in },
+        onOpenToolInUniverse: { _ in }
+    )
+    .environment(UniverseViewModel())
+}

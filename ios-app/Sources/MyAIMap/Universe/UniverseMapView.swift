@@ -4,6 +4,7 @@ import UIKit
 /// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
 struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var sceneController = UniverseSceneController()
     @State private var cameraRig = CameraRigController()
@@ -12,6 +13,7 @@ struct UniverseMapView: View {
     @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
+    @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
 
@@ -47,17 +49,30 @@ struct UniverseMapView: View {
 
     private var universeStack: some View {
         ZStack {
-            UniverseRealityView(
-                planets: planets,
-                mode: mode,
-                visualizationStyle: model.visualizationStyle,
-                sceneController: sceneController,
-                cameraRig: cameraRig,
-                gestureController: gestureController,
-                onPlanetTap: selectCategory,
-                onToolTap: focusToolFromMap,
-                onEmptyTap: handleEmptySpaceTap
-            )
+            Group {
+                switch model.renderMode {
+                case .graph2D:
+                    UniverseGraphView(
+                        planets: planets,
+                        mode: mode,
+                        onPlanetTap: selectCategory,
+                        onToolTap: focusToolFromMap,
+                        onEmptyTap: handleEmptySpaceTap
+                    )
+                case .spatial3D:
+                    UniverseRealityView(
+                        planets: planets,
+                        mode: mode,
+                        visualizationStyle: model.visualizationStyle,
+                        sceneController: sceneController,
+                        cameraRig: cameraRig,
+                        gestureController: gestureController,
+                        onPlanetTap: selectCategory,
+                        onToolTap: focusToolFromMap,
+                        onEmptyTap: handleEmptySpaceTap
+                    )
+                }
+            }
             .ignoresSafeArea()
 
             Color.black
@@ -73,10 +88,12 @@ struct UniverseMapView: View {
                 selectedTool: selectedTool,
                 onCategorySelect: selectCategory,
                 onToolSelect: focusToolFromMap,
+                onOpenToolDetail: openToolDetailFromChat,
                 onChatActivityChange: setChatOpen,
                 onDetails: presentDetail,
                 onAccount: presentAccount,
-                onAddTool: presentAddTool
+                onAddTool: { presentAddTool() },
+                onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }
             )
         }
     }
@@ -87,7 +104,7 @@ struct UniverseMapView: View {
     @ViewBuilder
     private var inspectorPanel: some View {
         if !model.isUniverseEmpty, mode.selectedToolID != nil {
-            RootSheet()
+            RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .frame(width: 360)
                 .background {
                     ZStack {
@@ -117,9 +134,11 @@ struct UniverseMapView: View {
         .background(Color.black)
         .preferredColorScheme(.dark)
         .onAppear {
+            if planets.isEmpty {
+                rebuildPlanets()
+            }
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
-            model.universeMode = navigationModeForSelection()
             focusCamera(for: mode, animated: false)
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
@@ -127,6 +146,18 @@ struct UniverseMapView: View {
         }
         .onChange(of: model.universeMode) { _, newMode in
             focusCamera(for: newMode, animated: true)
+            // Single source of truth: the model owns whether detail is open.
+            // If the model leaves `.detail` for any reason (e.g. deleting the
+            // selected tool from the sheet), dismiss the local sheet so it
+            // cannot outlive the navigation state.
+            if !newMode.isDetailOpen, detailPresented {
+                detailPresented = false
+            }
+        }
+        .onChange(of: model.renderMode) { _, renderMode in
+            if renderMode == .spatial3D {
+                focusCamera(for: mode, animated: false)
+            }
         }
         .onChange(of: detailPresented) { _, isPresented in
             if isPresented {
@@ -137,7 +168,7 @@ struct UniverseMapView: View {
             }
         }
         .sheet(isPresented: $detailPresented) {
-            RootSheet()
+            RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .presentationDetents([.fraction(0.72), .large])
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.72)))
                 .presentationDragIndicator(.visible)
@@ -151,14 +182,21 @@ struct UniverseMapView: View {
                 .presentationCornerRadius(42)
         }
         .sheet(isPresented: $addToolPresented) {
-            AddToolSheet()
+            AddToolSheet(draft: addToolDraft)
                 .environment(model)
-                .presentationDetents([.fraction(0.72), .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(42)
         }
-        .onAppear { if planets.isEmpty { rebuildPlanets() } }
-        .onChange(of: model.visibleAllTools.count) { _, _ in rebuildPlanets() }
+        .onChange(of: addToolPresented) { _, isPresented in
+            if !isPresented {
+                addToolDraft = nil
+            }
+        }
+        .onChange(of: model.visibleAllTools.map(\.id)) { _, _ in
+            rebuildPlanets()
+            focusCamera(for: mode, animated: false)
+        }
     }
 
     private func selectCategory(_ id: ToolCategoryId) {
@@ -183,25 +221,41 @@ struct UniverseMapView: View {
             BrandHaptics.fire(.medium)
         }
 
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(id)
         }
     }
 
     private func focusToolFromMap(_ id: String) {
-        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
-        guard model.selection.selectedToolID != id else {
-            if mode == .toolSelected(tool.category, id) {
-                presentDetail()
-            } else {
-                BrandHaptics.fire(.light)
-                model.universeMode = .toolSelected(tool.category, id)
-            }
+        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
+        guard mode.selectedToolID != id else {
+            presentDetail()
             return
         }
         BrandHaptics.fire(.medium)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.focusTool(id)
+        }
+    }
+
+    private func openToolDetailFromChat(_ id: String) {
+        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
+        if isCompact {
+            modeBeforeDetail = .toolSelected(tool.category, tool.id)
+            model.universeMode = .detail(tool.category, tool.id)
+            detailPresented = true
+        } else {
+            model.universeMode = .toolSelected(tool.category, tool.id)
+        }
+    }
+
+    private func openRelatedToolFromDetail(_ id: String) {
+        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
+        if isCompact {
+            modeBeforeDetail = .toolSelected(tool.category, tool.id)
+            model.universeMode = .detail(tool.category, tool.id)
+        } else {
+            model.universeMode = .toolSelected(tool.category, tool.id)
         }
     }
 
@@ -212,7 +266,7 @@ struct UniverseMapView: View {
             return
         }
         BrandHaptics.fireRich(.pocketClose)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(.core)
         }
     }
@@ -232,6 +286,24 @@ struct UniverseMapView: View {
         if case .chatOpen(let category, _) = mode {
             let planet = category.flatMap { id in planets.first { $0.id == id } }
             cameraRig.enterChat(focusedOn: planet, animated: animated)
+            return
+        }
+
+        if let toolID = mode.selectedToolID,
+           mode.focusedCategory == .core {
+            let core = planets.first(where: { $0.id == .core }) ?? PlanetData.core(from: model.visibleAllTools)
+            guard toolID != PlanetData.centralCoreToolID,
+                  let toolIndex = core.tools.firstIndex(where: { $0.id == toolID }) else {
+                cameraRig.focus(category: core, animated: animated)
+                return
+            }
+            cameraRig.focus(
+                tool: core.tools[toolIndex],
+                around: core,
+                index: toolIndex,
+                count: core.tools.count,
+                animated: animated
+            )
             return
         }
 
@@ -325,7 +397,12 @@ struct UniverseMapView: View {
     }
 
     private func presentAddTool() {
+        presentAddTool(draft: nil)
+    }
+
+    private func presentAddTool(draft: MissingToolSuggestion?) {
         BrandHaptics.fire(.medium)
+        addToolDraft = draft
         if detailPresented {
             detailPresented = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {

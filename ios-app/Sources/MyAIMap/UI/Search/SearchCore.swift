@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Pure search ranking for the SearchDock. Foundation-only (no SwiftUI /
@@ -62,10 +63,49 @@ enum SearchCore {
 /// trigger glyph, remove availability, and access-action de-duplication) are
 /// unit-testable without SwiftUI.
 enum ComposerLogic {
+    static let userBubbleMaxWidthRatio = 0.80
+    static let assistantMessageMaxWidthRatio = 0.86
+
     /// Send is enabled when there is text OR an attachment; disabled only when
     /// neither exists. (Spec: "Disabled only when no text AND no attachment".)
     static func canSend(hasText: Bool, hasAttachment: Bool) -> Bool {
         hasText || hasAttachment
+    }
+
+    /// The trailing action becomes Send as soon as the composer is in an
+    /// active sendable state. Otherwise it remains the Add-tool plus button.
+    static func showsSendButton(isFocused: Bool, hasText: Bool, hasAttachment: Bool) -> Bool {
+        isFocused || hasText || hasAttachment
+    }
+
+    /// Submit uses the typed text when present. Attachment-only sends still
+    /// produce a compact user message so the enabled Send button never becomes
+    /// a no-op.
+    static func outgoingMessageText(query: String, attachmentTitle: String?) -> String? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        guard let attachmentTitle else { return nil }
+        return "Attached \(attachmentTitle.lowercased())"
+    }
+
+    /// Collapsing hides the transcript, but it should not dismiss the chat mode
+    /// while there is a transcript/draft to reopen.
+    static func keepsChatActive(
+        isFocused: Bool,
+        showsConversation: Bool,
+        isCollapsedWithContent: Bool,
+        attachmentMenuOpen: Bool,
+        hasAttachment: Bool
+    ) -> Bool {
+        isFocused || showsConversation || isCollapsedWithContent || attachmentMenuOpen || hasAttachment
+    }
+
+    /// User bubbles should be compact for short text and wrap before becoming a
+    /// wide block. Keep the ratio in the requested 75-82% range.
+    static func userBubbleMaxWidth(availableWidth: CGFloat) -> CGFloat {
+        availableWidth * userBubbleMaxWidthRatio
     }
 
     /// The attachment menu trigger is a single control with a stable glyph: it

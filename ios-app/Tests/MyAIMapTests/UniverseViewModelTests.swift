@@ -111,6 +111,33 @@ struct UniverseViewModelTests {
         #expect(model.clarityMode == .focus)
     }
 
+    @Test func renderModeDefaultsToReadableGraph2D() {
+        let model = makeModel()
+        #expect(model.renderMode == .graph2D)
+    }
+
+    @Test func renderModePersistsAcrossModelReloads() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+
+        let first = UniverseViewModel(store: store)
+        first.renderMode = .spatial3D
+
+        let reloaded = UniverseViewModel(store: store)
+        #expect(reloaded.renderMode == .spatial3D)
+    }
+
+    @Test func hapticsSettingPersistsAcrossModelReloads() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+
+        let first = UniverseViewModel(store: store)
+        first.hapticsEnabled = false
+
+        let reloaded = UniverseViewModel(store: store)
+        #expect(!reloaded.hapticsEnabled)
+    }
+
     @Test func selectCategoryAutoSelectsItsFirstTool() {
         let model = makeModel(sample: true)
         model.selectCategory(.design)
@@ -233,6 +260,22 @@ struct UniverseViewModelTests {
         #expect(model.activityHistory.contains { $0.kind == .removed && $0.toolID == "posthog" })
     }
 
+    @Test func deletingSelectedToolWhileInDetailExitsDetailMode() {
+        // R5: the compact detail sheet is derived from `universeMode.isDetailOpen`.
+        // Removing the selected tool from the detail sheet must drop the model out
+        // of `.detail`, otherwise the derived sheet would outlive the navigation
+        // state. We assert the state layer here; the View boolean syncs off this.
+        let model = makeModel(sample: true)
+        #expect(model.focusTool("posthog"))
+        model.universeMode = .detail(.analytics, "posthog")
+        #expect(model.universeMode.isDetailOpen)
+
+        #expect(model.deleteTool("posthog"))
+
+        #expect(!model.universeMode.isDetailOpen)
+        #expect(model.universeMode.selectedToolID != "posthog")
+    }
+
     @Test func restoreToolReturnsItToSearch() {
         let model = makeModel(sample: true)
         #expect(model.deleteTool("posthog"))
@@ -253,6 +296,78 @@ struct UniverseViewModelTests {
         #expect(model.activityHistory.contains { $0.kind == .added && $0.title.contains("New Analytics Tool") })
     }
 
+    @Test func addedToolStoresSourceDomainWhenWebsiteExists() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "https://www.posthog.com", category: .analytics))
+
+        let tool = model.visibleAllTools.first { $0.name == "PostHog" }
+        #expect(tool?.category == .analytics)
+        #expect(tool?.url?.absoluteString == "https://www.posthog.com")
+        #expect(tool?.logoDomain == "posthog.com")
+        #expect(tool?.summary.contains("Source domain: posthog.com") == true)
+    }
+
+    @Test func duplicateAddFocusesExistingVisibleToolInsteadOfCreatingCopy() {
+        let model = makeModel(sample: true)
+        let initialCount = model.allTools.count
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "https://www.posthog.com", category: .analytics))
+
+        #expect(model.allTools.count == initialCount)
+        #expect(model.selectedTool?.id == "posthog")
+        #expect(!model.allTools.contains { $0.id == "posthog-2" })
+    }
+
+    @Test func duplicateAddRestoresHiddenToolInsteadOfCreatingCopy() {
+        let model = makeModel(sample: true)
+        let initialCount = model.allTools.count
+        #expect(model.deleteTool("posthog"))
+
+        #expect(model.addCustomTool(name: "PostHog", urlString: "", category: .analytics))
+
+        #expect(model.allTools.count == initialCount)
+        #expect(!model.removedTools.contains { $0.id == "posthog" })
+        #expect(model.selectedTool?.id == "posthog")
+        #expect(model.activityHistory.contains { $0.kind == .restored && $0.toolID == "posthog" })
+    }
+
+    @Test func httpWebsiteIsStoredAsHttpsSoDetailCanOpenIt() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "HTTP Tool", urlString: "http://example.com/docs", category: .analytics))
+
+        let tool = model.visibleAllTools.first { $0.name == "HTTP Tool" }
+        #expect(tool?.url?.scheme == "https")
+        #expect(tool?.url?.absoluteString == "https://example.com/docs")
+        #expect(tool?.logoDomain == "example.com")
+    }
+
+    @Test func addedToolWithoutWebsiteIsMarkedUnverified() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "Random User Tool", urlString: "", category: .design))
+
+        let tool = model.visibleAllTools.first { $0.name == "Random User Tool" }
+        #expect(tool?.url == nil)
+        #expect(tool?.logoDomain == nil)
+        #expect(tool?.summary.contains("Website not provided") == true)
+        #expect(tool?.classification?.reason.contains("without a website") == true)
+    }
+
+    @Test func assistantCanReferenceToolAfterSuccessfulAdd() {
+        let model = makeModel()
+
+        #expect(model.addCustomTool(name: "Random User Tool", urlString: "", category: .design))
+        model.assistantQuery = "Random User Tool"
+        model.askAssistant()
+
+        let assistantReply = model.assistantMessages.last
+        #expect(assistantReply?.role == .assistant)
+        #expect(assistantReply?.matchIDs.contains("random-user-tool") == true)
+        #expect(assistantReply?.text.contains("I did not find this service") == false)
+    }
+
     @Test func assistantMissingToolDoesNotInventMatch() {
         let model = makeModel(sample: true)
         model.assistantQuery = "some unknown service"
@@ -263,5 +378,40 @@ struct UniverseViewModelTests {
         #expect(assistantReply?.role == .assistant)
         #expect(assistantReply?.matchIDs.isEmpty == true)
         #expect(assistantReply?.text.contains("website URL") == true)
+    }
+
+    // MARK: - Defensive: core tool can never be stranded by a stale hidden set
+
+    @Test func loadSanitizesHiddenCoreToolSoSelectionNeverStrands() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+        // Simulate a stale/corrupt persisted state where the core tool was hidden.
+        store.save(
+            tools: [],
+            hidden: [PlanetData.centralCoreToolID, "some-tool"],
+            renderMode: .graph2D,
+            hapticsEnabled: true
+        )
+
+        let model = UniverseViewModel(store: store)
+        #expect(!model.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
+        #expect(model.hiddenToolIDs.contains("some-tool"))
+
+        // The sanitized set is re-persisted, so a reload stays clean.
+        let reloaded = UniverseViewModel(store: store)
+        #expect(!reloaded.hiddenToolIDs.contains(PlanetData.centralCoreToolID))
+    }
+
+    // U1: the assistant can't read attachments, so an attachment-only send gets
+    // an honest reply instead of matching tools against the placeholder text.
+    @Test func attachmentOnlyMessageGetsHonestCannotReadReply() {
+        let model = makeModel(sample: true)
+        model.assistantQuery = "Attached photo"
+        model.askAssistant(attachmentOnly: true)
+
+        let last = model.assistantMessages.last
+        #expect(last?.role == .assistant)
+        #expect(last?.matchIDs.isEmpty == true)
+        #expect(last?.text.contains("can't read attachments") == true)
     }
 }

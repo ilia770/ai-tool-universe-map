@@ -70,7 +70,7 @@ Owner: Codex for current launch fixes. Claude may help only in docs unless expli
 - [x] Clarify Apple Developer/team ID, App Store Connect, screenshots, and signing blockers.
 - [x] Run iOS build sequentially after the Mac is idle.
 - [ ] Debug iOS XCTest run hang after bundle build.
-- [ ] Prepare signing steps for `com.iliaturilia.myaimap`.
+- [ ] Prepare signing steps for `com.ilyatur.myaimap`.
 
 ### Lane E - Release and QA
 

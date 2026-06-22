@@ -49,7 +49,7 @@ For TestFlight, use Xcode's Archive flow rather than a simulator build:
 
 1. Sign in to Xcode with the Apple Developer account.
 2. Set the `MyAIMap` target Team to the account's team.
-3. Keep Bundle Identifier as `com.iliaturilia.myaimap`.
+3. Keep Bundle Identifier as `com.ilyatur.myaimap`.
 4. Create the App Store Connect app with SKU `myaimap-ios`.
 5. Product -> Archive -> Distribute App -> App Store Connect -> Upload.
 
@@ -130,5 +130,5 @@ just Command Line Tools.
   universe state lives in a single source of truth.
 - Layout math stays in pure `simd` modules so it's testable without
   importing RealityKit.
-- Brand identifier: `com.iliaturilia.myaimap`.
+- Brand identifier: `com.ilyatur.myaimap`.
 - Marketing name: **My AI Map**.

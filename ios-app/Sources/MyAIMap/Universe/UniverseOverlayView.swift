@@ -3,6 +3,7 @@ import simd
 
 struct UniverseOverlayView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let planets: [PlanetData]
     let mode: UniverseMode
@@ -11,15 +12,18 @@ struct UniverseOverlayView: View {
     let selectedTool: Tool
     let onCategorySelect: (ToolCategoryId) -> Void
     let onToolSelect: (String) -> Void
+    let onOpenToolDetail: (String) -> Void
     let onChatActivityChange: (Bool) -> Void
     let onDetails: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
+    let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
 
     private var isFocusedOnTool: Bool {
-        mode.selectedToolID != nil && selectedTool.category == selectedPlanet.id && selectedPlanet.id != .core
+        guard let selectedToolID = mode.selectedToolID else { return false }
+        return selectedTool.id == selectedToolID && selectedTool.category == selectedPlanet.id
     }
 
     /// Screen-space labels re-project from the camera every render. While the
@@ -33,28 +37,37 @@ struct UniverseOverlayView: View {
 
     var body: some View {
         ZStack {
-            if mode.showsPlanetLabels && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolAnchor && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsToolAnchor && labelsQuiescent {
                 toolAnchorLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolLabels && labelsQuiescent {
+            if model.renderMode == .spatial3D && mode.showsToolLabels && labelsQuiescent {
                 toolLabelLayer
                     .allowsHitTesting(false)
             }
 
             if isRailActive {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.28))
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                // RIGHT_RAIL_SPEC: the rail must not cover the map. Constrain the
+                // readability treatment to a trailing strip behind the rail/list
+                // that fades to clear toward the map, instead of a full-screen scrim.
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(
+                        colors: [.clear, Color.black.opacity(0.34)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: railContrastWidth)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
 
             if model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen {
@@ -437,6 +450,11 @@ struct UniverseOverlayView: View {
         }
     }
 
+    /// Width of the trailing readability strip behind the active rail. Sized a
+    /// little wider than the rail list (184pt) so labels read clearly while the
+    /// rest of the map stays uncovered.
+    private var railContrastWidth: CGFloat { 220 }
+
     private var rightUniverseRail: some View {
         HStack {
             Spacer()
@@ -445,7 +463,7 @@ struct UniverseOverlayView: View {
                 activeCategory: mode.focusedCategory,
                 tint: selectedPlanet.swiftUIColor,
                 onActiveChange: { isActive in
-                    withAnimation(BrandMotion.nudge) {
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                         isRailActive = isActive
                     }
                 },
@@ -469,11 +487,7 @@ struct UniverseOverlayView: View {
                 .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
             Spacer()
             Button(action: onAccount) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white, selectedPlanet.swiftUIColor)
-                    .frame(width: 46, height: 46)
-                    .liquidGlass(in: Circle(), tint: selectedPlanet.swiftUIColor, strokeStrength: 0.12)
+                UserAvatarImage(size: 46, tint: selectedPlanet.swiftUIColor)
             }
             .buttonStyle(BouncyIconButtonStyle())
             .opacity(mode.isDetailOpen ? 0.58 : 1)
@@ -482,49 +496,47 @@ struct UniverseOverlayView: View {
     }
 
     private var visualizationControl: some View {
-        @Bindable var model = model
-        return HStack(spacing: 10) {
-            Text(model.visualizationStyle.shortLabel)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.black.opacity(0.82))
-                .frame(width: 30, height: 30)
-                .background(selectedPlanet.swiftUIColor, in: Circle())
+        Button {
+            onAccount()
+        } label: {
+            HStack(spacing: 10) {
+                Text(model.renderMode.shortLabel)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.82))
+                    .frame(width: 36, height: 30)
+                    .background(selectedPlanet.swiftUIColor, in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.visualizationStyle.title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(model.renderMode.title)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.88))
+                            .lineLimit(1)
 
-                Slider(value: styleIndexBinding, in: 0...Double(VisualizationStyle.allCases.count - 1), step: 1)
-                    .tint(selectedPlanet.swiftUIColor)
-                    .frame(width: 104)
-                    .accessibilityLabel("Visualization style")
+                        if model.renderMode.isExperimental {
+                            Text("Experimental")
+                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .foregroundStyle(selectedPlanet.swiftUIColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
+                        }
+                    }
+
+                    Text("Tap to switch")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(BrandColor.textMuted)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 8)
         .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
-    }
-
-    private var styleIndexBinding: Binding<Double> {
-        Binding(
-            get: {
-                Double(VisualizationStyle.allCases.firstIndex(of: model.visualizationStyle) ?? 0)
-            },
-            set: { newValue in
-                let index = Int(newValue.rounded())
-                let styles = VisualizationStyle.allCases
-                guard styles.indices.contains(index) else { return }
-                let nextStyle = styles[index]
-                guard nextStyle != model.visualizationStyle else { return }
-                BrandHaptics.fire(.light)
-                withAnimation(BrandMotion.flow) {
-                    model.visualizationStyle = nextStyle
-                }
-            }
-        )
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityLabel("Visualization mode \(model.renderMode.title)")
+        .accessibilityHint("Opens settings")
     }
 
     private var bottomControls: some View {
@@ -543,8 +555,11 @@ struct UniverseOverlayView: View {
 
             if !mode.isDetailOpen {
                 SearchDock(
+                    isChatOpen: mode.isChatOpen,
                     onAddTool: onAddTool,
+                    onAddSuggestedTool: onAddSuggestedTool,
                     onToolSelect: onToolSelect,
+                    onOpenToolDetail: onOpenToolDetail,
                     onChatActivityChange: onChatActivityChange
                 )
             }
@@ -598,7 +613,7 @@ struct UniverseOverlayView: View {
 
                 Button {
                     BrandHaptics.fire(.light)
-                    withAnimation(BrandMotion.flow) {
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                         _ = model.loadSampleUniverse()
                     }
                 } label: {

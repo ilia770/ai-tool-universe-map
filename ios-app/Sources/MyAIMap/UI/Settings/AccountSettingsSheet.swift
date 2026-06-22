@@ -3,8 +3,11 @@ import SwiftUI
 struct AccountSettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
+    @State private var deepSeekKeyInput = ""
+    @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
 
     var body: some View {
         NavigationStack {
@@ -48,15 +51,7 @@ struct AccountSettingsSheet: View {
 
     private var accountHeader: some View {
         HStack(spacing: BrandSpacing.m.value) {
-            Circle()
-                .fill(model.selectedCategoryModel.color.swiftUIColor.opacity(0.24))
-                .frame(width: 58, height: 58)
-                .overlay {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.white, model.selectedCategoryModel.color.swiftUIColor)
-                }
-                .liquidGlass(in: Circle(), tint: model.selectedCategoryModel.color.swiftUIColor, strokeStrength: 0.12)
+            UserAvatarImage(size: 58, tint: model.selectedCategoryModel.color.swiftUIColor)
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 Text("AI Universe")
@@ -75,13 +70,13 @@ struct AccountSettingsSheet: View {
         return VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             settingsGroup(title: "Visualization", systemImage: "circle.hexagongrid.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
-                    ForEach(VisualizationStyle.allCases) { style in
+                    ForEach(UniverseRenderMode.allCases) { renderMode in
                         Button {
-                            withAnimation(BrandMotion.flow) {
-                                model.visualizationStyle = style
+                            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                                model.renderMode = renderMode
                             }
                         } label: {
-                            visualizationRow(style)
+                            renderModeRow(renderMode)
                         }
                         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                     }
@@ -89,12 +84,21 @@ struct AccountSettingsSheet: View {
             }
 
             settingsGroup(title: "Language", systemImage: "globe") {
-                Picker("Language", selection: $model.appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.title).tag(language)
+                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                    Picker("Language", selection: $model.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.title).tag(language)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .disabled(true)
+                    .opacity(0.58)
+
+                    Text("System follows your device language. Manual language selection is coming soon.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .pickerStyle(.segmented)
             }
 
             settingsGroup(title: "Behavior", systemImage: "hand.tap.fill") {
@@ -106,10 +110,54 @@ struct AccountSettingsSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            settingsGroup(title: "AI assistant", systemImage: "sparkles") {
+                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                    HStack(spacing: BrandSpacing.s.value) {
+                        Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
+                            .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
+                        Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                    }
+
+                    SecureField("DeepSeek API key", text: $deepSeekKeyInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .submitLabel(.done)
+                        .padding(BrandSpacing.m.value)
+                        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                        .foregroundStyle(.white)
+
+                    HStack(spacing: BrandSpacing.s.value) {
+                        Button {
+                            saveDeepSeekKey()
+                        } label: {
+                            universeActionRow("Save key", systemImage: "tray.and.arrow.down", destructive: false)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                        .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button(role: .destructive) {
+                            clearDeepSeekKey()
+                        } label: {
+                            universeActionRow("Clear", systemImage: "trash", destructive: true)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                        .disabled(!deepSeekKeySet)
+                    }
+
+                    Text("Optional, cheaper AI. Paste a DeepSeek API key to answer with DeepSeek instead of the on-device assistant. The key is stored on device (Keychain); without it, the local assistant is used.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
                     Button {
-                        withAnimation(BrandMotion.flow) { _ = model.loadSampleUniverse() }
+                        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { _ = model.loadSampleUniverse() }
                     } label: {
                         universeActionRow("Load sample universe", systemImage: "sparkles", destructive: false)
                     }
@@ -126,7 +174,7 @@ struct AccountSettingsSheet: View {
             }
             .confirmationDialog("Reset universe?", isPresented: $showResetConfirm, titleVisibility: .visible) {
                 Button("Reset everything", role: .destructive) {
-                    withAnimation(BrandMotion.flow) { model.resetUniverse() }
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.resetUniverse() }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -138,7 +186,7 @@ struct AccountSettingsSheet: View {
                     VStack(spacing: BrandSpacing.s.value) {
                         ForEach(model.removedTools) { tool in
                             Button {
-                                withAnimation(BrandMotion.nudge) {
+                                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                                     _ = model.restoreTool(tool.id)
                                 }
                             } label: {
@@ -216,27 +264,42 @@ struct AccountSettingsSheet: View {
             content()
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-            strokeStrength: 0.08
+        // Settings group = content panel → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
-    private func visualizationRow(_ style: VisualizationStyle) -> some View {
-        let isSelected = style == model.visualizationStyle
+    private func renderModeRow(_ renderMode: UniverseRenderMode) -> some View {
+        let isSelected = renderMode == model.renderMode
         return HStack(spacing: BrandSpacing.m.value) {
-            Text(style.shortLabel)
+            Text(renderMode.shortLabel)
                 .font(.headline.weight(.bold))
                 .foregroundStyle(isSelected ? .black.opacity(0.82) : .white)
-                .frame(width: 34, height: 34)
+                .frame(width: 42, height: 34)
                 .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.muted, in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                Text(style.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text(style.detail)
+                HStack(spacing: 6) {
+                    Text(renderMode.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    if renderMode.isExperimental {
+                        Text("Experimental")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(model.selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                    }
+                }
+                Text(renderMode.detail)
                     .font(.caption)
                     .foregroundStyle(BrandColor.textMuted)
                     .lineLimit(2)
@@ -293,6 +356,20 @@ struct AccountSettingsSheet: View {
         case .focused: return "scope"
         case .asked: return "sparkles"
         }
+    }
+
+    private func saveDeepSeekKey() {
+        let trimmed = deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        KeychainStore.save(trimmed, account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeyInput = ""
+    }
+
+    private func clearDeepSeekKey() {
+        KeychainStore.delete(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = false
+        deepSeekKeyInput = ""
     }
 
     private func open(_ activity: UniverseActivity) {

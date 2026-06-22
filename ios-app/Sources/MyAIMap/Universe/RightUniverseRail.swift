@@ -149,7 +149,7 @@ struct UniverseRailView: View {
         guard !gestureState.isActive else { return }
         BrandHaptics.fire(.light)
         onActiveChange(true)
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             // Resigns the keyboard on the inactive→active edge so the rail
             // never coexists with an open keyboard (UI_STATE_MACHINE.md).
             gestureState.begin(activeCategory: activeCategory, activeIndex: activeIndex)
@@ -158,7 +158,7 @@ struct UniverseRailView: View {
 
     private func collapseRail() {
         let wasActive = gestureState.isActive
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             gestureState.reset()
         }
         if wasActive {

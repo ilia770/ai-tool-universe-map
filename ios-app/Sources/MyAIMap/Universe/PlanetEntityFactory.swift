@@ -23,7 +23,7 @@ enum PlanetEntityFactory {
         if data.id == .core {
             radius = data.radius * 0.54
         } else {
-            radius = data.radius * visualizationStyle.categoryScale * (isSelected ? 1.44 : 0.92)
+            radius = data.radius * visualizationStyle.categoryScale * (isSelected ? 1.20 : 0.84)
         }
 
         let planet = ModelEntity(
