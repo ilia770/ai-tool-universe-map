@@ -72,6 +72,36 @@ struct ComposerLogicTests {
         #expect(ComposerLogic.showsRemoveAttachment(hasAttachment: true) == true)
     }
 
+    // MARK: - Float lane: menu vs preview are mutually exclusive (§4)
+
+    @Test func floatLaneEmptyWhenNoAttachmentAndMenuClosed() {
+        // State A — no panel above the composer.
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: false) == false)
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: false, hasAttachment: false) == false)
+    }
+
+    @Test func menuShowsAndPreviewHiddenWhileMenuOpen() {
+        // State B — menu open; preview suppressed even if an attachment exists.
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: true) == true)
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: true, hasAttachment: true) == false)
+    }
+
+    @Test func previewShowsWhenAttachedAndMenuClosed() {
+        // State C — attachment staged, menu closed.
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: false, hasAttachment: true) == true)
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: false) == false)
+    }
+
+    @Test func menuAndPreviewAreNeverBothVisible() {
+        for menuOpen in [true, false] {
+            for hasAttachment in [true, false] {
+                let menu = ComposerLogic.showsAttachmentMenu(menuOpen: menuOpen)
+                let preview = ComposerLogic.showsAttachmentPreview(menuOpen: menuOpen, hasAttachment: hasAttachment)
+                #expect(!(menu && preview))
+            }
+        }
+    }
+
     // MARK: - De-duplication of access actions
 
     @Test func inMessageAccessActionsAreNeverRenderedAsButtons() {
@@ -82,14 +112,14 @@ struct ComposerLogicTests {
 
     // MARK: - Collapse / expand state
 
-    @Test func collapsedConversationKeepsChatActiveWhenItHasContent() {
+    @Test func collapsedConversationReturnsMapInteractionEvenWithContent() {
         #expect(ComposerLogic.keepsChatActive(
             isFocused: false,
             showsConversation: false,
             isCollapsedWithContent: true,
             attachmentMenuOpen: false,
             hasAttachment: false
-        ))
+        ) == false)
     }
 
     @Test func idleCollapsedConversationWithoutContentDoesNotKeepChatActive() {

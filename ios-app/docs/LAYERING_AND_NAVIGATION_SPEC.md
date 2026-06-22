@@ -67,13 +67,13 @@ which they are in and how to reach the others.
   `.safeAreaInset(edge: .top)`. In `.universe` it shows **Ask about this**
   (→ `askAboutSelection()` → `showChat()`) and a **Map** pill. In `.chat`
   only the Map pill shows.
-- The Map pill is `.disabled(toolCount < 3)` and dimmed — so from chat you
-  cannot reach the map until you have 3 tools.
+- The Map pill is always enabled. Empty/low-tool maps are valid destinations
+  and explain themselves through first-run / empty-state copy.
 
 ### 2.2 Gaps in current behavior
-1. **Chat has no clear "back to map" control at the surface level.** From the
-   `.chat` surface the only way back is the Map pill, which is *disabled*
-   until 3 tools. A new/low-tool user is effectively stuck in chat.
+1. **Chat must keep its clear "back to map" control at the surface level.**
+   From the `.chat` surface the Map pill is the always-enabled return path; do
+   not reintroduce any tool-count gate.
 2. **Two different "chat" concepts.** There is (a) the full `.chat` *surface*
    (`ChatScreen`) and (b) the in-map `SearchDock` chat panel with its own
    `conversationCollapsed` state. Collapse semantics differ between them,
@@ -99,8 +99,8 @@ which they are in and how to reach the others.
 ### 3.2 Map reachable from chat without the 3-tool trap
 - The Map pill must **not** be the only return path while disabled. Either:
   - (a) make the Map pill always enabled (an empty/low-tool map shows the
-    empty-state card per FIRST_RUN_SPEC), keeping the "3 tools to unlock
-    rich map" idea as messaging, not a hard lock; **or**
+    empty-state card per FIRST_RUN_SPEC), keeping any "add more tools for a
+    richer map" idea as messaging, not a hard lock; **or**
   - (b) add an always-enabled "Map" / back control so the user can leave
     chat at any time.
 - Recommended: (a). The empty map is a valid, informative destination.
@@ -122,10 +122,10 @@ which they are in and how to reach the others.
   state: either the map surface (chat surface dismissed) or the collapsed
   in-map pill. There must be no intermediate where the composer is gone, the
   transcript is gone, but a transparent layer still intercepts map taps.
-- The existing `SearchDock.onChange(of: isChatOpen)` already resets
-  `fieldFocused`, `attachmentMenuOpen`, and `conversationCollapsed = true`
-  when chat closes — preserve this reset so closing chat never strands
-  focus or an open attachment menu.
+- The existing `SearchDock.onChange(of: isChatOpen)` resets `fieldFocused`,
+  `attachmentMenuOpen`, and `conversationCollapsed = true` when chat closes.
+  The collapsed "Show chat" pill may remain visible as a small affordance, but
+  it must not keep `UniverseMode.chatOpen` active or block map gestures.
 - **Reopening:** from the collapsed pill ("Show chat") or by returning to the
   `.chat` surface, the previous transcript must still be present
   (`model.assistantMessages` is the single source of truth and is not cleared
@@ -194,3 +194,33 @@ which they are in and how to reach the others.
 8. **Sheets are terminal & dismiss cleanly.** Opening Add Tool or Settings
    covers the map; dismissing returns to the exact prior surface and state
    (no residual dim, no stranded selection).
+
+---
+
+## 6. Implementation update - 2026-06-22
+
+The current stabilization pass keeps the map-first launch from
+`FIRST_RUN_SPEC.md` and adds the missing Liquid Glass navigation continuity:
+
+- `RootShell.RootSurfaceSwitch` uses shared morph IDs for the Map / Ask AI
+  route controls and the selected-tool context chip, with neutral glass styling.
+- `UniverseOverlayView.topChrome` wraps the mode pill and profile button in one
+  glass container so the top navigation layer behaves like a single control
+  surface.
+- `SearchDock` gives the Collapse Chat and Show Chat affordances a shared morph
+  identity and keeps the transcript resumable.
+- `ComposerLogic.keepsChatActive` no longer treats
+  `isCollapsedWithContent == true` as an active chat state. Collapsed chat keeps
+  the transcript resumable through the small "Show chat" pill, but releases the
+  map from `UniverseMode.chatOpen`, so map taps and pans are not blocked by an
+  invisible chat layer.
+- `AddToolSheet` and `AccountSettingsSheet` toolbar actions use matching glass
+  chrome, preserving the same navigation language in modal states.
+
+Verification on 2026-06-22:
+
+- `MyAIMapTests/ComposerLogicTests`: 25 passed, 0 failed.
+- `bash scripts/ios-verify.sh --run-tests --device-id
+  EAC2C682-5C38-44DB-8FEC-034E296E8EEA`: 263 passed in 32 suites, 0 failed.
+- `MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates`: 1 passed, 0
+  failed.

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ToolPricingRow: Identifiable, Equatable, Sendable {
     let id: String
@@ -95,6 +96,8 @@ struct ToolDetailSection: View {
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+    /// Drives the copy-confirmation toast when the user copies tool info.
+    @State private var copyToastKind: CopyToastKind?
     /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var pricingIconGlyph: CGFloat = 14
     @ScaledMetric(relativeTo: .body) private var pricingIconContainer: CGFloat = 28
@@ -151,6 +154,7 @@ struct ToolDetailSection: View {
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
         .accessibilityIdentifier("ToolDetailSection.Root")
+        .copyToast($copyToastKind)
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
             isPresented: $isShowingRemoveConfirmation,
@@ -210,9 +214,31 @@ struct ToolDetailSection: View {
                 .contentTransition(.opacity)
 
             primaryAction
+            copyInfoAction
         }
         .padding(BrandSpacing.m.value)
         .background(neutralCardBackground)
+    }
+
+    private var copyInfoAction: some View {
+        Button {
+            UIPasteboard.general.string = ToolInfoClipboard.text(
+                name: selectedTool.name,
+                summary: selectedTool.summary,
+                url: selectedTool.url?.absoluteString
+            )
+            BrandHaptics.fire(.success)
+            copyToastKind = .toolInfo
+        } label: {
+            Label("Copy tool info", systemImage: "doc.on.doc")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityIdentifier("ToolDetailSection.CopyInfo")
     }
 
     @ViewBuilder
@@ -221,12 +247,16 @@ struct ToolDetailSection: View {
             Button {
                 browserSheet = item
             } label: {
-                actionLabel("Open website", systemImage: "safari", foreground: .black.opacity(0.84))
-                    .background(selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                actionLabel("Open website", systemImage: "safari", foreground: .white.opacity(0.92))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         } else {
-            Label("Website not added", systemImage: "lock.doc")
+            Label("Website not added - verify source", systemImage: "lock.doc")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BrandColor.textMuted)
                 .frame(maxWidth: .infinity)
@@ -249,9 +279,9 @@ struct ToolDetailSection: View {
         HStack(alignment: .top, spacing: BrandSpacing.m.value) {
             Image(systemName: row.icon)
                 .font(.system(size: pricingIconGlyph, weight: .bold))
-                .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                .foregroundStyle(.white.opacity(0.82))
                 .frame(width: pricingIconContainer, height: pricingIconContainer)
-                .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Circle())
+                .background(.white.opacity(0.08), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -261,7 +291,7 @@ struct ToolDetailSection: View {
                     Spacer(minLength: BrandSpacing.s.value)
                     Text(row.value)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                        .foregroundStyle(.white.opacity(0.72))
                         .multilineTextAlignment(.trailing)
                 }
 

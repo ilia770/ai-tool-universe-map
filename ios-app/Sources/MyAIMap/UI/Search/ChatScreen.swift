@@ -59,6 +59,8 @@ struct ChatScreen: View {
     /// True once the bottom of the transcript is scrolled out of view; gates
     /// the jump-to-latest pill.
     @State private var showsJumpToLatest = false
+    /// Drives the copy-confirmation toast when the user copies an answer.
+    @State private var copyToastKind: CopyToastKind?
 
     /// Stable scroll target so the jump pill and send-autoscroll land at the
     /// very bottom even while the last turn is still revealing.
@@ -98,6 +100,7 @@ struct ChatScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ChatTheme.background.ignoresSafeArea())
+        .copyToast($copyToastKind)
     }
 
     private var transcript: some View {
@@ -123,7 +126,8 @@ struct ChatScreen: View {
                                 isLatest: index == messages.count - 1,
                                 onOpenTool: onOpenToolInUniverse,
                                 onAddSuggestedTool: onAddSuggestedTool,
-                                onCardLand: onCardLand
+                                onCardLand: onCardLand,
+                                onCopyAnswer: { copyToastKind = .answer }
                             )
                             .id(message.id)
                         }
@@ -198,7 +202,7 @@ struct ChatScreen: View {
             model.assistantMessages.append(
                 AssistantMessage(
                     role: .assistant,
-                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node, then the map will unlock once your stack has three tools.",
+                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node on the map, then you can keep growing the branch.",
                     missingToolSuggestions: [suggestion]
                 )
             )
@@ -357,6 +361,9 @@ private struct ChatMessageTurn: View {
     let onOpenTool: (String) -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
     var onCardLand: (CardLandRequest) -> Void = { _ in }
+    /// Fired after the assistant answer is written to the pasteboard so the host
+    /// screen can show the "Answer copied" toast.
+    var onCopyAnswer: () -> Void = {}
 
     /// Drives the assistant turn's fade+rise on arrival. Starts `false` only
     /// for the newest assistant turn so older turns render statically when the
@@ -453,11 +460,13 @@ private struct ChatMessageTurn: View {
         HStack(spacing: 18) {
             Button {
                 UIPasteboard.general.string = message.text
+                BrandHaptics.fire(.success)
+                onCopyAnswer()
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 14, weight: .medium))
             }
-            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil))
             .accessibilityLabel("Copy message")
             .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
 

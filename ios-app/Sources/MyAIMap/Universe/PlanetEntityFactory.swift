@@ -214,13 +214,11 @@ enum PlanetEntityFactory {
     }
 
     static func makeStar(index: Int) -> ModelEntity {
-        let radius = Float(0.008 + Double(index % 4) * 0.004)
-        let color: UIColor = index.isMultiple(of: 9)
-            ? UIColor(red: 0.55, green: 0.86, blue: 1, alpha: 1)
-            : .white
+        let radius = Float(0.004 + Double(index % 3) * 0.002)
+        let color = UIColor(white: 1, alpha: 1)
         let star = ModelEntity(
             mesh: .generateSphere(radius: radius),
-            materials: [unlitGlow(color: color, opacity: Float(0.28 + Double(index % 5) * 0.08))]
+            materials: [unlitGlow(color: color, opacity: Float(0.08 + Double(index % 4) * 0.025))]
         )
         star.position = starPosition(index: index)
         return star

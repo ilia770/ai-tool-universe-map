@@ -1,12 +1,12 @@
 # IMPLEMENTATION_ROADMAP
 
-Consolidated, ordered roadmap for the chat-first + Liquid Glass redesign, mapped
+Consolidated, ordered roadmap for the map-first + Ask AI + Liquid Glass redesign, mapped
 to the seven domain specs in `ios-app/docs/`. Each phase lists scope, the specs
 it implements, exact files, dependencies/order, a done-definition, and an
 **already-done-in-main vs remaining** split so finished work is not redone.
 
-Grounded in `origin/main` as of this branch. Main has already merged the
-chat-first IA (`RootShell`, `ChatScreen`), the real Liquid Glass foundation,
+Grounded in `origin/main` plus the active stabilization branch. Main has already merged the
+root IA (`RootShell`, `ChatScreen`), the real Liquid Glass foundation,
 chat motion/polish (Phase 3-4 commits), Dynamic Type fixes, the DeepSeek backend
 seam, and the 2D/3D render-mode switch. Many items the original handoff listed as
 "NOT DONE" are now done on main — this roadmap reflects main, not the handoff.
@@ -25,7 +25,7 @@ Referenced specs: `INPUT_CHAT_SPEC.md`, `CHAT_AI_SPEC.md`, `ADD_TOOL_SPEC.md`,
 
 ## Phase order at a glance
 
-1. First-run + navigation (chat-first IA, cold start, Map switch)
+1. First-run + navigation (map-first launch, Ask AI route, Map switch)
 2. Visual system (Liquid Glass foundation + chrome migration)
 3. Chat / input / attachments / copy
 4. Add-tool
@@ -33,7 +33,7 @@ Referenced specs: `INPUT_CHAT_SPEC.md`, `CHAT_AI_SPEC.md`, `ADD_TOOL_SPEC.md`,
 6. Settings / profile
 7. Map interactions
 
-Phases 1-3 are largely **landed on main**; the remaining net-new work is
+Phases 1-3 are largely **landed on main / this stabilization branch**; the remaining net-new work is
 concentrated in **Phase 6 (settings/profile)** and the **polish tail** of
 phases 4, 5, and 7. Dependency spine: 2 (glass tokens) underpins all chrome →
 1 (shell) hosts every surface → 3/4/5 are the chat surfaces → 6 is reachable
@@ -43,10 +43,10 @@ from the shell → 7 is the secondary mode.
 
 ## Phase 1 — First-run + navigation
 
-**Scope:** Chat-first information architecture. App cold-starts into Chat, not
-the universe. A `RootShell` owns the Chat ⇄ Universe surfaces via a morph switch
-(not TabView), with a Map pill carrying a live tool-count badge. First-run never
-shows an empty universe; the universe is gated until the user has enough nodes.
+**Scope:** Map-first first run with an obvious Ask AI route. A `RootShell` owns
+the Chat <-> Universe surfaces via a morph switch (not TabView), with a Map pill
+and a visible Ask AI control. First-run shows the map / map preview plus
+onboarding clarity, not a confusing empty question state.
 
 **Specs implemented:** `UI_STATE_MACHINE.md` (single source of truth, global vs
 local state), `INPUT_CHAT_SPEC.md` (focus must not blank the screen).
@@ -56,22 +56,30 @@ local state), `INPUT_CHAT_SPEC.md` (focus must not blank the screen).
 `UI/Search/ChatScreen.swift`, `Universe/UniverseMapView.swift` (secondary mode),
 `State/UniverseViewModel.swift` (`isUniverseEmpty`, `assistantMessages`).
 
-**ALREADY DONE in main:**
-- `RootShell` is the WindowGroup content; cold start lands on Chat
-  (`RootSurface = .chat`).
+**ALREADY DONE in main / this stabilization branch:**
+- `RootShell` is the WindowGroup content; cold start lands on the map surface
+  and exposes the `RootShell.ShowChat` Ask AI route.
 - Chat ⇄ Universe morph switch + dive transition; Map pill with live count badge
   and `badgeShouldPop` (commits `69e444e`, `b433f22`).
 - Empty-state / first-run starter messages seeded in `MyAIMapApp.swift`.
+- Current first-run contract is map-first: UI smoke waits for
+  `RootShell.ShowChat` on launch, then opens Ask AI and returns through
+  `RootShell.ShowUniverse`.
+- Collapse chat now releases the map from `UniverseMode.chatOpen` while keeping
+  the transcript resumable through the small Show Chat pill.
+- Low-tool / first-run maps are always reachable. Runtime copy no longer says
+  that map access is gated by tool count.
 
 **REMAINING:**
-- Verify the "gate universe until ≥3 nodes" product rule is enforced (or
-  consciously dropped) per `UI_STATE_MACHINE.md`.
+- The old "gate universe until >=3 nodes" product rule has been consciously
+  dropped for navigation. Empty/low-tool maps remain reachable and must explain
+  themselves through first-run/empty-state copy.
 - Confirm input focus never drives global dim/blur (the black-screen bug in
   `INPUT_CHAT_SPEC.md`) — regression-check after any composer change.
 
-**Done when:** launch shows Chat; Map switch works both ways; badge pops on
-growth only; focusing the composer never blanks the screen; gate rule decided
-and tested; gate runs green.
+**Done when:** fresh launch is understandable within 5 seconds; Ask AI opens
+chat; Map switch works both ways; collapsing chat returns map interaction;
+focusing the composer never blanks the screen; gate runs green.
 
 ---
 
@@ -90,13 +98,16 @@ glass call sites in `SearchDock.swift`, `ToolDetailSection.swift`,
 `RightUniverseRail.swift`, `AddToolSheet.swift`, `AccountSettingsSheet.swift`,
 universe HUD (`UniverseOverlayView.swift`).
 
-**ALREADY DONE in main:**
+**ALREADY DONE in main / this stabilization branch:**
 - Real `glassEffect` 3-tier `glassSurface` (R1/R2): reduce-transparency → opaque
   `BrandColor.glassSolid`; iOS 26 → native; iOS 18-25 → material + hairline.
 - Tokens added: `glassSolid`, `glassControl`/`glassButton` radii, 7 `BrandMotion`
   tokens + `withBrandAnimation`.
 - Glass allowlist migration of SearchDock / CategoryRail / AddTool /
   AccountSettings / PlanetInfoCard (R7); chrome snapshot tests (R4).
+- Navigation chrome now shares morph identities across RootShell route controls,
+  SearchDock collapse/show-chat, Universe top chrome, and modal sheet toolbar
+  actions.
 
 **REMAINING:**
 - R9: replace any remaining direct `withAnimation(BrandMotion.*)` call sites that
@@ -123,7 +134,7 @@ entry, copy-message. Input focus is local and must not blank the universe.
 `UI/Search/SearchCore.swift`, `State/UniverseViewModel.swift` (`assistantMessages`,
 `assistantQuery`, attachment state).
 
-**ALREADY DONE in main:**
+**ALREADY DONE in main / this stabilization branch:**
 - `ChatScreen` full transcript + floating glass composer; assistant/user layout.
 - Phase 3 motion polish: turn reveal, date separators, jump-to-latest pill
   (commit `2624035`).
@@ -131,10 +142,17 @@ entry, copy-message. Input focus is local and must not blank the universe.
   `ChatScreen` (`UIPasteboard`).
 - Attachment-only messages answered honestly (`askAssistant` U1 path,
   `UniverseViewModel.swift:256-266`).
+- Copy feedback + haptic and the floating Liquid Glass attachment preview are
+  on the active PR branch.
+- `ComposerLogic.keepsChatActive` lets collapsed chat release map gestures while
+  preserving transcript state.
+- The collapsed Show Chat pill stays visible as a small resumable affordance,
+  without holding the map in `.chatOpen`.
 
 **REMAINING:**
-- R16: attachment menu → anchored overlay (vs inline) in `SearchDock`, if not yet
-  anchored.
+- Attachment menu anchoring and staged attachment preview are covered by
+  `UniverseUISmokeTests/testCaptureKeyStates`; real Photos/File picker payload
+  preview remains out of scope for this pass.
 - Verify tool-payload variants (matched-tool card ≤2 actions, 3-8 carousel, GAP
   card) all render per `CHAT_AI_SPEC.md`.
 - R11: enforce a single haptic owner per tap (composer/cards) to kill duplicate
@@ -289,9 +307,9 @@ per spec; tests green.
 
 | Phase | Already done in main | Remaining |
 | --- | --- | --- |
-| 1 First-run + nav | Chat-first `RootShell`, cold-start chat, Map morph switch + live badge, first-run seed | ≥3-node universe gate; reconfirm focus-doesn't-blank |
-| 2 Visual system | Real `glassEffect` `glassSurface` 3-tier + fallbacks, tokens, chrome migration, snapshot tests | R9 reduce-motion call sites; over-glass audit |
-| 3 Chat/input/attach/copy | `ChatScreen` transcript + glass composer, turn reveal/date sep/jump pill, attachments, copy, attachment-only honesty | R16 anchored attachment menu; payload-variant verify; R11 single haptic owner |
+| 1 First-run + nav | Map-first `RootShell`, Ask AI route, Map return, first-run overlay/empty-state, collapse releases map gestures | Reconfirm focus-doesn't-blank on every composer change |
+| 2 Visual system | Real `glassEffect` `glassSurface` 3-tier + fallbacks, tokens, chrome migration, snapshot tests, navigation morph IDs | R9 reduce-motion call sites; over-glass audit |
+| 3 Chat/input/attach/copy | `ChatScreen` transcript + glass composer, turn reveal/date sep/jump pill, attachments, copy feedback, floating attachment preview, attachment-only honesty | Payload-variant verify; R11 single haptic owner; real file/photo payload preview out of scope |
 | 4 Add-tool | Auto/Manual branch, signature add-flow morph to Map pill | R17 `.large` + dirty-state guard; rebuild nodes before focus |
 | 5 Ask-AI intelligence | R14/R15 intent, local-first + DeepSeek fallback seam, cautious claims | JTBD-1 catalog validation; consume backend seam; usage increment |
 | 6 Settings/profile | 2D/3D switch, haptics toggle, disabled language picker, Keychain plumbing | Remove user API key (debug-gate); plan/usage/upgrade placeholder; "Follow device language"; quarantine `VisualizationStyle`; haptics footnote fix |

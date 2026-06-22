@@ -20,6 +20,7 @@ struct UniverseOverlayView: View {
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
+    @Namespace private var chromeNamespace
 
     private var isFocusedOnTool: Bool {
         guard let selectedToolID = mode.selectedToolID else { return false }
@@ -482,17 +483,33 @@ struct UniverseOverlayView: View {
     }
 
     private var topChrome: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 16) {
+                    topChromeContent
+                }
+            } else {
+                topChromeContent
+            }
+        }
+        .brandAnimation(BrandMotion.morph, value: mode)
+    }
+
+    private var topChromeContent: some View {
         HStack(alignment: .top, spacing: 12) {
             visualizationControl
+                .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
                 .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
             Spacer()
             Button(action: onAccount) {
-                UserAvatarImage(size: 46, tint: selectedPlanet.swiftUIColor)
+                UserAvatarImage(size: 46, tint: .white.opacity(0.88))
             }
             .buttonStyle(BouncyIconButtonStyle())
+            .navigationGlassMorphID("UniverseChrome.profile", in: chromeNamespace)
             .opacity(mode.isDetailOpen ? 0.58 : 1)
             .accessibilityLabel("Account")
         }
+        .transition(.scale(scale: 0.94).combined(with: .opacity))
     }
 
     private var visualizationControl: some View {
@@ -533,7 +550,7 @@ struct UniverseOverlayView: View {
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 8)
-        .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
+        .glassSurface(in: Capsule(), tint: .white.opacity(0.10), interactive: true)
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel("Visualization mode \(model.renderMode.title)")
         .accessibilityHint("Opens settings")

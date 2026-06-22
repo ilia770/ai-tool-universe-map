@@ -9,41 +9,37 @@ the real files and symbols that must change.
 
 ---
 
-## 1. Current state (what's there now)
+## 1. Implemented state
 
-### Cold start lands in chat, not the map
+### Cold start lands on the map, not an open question
 - `MyAIMapApp` (`Sources/MyAIMap/MyAIMapApp.swift`) mounts `RootShell` with
-  no first-run branching. Sample/seed loading only happens behind UI-test
-  launch arguments (`-uitestSampleUniverse`, `-uitestSeedChat`).
-- `RootShell` (`Sources/MyAIMap/RootShell.swift`) defaults its surface to
-  chat: `@State private var surface: RootSurface = .chat`. So every launch —
-  first run or returning — opens on `ChatScreen`.
+  the app's root shell. Sample/seed loading remains behind UI-test launch
+  arguments (`-uitestSampleUniverse`, `-uitestSeedChat`).
+- `RootShell` (`Sources/MyAIMap/RootShell.swift`) opens the first-run and
+  empty-state experience on the universe/map surface. Returning users can
+  still switch directly between Map and Ask AI using the top route pills.
 
-### The confusing empty question state
+### The chat starter is no longer the first-run surface
 - `ChatScreen` (`Sources/MyAIMap/UI/Search/ChatScreen.swift`): when
   `model.assistantMessages.isEmpty`, the transcript shows `ChatStarterPanel`,
   a large hero reading **"What are you trying to build?"** plus the subtitle
   *"Ask for a workflow or a tool recommendation. Your answers can become a
   living map of the stack."* and three starter prompt chips
   (`Design an app`, `Build an MVP`, `Track growth`).
-- This is the de-facto first-run screen. It opens on an open-ended question
-  with no explanation of what the app *is*, no mention of the map, and the
-  Map affordance is disabled (see below). A new user does not understand the
-  product in 5 seconds.
+- This remains valid once the user intentionally chooses **Ask AI**, but it is
+  no longer the cold-start explanation for a new user.
 
-### The Map is gated and the empty map card is unreachable
-- `RootShell.RootSurfaceSwitch`: the **Map** pill is
-  `.disabled(toolCount < 3)` and dimmed to `opacity 0.56`. The accessibility
-  label reads *"Universe map locked until three tools"*. So a first-run user
-  literally cannot open the map.
+### The Map is always reachable
+- `RootShell.RootSurfaceSwitch`: the **Map** pill is always enabled. Empty and
+  low-tool universes are valid map destinations and show the empty-state card
+  instead of trapping the user in chat.
 - `UniverseOverlayView.emptyStateCard`
   (`Sources/MyAIMap/Universe/UniverseOverlayView.swift`) already implements a
   good empty-universe card: a `sparkles` glyph, **"Your universe is empty"**,
   *"Add the AI tools you use — each one becomes a planet you can fly
   between."*, an **Add your first tool** button, and a **Load a sample
-  universe** link (calls `model.loadSampleUniverse()`). But it renders only
-  on the universe surface, which the gate above keeps a new user out of.
-  The good empty-state copy and the new user never meet.
+  universe** link (calls `model.loadSampleUniverse()`). It is reachable from
+  first launch via the map surface.
 
 ### No onboarding persistence exists
 - `UniverseStore` (`Sources/MyAIMap/State/UniverseStore.swift`) persists only
@@ -54,9 +50,9 @@ the real files and symbols that must change.
   `loadSampleUniverse()` populates from `UniverseSeed.tools` and persists.
 
 ### Summary of the gap
-A new user opens to an open-ended chat question with the map locked, never
-sees the (already-decent) empty-universe map card, and is given no
-one-screen explanation of what AI Universe is or what to do next.
+This spec is retained as the contract for the first-run experience: the app
+must start with map-first clarity, keep the map reachable, and avoid making
+the chat starter the product explanation.
 
 ---
 
@@ -67,11 +63,9 @@ one-screen explanation of what AI Universe is or what to do next.
   (`surface = .universe`), not chat — OR render a non-interactive map preview
   behind the onboarding overlay. The map (even empty) communicates the
   product ("your tools become planets") far better than an open question.
-- The Map gate (`toolCount < 3`) must **not** block first-run entry to the
-  map surface. The gate may remain for the *return-to-map* affordance from
-  chat, but it must not be the thing that traps a new user in chat. Recommended:
-  show the map surface with the `emptyStateCard` visible whenever
-  `isUniverseEmpty`, regardless of tool count.
+- The map surface must be reachable regardless of tool count. Empty and
+  low-tool universes should show the `emptyStateCard` or the current map
+  state, never a disabled route.
 
 ### 2.2 Lightweight one-screen onboarding overlay
 A single, dismissible overlay shown **only on true first run** (see 2.4),
@@ -102,7 +96,7 @@ owns the Add Tool and Account sheets), so the three actions reuse existing
 | --- | --- | --- |
 | Ask AI | Chat surface, composer focusable | set `surface = .chat`; reuse the existing `showChat()` path. Optionally pre-focus the `SearchDock` composer. |
 | Add Tool | Add Tool sheet | call `presentAddTool(draft: nil)` (existing in `RootShell`). |
-| Explore Map | Empty map surface | set `surface = .universe` (existing `showUniverse()` path, but must bypass the `toolCount < 3` gate for the empty/first-run case). |
+| Explore Map | Empty map surface | set `surface = .universe` through the existing `showUniverse()` path. |
 
 ### 2.4 Dismissal and persistence
 - Add a persisted first-run flag. Extend `UniverseStore` with a
@@ -151,8 +145,8 @@ surface must show a clear empty state — reuse and elevate the existing
 
 - `Sources/MyAIMap/RootShell.swift` — change default surface / first-run
   branch; host the onboarding overlay; wire the 3 actions to `showChat()`,
-  `presentAddTool(draft:)`, `showUniverse()`; bypass the `toolCount < 3`
-  Map gate for the empty/first-run case.
+  `presentAddTool(draft:)`, `showUniverse()`; keep the Map route enabled for
+  empty and low-tool universes.
 - `Sources/MyAIMap/UI/Search/ChatScreen.swift` — `ChatStarterPanel` is no
   longer the first thing a new user sees; its open-ended "What are you trying
   to build?" hero should be demoted to a returning-user chat empty state (it

@@ -11,6 +11,7 @@ struct AccountSettingsSheet: View {
     @State private var deepSeekKeyInput = ""
     @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
     #endif
+    @Namespace private var sheetChromeNamespace
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,11 @@ struct AccountSettingsSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .frame(width: 34, height: 34)
+                            .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+                            .navigationGlassMorphID("AccountSheet.close", in: sheetChromeNamespace)
                     }
                     .buttonStyle(BouncyIconButtonStyle())
                 }
@@ -198,10 +204,14 @@ struct AccountSettingsSheet: View {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
                     }
-                    .foregroundStyle(.black.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.9))
                     .padding(BrandSpacing.m.value)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(model.selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
                 }
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                 .accessibilityIdentifier("settings.plan.upgrade")
@@ -347,9 +357,9 @@ struct AccountSettingsSheet: View {
         return HStack(spacing: BrandSpacing.m.value) {
             Text(renderMode.shortLabel)
                 .font(.headline.weight(.bold))
-                .foregroundStyle(isSelected ? .black.opacity(0.82) : .white)
+                .foregroundStyle(.white.opacity(isSelected ? 0.94 : 0.78))
                 .frame(width: 42, height: 34)
-                .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.muted, in: Circle())
+                .background(isSelected ? .white.opacity(0.12) : .white.opacity(0.05), in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 HStack(spacing: 6) {
@@ -360,10 +370,10 @@ struct AccountSettingsSheet: View {
                     if renderMode.isExperimental {
                         Text("Experimental")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                            .foregroundStyle(.white.opacity(0.72))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
-                            .background(model.selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                            .background(.white.opacity(0.08), in: Capsule())
                     }
                 }
                 Text(renderMode.detail)
@@ -376,14 +386,14 @@ struct AccountSettingsSheet: View {
 
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                    .foregroundStyle(.white.opacity(0.82))
             }
         }
         .padding(BrandSpacing.m.value)
-        .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor.opacity(0.12) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        .background(isSelected ? .white.opacity(0.08) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
-                .stroke(isSelected ? model.selectedCategoryModel.color.swiftUIColor.opacity(0.55) : BrandColor.stroke, lineWidth: 1)
+                .stroke(isSelected ? .white.opacity(0.22) : BrandColor.stroke, lineWidth: 1)
         }
     }
 

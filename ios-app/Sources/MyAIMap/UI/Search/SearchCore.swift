@@ -90,8 +90,9 @@ enum ComposerLogic {
         return "Attached \(attachmentTitle.lowercased())"
     }
 
-    /// Collapsing hides the transcript, but it should not dismiss the chat mode
-    /// while there is a transcript/draft to reopen.
+    /// Collapsing keeps the transcript resumable but returns map interaction to
+    /// the normal navigation mode. Only active input, visible chat chrome, or an
+    /// attachment affordance should keep the map suppressed.
     static func keepsChatActive(
         isFocused: Bool,
         showsConversation: Bool,
@@ -99,7 +100,7 @@ enum ComposerLogic {
         attachmentMenuOpen: Bool,
         hasAttachment: Bool
     ) -> Bool {
-        isFocused || showsConversation || isCollapsedWithContent || attachmentMenuOpen || hasAttachment
+        isFocused || showsConversation || attachmentMenuOpen || hasAttachment
     }
 
     /// User bubbles should be compact for short text and wrap before becoming a
@@ -116,9 +117,23 @@ enum ComposerLogic {
         "paperclip"
     }
 
-    /// "Remove attachment" is offered only when an attachment exists.
+    /// "Remove attachment" is offered only when an attachment exists. Its home
+    /// is the floating preview's remove button (CHAT_INPUT_SPEC §3), not the
+    /// attachment menu.
     static func showsRemoveAttachment(hasAttachment: Bool) -> Bool {
         hasAttachment
+    }
+
+    /// The float lane above the composer hosts at most one panel: the attachment
+    /// menu OR the staged-attachment preview — never both (CHAT_INPUT_SPEC §4).
+    /// The menu wins while open (state B); otherwise an attachment shows its
+    /// preview (state C). Opening the menu therefore hides the preview.
+    static func showsAttachmentMenu(menuOpen: Bool) -> Bool {
+        menuOpen
+    }
+
+    static func showsAttachmentPreview(menuOpen: Bool, hasAttachment: Bool) -> Bool {
+        hasAttachment && !menuOpen
     }
 
     /// Attach / Add-tool have a single home: the composer. Assistant messages

@@ -30,6 +30,7 @@ struct RootSheet: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollClipDisabled()
+        .accessibilityIdentifier("RootSheet.ToolDetail")
         .presentationBackground {
             ZStack {
                 Rectangle().fill(.ultraThinMaterial)
