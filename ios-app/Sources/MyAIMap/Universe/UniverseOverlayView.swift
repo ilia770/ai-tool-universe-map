@@ -3,6 +3,7 @@ import simd
 
 struct UniverseOverlayView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let planets: [PlanetData]
     let mode: UniverseMode
@@ -462,7 +463,7 @@ struct UniverseOverlayView: View {
                 activeCategory: mode.focusedCategory,
                 tint: selectedPlanet.swiftUIColor,
                 onActiveChange: { isActive in
-                    withAnimation(BrandMotion.nudge) {
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                         isRailActive = isActive
                     }
                 },
@@ -612,7 +613,7 @@ struct UniverseOverlayView: View {
 
                 Button {
                     BrandHaptics.fire(.light)
-                    withAnimation(BrandMotion.flow) {
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                         _ = model.loadSampleUniverse()
                     }
                 } label: {

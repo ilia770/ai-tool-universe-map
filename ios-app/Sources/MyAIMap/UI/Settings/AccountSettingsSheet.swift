@@ -3,6 +3,7 @@ import SwiftUI
 struct AccountSettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
     @State private var deepSeekKeyInput = ""
@@ -71,7 +72,7 @@ struct AccountSettingsSheet: View {
                 VStack(spacing: BrandSpacing.s.value) {
                     ForEach(UniverseRenderMode.allCases) { renderMode in
                         Button {
-                            withAnimation(BrandMotion.flow) {
+                            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                                 model.renderMode = renderMode
                             }
                         } label: {
@@ -156,7 +157,7 @@ struct AccountSettingsSheet: View {
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
                     Button {
-                        withAnimation(BrandMotion.flow) { _ = model.loadSampleUniverse() }
+                        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { _ = model.loadSampleUniverse() }
                     } label: {
                         universeActionRow("Load sample universe", systemImage: "sparkles", destructive: false)
                     }
@@ -173,7 +174,7 @@ struct AccountSettingsSheet: View {
             }
             .confirmationDialog("Reset universe?", isPresented: $showResetConfirm, titleVisibility: .visible) {
                 Button("Reset everything", role: .destructive) {
-                    withAnimation(BrandMotion.flow) { model.resetUniverse() }
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.resetUniverse() }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -185,7 +186,7 @@ struct AccountSettingsSheet: View {
                     VStack(spacing: BrandSpacing.s.value) {
                         ForEach(model.removedTools) { tool in
                             Button {
-                                withAnimation(BrandMotion.nudge) {
+                                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                                     _ = model.restoreTool(tool.id)
                                 }
                             } label: {

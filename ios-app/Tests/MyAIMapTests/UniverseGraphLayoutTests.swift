@@ -145,6 +145,77 @@ struct UniverseGraphLayoutTests {
         #expect(unfocused?.showsLabel == false)
     }
 
+    @Test func focusedBranchAutoPanKeepsAnalyticsToolTouchable() {
+        let viewport = CGSize(width: 402, height: 874)
+        for mode in [UniverseMode.branchFocus(.analytics), .toolSelected(.analytics, "posthog")] {
+            let layout = makeLayout(mode: mode, size: viewport)
+            let focusPan = UniverseGraphViewport.focusPan(
+                layout: layout,
+                mode: mode,
+                viewport: viewport,
+                scale: 1
+            )
+            let pan = UniverseGraphViewport.visiblePan(
+                storedPan: .zero,
+                focusPan: focusPan,
+                layout: layout,
+                viewport: viewport,
+                scale: 1
+            )
+
+            let posthog = layout.nodes.first { $0.id == "tool:posthog" }
+            #expect(posthog != nil)
+            guard let posthog else { return }
+
+            let frame = UniverseGraphViewport.projectedFrame(
+                for: posthog,
+                viewport: viewport,
+                scale: 1,
+                pan: pan
+            )
+            #expect(frame.minX >= 0, "PostHog should not sit off the left edge after focus pan: \(frame)")
+            #expect(frame.maxX <= viewport.width, "PostHog should not sit off the right edge after focus pan: \(frame)")
+            #expect(frame.minY >= 0, "PostHog should not sit off the top edge after focus pan: \(frame)")
+            #expect(frame.maxY <= viewport.height - 214, "PostHog should stay above the bottom chrome after focus pan: \(frame)")
+        }
+    }
+
+    @Test func focusPanRoundTripsStoredPanWithoutDrift() {
+        let viewport = CGSize(width: 402, height: 874)
+        let mode = UniverseMode.branchFocus(.analytics)
+        let layout = makeLayout(mode: mode, size: viewport)
+        let focusPan = UniverseGraphViewport.focusPan(
+            layout: layout,
+            mode: mode,
+            viewport: viewport,
+            scale: 1
+        )
+        let clampedVisiblePan = UniverseGraphViewport.visiblePan(
+            storedPan: CGSize(width: -900, height: 340),
+            focusPan: focusPan,
+            layout: layout,
+            viewport: viewport,
+            scale: 1
+        )
+        let storedPan = UniverseGraphViewport.storedPan(
+            forVisiblePan: clampedVisiblePan,
+            focusPan: focusPan,
+            layout: layout,
+            viewport: viewport,
+            scale: 1
+        )
+        let roundTrippedVisiblePan = UniverseGraphViewport.visiblePan(
+            storedPan: storedPan,
+            focusPan: focusPan,
+            layout: layout,
+            viewport: viewport,
+            scale: 1
+        )
+
+        #expect(abs(roundTrippedVisiblePan.width - clampedVisiblePan.width) < 0.001)
+        #expect(abs(roundTrippedVisiblePan.height - clampedVisiblePan.height) < 0.001)
+    }
+
     private func sampleSeedLayout(width: CGFloat, height: CGFloat) -> UniverseGraphLayoutResult {
         let planets = PlanetData.makePlanets(
             categories: UniverseSeed.categories,
@@ -186,7 +257,10 @@ struct UniverseGraphLayoutTests {
         }
     }
 
-    private func makeLayout(mode: UniverseMode = .overview) -> UniverseGraphLayoutResult {
+    private func makeLayout(
+        mode: UniverseMode = .overview,
+        size: CGSize = CGSize(width: 393, height: 852)
+    ) -> UniverseGraphLayoutResult {
         let planets = PlanetData.makePlanets(
             categories: UniverseSeed.categories,
             tools: UniverseSeed.tools
@@ -194,7 +268,7 @@ struct UniverseGraphLayoutTests {
         return UniverseGraphLayout.make(
             planets: planets,
             mode: mode,
-            size: CGSize(width: 393, height: 852)
+            size: size
         )
     }
 }

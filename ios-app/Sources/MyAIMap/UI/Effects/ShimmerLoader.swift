@@ -70,7 +70,7 @@ struct ProgressOrb: View {
             .opacity(reduceMotion ? 0.8 : 0.65)
             .onAppear {
                 guard !reduceMotion else { return }
-                withAnimation(BrandMotion.breath) {
+                withBrandAnimation(BrandMotion.breath, reduceMotion: reduceMotion) {
                     pulse = 1.18
                 }
             }

@@ -34,6 +34,7 @@ struct ChromeSnapshotTests {
     private func assertRenders(
         _ label: String,
         reduceTransparency: Bool,
+        dynamicTypeSize: DynamicTypeSize = .large,
         size: CGSize = ChromeSnapshotTests.canvas,
         @ViewBuilder _ content: () -> some View
     ) throws -> UIImage {
@@ -49,6 +50,7 @@ struct ChromeSnapshotTests {
             .environment(\._accessibilityReduceTransparency, reduceTransparency)
             // The app is locked to dark; render in the real appearance.
             .environment(\.colorScheme, .dark)
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
 
         let renderer = ImageRenderer(content: hosted)
         renderer.scale = 2
@@ -63,7 +65,7 @@ struct ChromeSnapshotTests {
         // Sane-size smoke check: a real render, not a 0×0 / 1×1 degenerate.
         #expect(
             rendered.size.width >= 50 && rendered.size.height >= 50,
-            "\(label) [reduceTransparency=\(reduceTransparency)] rendered too small: \(rendered.size)"
+            "\(label) [reduceTransparency=\(reduceTransparency)] rendered too small: \(String(describing: rendered.size))"
         )
         return rendered
     }
@@ -84,7 +86,6 @@ struct ChromeSnapshotTests {
             let model = makeModel(sample: true)
             try assertRenders("ChatScreen", reduceTransparency: reduce) {
                 ChatScreen(
-                    onShowUniverse: {},
                     onOpenSettings: {},
                     onAddTool: {},
                     onAddSuggestedTool: { _ in },
@@ -102,6 +103,43 @@ struct ChromeSnapshotTests {
                 RootShell()
                     .environment(model)
             }
+        }
+    }
+
+    @Test func chatFirstChromeRendersWithAccessibilitySettings() throws {
+        let model = makeModel(sample: true)
+        try assertRenders(
+            "ChatScreen-AX",
+            reduceTransparency: true,
+            dynamicTypeSize: .accessibility3
+        ) {
+            ChatScreen(
+                onOpenSettings: {},
+                onAddTool: {},
+                onAddSuggestedTool: { _ in },
+                onOpenToolInUniverse: { _ in }
+            )
+            .environment(model)
+        }
+
+        let planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: model.visibleAllTools)
+        let planet = try #require(planets.first { $0.id == .analytics })
+        let tool = try #require(planet.tools.first)
+        try assertRenders(
+            "PlanetInfoCard-AX",
+            reduceTransparency: true,
+            dynamicTypeSize: .accessibility3,
+            size: CGSize(width: 393, height: 160)
+        ) {
+            PlanetInfoCard(
+                planet: planet,
+                selectedTool: tool,
+                isFocusedOnTool: true,
+                mode: .toolSelected(tool.category, tool.id),
+                onOpenDetails: {}
+            )
+            .padding(16)
+            .background(Color.black)
         }
     }
 

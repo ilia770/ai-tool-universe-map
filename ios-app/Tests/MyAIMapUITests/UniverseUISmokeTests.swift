@@ -30,29 +30,32 @@ final class UniverseUISmokeTests: XCTestCase {
         attachText("tree-overview", app.debugDescription)
 
         // Branch focus via the 2D graph node accessibility label.
-        let analyticsNode = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Category node, Analytics")
-        ).firstMatch
-        if analyticsNode.waitForExistence(timeout: 4), analyticsNode.isHittable {
-            analyticsNode.tap()
-            wait(1.6)
-            snap("02-branch-Analytics")
-            attachText("tree-branch", app.debugDescription)
-        }
+        let analyticsNode = app.buttons["GraphNode.Category.analytics"]
+        XCTAssertTrue(analyticsNode.waitForExistence(timeout: 4), "2D graph should expose the Analytics category node")
+        tapNode(analyticsNode)
+        wait(1.6)
+        snap("02-branch-Analytics")
+        attachText("tree-branch", app.debugDescription)
+
+        let selectedBranch = app.staticTexts["PlanetInfoCard.SelectedBranch"].firstMatch
+        XCTAssertTrue(selectedBranch.waitForExistence(timeout: 3), "Branch card should expose a stable selected branch label")
+        XCTAssertTrue(
+            selectedBranch.label.contains("Analytics"),
+            "Branch card should match the tapped Analytics node; got \(selectedBranch.label)"
+        )
 
         // Tool selection: tap a graph tool node, then open its detail card.
-        let toolNode = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Tool node,")
-        ).firstMatch
-        if toolNode.waitForExistence(timeout: 4), toolNode.isHittable {
-            toolNode.tap()
-        }
+        let toolNode = app.buttons["GraphNode.Tool.posthog"]
+        XCTAssertTrue(toolNode.waitForExistence(timeout: 4), "Analytics branch should expose the PostHog tool node")
+        tapNode(toolNode)
         wait(1.4); snap("03a-tool-selected")
-        let selectedDetails = app.buttons["Selected planet details"]
-        if selectedDetails.waitForExistence(timeout: 3), selectedDetails.isHittable {
-            selectedDetails.tap()
-        }
+        let selectedDetails = app.buttons["PlanetInfoCard.SelectedDetails"]
+        XCTAssertTrue(selectedDetails.waitForExistence(timeout: 3), "Selected tool card should expose a stable details button")
+        XCTAssertTrue(selectedDetails.isHittable, "Selected tool details button should be hittable")
+        selectedDetails.tap()
         wait(1.6); snap("03b-detail")
+        let detailRoot = app.descendants(matching: .any)["ToolDetailSection.Root"]
+        XCTAssertTrue(detailRoot.waitForExistence(timeout: 3), "Tapping selected details should open the tool detail sheet")
         app.swipeDown(velocity: .fast); wait(0.8)
         let coreNode = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Core node,")
@@ -74,6 +77,12 @@ final class UniverseUISmokeTests: XCTestCase {
             showChat.tap()
         }
         wait(1.2)
+        XCTAssertTrue(composer.waitForExistence(timeout: 3), "Ask-about-this should return to chat")
+        let preseededValue = (composer.value as? String) ?? ""
+        XCTAssertFalse(
+            preseededValue.contains("PostHog") || preseededValue.contains("Founder OS"),
+            "Overview Ask-about-this should not preseed a projected fallback tool context; got \(preseededValue)"
+        )
 
         // Account sheet from the chat shell, before keyboard focus can affect idle waits.
         let account = app.buttons["ChatScreen.Account"]
@@ -114,5 +123,14 @@ final class UniverseUISmokeTests: XCTestCase {
     private func attachText(_ name: String, _ text: String) {
         let a = XCTAttachment(string: text)
         a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+
+    @MainActor
+    private func tapNode(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
     }
 }

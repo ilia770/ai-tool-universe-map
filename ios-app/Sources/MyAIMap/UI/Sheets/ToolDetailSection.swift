@@ -90,6 +90,7 @@ enum ToolPricingPresenter {
 /// admin dashboard.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onOpenRelatedTool: ((String) -> Void)?
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
@@ -143,6 +144,7 @@ struct ToolDetailSection: View {
         }
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
+        .accessibilityIdentifier("ToolDetailSection.Root")
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
             isPresented: $isShowingRemoveConfirmation,
@@ -517,7 +519,7 @@ struct ToolDetailSection: View {
     private func openToolInDetail(_ id: String) {
         guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             if let onOpenRelatedTool {
                 onOpenRelatedTool(tool.id)
             } else {
@@ -527,7 +529,7 @@ struct ToolDetailSection: View {
     }
 
     private func removeSelectedTool() {
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.deleteTool(selectedTool.id)
         }
     }

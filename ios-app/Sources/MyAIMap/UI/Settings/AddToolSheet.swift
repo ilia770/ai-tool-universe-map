@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AddToolBranchMode: String, CaseIterable, Identifiable, Equatable {
     case auto
@@ -109,12 +110,14 @@ private enum AddToolFocusedField: Hashable {
 struct AddToolSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let draft: MissingToolSuggestion?
     @State private var name = ""
     @State private var website = ""
     @State private var category: ToolCategoryId = .analytics
     @State private var branchMode: AddToolBranchMode = .auto
     @State private var didApplyDraft = false
+    @State private var discardConfirmationPresented = false
     @FocusState private var focusedField: AddToolFocusedField?
 
     init(draft: MissingToolSuggestion? = nil) {
@@ -137,6 +140,12 @@ struct AddToolSheet: View {
         UniverseSeed.category(resolvedCategory)
     }
 
+    private var hasUnsavedChanges: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !website.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || branchMode == .manual
+    }
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -155,7 +164,7 @@ struct AddToolSheet: View {
                 }
                 .onChange(of: focusedField) { _, field in
                     guard let field else { return }
-                    withAnimation(BrandMotion.nudge) {
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                         proxy.scrollTo(field, anchor: .center)
                     }
                 }
@@ -166,8 +175,7 @@ struct AddToolSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
-                        focusedField = nil
-                        dismiss()
+                        requestDismiss()
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -184,6 +192,25 @@ struct AddToolSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .background {
+            InteractiveDismissAttemptHandler(isDisabled: hasUnsavedChanges) {
+                handleInteractiveDismissAttempt()
+            }
+            .frame(width: 0, height: 0)
+        }
+        .confirmationDialog(
+            "Discard this tool?",
+            isPresented: $discardConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Discard", role: .destructive) {
+                focusedField = nil
+                dismiss()
+            }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("The name, website, or branch choice has not been added yet.")
+        }
         .onAppear {
             focusedField = .name
             if !didApplyDraft, let draft {
@@ -320,7 +347,7 @@ struct AddToolSheet: View {
         return Button {
             guard branchMode != mode else { return }
             BrandHaptics.fire(.light)
-            withAnimation(BrandMotion.nudge) {
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 branchMode = mode
             }
         } label: {
@@ -386,6 +413,22 @@ struct AddToolSheet: View {
         dismiss()
     }
 
+    private func requestDismiss() {
+        focusedField = nil
+        if hasUnsavedChanges {
+            discardConfirmationPresented = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func handleInteractiveDismissAttempt() {
+        focusedField = nil
+        if hasUnsavedChanges {
+            discardConfirmationPresented = true
+        }
+    }
+
     private var keyboardToolbarTitle: String {
         switch focusedField {
         case .name:
@@ -433,4 +476,48 @@ struct AddToolSheet: View {
 #Preview {
     AddToolSheet()
         .environment(UniverseViewModel())
+}
+
+private struct InteractiveDismissAttemptHandler: UIViewControllerRepresentable {
+    let isDisabled: Bool
+    let onAttempt: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isDisabled: isDisabled, onAttempt: onAttempt)
+    }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.isDisabled = isDisabled
+        context.coordinator.onAttempt = onAttempt
+        DispatchQueue.main.async {
+            let controller = uiViewController.parent?.presentationController
+                ?? uiViewController.presentationController
+            controller?.delegate = context.coordinator
+        }
+    }
+
+    final class Coordinator: NSObject, UIAdaptivePresentationControllerDelegate {
+        var isDisabled: Bool
+        var onAttempt: () -> Void
+
+        init(isDisabled: Bool, onAttempt: @escaping () -> Void) {
+            self.isDisabled = isDisabled
+            self.onAttempt = onAttempt
+        }
+
+        func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool {
+            !isDisabled
+        }
+
+        func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+            guard isDisabled else { return }
+            DispatchQueue.main.async { [onAttempt] in
+                onAttempt()
+            }
+        }
+    }
 }

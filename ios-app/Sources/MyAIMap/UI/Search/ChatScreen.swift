@@ -11,8 +11,8 @@ enum ChatTheme {
 struct ChatScreen: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dismissComposerChromeToken = UUID()
 
-    let onShowUniverse: () -> Void
     let onOpenSettings: () -> Void
     let onAddTool: () -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
@@ -25,8 +25,6 @@ struct ChatScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             ChatTopBar(
-                toolCount: toolCount,
-                onShowUniverse: onShowUniverse,
                 onOpenSettings: onOpenSettings
             )
             .padding(.horizontal, 16)
@@ -69,6 +67,11 @@ struct ChatScreen: View {
                 .padding(.bottom, 28)
             }
             .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    dismissComposerChromeToken = UUID()
+                }
+            )
             .onChange(of: model.assistantMessages.count) { _, _ in
                 guard let last = model.assistantMessages.last else { return }
                 withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
@@ -81,6 +84,7 @@ struct ChatScreen: View {
     private var composer: some View {
         SearchDock(
             isChatOpen: false,
+            dismissAttachmentMenuToken: dismissComposerChromeToken,
             onAddTool: onAddTool,
             onAddSuggestedTool: onAddSuggestedTool,
             onToolSelect: onOpenToolInUniverse,
@@ -95,8 +99,21 @@ struct ChatScreen: View {
         ids.compactMap { id in model.visibleAllTools.first { $0.id == id } }
     }
 
-    private func sendStarterPrompt(_ prompt: String) {
-        model.assistantQuery = prompt
+    private func sendStarterPrompt(_ prompt: StarterPrompt) {
+        if model.isUniverseEmpty {
+            let suggestion = prompt.suggestion
+            model.assistantMessages.append(AssistantMessage(role: .user, text: prompt.query))
+            model.assistantMessages.append(
+                AssistantMessage(
+                    role: .assistant,
+                    text: "Start by adding \(suggestion.name). It gives this workflow a concrete first node, then the map will unlock once your stack has three tools.",
+                    missingToolSuggestions: [suggestion]
+                )
+            )
+            return
+        }
+
+        model.assistantQuery = prompt.query
         withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.askAssistant()
         }
@@ -104,13 +121,7 @@ struct ChatScreen: View {
 }
 
 private struct ChatTopBar: View {
-    let toolCount: Int
-    let onShowUniverse: () -> Void
     let onOpenSettings: () -> Void
-
-    private var canOpenUniverse: Bool {
-        toolCount >= 3
-    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -125,31 +136,6 @@ private struct ChatTopBar: View {
 
             Spacer()
 
-            Button(action: onShowUniverse) {
-                HStack(spacing: 8) {
-                    Image(systemName: "map.fill")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Map")
-                        .font(.system(.footnote, weight: .bold))
-                    Text("\(toolCount)")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.black.opacity(0.82))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(BrandColor.core, in: Capsule())
-                        .contentTransition(.numericText(value: Double(toolCount)))
-                }
-                .foregroundStyle(.white.opacity(0.88))
-                .padding(.horizontal, 13)
-                .padding(.vertical, 9)
-                .glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.26), interactive: true)
-            }
-            .disabled(!canOpenUniverse)
-            .opacity(canOpenUniverse ? 1 : 0.56)
-            .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
-            .accessibilityLabel(canOpenUniverse ? "Open universe map, \(toolCount) tools" : "Universe map locked until three tools, \(toolCount) tools")
-            .accessibilityIdentifier("RootShell.ShowUniverse")
-
             Button(action: onOpenSettings) {
                 UserAvatarImage(size: 40, tint: BrandColor.core)
             }
@@ -161,12 +147,39 @@ private struct ChatTopBar: View {
 }
 
 private struct ChatStarterPanel: View {
-    let onSendPrompt: (String) -> Void
+    let onSendPrompt: (StarterPrompt) -> Void
 
     private let prompts = [
-        StarterPrompt(title: "Design an app", query: "What tool should I use for app design?"),
-        StarterPrompt(title: "Build an MVP", query: "I need a workflow to build and launch an MVP"),
-        StarterPrompt(title: "Track growth", query: "Looking for analytics tools for a new product"),
+        StarterPrompt(
+            id: "design-app",
+            title: "Design an app",
+            query: "What tool should I use for app design?",
+            suggestion: MissingToolSuggestion(
+                name: "Figma",
+                category: .design,
+                reason: "Best first node for app UI, prototypes, and design handoff."
+            )
+        ),
+        StarterPrompt(
+            id: "build-mvp",
+            title: "Build an MVP",
+            query: "I need a workflow to build and launch an MVP",
+            suggestion: MissingToolSuggestion(
+                name: "Supabase",
+                category: .infrastructure,
+                reason: "Fast backend/auth/database foundation for a first MVP."
+            )
+        ),
+        StarterPrompt(
+            id: "track-growth",
+            title: "Track growth",
+            query: "Looking for analytics tools for a new product",
+            suggestion: MissingToolSuggestion(
+                name: "PostHog",
+                category: .analytics,
+                reason: "Product analytics and funnels should land early in the stack."
+            )
+        ),
     ]
 
     var body: some View {
@@ -196,7 +209,7 @@ private struct ChatStarterPanel: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
                 ForEach(prompts) { prompt in
                     Button {
-                        onSendPrompt(prompt.query)
+                        onSendPrompt(prompt)
                     } label: {
                         HStack(spacing: 9) {
                             Image(systemName: "arrow.up.right")
@@ -216,6 +229,7 @@ private struct ChatStarterPanel: View {
                         }
                     }
                     .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light))
+                    .accessibilityIdentifier("ChatScreen.StarterPrompt.\(prompt.id)")
                 }
             }
         }
@@ -223,10 +237,10 @@ private struct ChatStarterPanel: View {
 }
 
 private struct StarterPrompt: Identifiable {
+    let id: String
     let title: String
     let query: String
-
-    var id: String { query }
+    let suggestion: MissingToolSuggestion
 }
 
 private struct ChatMessageTurn: View {
@@ -358,6 +372,7 @@ private struct ChatToolCard: View {
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: .light))
         .accessibilityLabel("Open \(tool.name) on map")
+        .accessibilityIdentifier("ChatScreen.ToolCard.\(tool.id)")
     }
 }
 
@@ -406,7 +421,8 @@ private struct ChatMissingToolCard: View {
             }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: .light))
-        .accessibilityLabel("Add \(suggestion.name)")
+        .accessibilityLabel("Add \(suggestion.name) to my map")
+        .accessibilityIdentifier("ChatScreen.MissingTool.\(suggestion.id)")
     }
 }
 
@@ -460,7 +476,6 @@ private struct ChatMarkdownText: View {
 
 #Preview {
     ChatScreen(
-        onShowUniverse: {},
         onOpenSettings: {},
         onAddTool: {},
         onAddSuggestedTool: { _ in },

@@ -4,6 +4,7 @@ import UIKit
 /// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
 struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var sceneController = UniverseSceneController()
     @State private var cameraRig = CameraRigController()
@@ -133,6 +134,9 @@ struct UniverseMapView: View {
         .background(Color.black)
         .preferredColorScheme(.dark)
         .onAppear {
+            if planets.isEmpty {
+                rebuildPlanets()
+            }
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
             focusCamera(for: mode, animated: false)
@@ -180,7 +184,7 @@ struct UniverseMapView: View {
         .sheet(isPresented: $addToolPresented) {
             AddToolSheet(draft: addToolDraft)
                 .environment(model)
-                .presentationDetents([.fraction(0.72), .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(42)
         }
@@ -189,8 +193,10 @@ struct UniverseMapView: View {
                 addToolDraft = nil
             }
         }
-        .onAppear { if planets.isEmpty { rebuildPlanets() } }
-        .onChange(of: model.visibleAllTools.count) { _, _ in rebuildPlanets() }
+        .onChange(of: model.visibleAllTools.map(\.id)) { _, _ in
+            rebuildPlanets()
+            focusCamera(for: mode, animated: false)
+        }
     }
 
     private func selectCategory(_ id: ToolCategoryId) {
@@ -215,24 +221,19 @@ struct UniverseMapView: View {
             BrandHaptics.fire(.medium)
         }
 
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(id)
         }
     }
 
     private func focusToolFromMap(_ id: String) {
-        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
-        guard model.selection.selectedToolID != id else {
-            if mode == .toolSelected(tool.category, id) {
-                presentDetail()
-            } else {
-                BrandHaptics.fire(.light)
-                model.universeMode = .toolSelected(tool.category, id)
-            }
+        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
+        guard mode.selectedToolID != id else {
+            presentDetail()
             return
         }
         BrandHaptics.fire(.medium)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.focusTool(id)
         }
     }
@@ -265,7 +266,7 @@ struct UniverseMapView: View {
             return
         }
         BrandHaptics.fireRich(.pocketClose)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(.core)
         }
     }
@@ -285,6 +286,24 @@ struct UniverseMapView: View {
         if case .chatOpen(let category, _) = mode {
             let planet = category.flatMap { id in planets.first { $0.id == id } }
             cameraRig.enterChat(focusedOn: planet, animated: animated)
+            return
+        }
+
+        if let toolID = mode.selectedToolID,
+           mode.focusedCategory == .core {
+            let core = planets.first(where: { $0.id == .core }) ?? PlanetData.core(from: model.visibleAllTools)
+            guard toolID != PlanetData.centralCoreToolID,
+                  let toolIndex = core.tools.firstIndex(where: { $0.id == toolID }) else {
+                cameraRig.focus(category: core, animated: animated)
+                return
+            }
+            cameraRig.focus(
+                tool: core.tools[toolIndex],
+                around: core,
+                index: toolIndex,
+                count: core.tools.count,
+                animated: animated
+            )
             return
         }
 
