@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ToolPricingRow: Identifiable, Equatable, Sendable {
     let id: String
@@ -95,6 +96,8 @@ struct ToolDetailSection: View {
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+    /// Drives the copy-confirmation toast when the user copies tool info.
+    @State private var copyToastKind: CopyToastKind?
     /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var pricingIconGlyph: CGFloat = 14
     @ScaledMetric(relativeTo: .body) private var pricingIconContainer: CGFloat = 28
@@ -151,6 +154,7 @@ struct ToolDetailSection: View {
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
         .accessibilityIdentifier("ToolDetailSection.Root")
+        .copyToast($copyToastKind)
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
             isPresented: $isShowingRemoveConfirmation,
@@ -210,9 +214,31 @@ struct ToolDetailSection: View {
                 .contentTransition(.opacity)
 
             primaryAction
+            copyInfoAction
         }
         .padding(BrandSpacing.m.value)
         .background(neutralCardBackground)
+    }
+
+    private var copyInfoAction: some View {
+        Button {
+            UIPasteboard.general.string = ToolInfoClipboard.text(
+                name: selectedTool.name,
+                summary: selectedTool.summary,
+                url: selectedTool.url?.absoluteString
+            )
+            BrandHaptics.fire(.success)
+            copyToastKind = .toolInfo
+        } label: {
+            Label("Copy tool info", systemImage: "doc.on.doc")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityIdentifier("ToolDetailSection.CopyInfo")
     }
 
     @ViewBuilder
