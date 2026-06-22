@@ -140,6 +140,12 @@ struct UniverseMapView: View {
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
             focusCamera(for: mode, animated: false)
+            // A chat "open detail" chip sets the request before this surface
+            // mounts, so consume it here (onChange alone would miss it).
+            consumePendingDetailRequest()
+        }
+        .onChange(of: model.pendingDetailToolID) { _, _ in
+            consumePendingDetailRequest()
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
             BrandHaptics.isEnabled = isEnabled
@@ -335,6 +341,19 @@ struct UniverseMapView: View {
             return
         }
         cameraRig.focus(category: planet, animated: animated)
+    }
+
+    /// Presents the detail for a tool requested from the chat surface (§6.3).
+    /// Selection was already set by `requestToolDetail`; this just opens the
+    /// sheet (or, on iPad, the inspector already shows it via the selection).
+    private func consumePendingDetailRequest() {
+        guard let id = model.pendingDetailToolID else { return }
+        model.pendingDetailToolID = nil
+        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
+        if mode.selectedToolID != id {
+            _ = model.focusTool(id)
+        }
+        presentDetail()
     }
 
     private func presentDetail() {

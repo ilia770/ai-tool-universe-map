@@ -70,6 +70,10 @@ struct ChatScreen: View {
     let onAddTool: () -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
     let onOpenToolInUniverse: (String) -> Void
+    /// §6.3: an existing-tool chip in the transcript opens that tool's full
+    /// detail (not just a map focus). Defaults to the in-universe focus so older
+    /// call sites keep working.
+    var onOpenToolDetail: (String) -> Void = { _ in }
     /// Always-enabled "back to map" control (§3.3 navigation spec): lets the
     /// user leave the chat surface for the map at any time, regardless of tool
     /// count. No half-state — it lands cleanly on the map surface.
@@ -124,7 +128,7 @@ struct ChatScreen: View {
                                 message: message,
                                 matches: tools(for: message.matchIDs),
                                 isLatest: index == messages.count - 1,
-                                onOpenTool: onOpenToolInUniverse,
+                                onOpenTool: onOpenToolDetail,
                                 onAddSuggestedTool: onAddSuggestedTool,
                                 onCardLand: onCardLand,
                                 onCopyAnswer: { copyToastKind = .answer }
@@ -634,7 +638,7 @@ private struct ChatToolChip: View {
             }
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
-        .accessibilityLabel("Open \(tool.name) on map")
+        .accessibilityLabel("Open \(tool.name) details")
         .accessibilityIdentifier("ChatScreen.ToolCard.\(tool.id)")
     }
 }

@@ -248,6 +248,20 @@ final class UniverseViewModel {
         return true
     }
 
+    /// Set by the chat surface to request a tool's full detail sheet. The chat
+    /// and map are mutually-exclusive surfaces, so the chat can't present the
+    /// sheet itself — `UniverseMapView` consumes this on appear/change and clears
+    /// it. §6.3: existing-tool chips open detail, not just a map focus.
+    var pendingDetailToolID: String?
+
+    /// Focus a tool and request its detail sheet (chat "open detail" chips).
+    @discardableResult
+    func requestToolDetail(_ id: String) -> Bool {
+        guard focusTool(id) else { return false }
+        pendingDetailToolID = id
+        return true
+    }
+
     func setHover(_ id: String?) {
         hoveredToolID = id
     }

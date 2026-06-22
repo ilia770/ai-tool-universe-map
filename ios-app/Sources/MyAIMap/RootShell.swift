@@ -98,6 +98,7 @@ struct RootShell: View {
                     onAddTool: { presentAddTool(draft: nil) },
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
                     onOpenToolInUniverse: openToolInUniverse,
+                    onOpenToolDetail: openToolDetail,
                     onBackToMap: { showUniverse(resetSelection: true) },
                     onCardLand: flyCardToMap
                 )
@@ -342,6 +343,14 @@ struct RootShell: View {
 
     private func openToolInUniverse(_ id: String) {
         _ = model.focusTool(id)
+        showUniverse()
+    }
+
+    /// §6.3: open a tool's full detail from a chat chip. Requests the detail on
+    /// the model, then dives to the map — `UniverseMapView` presents the sheet
+    /// once it mounts (chat and map are mutually-exclusive surfaces).
+    private func openToolDetail(_ id: String) {
+        guard model.requestToolDetail(id) else { return }
         showUniverse()
     }
 

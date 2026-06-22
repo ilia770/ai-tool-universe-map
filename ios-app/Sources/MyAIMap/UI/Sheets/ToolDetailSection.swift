@@ -256,12 +256,24 @@ struct ToolDetailSection: View {
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         } else {
-            Label("Website not added - verify source", systemImage: "lock.doc")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BrandColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 48)
-                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+            // No stored URL yet — offer a working "Verify website" CTA (web search
+            // for the tool) instead of a dead label. A permanent URL is set via the
+            // Add Tool flow.
+            Button {
+                if let query = selectedTool.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                   let url = URL(string: "https://duckduckgo.com/?q=\(query)"),
+                   let item = BrowserSheetItem(url: url) {
+                    browserSheet = item
+                }
+            } label: {
+                actionLabel("Verify website", systemImage: "magnifyingglass", foreground: .white.opacity(0.92))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         }
     }
 
