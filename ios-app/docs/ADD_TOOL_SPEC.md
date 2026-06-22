@@ -1,118 +1,115 @@
 # ADD_TOOL_SPEC
 
-Owner domain: Add Tool sheet and local add-tool behavior. Files:
-`UI/Settings/AddToolSheet.swift`, `State/UniverseViewModel.swift`, and focused
-tests. Do not edit universe rendering, chat layout, right rail, or detail
-visual design here.
+Owner domain: the Add Tool sheet and local add-tool classification / persistence.
 
-## Behavior
+**Affected files**
+- `UI/Settings/AddToolSheet.swift` — sheet UI + `AddToolBranchMode` +
+  `AddToolLogic` (pure, testable classification).
+- `State/UniverseViewModel.swift` — `addCustomTool`, `existingToolMatching`,
+  `suggestedRelations`, URL/host normalization, persistence + focus.
+- `Data/UniverseSeed.swift` + `Resources/ai-tool-universe.seed.json` — branch
+  catalog and labels.
+- Tests: `Tests/MyAIMapTests/AddToolLogicTests.swift`,
+  `Tests/MyAIMapTests/UniverseViewModelTests.swift`.
 
-### Branch Mode
-- `Auto` and `Manual` are explicit segmented buttons.
-- Tapping `Auto` selects auto mode.
-- Tapping `Manual` selects manual mode.
-- Auto mode resolves the branch from tool name, website, and active universe
-  context.
-- Manual mode respects the selected branch and auto suggestions never override
-  it.
+Do not edit universe rendering, chat layout, right rail, or detail visual
+design here.
 
-### Auto Branch
-- Name and website keyword matches dominate active-branch context.
-- Active universe branch is used as fallback when no strong keyword exists.
-- If the active branch is `core` and there is no signal, fallback is
-  `analytics`.
-- Example: `PostHog` / `posthog.com` resolves to `Analytics` even when the
-  active branch is different.
+## Required behavior
+1. **Name is primary.** A tool can be added by name only — Website is optional
+   and visually lower-priority.
+2. **Auto classification is the DEFAULT and clearly active** — not inverted. The
+   segmented control opens on `Auto`; the resolved branch is shown with a
+   wand affordance.
+3. **AI classifies branch from the name** (and the website when given). Branch
+   selection must be deterministic, never random.
+4. **Base branches come FIRST**, and the AI/user create a new branch only when
+   none fit. Base branch order: Coding, Design, Research, Analytics, Media,
+   Runtime, Social, Skills. (Core is reserved for Founder OS and is never an
+   auto target.)
+5. **After a successful add** the tool appears in the map, Ask AI context,
+   detail screen, and search. There must be no "tool does not exist" answer for
+   a tool that was just added.
 
-### Validation
-- Name is required.
-- Website is optional.
-- Website input is normalized by adding `https://` when needed. `http://`
-  entries are upgraded to `https://`; unsupported schemes are ignored.
-- If website exists, the normalized source domain is stored on `Tool.logoDomain`
-  with leading `www.` removed.
-- If website is missing, the tool summary and classification reason explicitly
-  mark claims as unverified.
+## Branch model (current)
+`ToolCategoryId` (Data/ToolCategory.swift) → seed `shortName`:
 
-### Add Action
-- Add is enabled when name is non-empty.
-- If the name slug or normalized source domain already exists, Add focuses the
-  existing tool instead of creating a suffixed copy.
-- If the matching existing tool is hidden, Add restores it, persists the
-  unhidden state, then focuses it.
-- After add, the tool is appended to the visible universe, persisted, focused,
-  searchable, and available to Ask AI Universe via `visibleAllTools`.
-- Added tools can be selected and opened through the existing detail flow.
-- Add Tool may open with a draft from an Ask AI missing-tool suggestion. In
-  that case the sheet pre-fills the suggested name and uses Manual branch mode
-  for the suggested category.
+| id | shortName | full name |
+| --- | --- | --- |
+| coding | Coding | Coding & Agentic Dev |
+| design | Design | Design & Product UI |
+| research | Research | Research & Data Intake |
+| analytics | Analytics | Analytics & Growth Intelligence |
+| media | Media | Media & Creative Production |
+| infrastructure | Runtime | Infrastructure & Runtime |
+| distribution | Social | Distribution & Social Ops |
+| knowledge | Skills | Knowledge & Skills |
+| core | Core | AI Operating Core (reserved) |
 
-## Changed files / QA done / Remaining issues
+These are the base branches. The Manual picker offers all of them except Core.
+*(Gap vs. brief: the sheet does not yet support creating a brand-new branch on
+the fly — Auto/Manual only choose among existing branches. "Create a new branch
+only when needed" is the target; today an unmatched tool falls back to the
+active branch or Analytics. Document as the next extension.)*
 
-### Agent 8 — Add Tool mode and post-add availability (landed)
+## Branch Mode (`AddToolBranchMode`)
+- `Auto` and `Manual` are explicit segmented capsule buttons; selected state is
+  tinted with the resolved branch color. Default selection is `Auto`.
+- Tapping `Auto` selects auto; tapping `Manual` selects manual. State is direct
+  (no inverted toggle).
+- Auto resolves the branch from name + website + active universe context.
+- Manual respects the chosen branch; auto suggestions never override it.
 
-**Changed files**
-- `UI/Settings/AddToolSheet.swift` — replaced inverted single toggle with
-  explicit Auto / Manual buttons; added testable `AddToolLogic`.
-- `State/UniverseViewModel.swift` — stores normalized source domain, marks
-  no-website tools as unverified, and keeps existing focus/persistence behavior.
-- `Tests/MyAIMapTests/AddToolLogicTests.swift` — covers Auto/Manual resolution,
-  PostHog→Analytics, active-branch fallback, and name validation.
-- `Tests/MyAIMapTests/UniverseViewModelTests.swift` — covers source-domain
-  storage, no-website unverified claims, and assistant visibility after add.
+## Auto classification (`AddToolLogic`)
+- `suggestedCategory(name:website:activeCategory:)` folds `"name website"`,
+  scores each non-core branch by keyword hits (`autoKeywords`, weighted ×10)
+  plus a +1 active-branch context boost; highest score wins.
+- If no keyword matches: fall back to the active branch, or `analytics` when the
+  active branch is `core`.
+- `resolvedCategory(mode:manualCategory:suggestedCategory:)` returns the
+  suggested branch in Auto, the manual branch in Manual.
+- `autoReason(...)` explains the choice (keyword match vs. active context vs.
+  awaiting signal) and is shown under the resolved branch label.
+- Example: `PostHog` / `posthog.com` resolves to **Analytics** even when the
+  active branch differs.
 
-**QA done**
-- `git diff --check` clean.
-- XcodeBuildMCP `build_sim` on `iPhone 17 Pro` succeeded with
-  `ENABLE_DEBUG_DYLIB=NO`.
-- `npm run ios:verify` succeeded, including build-for-testing.
-- XcodeBuildMCP `test_sim` reached the MCP timeout, but the underlying
-  `xcodebuild ... test-without-building` process completed and produced
-  `.xcresult`: `result` Passed, `passedTests` 162, `failedTests` 0,
-  `skippedTests` 0.
+## Validation
+- Name required (`AddToolLogic.canAdd`); Add disabled until name is non-empty.
+- Website optional. Normalized to `https://` (`http://` upgraded; unsupported
+  schemes ignored). Source domain (leading `www.` stripped) stored on
+  `Tool.logoDomain`.
+- No website → summary + classification reason mark claims as unverified, and
+  classifier confidence drops to 0.48 (vs. 0.74 with a website).
 
-**Remaining issues**
-- Manual simulator QA should confirm the segmented buttons feel correct and
-  that a newly added tool is visible on the selected branch immediately after
-  the sheet dismisses.
+## Add action (`addCustomTool`)
+- Duplicate detection by name slug OR normalized source host
+  (`existingToolMatching`): instead of creating a suffixed copy, Add focuses the
+  existing tool. If that tool was hidden, it is restored + persisted first.
+- New tool is appended to the visible universe, persisted, focused, searchable,
+  and available to Ask AI via `visibleAllTools`.
+- `suggestedRelations` keeps relations local to the chosen branch (broad brands
+  are not wired to everything).
+- The sheet may open with a draft from an Ask AI missing-tool suggestion: it
+  pre-fills the suggested name + category and switches to Manual for that branch.
 
-### Codex follow-up - duplicate and suggestion bugs (2026-06-21)
+## Acceptance (QA)
+- Add with name only (no website) succeeds; tool shows on its branch.
+- `Auto` is selected by default and visibly active (not inverted).
+- Add-by-name classifies a clear name to the right base branch (PostHog →
+  Analytics) without a website.
+- Manual selection is honored and not overridden by auto.
+- Base branches appear and are chosen before any new-branch creation.
+- After add, the tool is visible in map, detail, search, and Ask AI answers; no
+  "tool does not exist" for it.
+- Adding a duplicate focuses the existing tool (and un-hides it if hidden)
+  rather than creating a copy.
+- `http://` website upgrades to `https://`; source domain stored without `www.`.
 
-**Changed files**
-- `State/UniverseViewModel.swift` - duplicate detection by name slug/domain,
-  hidden-tool restore on duplicate add, and `http://` -> `https://` URL
-  normalization.
-- `UI/Settings/AddToolSheet.swift` - optional missing-tool draft prefill.
-- `Tests/MyAIMapTests/UniverseViewModelTests.swift` - duplicate visible,
-  duplicate hidden restore, and HTTP upgrade coverage.
-
-**QA done**
-- `git diff --check` clean.
-- `npm run ios:test-build` succeeded with `TEST BUILD SUCCEEDED`.
-- `xcodebuild ... -only-testing:MyAIMapTests test-without-building` passed on
-  iPhone 17 Pro (`/tmp/aimap-codex-unit.xcresult`): `passedTests = 171`,
-  `failedTests = 0`, `skippedTests = 0`.
-
-**Remaining issues**
-- Manual simulator QA should verify duplicate-focus and hidden-restore behavior
-  from the real Add Tool sheet, not only the model tests.
-
-### Codex follow-up - keyboard and form reachability (2026-06-21)
-
-**Keyboard handling.** `AddToolSheet` now uses field-specific focus state,
-`ScrollViewReader`, interactive keyboard dismissal, a small bottom safe-area
-inset, and a keyboard toolbar. Name focuses first, `Next` moves to Website,
-and Website can submit Add when the form is valid.
-
-**Field reachability.** Focusing Name or Website scrolls that field to the
-visible center of the sheet, keeping the header/actions usable and preventing
-the keyboard from covering the form controls.
-
-**Branch color and mode.** Intro, field tint, and guardrail surfaces use the
-resolved category, so Auto/Manual state and suggested branch stay visually in
-sync. Manual mode continues to block auto suggestions from overriding the
-selected branch.
-
-**QA done**
-- Manual simulator check opened Add Tool, focused Name and Website with the
-  keyboard visible, and verified Auto/Manual selection text changes.
+## History (prior landed work)
+Agent 8 replaced the inverted single toggle with explicit Auto/Manual buttons
+and extracted `AddToolLogic`. Codex follow-ups added duplicate/hidden-restore
+detection, `http→https` normalization, missing-tool draft prefill, and keyboard
+/ form reachability (field focus, `ScrollViewReader`, keyboard toolbar). Tests:
+`AddToolLogicTests` (Auto/Manual, PostHog→Analytics, active-branch fallback,
+name validation) and `UniverseViewModelTests` (source-domain storage, unverified
+no-website claims, duplicate/hidden restore, HTTP upgrade, post-add visibility).
