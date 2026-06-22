@@ -14,6 +14,7 @@ struct UniverseStore {
     private let renderModeKey = "universe.renderMode.v1"
     private let hapticsEnabledKey = "universe.hapticsEnabled.v1"
     private let hasSeenOnboardingKey = "universe.hasSeenOnboarding.v1"
+    private let subscriptionKey = "universe.subscription.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -21,7 +22,7 @@ struct UniverseStore {
 
     static let standard = UniverseStore()
 
-    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool) {
+    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
         let tools = decode([Tool].self, key: toolsKey) ?? []
         let hidden = decode([String].self, key: hiddenKey) ?? []
         let renderMode = defaults.string(forKey: renderModeKey)
@@ -30,15 +31,17 @@ struct UniverseStore {
         let hapticsEnabled = defaults.object(forKey: hapticsEnabledKey) as? Bool ?? true
         // Absent key → true first run. Default false so the onboarding overlay shows.
         let hasSeenOnboarding = defaults.bool(forKey: hasSeenOnboardingKey)
-        return (tools, Set(hidden), renderMode, hapticsEnabled, hasSeenOnboarding)
+        let subscription = decode(SubscriptionState.self, key: subscriptionKey) ?? .free
+        return (tools, Set(hidden), renderMode, hapticsEnabled, hasSeenOnboarding, subscription)
     }
 
-    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool) {
+    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool, subscription: SubscriptionState) {
         encode(tools, key: toolsKey)
         encode(Array(hidden).sorted(), key: hiddenKey)
         defaults.set(renderMode.rawValue, forKey: renderModeKey)
         defaults.set(hapticsEnabled, forKey: hapticsEnabledKey)
         defaults.set(hasSeenOnboarding, forKey: hasSeenOnboardingKey)
+        encode(subscription, key: subscriptionKey)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, key: String) -> T? {
