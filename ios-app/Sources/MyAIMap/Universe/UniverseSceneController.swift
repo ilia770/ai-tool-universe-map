@@ -69,9 +69,9 @@ final class UniverseSceneController {
         while let candidate = current {
             if candidate.name.hasPrefix("planet:") {
                 let raw = String(candidate.name.dropFirst("planet:".count))
-                if let id = ToolCategoryId(rawValue: raw) {
-                    return .planet(id)
-                }
+                // `ToolCategoryId` is now a non-failable string wrapper; the
+                // entity-name prefix already guarantees this is a planet id.
+                return .planet(ToolCategoryId(rawValue: raw))
             }
             if candidate.name.hasPrefix("tool:") {
                 return .tool(String(candidate.name.dropFirst("tool:".count)))

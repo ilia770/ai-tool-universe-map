@@ -419,6 +419,7 @@ struct UniverseViewModelTests {
         // Simulate a stale/corrupt persisted state where the core tool was hidden.
         store.save(
             tools: [],
+            customCategories: [],
             hidden: [PlanetData.centralCoreToolID, "some-tool"],
             renderMode: .graph2D,
             hapticsEnabled: true,
@@ -475,5 +476,75 @@ struct UniverseViewModelTests {
         #expect(last?.role == .assistant)
         #expect(last?.matchIDs.isEmpty == true)
         #expect(last?.text.contains("can't read attachments") == true)
+    }
+
+    // MARK: - Custom (user/AI-created) branches — blueprint §8
+
+    @Test func createBranchReturnsResolvableCategory() {
+        let model = makeModel()
+        let id = model.createBranch(name: "Voice Agents")
+        #expect(id.rawValue == "voice-agents")
+        #expect(!id.isBuiltin)
+        // Resolvable everywhere category(_:) is called.
+        let resolved = UniverseSeed.category(id)
+        #expect(resolved.id == id)
+        #expect(resolved.shortName == "Voice Agents")
+        #expect(model.allCategories.contains { $0.id == id })
+    }
+
+    @Test func createBranchSlugCollisionGetsUniqueID() {
+        let model = makeModel()
+        let first = model.createBranch(name: "Ops")
+        let second = model.createBranch(name: "Ops")
+        #expect(first.rawValue == "ops")
+        #expect(second.rawValue == "ops-2")
+        #expect(model.customCategories.count == 2)
+    }
+
+    @Test func toolAddedToCustomBranchIsVisibleAndSearchable() {
+        let model = makeModel()
+        let id = model.createBranch(name: "Voice Agents")
+        #expect(model.addCustomTool(name: "Vapi", urlString: "vapi.ai", category: id))
+
+        let added = model.visibleAllTools.first { $0.name == "Vapi" }
+        #expect(added?.category == id)
+
+        model.searchQuery = "Vapi"
+        #expect(model.searchResults.contains { $0.name == "Vapi" })
+    }
+
+    @Test func customBranchPlanetRendersOnceItHasATool() {
+        let model = makeModel()
+        let id = model.createBranch(name: "Voice Agents")
+        // No tool yet → no planet (makePlanets drops empty categories).
+        #expect(!PlanetData.makePlanets(categories: model.allCategories, tools: model.visibleAllTools)
+            .contains { $0.id == id })
+
+        _ = model.addCustomTool(name: "Vapi", urlString: "vapi.ai", category: id)
+        let planets = PlanetData.makePlanets(categories: model.allCategories, tools: model.visibleAllTools)
+        #expect(planets.contains { $0.id == id })
+    }
+
+    @Test func customBranchPersistsAcrossReload() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+        let model = UniverseViewModel(store: store)
+        let id = model.createBranch(name: "Voice Agents")
+        _ = model.addCustomTool(name: "Vapi", urlString: "vapi.ai", category: id)
+
+        let reloaded = UniverseViewModel(store: store)
+        #expect(reloaded.customCategories.contains { $0.id == id })
+        // Registry is repopulated on load so resolution stays correct.
+        #expect(UniverseSeed.category(id).shortName == "Voice Agents")
+        #expect(reloaded.visibleAllTools.contains { $0.name == "Vapi" })
+    }
+
+    @Test func resetClearsCustomBranches() {
+        let model = makeModel()
+        let id = model.createBranch(name: "Voice Agents")
+        _ = model.addCustomTool(name: "Vapi", urlString: "vapi.ai", category: id)
+        model.resetUniverse()
+        #expect(model.customCategories.isEmpty)
+        #expect(model.allCategories.allSatisfy { $0.id.isBuiltin })
     }
 }

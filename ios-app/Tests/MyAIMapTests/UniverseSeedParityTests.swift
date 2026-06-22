@@ -50,4 +50,19 @@ struct UniverseSeedParityTests {
         let ids = UniverseSeed.categories.map(\.id)
         #expect(Set(ids).count == ids.count, "duplicate category ids in seed")
     }
+
+    @Test func unknownCategoryResolvesToDeterministicGeneratedCategory() {
+        // A branch id that is neither in the seed nor the custom registry must
+        // resolve to a non-crashing, STABLE generated category (blueprint §8).
+        let id = ToolCategoryId(rawValue: "totally-unknown-branch")
+        let a = UniverseSeed.category(id)
+        let b = UniverseSeed.category(id)
+        #expect(a.id == id)
+        // Not silently mislabeled as the first seed category.
+        #expect(a.id != UniverseSeed.categories[0].id)
+        #expect(a.shortName == "Totally Unknown Branch")
+        // Deterministic across calls (stable hash, not per-process hashValue).
+        #expect(a.color.rawValue == b.color.rawValue)
+        #expect(a.angle == b.angle)
+    }
 }

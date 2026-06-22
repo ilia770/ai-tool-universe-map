@@ -41,8 +41,7 @@ enum AddToolLogic {
         activeCategory: ToolCategoryId
     ) -> ToolCategoryId {
         let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        let scored = ToolCategoryId.allCases
-            .filter { $0 != .core }
+        let scored = ToolCategoryId.builtins
             .map { category -> (ToolCategoryId, Int) in
                 let keywordHits = autoKeywords(for: category).reduce(0) { score, keyword in
                     text.contains(keyword) ? score + 1 : score
@@ -70,6 +69,10 @@ enum AddToolLogic {
                 : "Using the active universe branch until a name or website gives a stronger signal."
         }
 
+        if let proposed = proposedBranchName(name: name, website: website, activeCategory: activeCategory) {
+            return "No existing branch fits — I'll create a '\(proposed)' branch."
+        }
+
         let text = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         let matchedKeywords = autoKeywords(for: suggestedCategory).contains { text.contains($0) }
         if matchedKeywords {
@@ -78,33 +81,52 @@ enum AddToolLogic {
         return "No strong keyword match; using the active universe context."
     }
 
-    static func autoKeywords(for category: ToolCategoryId) -> [String] {
-        switch category {
-        case .coding:
-            return ["code", "coding", "developer", "dev", "repo", "github", "ide", "agent", "cursor", "codex", "replit", "lovable"]
-        case .design:
-            return ["design", "figma", "prototype", "ui", "ux", "mockup", "framer", "mobbin", "relume"]
-        case .research:
-            return ["research", "data", "scrape", "crawler", "search", "browser", "api", "source", "firecrawl", "perplexity"]
-        case .analytics:
-            return ["analytics", "metric", "event", "growth", "funnel", "experiment", "posthog", "tracking", "sentry", "amplitude", "mixpanel"]
-        case .media:
-            return ["video", "media", "image", "creative", "render", "motion", "audio", "gen", "runway", "heygen"]
-        case .distribution:
-            return ["social", "publish", "schedule", "distribution", "launch", "buffer", "channel", "newsletter"]
-        case .infrastructure:
-            return ["infra", "database", "backend", "deploy", "server", "cloud", "runtime", "supabase", "vercel", "neon", "railway", "firebase"]
-        case .knowledge:
-            return ["knowledge", "docs", "skill", "wiki", "notion", "memory", "linear", "obsidian"]
-        case .core:
-            return []
+    /// The Auto path proposes a NEW branch (blueprint §8) when no built-in
+    /// branch keyword fits and the active context is the centre (no branch to
+    /// fall back on). Returns the proposed branch name (the tool's own name), or
+    /// `nil` when an existing branch is a good enough home. Kept pure/testable.
+    static func proposedBranchName(
+        name: String,
+        website: String,
+        activeCategory: ToolCategoryId
+    ) -> String? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return nil }
+        // Only propose from the centre: when the user is already focused on a
+        // branch, that branch is the natural home and we don't override it.
+        guard activeCategory == .core else { return nil }
+        let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let anyKeywordHit = ToolCategoryId.builtins.contains { category in
+            autoKeywords(for: category).contains { text.contains($0) }
         }
+        // A weak signal (no keyword hit anywhere) from the centre → new branch.
+        return anyKeywordHit ? nil : cleanName
     }
+
+    static func autoKeywords(for category: ToolCategoryId) -> [String] {
+        // Keyed by built-in id; custom (user/AI-created) branches have no
+        // keyword profile and fall through to `[]` so they score zero in the
+        // auto-suggest pass (they are only selected manually or via the
+        // "no existing branch fits" proposal).
+        autoKeywordsByCategory[category] ?? []
+    }
+
+    private static let autoKeywordsByCategory: [ToolCategoryId: [String]] = [
+        .coding: ["code", "coding", "developer", "dev", "repo", "github", "ide", "agent", "cursor", "codex", "replit", "lovable"],
+        .design: ["design", "figma", "prototype", "ui", "ux", "mockup", "framer", "mobbin", "relume"],
+        .research: ["research", "data", "scrape", "crawler", "search", "browser", "api", "source", "firecrawl", "perplexity"],
+        .analytics: ["analytics", "metric", "event", "growth", "funnel", "experiment", "posthog", "tracking", "sentry", "amplitude", "mixpanel"],
+        .media: ["video", "media", "image", "creative", "render", "motion", "audio", "gen", "runway", "heygen"],
+        .distribution: ["social", "publish", "schedule", "distribution", "launch", "buffer", "channel", "newsletter"],
+        .infrastructure: ["infra", "database", "backend", "deploy", "server", "cloud", "runtime", "supabase", "vercel", "neon", "railway", "firebase"],
+        .knowledge: ["knowledge", "docs", "skill", "wiki", "notion", "memory", "linear", "obsidian"],
+    ]
 }
 
 private enum AddToolFocusedField: Hashable {
     case name
     case website
+    case newBranch
 }
 
 struct AddToolSheet: View {
@@ -116,6 +138,10 @@ struct AddToolSheet: View {
     @State private var website = ""
     @State private var category: ToolCategoryId = .analytics
     @State private var branchMode: AddToolBranchMode = .auto
+    /// Manual "+ New branch": when on, the resolved branch is created from
+    /// `newBranchName` on Add instead of using the picker selection.
+    @State private var isCreatingBranch = false
+    @State private var newBranchName = ""
     @State private var didApplyDraft = false
     @State private var discardConfirmationPresented = false
     @FocusState private var focusedField: AddToolFocusedField?
@@ -145,6 +171,7 @@ struct AddToolSheet: View {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !website.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || branchMode == .manual
+            || !newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -328,10 +355,10 @@ struct AddToolSheet: View {
 
                 HStack(spacing: BrandSpacing.m.value) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(UniverseSeed.category(resolvedCategory).shortName)
+                        Text(branchHeaderTitle)
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.white)
-                        Text(branchMode == .auto ? autoBranchReason : "Selected manually. Auto suggestions will not override this branch.")
+                        Text(branchHeaderReason)
                             .font(.caption)
                             .foregroundStyle(BrandColor.textMuted)
                             .lineLimit(2)
@@ -349,15 +376,53 @@ struct AddToolSheet: View {
                 .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
 
                 if branchMode == .manual {
-                    Picker("Branch", selection: $category) {
-                        ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
-                            Text(category.shortName).tag(category.id)
+                    if isCreatingBranch {
+                        VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                            TextField("New branch name", text: $newBranchName)
+                                .focused($focusedField, equals: .newBranch)
+                                .submitLabel(.done)
+                                .textInputAutocapitalization(.words)
+                                .autocorrectionDisabled()
+                                .padding(BrandSpacing.m.value)
+                                .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                                .id(AddToolFocusedField.newBranch)
+
+                            Button {
+                                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                                    isCreatingBranch = false
+                                    newBranchName = ""
+                                }
+                            } label: {
+                                Label("Pick an existing branch instead", systemImage: "arrow.uturn.backward")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BrandColor.textMuted)
+                            }
+                            .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
                         }
+                    } else {
+                        Picker("Branch", selection: $category) {
+                            ForEach(model.allCategories.filter { $0.id != .core }) { category in
+                                Text(category.shortName).tag(category.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(BrandSpacing.m.value)
+                        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+
+                        Button {
+                            BrandHaptics.fire(.light)
+                            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                                isCreatingBranch = true
+                            }
+                            focusedField = .newBranch
+                        } label: {
+                            Label("New branch", systemImage: "plus.circle")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(resolvedCategoryModel.color.swiftUIColor)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
                     }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(BrandSpacing.m.value)
-                    .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
                 }
             }
         }
@@ -440,8 +505,30 @@ struct AddToolSheet: View {
 
     private func add() {
         focusedField = nil
-        guard model.addCustomTool(name: name, urlString: website, category: resolvedCategory) else { return }
+        let category = categoryForAdd()
+        guard model.addCustomTool(name: name, urlString: website, category: category) else { return }
         dismiss()
+    }
+
+    /// Resolves the branch to add into, creating a NEW branch when the user
+    /// asked for one (manual "+ New branch") or when Auto proposed one because
+    /// no existing branch fit (blueprint §8).
+    private func categoryForAdd() -> ToolCategoryId {
+        if branchMode == .manual {
+            let pending = newBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isCreatingBranch, !pending.isEmpty {
+                return model.createBranch(name: pending)
+            }
+            return category
+        }
+        if let proposed = AddToolLogic.proposedBranchName(
+            name: name,
+            website: website,
+            activeCategory: model.selection.activeCategory
+        ) {
+            return model.createBranch(name: proposed)
+        }
+        return suggestedCategory
     }
 
     private func requestDismiss() {
@@ -466,6 +553,8 @@ struct AddToolSheet: View {
             return "Next"
         case .website:
             return canAdd ? "Add" : "Done"
+        case .newBranch:
+            return "Done"
         case nil:
             return "Done"
         }
@@ -481,6 +570,8 @@ struct AddToolSheet: View {
             } else {
                 focusedField = nil
             }
+        case .newBranch:
+            focusedField = nil
         case nil:
             focusedField = nil
         }
@@ -501,6 +592,33 @@ struct AddToolSheet: View {
             activeCategory: model.selection.activeCategory,
             suggestedCategory: suggestedCategory
         )
+    }
+
+    /// Title shown in the branch summary card: the pending new-branch name when
+    /// one is being created, otherwise the resolved branch's short name.
+    private var branchHeaderTitle: String {
+        if branchMode == .manual, isCreatingBranch {
+            let pending = newBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return pending.isEmpty ? "New branch" : pending
+        }
+        if branchMode == .auto,
+           let proposed = AddToolLogic.proposedBranchName(
+               name: name,
+               website: website,
+               activeCategory: model.selection.activeCategory
+           ) {
+            return proposed
+        }
+        return UniverseSeed.category(resolvedCategory).shortName
+    }
+
+    private var branchHeaderReason: String {
+        if branchMode == .manual {
+            return isCreatingBranch
+                ? "A new branch will be created and this tool placed in it."
+                : "Selected manually. Auto suggestions will not override this branch."
+        }
+        return autoBranchReason
     }
 }
 
