@@ -5,6 +5,24 @@ enum RootSurface: String, Equatable {
     case universe
 }
 
+/// Pure first-run routing rules, kept free of view state so the cold-start
+/// decision (which surface to land on, whether to show the onboarding overlay)
+/// is unit-testable.
+enum RootFirstRun {
+    /// Cold start always lands on the map surface — never the open-ended chat
+    /// question state. (Returning users land here too; their last state is
+    /// re-derived from persisted tools.)
+    static func initialSurface(hasSeenOnboarding: Bool) -> RootSurface {
+        .universe
+    }
+
+    /// The one-screen onboarding overlay shows only on a true first run,
+    /// independent of whether the universe is empty.
+    static func showsOnboarding(hasSeenOnboarding: Bool) -> Bool {
+        !hasSeenOnboarding
+    }
+}
+
 /// Pure micro-interaction rules for the root shell, kept free of view state so
 /// they can be unit-tested.
 enum RootShellMotion {
@@ -56,7 +74,9 @@ struct RootShell: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var surfaceNamespace
-    @State private var surface: RootSurface = .chat
+    // Cold start lands on the map (never the open-ended chat state). The
+    // returning-vs-first-run distinction only governs the onboarding overlay.
+    @State private var surface: RootSurface = .universe
     @State private var accountPresented = false
     @State private var addToolPresented = false
     @State private var addToolDraft: MissingToolSuggestion?
@@ -78,6 +98,7 @@ struct RootShell: View {
                     onAddTool: { presentAddTool(draft: nil) },
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
                     onOpenToolInUniverse: openToolInUniverse,
+                    onBackToMap: showUniverse,
                     onCardLand: flyCardToMap
                 )
                 .transition(diveTransition)
@@ -91,6 +112,7 @@ struct RootShell: View {
         .background(surface == .chat ? ChatTheme.background : Color.black)
         .coordinateSpace(name: RootShellCoordinateSpace.name)
         .overlay { ghostFlightOverlay }
+        .overlay { onboardingOverlay }
         .onPreferenceChange(MapPillFramePreferenceKey.self) { frame in
             mapPillFrame = frame
         }
@@ -103,6 +125,11 @@ struct RootShell: View {
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
             lastHandledAddedActivityID = latestAddedActivity?.id
+            // Cold start lands on the map; never the open-ended chat state.
+            // The overlay visibility is derived reactively from the persisted
+            // flag (see `onboardingOverlay`), so UI-test seeding that marks
+            // onboarding seen is always honoured regardless of onAppear order.
+            surface = RootFirstRun.initialSurface(hasSeenOnboarding: model.hasSeenOnboarding)
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
             BrandHaptics.isEnabled = isEnabled
@@ -205,6 +232,33 @@ struct RootShell: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .transition(.identity)
+        }
+    }
+
+    /// The one-screen first-run onboarding, layered above the map. Each action
+    /// (and Skip / scrim tap) marks onboarding seen so it never returns, then
+    /// routes to the matching destination.
+    @ViewBuilder
+    private var onboardingOverlay: some View {
+        if RootFirstRun.showsOnboarding(hasSeenOnboarding: model.hasSeenOnboarding) {
+            OnboardingOverlay(onAction: handleOnboardingAction)
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 1.02)))
+        }
+    }
+
+    private func handleOnboardingAction(_ action: OnboardingAction?) {
+        // Marking onboarding seen flips the persisted flag, which reactively
+        // removes the overlay (animated by the surrounding transaction).
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+            model.markOnboardingSeen()
+        }
+        switch action {
+        case .askAI:
+            showChat()
+        case .addTool:
+            presentAddTool(draft: nil)
+        case .exploreMap, .none:
+            showUniverse()
         }
     }
 
@@ -392,11 +446,19 @@ private struct RootSurfaceSwitch: View {
                 }
                 .padding(.horizontal, 13)
                 .padding(.vertical, 10)
+                // Selected-destination cue (§3.5): the Map pill fills when the
+                // map surface is active so "where am I" is always obvious.
+                .background {
+                    if surface == .universe {
+                        Capsule().fill(BrandColor.core.opacity(0.22))
+                    }
+                }
             }
-            .disabled(toolCount < 3)
-            .opacity(toolCount >= 3 ? 1 : 0.56)
+            // Always enabled: an empty/low-tool map is a valid destination
+            // (it shows the empty-state card), so the Map pill is never a
+            // dead-end that traps a new user in chat.
             .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
-            .accessibilityLabel(toolCount >= 3 ? "Open universe map, \(toolCount) tools" : "Universe map locked until three tools, \(toolCount) tools")
+            .accessibilityLabel("Open universe map, \(toolCount) tools")
             .accessibilityIdentifier("RootShell.ShowUniverse")
         }
         .foregroundStyle(.white.opacity(0.88))

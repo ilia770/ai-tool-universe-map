@@ -48,3 +48,20 @@ struct RootShellGhostFlightTests {
         #expect(!RootShellMotion.shouldFlyGhost(source: source, destination: .zero))
     }
 }
+
+/// Pure-logic coverage for the first-run gate: cold start always lands on the
+/// map, and the one-screen onboarding overlay shows only on a true first run.
+@Suite("RootShell first-run gate")
+struct RootFirstRunTests {
+    @Test("Cold start always lands on the map surface")
+    func coldStartLandsOnMap() {
+        #expect(RootFirstRun.initialSurface(hasSeenOnboarding: false) == .universe)
+        #expect(RootFirstRun.initialSurface(hasSeenOnboarding: true) == .universe)
+    }
+
+    @Test("Onboarding shows only on a true first run")
+    func onboardingShowsOnlyOnFirstRun() {
+        #expect(RootFirstRun.showsOnboarding(hasSeenOnboarding: false))
+        #expect(!RootFirstRun.showsOnboarding(hasSeenOnboarding: true))
+    }
+}

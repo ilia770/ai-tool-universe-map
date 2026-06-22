@@ -13,6 +13,7 @@ struct UniverseStore {
     private let hiddenKey = "universe.hiddenToolIDs.v1"
     private let renderModeKey = "universe.renderMode.v1"
     private let hapticsEnabledKey = "universe.hapticsEnabled.v1"
+    private let hasSeenOnboardingKey = "universe.hasSeenOnboarding.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -20,21 +21,24 @@ struct UniverseStore {
 
     static let standard = UniverseStore()
 
-    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool) {
+    func load() -> (tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool) {
         let tools = decode([Tool].self, key: toolsKey) ?? []
         let hidden = decode([String].self, key: hiddenKey) ?? []
         let renderMode = defaults.string(forKey: renderModeKey)
             .flatMap(UniverseRenderMode.init(rawValue:))
             ?? .graph2D
         let hapticsEnabled = defaults.object(forKey: hapticsEnabledKey) as? Bool ?? true
-        return (tools, Set(hidden), renderMode, hapticsEnabled)
+        // Absent key → true first run. Default false so the onboarding overlay shows.
+        let hasSeenOnboarding = defaults.bool(forKey: hasSeenOnboardingKey)
+        return (tools, Set(hidden), renderMode, hapticsEnabled, hasSeenOnboarding)
     }
 
-    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool) {
+    func save(tools: [Tool], hidden: Set<String>, renderMode: UniverseRenderMode, hapticsEnabled: Bool, hasSeenOnboarding: Bool) {
         encode(tools, key: toolsKey)
         encode(Array(hidden).sorted(), key: hiddenKey)
         defaults.set(renderMode.rawValue, forKey: renderModeKey)
         defaults.set(hapticsEnabled, forKey: hapticsEnabledKey)
+        defaults.set(hasSeenOnboarding, forKey: hasSeenOnboardingKey)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, key: String) -> T? {

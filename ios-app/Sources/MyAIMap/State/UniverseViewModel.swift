@@ -39,6 +39,12 @@ final class UniverseViewModel {
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
 
+    /// True once the user has completed (or skipped) first-run onboarding.
+    /// Persisted so the one-screen overlay shows only on a true first launch.
+    /// Independent of `isUniverseEmpty` — a user who onboards but adds nothing
+    /// must not see the overlay again (they see the empty-universe state).
+    private(set) var hasSeenOnboarding: Bool = false
+
     @ObservationIgnored private let store: UniverseStore
 
     /// Loads any previously-built universe from local storage. A brand-new user
@@ -55,6 +61,7 @@ final class UniverseViewModel {
         self.hiddenToolIDs = sanitizedHidden
         self.renderMode = saved.renderMode
         self.hapticsEnabled = saved.hapticsEnabled
+        self.hasSeenOnboarding = saved.hasSeenOnboarding
         if sanitizedHidden != saved.hidden {
             persist()
         }
@@ -65,8 +72,17 @@ final class UniverseViewModel {
             tools: customTools,
             hidden: hiddenToolIDs,
             renderMode: renderMode,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            hasSeenOnboarding: hasSeenOnboarding
         )
+    }
+
+    /// Marks first-run onboarding complete and persists it. Idempotent: any of
+    /// the overlay's actions, Skip, or a scrim tap may call it.
+    func markOnboardingSeen() {
+        guard !hasSeenOnboarding else { return }
+        hasSeenOnboarding = true
+        persist()
     }
 
     // MARK: - Derived state
