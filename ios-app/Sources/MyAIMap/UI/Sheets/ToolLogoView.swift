@@ -119,18 +119,32 @@ struct ToolLogoView: View {
     }
 
     private func categorySymbol(for category: ToolCategoryId) -> String {
-        switch category {
-        case .coding: return "chevron.left.forwardslash.chevron.right"
-        case .design: return "paintpalette"
-        case .research: return "doc.text.magnifyingglass"
-        case .analytics: return "chart.xyaxis.line"
-        case .media: return "sparkles.tv"
-        case .distribution: return "paperplane"
-        case .infrastructure: return "server.rack"
-        case .knowledge: return "books.vertical"
-        case .core: return "sparkles"
-        }
+        // Custom branches have no bespoke glyph; the neutral "sparkles" mark is
+        // the same fallback `.core` uses, so a user-created branch still renders
+        // a sensible monogram backdrop.
+        CategorySymbol.name(for: category)
     }
+}
+
+/// Shared SF Symbol mapping for branch ids, used by tool logos and detail rows.
+/// Built-ins map to bespoke glyphs; any custom (user/AI-created) branch falls
+/// back to a neutral mark so it never renders a blank icon.
+enum CategorySymbol {
+    static func name(for category: ToolCategoryId) -> String {
+        symbolsByCategory[category] ?? "sparkles"
+    }
+
+    private static let symbolsByCategory: [ToolCategoryId: String] = [
+        .coding: "chevron.left.forwardslash.chevron.right",
+        .design: "paintpalette",
+        .research: "doc.text.magnifyingglass",
+        .analytics: "chart.xyaxis.line",
+        .media: "sparkles.tv",
+        .distribution: "paperplane",
+        .infrastructure: "server.rack",
+        .knowledge: "books.vertical",
+        .core: "sparkles",
+    ]
 }
 
 #Preview {

@@ -3,20 +3,50 @@ import SwiftUI
 import UIKit
 
 /// Swift mirror of the web app's `ToolCategoryId` discriminated union.
-/// Kept exhaustive so the compiler enforces parity with the data file
-/// in `src/data/ai-tool-universe.ts`.
-enum ToolCategoryId: String, CaseIterable, Codable, Sendable, Identifiable {
-    case coding
-    case design
-    case research
-    case analytics
-    case media
-    case distribution
-    case infrastructure
-    case knowledge
-    case core
+///
+/// Originally a fixed `enum`, this is now an extensible string-backed struct so
+/// the user (or the AI/Auto path) can create NEW branches at runtime (blueprint
+/// §8). The eight seed branches plus `.core` remain available as static
+/// constants, so every existing `.coding` / `.design` / … literal keeps
+/// compiling. Encodes as a BARE STRING to preserve seed-JSON and persistence
+/// parity with the old `RawValue == String` enum.
+struct ToolCategoryId: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
+    let rawValue: String
+
+    init(rawValue: String) { self.rawValue = rawValue }
+    init(_ rawValue: String) { self.rawValue = rawValue }
 
     var id: String { rawValue }
+
+    static let coding = ToolCategoryId(rawValue: "coding")
+    static let design = ToolCategoryId(rawValue: "design")
+    static let research = ToolCategoryId(rawValue: "research")
+    static let analytics = ToolCategoryId(rawValue: "analytics")
+    static let media = ToolCategoryId(rawValue: "media")
+    static let distribution = ToolCategoryId(rawValue: "distribution")
+    static let infrastructure = ToolCategoryId(rawValue: "infrastructure")
+    static let knowledge = ToolCategoryId(rawValue: "knowledge")
+    static let core = ToolCategoryId(rawValue: "core")
+
+    /// The eight selectable branches (excludes `.core`, the centre). Replaces
+    /// the old `allCases` for any caller that iterates the built-in branches.
+    static let builtins: [ToolCategoryId] = [
+        .coding, .design, .research, .analytics,
+        .media, .distribution, .infrastructure, .knowledge,
+    ]
+
+    /// True for the eight seed branches plus `.core`; false for user/AI-created
+    /// custom branches.
+    var isBuiltin: Bool { Self.builtins.contains(self) || self == .core }
+
+    init(from decoder: Decoder) throws {
+        rawValue = try decoder.singleValueContainer().decode(String.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 /// One category orbit in the universe. `angle` is degrees, matching the

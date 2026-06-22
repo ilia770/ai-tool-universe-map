@@ -523,17 +523,7 @@ struct ToolDetailSection: View {
     }
 
     private func categoryIcon(_ category: ToolCategoryId) -> String {
-        switch category {
-        case .coding: return "chevron.left.forwardslash.chevron.right"
-        case .design: return "paintpalette"
-        case .research: return "doc.text.magnifyingglass"
-        case .analytics: return "chart.xyaxis.line"
-        case .media: return "sparkles.tv"
-        case .distribution: return "paperplane"
-        case .infrastructure: return "server.rack"
-        case .knowledge: return "books.vertical"
-        case .core: return "sparkles"
-        }
+        CategorySymbol.name(for: category)
     }
 
     private func orbitLabel(_ orbit: OrbitRing) -> String {
