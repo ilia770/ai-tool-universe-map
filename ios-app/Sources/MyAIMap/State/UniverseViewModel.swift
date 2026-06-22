@@ -35,6 +35,9 @@ final class UniverseViewModel {
             persist()
         }
     }
+    /// PLACEHOLDER plan / usage state (no billing). Persisted; usage increments
+    /// on each Ask-AI send so the "remaining" count visibly moves.
+    private(set) var subscription: SubscriptionState = .free
     private(set) var activityHistory: [UniverseActivity] = []
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
@@ -62,6 +65,7 @@ final class UniverseViewModel {
         self.renderMode = saved.renderMode
         self.hapticsEnabled = saved.hapticsEnabled
         self.hasSeenOnboarding = saved.hasSeenOnboarding
+        self.subscription = saved.subscription
         if sanitizedHidden != saved.hidden {
             persist()
         }
@@ -73,7 +77,8 @@ final class UniverseViewModel {
             hidden: hiddenToolIDs,
             renderMode: renderMode,
             hapticsEnabled: hapticsEnabled,
-            hasSeenOnboarding: hasSeenOnboarding
+            hasSeenOnboarding: hasSeenOnboarding,
+            subscription: subscription
         )
     }
 
@@ -281,6 +286,10 @@ final class UniverseViewModel {
             return
         }
 
+        // Placeholder usage accounting: each real Ask-AI send decrements the
+        // remaining count so the Settings number visibly moves (no real quota).
+        consumeAIRequest()
+
         // Local rule-based reply is always computed first: it stays the default
         // offline behavior and provides the chip match-IDs the UI relies on.
         let local = UniverseAssistantCore.reply(
@@ -291,10 +300,11 @@ final class UniverseViewModel {
             recentActivity: activityHistory
         )
 
-        // If the user supplied a DeepSeek key, prefer its (cheaper) reply text,
-        // grounded in the catalog. On a missing key OR any error we fall back to
-        // the local reply below.
-        if assistantUsesDeepSeek {
+        // Route through the AssistantBackend seam, never DeepSeek directly. Only
+        // the debug/developer DeepSeek path calls out; on missing config OR any
+        // error we fall back to the local reply below. Release builds and normal
+        // users always resolve to `.local`.
+        if activeBackend == .debugDeepSeek {
             let tools = visibleAllTools
             let systemPrompt = Self.deepSeekSystemPrompt(for: tools)
             Task { [weak self] in
@@ -312,9 +322,20 @@ final class UniverseViewModel {
         appendLocalReply(local, query: query)
     }
 
-    /// True when a DeepSeek API key is stored in the Keychain.
-    var assistantUsesDeepSeek: Bool {
-        KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    /// The backend the assistant will use, resolved through the seam. Normal
+    /// builds/users get `.local`; `.debugDeepSeek` only when developer mode is
+    /// on AND a key is stored (see `AssistantBackend`).
+    var activeBackend: AssistantBackend {
+        AssistantBackend.resolve(
+            developerModeEnabled: DeveloperMode.isEnabled,
+            hasDeepSeekKey: KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+        )
+    }
+
+    /// Increments the local placeholder usage counter and persists it.
+    private func consumeAIRequest() {
+        subscription.consumeRequest()
+        persist()
     }
 
     private func appendAssistantReply(text: String?, query: String, fallback: AssistantReply) {

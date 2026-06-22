@@ -69,6 +69,37 @@ struct UniverseViewModelTests {
         #expect(model.universeMode == .overview)
     }
 
+    @Test func askAssistantDecrementsRemainingAndPersists() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = UniverseStore(defaults: defaults)
+        let model = UniverseViewModel(store: store)
+
+        let startRemaining = model.subscription.aiRequestsRemaining
+        model.assistantQuery = "what analytics tool should I use"
+        model.askAssistant()
+
+        #expect(model.subscription.aiRequestsUsed == 1)
+        #expect(model.subscription.aiRequestsRemaining == startRemaining - 1)
+
+        // Usage survives a model reload over the same store.
+        let reloaded = UniverseViewModel(store: store)
+        #expect(reloaded.subscription.aiRequestsUsed == 1)
+    }
+
+    @Test func attachmentOnlyAskDoesNotConsumeRequest() {
+        let model = makeModel()
+        let startUsed = model.subscription.aiRequestsUsed
+        model.assistantQuery = "see attached"
+        model.askAssistant(attachmentOnly: true)
+        #expect(model.subscription.aiRequestsUsed == startUsed)
+    }
+
+    @Test func activeBackendIsLocalByDefault() {
+        // Release / normal-user default: no developer mode → local backend.
+        let model = makeModel()
+        #expect(model.activeBackend == .local)
+    }
+
     @Test func addedToolPersistsAcrossModelReloads() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = UniverseStore(defaults: defaults)
@@ -391,7 +422,8 @@ struct UniverseViewModelTests {
             hidden: [PlanetData.centralCoreToolID, "some-tool"],
             renderMode: .graph2D,
             hapticsEnabled: true,
-            hasSeenOnboarding: true
+            hasSeenOnboarding: true,
+            subscription: .free
         )
 
         let model = UniverseViewModel(store: store)
