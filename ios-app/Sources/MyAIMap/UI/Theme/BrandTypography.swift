@@ -15,6 +15,10 @@ enum BrandTypography {
     /// `.body` — descriptions, paragraph copy.
     static let body: Font = .system(.body, design: .rounded)
 
+    /// `.callout` — secondary paragraph copy (tool summaries). Scales with
+    /// Dynamic Type; do not replace with a fixed `.system(size:)`.
+    static let bodySecondary: Font = .system(.callout, design: .rounded)
+
     /// `.footnote` semibold — category chips.
     static let chip: Font = .system(.footnote, design: .default, weight: .semibold)
 
