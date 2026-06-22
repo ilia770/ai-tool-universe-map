@@ -15,11 +15,13 @@ struct UniverseOverlayView: View {
     let onOpenToolDetail: (String) -> Void
     let onChatActivityChange: (Bool) -> Void
     let onDetails: () -> Void
+    let onAskAI: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
+    @Namespace private var chromeNamespace
 
     private var isFocusedOnTool: Bool {
         guard let selectedToolID = mode.selectedToolID else { return false }
@@ -482,17 +484,33 @@ struct UniverseOverlayView: View {
     }
 
     private var topChrome: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 16) {
+                    topChromeContent
+                }
+            } else {
+                topChromeContent
+            }
+        }
+        .brandAnimation(BrandMotion.morph, value: mode)
+    }
+
+    private var topChromeContent: some View {
         HStack(alignment: .top, spacing: 12) {
             visualizationControl
+                .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
                 .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
             Spacer()
             Button(action: onAccount) {
-                UserAvatarImage(size: 46, tint: selectedPlanet.swiftUIColor)
+                UserAvatarImage(size: 46, tint: .white.opacity(0.88))
             }
             .buttonStyle(BouncyIconButtonStyle())
+            .navigationGlassMorphID("UniverseChrome.profile", in: chromeNamespace)
             .opacity(mode.isDetailOpen ? 0.58 : 1)
             .accessibilityLabel("Account")
         }
+        .transition(.scale(scale: 0.94).combined(with: .opacity))
     }
 
     private var visualizationControl: some View {
@@ -533,7 +551,7 @@ struct UniverseOverlayView: View {
         .padding(.leading, 8)
         .padding(.trailing, 12)
         .padding(.vertical, 8)
-        .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
+        .glassSurface(in: Capsule(), tint: .white.opacity(0.10), interactive: true)
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel("Visualization mode \(model.renderMode.title)")
         .accessibilityHint("Opens settings")
@@ -574,60 +592,90 @@ struct UniverseOverlayView: View {
         }
     }
 
-    /// Onboarding shown when the universe has no tools yet: the user either adds
-    /// their first tool (which becomes the first planet) or loads the bundled
-    /// sample universe.
+    /// Map-first onboarding shown when the universe has no tools yet. It keeps
+    /// the map as the first object the user sees and offers the three obvious
+    /// exits without turning the first launch into a blank chat prompt.
     private var emptyStateCard: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(.white.opacity(0.92))
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: "circle.hexagongrid.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .accessibilityHidden(true)
 
-            VStack(spacing: 7) {
-                Text("Your universe is empty")
+                Text("Build your AI universe")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
-                Text("Add the AI tools you use — each one becomes a planet you can fly between.")
+
+                Text("AI Universe turns the tools in your stack into a map. Ask for recommendations, add services, then explore how everything connects.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.66))
-                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .foregroundStyle(.white.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: 10) {
-                Button {
+                onboardingAction("Ask AI", systemImage: "text.bubble.fill", prominence: .primary) {
+                    BrandHaptics.fire(.medium)
+                    onAskAI()
+                }
+
+                onboardingAction("Add Tool", systemImage: "plus", prominence: .secondary) {
                     BrandHaptics.fire(.medium)
                     onAddTool()
-                } label: {
-                    Label("Add your first tool", systemImage: "plus")
-                        .font(.callout.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 30)
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-                .padding(.vertical, 11)
-                .padding(.horizontal, 16)
-                .background(.white.opacity(0.14), in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
-                .foregroundStyle(.white)
 
-                Button {
+                onboardingAction("Explore Map", systemImage: "map.fill", prominence: .secondary) {
                     BrandHaptics.fire(.light)
                     withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                         _ = model.loadSampleUniverse()
                     }
-                } label: {
-                    Text("Load a sample universe")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.62))
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 26)
         .padding(.horizontal, 24)
-        .frame(maxWidth: 320)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous), tint: nil, strokeStrength: 0.12)
+        .frame(maxWidth: 340)
+        .background(
+            .black.opacity(0.22),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+        .glassSurface(
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous),
+            tint: .white.opacity(0.08),
+            interactive: false
+        )
+    }
+
+    private enum OnboardingActionProminence {
+        case primary
+        case secondary
+    }
+
+    private func onboardingAction(
+        _ title: String,
+        systemImage: String,
+        prominence: OnboardingActionProminence,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.white.opacity(prominence == .primary ? 0.94 : 0.78))
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .padding(.vertical, 10)
+                .background(
+                    .white.opacity(prominence == .primary ? 0.13 : 0.055),
+                    in: Capsule()
+                )
+                .overlay {
+                    Capsule()
+                        .stroke(.white.opacity(prominence == .primary ? 0.22 : 0.12), lineWidth: 0.8)
+                }
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityIdentifier("UniverseEmpty.\(title.replacingOccurrences(of: " ", with: ""))")
     }
 }
 

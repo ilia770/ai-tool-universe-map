@@ -15,13 +15,22 @@ final class UniverseUISmokeTests: XCTestCase {
         app.launchArguments = ["-uitestStatic", "-uitestSampleUniverse"]
         app.launch()
         wait(2.5)
+        let showChatInitial = app.buttons["RootShell.ShowChat"]
+        XCTAssertTrue(showChatInitial.waitForExistence(timeout: 5), "Map-first launch should expose the Ask AI route")
+        snap("01-map-first")
+        attachText("tree-map-first", app.debugDescription)
+
+        if showChatInitial.isHittable {
+            showChatInitial.tap()
+        }
+        wait(1.2)
         let composer = app.textFields["chat-composer-field"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5), "Chat-first launch should show the composer")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5), "Ask AI route should show the composer")
         snap("01-chat")
         attachText("tree-chat", app.debugDescription)
 
         let openUniverse = app.buttons["RootShell.ShowUniverse"]
-        XCTAssertTrue(openUniverse.waitForExistence(timeout: 4), "Chat-first root should expose the Map route")
+        XCTAssertTrue(openUniverse.waitForExistence(timeout: 4), "Chat root should expose the Map route")
         if openUniverse.isHittable {
             openUniverse.tap()
         }

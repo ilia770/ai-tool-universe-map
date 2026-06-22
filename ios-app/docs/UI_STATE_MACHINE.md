@@ -193,3 +193,49 @@ silently collapsed back to category focus.
   confirm no desync across map/chips/rail/card on device, and that chat focus
   is atmospheric not black.
 - Agent 2/3/4/5 domains untouched by design.
+
+### Codex follow-up - first-run map + Liquid Glass navigation morphs (2026-06-22)
+
+**First-run route.** `RootShell` now starts on the universe surface instead of
+the chat surface. The Map route remains tappable even when the universe is
+empty; the empty map explains the product and offers Ask AI, Add Tool, and
+Explore Map actions. This prevents the fresh install from opening on a blank
+question/composer state.
+
+**Navigation chrome.** Top floating controls now use stable conceptual morph
+IDs:
+- `RootChrome.primaryRoute` for the Map <-> Ask AI route pill.
+- `RootChrome.context` for selected-tool context.
+- `UniverseChrome.mode` and `UniverseChrome.profile` for the map chrome.
+- `SearchDock.chatCollapse` for Collapse Chat <-> Show Chat.
+On iOS 26+ the helper uses native `glassEffectID`; older OS paths fall back to
+`matchedGeometryEffect` with the same IDs.
+
+**Changed files**
+- `RootShell.swift` — map-first initial surface, always-available Map route,
+  role-based root glass pills.
+- `UniverseScreen.swift`, `UniverseMapView.swift`, `UniverseOverlayView.swift`
+  — Ask AI callback from empty map, three-action onboarding card, neutral
+  Liquid Glass map chrome.
+- `UI/Effects/LiquidGlass.swift` — shared `navigationGlassMorphID` helper.
+- `UI/Search/SearchDock.swift` — chat collapse/show morph identity.
+- `UI/Settings/AddToolSheet.swift`, `UI/Settings/AccountSettingsSheet.swift`
+  — neutral glass toolbar controls.
+- Tests: `RootShellMotionTests.swift`, `UniverseUISmokeTests.swift`.
+
+**QA done**
+- `git diff --check` clean.
+- `xcodebuild -project ios-app/MyAIMap.xcodeproj -scheme MyAIMap -destination
+  'platform=iOS Simulator,id=EAC2C682-5C38-44DB-8FEC-034E296E8EEA'
+  -only-testing:MyAIMapTests test` passed: 242 Swift tests / 29 suites.
+- `xcodebuild ... -only-testing:MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates
+  test` passed: 1 UI smoke test, including map-first launch, Ask AI, Map
+  return, detail, account, input focus, and attachment menu.
+
+**Remaining issues**
+- Visual judgement of actual glass morph smoothness still needs a human/device
+  pass; tests verify routes and hittability, not subjective animation quality.
+- Native `glassEffectTransition(.matchedGeometry)` was not used directly to
+  avoid coupling to SDK surface beyond what this project already compiles; the
+  native path uses `GlassEffectContainer` + `glassEffectID`, with matched
+  geometry fallback.

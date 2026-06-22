@@ -17,6 +17,7 @@ struct SearchDock: View {
     // layout runs. UIScreen.main is the physical screen (wrong under iPad
     // Split View / Stage Manager) and is deprecated on iOS 26.
     @State private var dockWidth: CGFloat = 320
+    @Namespace private var chatChromeNamespace
 
     let isChatOpen: Bool
     let dismissAttachmentMenuToken: UUID?
@@ -100,6 +101,16 @@ struct SearchDock: View {
     }
 
     var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 12) {
+                dockContent
+            }
+        } else {
+            dockContent
+        }
+    }
+
+    private var dockContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsConversation {
                 conversationPanel
@@ -438,11 +449,13 @@ struct SearchDock: View {
             .frame(maxWidth: 152)
             .glassSurface(
                 in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
+                tint: .white.opacity(0.08),
                 interactive: true
             )
+            .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .brandAnimation(BrandMotion.morph, value: conversationCollapsed)
     }
 
     private var conversationHeader: some View {
@@ -467,9 +480,10 @@ struct SearchDock: View {
                     .frame(width: 30, height: 30)
                     .glassSurface(
                         in: Circle(),
-                        tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
+                        tint: .white.opacity(0.08),
                         interactive: true
                     )
+                    .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
             .accessibilityLabel("Collapse chat")

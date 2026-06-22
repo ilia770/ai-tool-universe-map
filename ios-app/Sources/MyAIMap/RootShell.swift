@@ -24,6 +24,27 @@ enum RootShellMotion {
     }
 }
 
+/// Pure root navigation policy for first-run clarity.
+enum RootShellNavigation {
+    /// The app opens on the map so a fresh user sees the product object first,
+    /// not an empty/question chat state.
+    static let initialSurface: RootSurface = .universe
+
+    /// The map route is always available, even before the user has three tools.
+    /// An empty map shows onboarding instead of disabling navigation.
+    static func canOpenMap(toolCount: Int) -> Bool {
+        true
+    }
+
+    static func mapAccessibilityLabel(toolCount: Int) -> String {
+        if toolCount == 0 {
+            "Open universe map, empty"
+        } else {
+            "Open universe map, \(toolCount) tools"
+        }
+    }
+}
+
 /// Payload describing the chat card that was tapped to add a tool, so the shell
 /// can fly a matching ghost toward the Map pill.
 struct CardLandRequest: Equatable {
@@ -56,7 +77,7 @@ struct RootShell: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var surfaceNamespace
-    @State private var surface: RootSurface = .chat
+    @State private var surface: RootSurface = RootShellNavigation.initialSurface
     @State private var accountPresented = false
     @State private var addToolPresented = false
     @State private var addToolDraft: MissingToolSuggestion?
@@ -83,7 +104,7 @@ struct RootShell: View {
                 .transition(diveTransition)
 
             case .universe:
-                UniverseScreen()
+                UniverseScreen(onAskAI: showChat)
                     .transition(diveTransition)
             }
         }
@@ -351,9 +372,8 @@ private struct RootSurfaceSwitch: View {
     @ViewBuilder
     var body: some View {
         if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 10) {
+            GlassEffectContainer(spacing: 16) {
                 switchContent
-                    .glassEffectID("root-surface-switch", in: namespace)
             }
         } else {
             switchContent
@@ -361,47 +381,47 @@ private struct RootSurfaceSwitch: View {
     }
 
     private var switchContent: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             if surface == .universe {
-                Button(action: onShowChat) {
-                    Label("Ask about this", systemImage: "text.bubble.fill")
-                        .font(.system(.footnote, weight: .bold))
-                        .lineLimit(1)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
-                .accessibilityLabel(selectedToolName.map { "Ask about \($0)" } ?? "Ask about this")
+                rootRouteButton(
+                    title: "Ask AI",
+                    systemImage: "text.bubble.fill",
+                    action: onShowChat
+                )
+                .accessibilityLabel(selectedToolName.map { "Ask about \($0)" } ?? "Ask AI")
                 .accessibilityIdentifier("RootShell.ShowChat")
+
+                if let selectedToolName {
+                    rootContextChip(selectedToolName)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                }
             }
 
-            Button(action: onShowUniverse) {
-                HStack(spacing: 8) {
-                    Image(systemName: "map.fill")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Map")
-                        .font(.system(.footnote, weight: .bold))
-                    Text("\(toolCount)")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.black.opacity(0.82))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(BrandColor.core, in: Capsule())
-                        .contentTransition(.numericText(value: Double(toolCount)))
-                        .scaleEffect(badgePopped ? 1.18 : 1)
-                }
-                .padding(.horizontal, 13)
-                .padding(.vertical, 10)
+            if surface == .chat {
+                rootRouteButton(
+                    title: "Map",
+                    systemImage: "map.fill",
+                    action: onShowUniverse,
+                    accessory: {
+                        Text("\(toolCount)")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.88))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(.white.opacity(0.12), in: Capsule())
+                            .contentTransition(.numericText(value: Double(toolCount)))
+                            .scaleEffect(badgePopped ? 1.18 : 1)
+                    }
+                )
+                .disabled(!RootShellNavigation.canOpenMap(toolCount: toolCount))
+                .accessibilityLabel(RootShellNavigation.mapAccessibilityLabel(toolCount: toolCount))
+                .accessibilityIdentifier("RootShell.ShowUniverse")
             }
-            .disabled(toolCount < 3)
-            .opacity(toolCount >= 3 ? 1 : 0.56)
-            .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
-            .accessibilityLabel(toolCount >= 3 ? "Open universe map, \(toolCount) tools" : "Universe map locked until three tools, \(toolCount) tools")
-            .accessibilityIdentifier("RootShell.ShowUniverse")
         }
         .foregroundStyle(.white.opacity(0.88))
-        .glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.26), interactive: true)
         .brandAnimation(BrandMotion.pillPop, value: badgePopped)
+        .brandAnimation(BrandMotion.morph, value: surface)
+        .brandAnimation(BrandMotion.morph, value: selectedToolName)
         .brandSensoryFeedback(.increase, trigger: toolCount)
         .onChange(of: toolCount) { oldValue, newValue in
             guard !reduceMotion, RootShellMotion.badgeShouldPop(from: oldValue, to: newValue) else { return }
@@ -411,6 +431,58 @@ private struct RootSurfaceSwitch: View {
                 badgePopped = false
             }
         }
+    }
+
+    private func rootRouteButton<Accessory: View>(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .bold))
+                Text(title)
+                    .font(.system(.footnote, weight: .bold))
+                    .lineLimit(1)
+                accessory()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .glassSurface(in: Capsule(), tint: .white.opacity(0.10), interactive: true)
+            .navigationGlassMorphID("RootChrome.primaryRoute", in: namespace)
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+        .transition(.scale(scale: 0.92).combined(with: .opacity))
+    }
+
+    private func rootRouteButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        rootRouteButton(title: title, systemImage: systemImage, action: action) {
+            EmptyView()
+        }
+    }
+
+    private func rootContextChip(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(.white.opacity(0.72))
+                .frame(width: 6, height: 6)
+            Text(title)
+                .font(.system(.caption, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white.opacity(0.78))
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 150)
+        .glassSurface(in: Capsule(), tint: .white.opacity(0.06), interactive: false)
+        .navigationGlassMorphID("RootChrome.context", in: namespace)
+        .accessibilityLabel("Selected \(title)")
     }
 }
 

@@ -119,6 +119,7 @@ struct AddToolSheet: View {
     @State private var didApplyDraft = false
     @State private var discardConfirmationPresented = false
     @FocusState private var focusedField: AddToolFocusedField?
+    @Namespace private var sheetChromeNamespace
 
     init(draft: MissingToolSuggestion? = nil) {
         self.draft = draft
@@ -174,13 +175,17 @@ struct AddToolSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
+                    sheetChromeButton("Cancel", systemImage: "xmark", enabled: true) {
                         requestDismiss()
                     }
+                    .navigationGlassMorphID("AddToolSheet.cancel", in: sheetChromeNamespace)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add") { add() }
+                    sheetChromeButton("Add", systemImage: "plus", enabled: canAdd, prominent: true) {
+                        add()
+                    }
                         .disabled(!canAdd)
+                        .navigationGlassMorphID("AddToolSheet.add", in: sheetChromeNamespace)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -244,6 +249,32 @@ struct AddToolSheet: View {
             RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
                 .stroke(BrandColor.stroke, lineWidth: 0.5)
         }
+    }
+
+    private func sheetChromeButton(
+        _ title: String,
+        systemImage: String,
+        enabled: Bool,
+        prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .font(.system(.footnote, weight: .bold))
+            }
+            .foregroundStyle(.white.opacity(enabled ? 0.88 : 0.36))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .glassSurface(
+                in: Capsule(),
+                tint: .white.opacity(prominent && enabled ? 0.14 : 0.07),
+                interactive: enabled
+            )
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
     }
 
     private var fields: some View {

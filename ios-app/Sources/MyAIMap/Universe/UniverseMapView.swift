@@ -16,6 +16,7 @@ struct UniverseMapView: View {
     @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
+    var onAskAI: () -> Void = {}
 
     /// Read alias for the single source of truth. All writes go to
     /// `model.universeMode`; the view never stores a second copy of the mode
@@ -91,6 +92,7 @@ struct UniverseMapView: View {
                 onOpenToolDetail: openToolDetailFromChat,
                 onChatActivityChange: setChatOpen,
                 onDetails: presentDetail,
+                onAskAI: onAskAI,
                 onAccount: presentAccount,
                 onAddTool: { presentAddTool() },
                 onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }

@@ -94,3 +94,20 @@ count, not "Executed 0 tests".
 - [ ] iPhone TestFlight pass for the full checklist above.
 - [ ] iPhone SE-class small-width visual pass.
 - [ ] iPad regular-width detail/related-tool pass.
+
+## Navigation glass run - 2026-06-22
+
+**Automated**
+- [x] `git diff --check` clean.
+- [x] `xcodebuild -project ios-app/MyAIMap.xcodeproj -scheme MyAIMap
+      -destination 'platform=iOS Simulator,id=EAC2C682-5C38-44DB-8FEC-034E296E8EEA'
+      -only-testing:MyAIMapTests test` passed: 242 tests / 29 suites.
+- [x] `xcodebuild ... -only-testing:MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates
+      test` passed: map-first launch, Ask AI route, Map route, graph taps,
+      detail, account, input focus, attachment menu.
+
+**Still needs visual QA**
+- [ ] Real-device check that Map <-> Ask AI top pill morphs without flicker.
+- [ ] Real-device check that Collapse Chat <-> Show Chat feels continuous.
+- [ ] Add Tool / Account toolbar glass controls do not collide with Dynamic
+      Island/status bar on physical devices.

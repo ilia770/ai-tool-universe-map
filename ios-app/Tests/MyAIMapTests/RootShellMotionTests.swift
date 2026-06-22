@@ -48,3 +48,24 @@ struct RootShellGhostFlightTests {
         #expect(!RootShellMotion.shouldFlyGhost(source: source, destination: .zero))
     }
 }
+
+@Suite("RootShell navigation policy")
+struct RootShellNavigationTests {
+    @Test("Starts on the map surface")
+    func startsOnMap() {
+        #expect(RootShellNavigation.initialSurface == .universe)
+    }
+
+    @Test("Map route stays available for empty and populated universes")
+    func mapRouteAlwaysAvailable() {
+        #expect(RootShellNavigation.canOpenMap(toolCount: 0))
+        #expect(RootShellNavigation.canOpenMap(toolCount: 1))
+        #expect(RootShellNavigation.canOpenMap(toolCount: 3))
+    }
+
+    @Test("Map accessibility label explains empty state")
+    func mapAccessibilityLabel() {
+        #expect(RootShellNavigation.mapAccessibilityLabel(toolCount: 0) == "Open universe map, empty")
+        #expect(RootShellNavigation.mapAccessibilityLabel(toolCount: 4) == "Open universe map, 4 tools")
+    }
+}

@@ -8,6 +8,7 @@ struct AccountSettingsSheet: View {
     @State private var showResetConfirm = false
     @State private var deepSeekKeyInput = ""
     @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    @Namespace private var sheetChromeNamespace
 
     var body: some View {
         NavigationStack {
@@ -41,6 +42,11 @@ struct AccountSettingsSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .frame(width: 34, height: 34)
+                            .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+                            .navigationGlassMorphID("AccountSheet.close", in: sheetChromeNamespace)
                     }
                     .buttonStyle(BouncyIconButtonStyle())
                 }
