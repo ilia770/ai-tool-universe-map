@@ -55,8 +55,13 @@ enum UniverseRenderMode: String, CaseIterable, Identifiable, Codable, Equatable,
     }
 }
 
-/// User-facing visualization presets. The letters intentionally match
-/// the design research shortlist: A/K/N/O, with N as the force-3D view.
+/// INTERNAL 3D renderer tuning only — NOT a user-facing setting.
+/// These presets supply `nodeScale` / `categoryScale` / `glowBoost` multipliers
+/// consumed by the RealityKit `PlanetEntityFactory` / `UniverseSceneController`.
+/// They are deliberately NOT exposed as a Settings control: selecting one
+/// produces no perceptible change a user could attribute to a "style" picker,
+/// which the Settings prime directive forbids (see SETTINGS_PROFILE_SPEC §3).
+/// The single fixed value (`.orbitalGlass`) is used as the renderer's tuning.
 enum VisualizationStyle: String, CaseIterable, Identifiable, Equatable, Sendable {
     case atlasOverlay
     case kineticPockets
@@ -138,7 +143,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .system: return "System"
+        case .system: return "Follow device language"
         case .english: return "English"
         case .russian: return "Russian"
         }

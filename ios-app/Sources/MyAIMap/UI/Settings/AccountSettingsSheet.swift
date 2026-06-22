@@ -6,8 +6,11 @@ struct AccountSettingsSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
+    @State private var showUpgradePlaceholder = false
+    #if DEBUG
     @State private var deepSeekKeyInput = ""
     @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -101,58 +104,25 @@ struct AccountSettingsSheet: View {
                 }
             }
 
+            planGroup
+
             settingsGroup(title: "Behavior", systemImage: "hand.tap.fill") {
                 Toggle("Haptics", isOn: $model.hapticsEnabled)
                     .tint(model.selectedCategoryModel.color.swiftUIColor)
-                Text("The assistant asks for a website when a service is missing instead of inventing facts.")
+                Text("Haptics add subtle taps for selections, opening tools, and success or error feedback. Turn off to silence all haptic feedback.")
                     .font(.footnote)
                     .foregroundStyle(BrandColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            settingsGroup(title: "AI assistant", systemImage: "sparkles") {
-                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
-                    HStack(spacing: BrandSpacing.s.value) {
-                        Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
-                            .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
-                        Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                        Spacer()
-                    }
-
-                    SecureField("DeepSeek API key", text: $deepSeekKeyInput)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .submitLabel(.done)
-                        .padding(BrandSpacing.m.value)
-                        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
-                        .foregroundStyle(.white)
-
-                    HStack(spacing: BrandSpacing.s.value) {
-                        Button {
-                            saveDeepSeekKey()
-                        } label: {
-                            universeActionRow("Save key", systemImage: "tray.and.arrow.down", destructive: false)
-                        }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
-                        .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Button(role: .destructive) {
-                            clearDeepSeekKey()
-                        } label: {
-                            universeActionRow("Clear", systemImage: "trash", destructive: true)
-                        }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
-                        .disabled(!deepSeekKeySet)
-                    }
-
-                    Text("Optional, cheaper AI. Paste a DeepSeek API key to answer with DeepSeek instead of the on-device assistant. The key is stored on device (Keychain); without it, the local assistant is used.")
-                        .font(.footnote)
-                        .foregroundStyle(BrandColor.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            #if DEBUG
+            // Developer-only: the DeepSeek API-key entry. Gated behind DEBUG and
+            // the hidden `developer.modeEnabled` flag so it never appears in a
+            // release build or for a normal user (SETTINGS_PROFILE_SPEC §1).
+            if DeveloperMode.isEnabled {
+                deepSeekDeveloperGroup
             }
+            #endif
 
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
@@ -207,6 +177,103 @@ struct AccountSettingsSheet: View {
             }
         }
     }
+
+    // PLACEHOLDER plan / usage group — no real billing, no StoreKit, no network
+    // (SETTINGS_PROFILE_SPEC §2). Shows plan, usage cap, remaining requests, and
+    // a non-functional Upgrade CTA.
+    private var planGroup: some View {
+        settingsGroup(title: "Plan", systemImage: "creditcard.fill") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                planRow(label: "Plan", value: model.subscription.plan.displayName)
+                planRow(label: "Usage limit", value: "\(model.subscription.aiRequestsLimit) AI requests / month")
+                planRow(label: "Remaining AI requests", value: "\(model.subscription.aiRequestsRemaining)")
+
+                Button {
+                    showUpgradePlaceholder = true
+                } label: {
+                    HStack {
+                        Label("Upgrade", systemImage: "sparkles")
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(.black.opacity(0.85))
+                    .padding(BrandSpacing.m.value)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(model.selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                .accessibilityIdentifier("settings.plan.upgrade")
+            }
+        }
+        .confirmationDialog("Upgrade", isPresented: $showUpgradePlaceholder, titleVisibility: .visible) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Paid plans are coming soon. There's nothing to buy yet.")
+        }
+    }
+
+    private func planRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(BrandColor.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    #if DEBUG
+    private var deepSeekDeveloperGroup: some View {
+        @Bindable var model = model
+        return settingsGroup(title: "AI assistant (developer)", systemImage: "wrench.and.screwdriver.fill") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                HStack(spacing: BrandSpacing.s.value) {
+                    Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
+                        .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
+                    Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+
+                SecureField("DeepSeek API key", text: $deepSeekKeyInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .submitLabel(.done)
+                    .padding(BrandSpacing.m.value)
+                    .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .foregroundStyle(.white)
+
+                HStack(spacing: BrandSpacing.s.value) {
+                    Button {
+                        saveDeepSeekKey()
+                    } label: {
+                        universeActionRow("Save key", systemImage: "tray.and.arrow.down", destructive: false)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                    .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button(role: .destructive) {
+                        clearDeepSeekKey()
+                    } label: {
+                        universeActionRow("Clear", systemImage: "trash", destructive: true)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                    .disabled(!deepSeekKeySet)
+                }
+
+                Text("Developer-only. The DeepSeek key routes the assistant through DeepSeek; on any error it falls back to the on-device assistant. Hidden from normal users.")
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    #endif
 
     private var historyContent: some View {
         settingsGroup(title: "Recent activity", systemImage: "clock.arrow.circlepath") {
@@ -358,6 +425,7 @@ struct AccountSettingsSheet: View {
         }
     }
 
+    #if DEBUG
     private func saveDeepSeekKey() {
         let trimmed = deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -371,6 +439,7 @@ struct AccountSettingsSheet: View {
         deepSeekKeySet = false
         deepSeekKeyInput = ""
     }
+    #endif
 
     private func open(_ activity: UniverseActivity) {
         guard let id = activity.toolID, model.focusTool(id) else { return }
