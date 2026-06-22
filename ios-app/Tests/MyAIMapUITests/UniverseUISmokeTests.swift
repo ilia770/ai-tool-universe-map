@@ -80,6 +80,12 @@ final class UniverseUISmokeTests: XCTestCase {
                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.985, dy: 0.42)))
         wait(0.6); snap("08-after-rail-drag")
 
+        let resetToMap = app.buttons["RootShell.ShowUniverse"]
+        if resetToMap.waitForExistence(timeout: 2), resetToMap.isHittable {
+            resetToMap.tap()
+            wait(0.8)
+        }
+
         let showChat = app.buttons["RootShell.ShowChat"]
         XCTAssertTrue(showChat.waitForExistence(timeout: 3), "Map route should expose the Chat return control")
         if showChat.isHittable {

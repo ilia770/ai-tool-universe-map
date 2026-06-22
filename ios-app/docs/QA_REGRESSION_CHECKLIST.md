@@ -128,5 +128,29 @@ count, not "Executed 0 tests".
 - [ ] Liquid Glass morph smoothness on a physical iPhone.
 - [ ] TestFlight pass for collapsed chat: collapse with transcript, then tap/pan
       the map and confirm no transparent chat layer blocks gestures.
-- [ ] Attachment preview currently verifies the staged Photo/File affordance;
-      a real file/photo picker preview remains out of scope for this pass.
+- [ ] Real-device attachment pass: Photo opens Photos picker, Files opens the
+      system file importer, selected items render the floating glass preview,
+      and removal clears the staged attachment. UI smoke uses deterministic
+      picker payloads under `-uitestStatic` to avoid system modal flake.
+
+## Follow-up stabilization pass - 2026-06-22
+
+**Implemented**
+- [x] Chat attachments now use production `PhotosPicker` / `fileImporter`
+      entry points instead of only placeholder enum staging. The assistant still
+      answers honestly that it cannot read attachment contents yet.
+- [x] 3D Spatial default tuning is calmer while it remains Experimental:
+      fewer background stars, smaller/lower-opacity stars, weaker orbit/link
+      lines, and reduced default node/glow scale.
+- [x] Tool Detail and Settings removed the remaining heavy category-colored
+      filled panels from website, pricing, upgrade, and render-mode controls.
+
+**Automated**
+- [x] `xcodebuild ... -only-testing:MyAIMapTests/ComposerLogicTests test`;
+      25 tests passed, 0 failed.
+- [x] `xcodebuild ... -only-testing:MyAIMapTests/UniverseSelectionTests test`;
+      6 tests passed, 0 failed.
+- [x] `scripts/ios-verify.sh --run-tests --device-id EAC2C682-5C38-44DB-8FEC-034E296E8EEA`;
+      265 tests / 32 suites passed.
+- [x] `xcodebuild ... -only-testing:MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates test`;
+      1 UI smoke test passed, 0 failed.

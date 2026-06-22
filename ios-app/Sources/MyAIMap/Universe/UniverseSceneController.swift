@@ -141,8 +141,8 @@ final class UniverseSceneController {
                     from: .zero,
                     to: planet.position3D,
                     color: planet.uiColor,
-                    opacity: 0.5 * linkFade,
-                    thickness: 0.02,
+                    opacity: 0.22 * linkFade,
+                    thickness: 0.014,
                     name: "link:core-\(planet.id.rawValue)"
                 ))
             }
@@ -212,8 +212,8 @@ final class UniverseSceneController {
                 from: planet.position3D,
                 to: toolWorld,
                 color: category.color.uiColor,
-                opacity: 0.22,
-                thickness: 0.012,
+                opacity: 0.12,
+                thickness: 0.009,
                 name: "link:\(planet.id.rawValue)-\(tool.id)"
             ))
         }
@@ -259,7 +259,7 @@ final class UniverseSceneController {
 
     private func addStars() {
         guard starRoot.children.isEmpty else { return }
-        for index in 0..<160 {
+        for index in 0..<56 {
             starRoot.addChild(PlanetEntityFactory.makeStar(index: index))
         }
     }
@@ -273,7 +273,7 @@ final class UniverseSceneController {
         case .force3D:
             return [(3.25, 0.06, 0.0), (5.15, 0.052, 0.18), (7.35, 0.04, -0.16), (9.4, 0.03, 0.26)]
         case .orbitalGlass:
-            return [(3.7, 0.035, 0.0), (5.45, 0.032, 0.04), (7.15, 0.025, -0.04)]
+            return [(3.7, 0.018, 0.0), (5.45, 0.015, 0.04), (7.15, 0.012, -0.04)]
         }
     }
 

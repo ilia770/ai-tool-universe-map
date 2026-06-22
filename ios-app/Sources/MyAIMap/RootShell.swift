@@ -98,7 +98,7 @@ struct RootShell: View {
                     onAddTool: { presentAddTool(draft: nil) },
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
                     onOpenToolInUniverse: openToolInUniverse,
-                    onBackToMap: showUniverse,
+                    onBackToMap: { showUniverse(resetSelection: true) },
                     onCardLand: flyCardToMap
                 )
                 .transition(diveTransition)
@@ -184,7 +184,7 @@ struct RootShell: View {
                 namespace: surfaceNamespace,
                 selectedToolName: explicitlySelectedTool?.name,
                 onShowChat: askAboutSelection,
-                onShowUniverse: showUniverse
+                onShowUniverse: { showUniverse(resetSelection: true) }
             )
             // Publish the pill frame (shared flight space) so the add-card
             // ghost knows where to land.
@@ -258,7 +258,7 @@ struct RootShell: View {
         case .addTool:
             presentAddTool(draft: nil)
         case .exploreMap, .none:
-            showUniverse()
+            showUniverse(resetSelection: true)
         }
     }
 
@@ -298,7 +298,10 @@ struct RootShell: View {
         return model.visibleAllTools.first { $0.id == toolID }
     }
 
-    private func showUniverse() {
+    private func showUniverse(resetSelection: Bool = false) {
+        if resetSelection, model.universeMode != .overview {
+            model.universeMode = .overview
+        }
         guard surface != .universe else { return }
         BrandHaptics.fire(.medium)
         withBrandAnimation(BrandMotion.morph, reduceMotion: reduceMotion) {

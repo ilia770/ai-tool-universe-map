@@ -247,12 +247,16 @@ struct ToolDetailSection: View {
             Button {
                 browserSheet = item
             } label: {
-                actionLabel("Open website", systemImage: "safari", foreground: .black.opacity(0.84))
-                    .background(selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                actionLabel("Open website", systemImage: "safari", foreground: .white.opacity(0.92))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         } else {
-            Label("Website not added", systemImage: "lock.doc")
+            Label("Website not added - verify source", systemImage: "lock.doc")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BrandColor.textMuted)
                 .frame(maxWidth: .infinity)
@@ -275,9 +279,9 @@ struct ToolDetailSection: View {
         HStack(alignment: .top, spacing: BrandSpacing.m.value) {
             Image(systemName: row.icon)
                 .font(.system(size: pricingIconGlyph, weight: .bold))
-                .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                .foregroundStyle(.white.opacity(0.82))
                 .frame(width: pricingIconContainer, height: pricingIconContainer)
-                .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Circle())
+                .background(.white.opacity(0.08), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -287,7 +291,7 @@ struct ToolDetailSection: View {
                     Spacer(minLength: BrandSpacing.s.value)
                     Text(row.value)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                        .foregroundStyle(.white.opacity(0.72))
                         .multilineTextAlignment(.trailing)
                 }
 

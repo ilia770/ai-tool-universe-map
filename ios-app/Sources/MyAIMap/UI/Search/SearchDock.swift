@@ -1,5 +1,7 @@
+import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// Bottom assistant dock. Collapsed it is a ChatGPT-like input plus a
 /// right-side action button; once the user asks something, it grows a compact
@@ -10,7 +12,10 @@ struct SearchDock: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
-    @State private var selectedAttachment: AssistantAttachmentKind?
+    @State private var selectedAttachment: AssistantAttachmentPayload?
+    @State private var photoPickerPresented = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var fileImporterPresented = false
     @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
     // Neutral seed; the real width arrives via the width preference key once
@@ -101,12 +106,32 @@ struct SearchDock: View {
     }
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 12) {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 12) {
+                    dockContent
+                }
+            } else {
                 dockContent
             }
-        } else {
-            dockContent
+        }
+        .photosPicker(
+            isPresented: $photoPickerPresented,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            preferredItemEncoding: .automatic
+        )
+        .fileImporter(
+            isPresented: $fileImporterPresented,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImporterResult(result)
+        } onCancellation: {
+            fieldFocused = true
+        }
+        .onChange(of: selectedPhotoItem) { _, item in
+            handlePhotoPickerSelection(item)
         }
     }
 
@@ -289,9 +314,8 @@ struct SearchDock: View {
     private func attachmentMenuItem(_ kind: AssistantAttachmentKind) -> some View {
         Button {
             BrandHaptics.fire(.light)
-            selectedAttachment = kind
             attachmentMenuOpen = false
-            fieldFocused = true
+            presentAttachmentPicker(kind)
         } label: {
             Label(kind.title, systemImage: kind.icon)
                 .font(.system(.footnote, weight: .semibold))
@@ -299,7 +323,7 @@ struct SearchDock: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 9)
-                .background(.white.opacity(selectedAttachment == kind ? 0.12 : 0.055), in: Capsule())
+                .background(.white.opacity(selectedAttachment?.kind == kind ? 0.12 : 0.055), in: Capsule())
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel(kind.title)
@@ -348,12 +372,10 @@ struct SearchDock: View {
     /// §3): thumbnail / type glyph, name + type, and a trailing remove button.
     /// Same float lane as the menu and mutually exclusive with it. It floats with
     /// no layout footprint, so it never crowds the text field or covers the chat.
-    private func attachmentPreview(_ kind: AssistantAttachmentKind) -> some View {
+    private func attachmentPreview(_ attachment: AssistantAttachmentPayload) -> some View {
         HStack(alignment: .bottom) {
             HStack(spacing: 10) {
-                // Thumbnail / type glyph — neutral rounded square (no photo
-                // library wired up yet, so the photo case shows its glyph too).
-                Image(systemName: kind.icon)
+                Image(systemName: attachment.kind.icon)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
                     .frame(width: 36, height: 36)
@@ -363,12 +385,12 @@ struct SearchDock: View {
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(kind.previewName)
+                    Text(attachment.previewName)
                         .font(.system(.footnote, weight: .semibold))
                         .foregroundStyle(BrandColor.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Text(kind.previewType)
+                    Text(attachment.previewDetail)
                         .font(.system(.caption2, weight: .medium))
                         .foregroundStyle(BrandColor.textMuted)
                         .lineLimit(1)
@@ -860,6 +882,109 @@ struct SearchDock: View {
     }
 }
 
+private extension SearchDock {
+    var usesDeterministicAttachmentPicker: Bool {
+        ProcessInfo.processInfo.arguments.contains("-uitestStatic")
+    }
+
+    func presentAttachmentPicker(_ kind: AssistantAttachmentKind) {
+        if usesDeterministicAttachmentPicker {
+            selectedAttachment = .deterministic(kind)
+            fieldFocused = true
+            return
+        }
+
+        fieldFocused = false
+        switch kind {
+        case .photo:
+            photoPickerPresented = true
+        case .files:
+            fileImporterPresented = true
+        }
+    }
+
+    func handlePhotoPickerSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        selectedAttachment = AssistantAttachmentPayload(
+            kind: .photo,
+            previewName: "Selected photo",
+            previewDetail: "Loading image",
+            messageTitle: "photo"
+        )
+        Task {
+            let size = try? await item.loadTransferable(type: Data.self)?.count
+            await MainActor.run {
+                selectedAttachment = AssistantAttachmentPayload(
+                    kind: .photo,
+                    previewName: "Selected photo",
+                    previewDetail: size.map(byteCountString) ?? "Image",
+                    messageTitle: "photo"
+                )
+                fieldFocused = true
+            }
+        }
+    }
+
+    func handleFileImporterResult(_ result: Result<[URL], any Error>) {
+        guard case .success(let urls) = result, let url = urls.first else {
+            fieldFocused = true
+            return
+        }
+        selectedAttachment = payload(for: url)
+        fieldFocused = true
+    }
+
+    func payload(for url: URL) -> AssistantAttachmentPayload {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
+        let type = resourceValues?.contentType?.localizedDescription
+            ?? (url.pathExtension.isEmpty ? "Document" : url.pathExtension.uppercased())
+        let size = resourceValues?.fileSize.map(byteCountString)
+        return AssistantAttachmentPayload(
+            kind: .files,
+            previewName: url.lastPathComponent.isEmpty ? "Selected file" : url.lastPathComponent,
+            previewDetail: [type, size].compactMap { $0 }.joined(separator: " - "),
+            messageTitle: url.lastPathComponent.isEmpty ? "file" : "file \(url.lastPathComponent)"
+        )
+    }
+
+    func byteCountString(_ bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+}
+
+private struct AssistantAttachmentPayload: Equatable {
+    let kind: AssistantAttachmentKind
+    let previewName: String
+    let previewDetail: String
+    let messageTitle: String
+
+    static func deterministic(_ kind: AssistantAttachmentKind) -> AssistantAttachmentPayload {
+        switch kind {
+        case .photo:
+            return AssistantAttachmentPayload(
+                kind: .photo,
+                previewName: "Selected photo",
+                previewDetail: "Image",
+                messageTitle: "photo"
+            )
+        case .files:
+            return AssistantAttachmentPayload(
+                kind: .files,
+                previewName: "Selected file",
+                previewDetail: "Document",
+                messageTitle: "file"
+            )
+        }
+    }
+}
+
 private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
     case photo
     case files
@@ -884,22 +1009,6 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         switch self {
         case .photo: return "photo"
         case .files: return "doc"
-        }
-    }
-
-    /// Floating preview primary line (CHAT_INPUT_SPEC §3). No real picker is
-    /// wired up yet, so these are the placeholder name/type for the staged item.
-    var previewName: String {
-        switch self {
-        case .photo: return "Photo"
-        case .files: return "File"
-        }
-    }
-
-    var previewType: String {
-        switch self {
-        case .photo: return "Image"
-        case .files: return "Document"
         }
     }
 

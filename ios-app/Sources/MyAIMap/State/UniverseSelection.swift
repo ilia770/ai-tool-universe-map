@@ -102,7 +102,7 @@ enum VisualizationStyle: String, CaseIterable, Identifiable, Equatable, Sendable
         case .atlasOverlay: return 0.92
         case .kineticPockets: return 1.05
         case .force3D: return 1.16
-        case .orbitalGlass: return 1.0
+        case .orbitalGlass: return 0.88
         }
     }
 
@@ -111,7 +111,7 @@ enum VisualizationStyle: String, CaseIterable, Identifiable, Equatable, Sendable
         case .atlasOverlay: return 0.94
         case .kineticPockets: return 1.08
         case .force3D: return 1.14
-        case .orbitalGlass: return 1.0
+        case .orbitalGlass: return 0.84
         }
     }
 
@@ -120,7 +120,7 @@ enum VisualizationStyle: String, CaseIterable, Identifiable, Equatable, Sendable
         case .atlasOverlay: return 0.82
         case .kineticPockets: return 1.1
         case .force3D: return 1.32
-        case .orbitalGlass: return 1.0
+        case .orbitalGlass: return 0.72
         }
     }
 
