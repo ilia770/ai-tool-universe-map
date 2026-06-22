@@ -68,6 +68,9 @@ struct ChatScreen: View {
     let onAddTool: () -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
     let onOpenToolInUniverse: (String) -> Void
+    /// Reports the tapped add-card's frame so the shell can fly a ghost of it
+    /// toward the Map pill (signature "tool lands in your universe" moment).
+    var onCardLand: (CardLandRequest) -> Void = { _ in }
 
     private var toolCount: Int {
         model.visibleAllTools.count
@@ -114,7 +117,8 @@ struct ChatScreen: View {
                                 matches: tools(for: message.matchIDs),
                                 isLatest: index == messages.count - 1,
                                 onOpenTool: onOpenToolInUniverse,
-                                onAddSuggestedTool: onAddSuggestedTool
+                                onAddSuggestedTool: onAddSuggestedTool,
+                                onCardLand: onCardLand
                             )
                             .id(message.id)
                         }
@@ -333,6 +337,7 @@ private struct ChatMessageTurn: View {
     var isLatest: Bool = false
     let onOpenTool: (String) -> Void
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
+    var onCardLand: (CardLandRequest) -> Void = { _ in }
 
     /// Drives the assistant turn's fade+rise on arrival. Starts `false` only
     /// for the newest assistant turn so older turns render statically when the
@@ -400,7 +405,11 @@ private struct ChatMessageTurn: View {
                         ChatToolChip(tool: tool) { onOpenTool(tool.id) }
                     }
                     ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
-                        ChatMissingToolChip(suggestion: suggestion) { onAddSuggestedTool(suggestion) }
+                        ChatMissingToolChip(
+                            suggestion: suggestion,
+                            onCardLand: onCardLand,
+                            onAdd: { onAddSuggestedTool(suggestion) }
+                        )
                     }
                 }
                 // The chip group reveals a beat after the prose so the tools
@@ -598,17 +607,28 @@ private struct ChatToolChip: View {
     }
 }
 
-/// Compact "add suggested tool" pill.
+/// Compact "add suggested tool" pill. On tap it reports its own frame to the
+/// shell (which flies a ghost of it to the Map pill — the "tool lands in your
+/// universe" signature moment), cross-fades itself out, then runs the add. The
+/// `PressableButtonStyle(haptic: nil)` lets the shell own the richer `toolLand`
+/// cue instead of stacking a plain press haptic on top of it.
 private struct ChatMissingToolChip: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let suggestion: MissingToolSuggestion
+    var onCardLand: (CardLandRequest) -> Void = { _ in }
     let onAdd: () -> Void
+
+    /// Captured frame of this chip in the shared flight coordinate space.
+    @State private var frame: CGRect = .zero
+    /// Drives the local cross-fade as the card "leaves" toward the map.
+    @State private var sent = false
 
     private var category: ToolCategory {
         UniverseSeed.category(suggestion.category)
     }
 
     var body: some View {
-        Button(action: onAdd) {
+        Button(action: tapped) {
             HStack(spacing: 5) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .bold))
@@ -624,9 +644,54 @@ private struct ChatMissingToolChip: View {
                 Capsule().stroke(category.color.swiftUIColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             }
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+        // The real chip fades as its ghost departs (or just cross-fades under
+        // reduce-motion, where no ghost flies).
+        .opacity(sent ? 0 : 1)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: ChipFramePreferenceKey.self,
+                    value: proxy.frame(in: .named(RootShellCoordinateSpace.name))
+                )
+            }
+        }
+        .onPreferenceChange(ChipFramePreferenceKey.self) { frame = $0 }
         .accessibilityLabel("Add \(suggestion.name) to my map")
         .accessibilityIdentifier("ChatScreen.MissingTool.\(suggestion.id)")
+    }
+
+    private func tapped() {
+        onCardLand(
+            CardLandRequest(
+                id: UUID(),
+                title: suggestion.name,
+                sourceFrame: frame,
+                tint: category.color.swiftUIColor
+            )
+        )
+        withBrandAnimation(BrandMotion.morph, reduceMotion: reduceMotion) {
+            sent = true
+        }
+        onAdd()
+        // Restore the chip after the flight settles so a cancelled add (or a
+        // re-tap) leaves the suggestion tappable again, not stuck invisible.
+        Task {
+            try? await Task.sleep(for: .milliseconds(520))
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                sent = false
+            }
+        }
+    }
+}
+
+/// Reports a chip's frame (in the shared flight space) so the shell can fly a
+/// ghost from it to the Map pill.
+private struct ChipFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero { value = next }
     }
 }
 

@@ -13,6 +13,39 @@ enum RootShellMotion {
     static func badgeShouldPop(from old: Int, to new: Int) -> Bool {
         new > old
     }
+
+    /// Signature add-flow: a ghost of the tapped chat card flies to the Map
+    /// pill only when both anchor frames are known. Under reduce-motion the
+    /// caller skips the flight (cross-fade + haptic + badge tick instead), so
+    /// this gate covers only the "do we have somewhere to fly to" case.
+    static func shouldFlyGhost(source: CGRect?, destination: CGRect?) -> Bool {
+        guard let source, let destination else { return false }
+        return !source.isEmpty && !destination.isEmpty
+    }
+}
+
+/// Payload describing the chat card that was tapped to add a tool, so the shell
+/// can fly a matching ghost toward the Map pill.
+struct CardLandRequest: Equatable {
+    let id: UUID
+    let title: String
+    let sourceFrame: CGRect
+    let tint: Color
+}
+
+/// Shared coordinate space the card source frame and the Map pill destination
+/// frame are both resolved in, so the ghost flight maths line up.
+enum RootShellCoordinateSpace {
+    static let name = "RootShell.flightSpace"
+}
+
+/// Reports the Map pill's frame (in the shared coordinate space) up to the shell.
+private struct MapPillFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
 }
 
 /// App-level shell for the chat-first IA.
@@ -28,6 +61,13 @@ struct RootShell: View {
     @State private var addToolPresented = false
     @State private var addToolDraft: MissingToolSuggestion?
     @State private var lastHandledAddedActivityID: UUID?
+    /// Map pill frame in the shared flight coordinate space (destination).
+    @State private var mapPillFrame: CGRect = .zero
+    /// The in-flight ghost, if any. Set on a chat add-card tap, cleared when
+    /// the flight lands.
+    @State private var flyingGhost: CardLandRequest?
+    /// Drives the ghost from its source frame toward the Map pill once mounted.
+    @State private var ghostLanded = false
 
     var body: some View {
         ZStack {
@@ -37,7 +77,8 @@ struct RootShell: View {
                     onOpenSettings: presentAccount,
                     onAddTool: { presentAddTool(draft: nil) },
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
-                    onOpenToolInUniverse: openToolInUniverse
+                    onOpenToolInUniverse: openToolInUniverse,
+                    onCardLand: flyCardToMap
                 )
                 .transition(diveTransition)
 
@@ -48,6 +89,11 @@ struct RootShell: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(surface == .chat ? ChatTheme.background : Color.black)
+        .coordinateSpace(name: RootShellCoordinateSpace.name)
+        .overlay { ghostFlightOverlay }
+        .onPreferenceChange(MapPillFramePreferenceKey.self) { frame in
+            mapPillFrame = frame
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             surfaceSwitchChrome
         }
@@ -113,11 +159,84 @@ struct RootShell: View {
                 onShowChat: askAboutSelection,
                 onShowUniverse: showUniverse
             )
+            // Publish the pill frame (shared flight space) so the add-card
+            // ghost knows where to land.
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: MapPillFramePreferenceKey.self,
+                        value: proxy.frame(in: .named(RootShellCoordinateSpace.name))
+                    )
+                }
+            }
             Spacer()
         }
         .padding(.top, 6)
         .padding(.bottom, 6)
         .allowsHitTesting(true)
+    }
+
+    /// The signature add-flow ghost: a small capsule mimicking the tapped chat
+    /// card that flies from the card's frame to the Map pill on `morph`, fading
+    /// and shrinking as it seats. Honours reduce-motion via the caller (which
+    /// skips the flight) — here it only renders the flight when one is queued.
+    @ViewBuilder
+    private var ghostFlightOverlay: some View {
+        if let ghost = flyingGhost {
+            let destination = CGPoint(x: mapPillFrame.midX, y: mapPillFrame.midY)
+            let origin = CGPoint(x: ghost.sourceFrame.midX, y: ghost.sourceFrame.midY)
+            let position = ghostLanded ? destination : origin
+
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                Text(ghost.title)
+                    .font(.system(.footnote, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(ghost.tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(ghost.tint.opacity(0.16), in: Capsule())
+            .overlay { Capsule().stroke(ghost.tint.opacity(0.5), lineWidth: 1) }
+            .scaleEffect(ghostLanded ? 0.18 : 1)
+            .opacity(ghostLanded ? 0 : 1)
+            .position(position)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .transition(.identity)
+        }
+    }
+
+    /// Fires the add-flow signature: the `toolLand` rich haptic (honours the
+    /// haptics toggle via `fireRich`) plus, when not reduce-motion and both
+    /// anchors are known, a ghost flight of the card toward the Map pill. The
+    /// badge tick happens independently when the tool count actually changes.
+    private func flyCardToMap(_ request: CardLandRequest) {
+        BrandHaptics.fireRich(.toolLand)
+
+        guard !reduceMotion,
+              RootShellMotion.shouldFlyGhost(source: request.sourceFrame, destination: mapPillFrame)
+        else { return }
+
+        ghostLanded = false
+        flyingGhost = request
+        // Defer the flight one runloop so the ghost mounts at its origin first.
+        DispatchQueue.main.async {
+            withBrandAnimation(BrandMotion.morph, reduceMotion: reduceMotion) {
+                ghostLanded = true
+            }
+        }
+        let activeID = request.id
+        Task {
+            try? await Task.sleep(for: .milliseconds(420))
+            // Only clear if this is still the active flight (avoid clobbering a
+            // newer one queued meanwhile).
+            if flyingGhost?.id == activeID {
+                flyingGhost = nil
+                ghostLanded = false
+            }
+        }
     }
 
     private var explicitlySelectedTool: Tool? {
