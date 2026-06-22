@@ -5,6 +5,16 @@ enum RootSurface: String, Equatable {
     case universe
 }
 
+/// Pure micro-interaction rules for the root shell, kept free of view state so
+/// they can be unit-tested.
+enum RootShellMotion {
+    /// The Map badge pops only when the tool count grows. Decrements
+    /// (e.g. a removal) and the unchanged initial value settle silently.
+    static func badgeShouldPop(from old: Int, to new: Int) -> Bool {
+        new > old
+    }
+}
+
 /// App-level shell for the chat-first IA.
 ///
 /// The universe renderer stays intact; this shell only changes which surface is
@@ -29,11 +39,11 @@ struct RootShell: View {
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
                     onOpenToolInUniverse: openToolInUniverse
                 )
-                .transition(.opacity)
+                .transition(diveTransition)
 
             case .universe:
                 UniverseScreen()
-                    .transition(.opacity)
+                    .transition(diveTransition)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,6 +83,23 @@ struct RootShell: View {
                 addToolDraft = nil
             }
         }
+    }
+
+    /// Chat⇄universe "dive": the incoming surface scales up from 0.94 + fades in
+    /// while the outgoing surface recedes to 1.06 + fades + blurs out. Under
+    /// reduce-motion it collapses to a plain cross-fade.
+    private var diveTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .modifier(
+                active: DiveTransitionModifier(scale: 0.94, opacity: 0, blur: 4),
+                identity: DiveTransitionModifier(scale: 1, opacity: 1, blur: 0)
+            ),
+            removal: .modifier(
+                active: DiveTransitionModifier(scale: 1.06, opacity: 0, blur: 4),
+                identity: DiveTransitionModifier(scale: 1, opacity: 1, blur: 0)
+            )
+        )
     }
 
     private var surfaceSwitchChrome: some View {
@@ -176,6 +203,21 @@ struct RootShell: View {
     }
 }
 
+/// View modifier backing the chat⇄universe dive transition: scales, fades, and
+/// applies an animatable blur so a receding surface softens as it leaves.
+private struct DiveTransitionModifier: ViewModifier {
+    let scale: CGFloat
+    let opacity: Double
+    let blur: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .blur(radius: blur)
+    }
+}
+
 private struct RootSurfaceSwitch: View {
     let surface: RootSurface
     let toolCount: Int
@@ -183,6 +225,9 @@ private struct RootSurfaceSwitch: View {
     let selectedToolName: String?
     let onShowChat: () -> Void
     let onShowUniverse: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var badgePopped = false
 
     @ViewBuilder
     var body: some View {
@@ -224,6 +269,7 @@ private struct RootSurfaceSwitch: View {
                         .padding(.vertical, 3)
                         .background(BrandColor.core, in: Capsule())
                         .contentTransition(.numericText(value: Double(toolCount)))
+                        .scaleEffect(badgePopped ? 1.18 : 1)
                 }
                 .padding(.horizontal, 13)
                 .padding(.vertical, 10)
@@ -236,7 +282,16 @@ private struct RootSurfaceSwitch: View {
         }
         .foregroundStyle(.white.opacity(0.88))
         .glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.26), interactive: true)
-        .brandAnimation(BrandMotion.pillPop, value: toolCount)
+        .brandAnimation(BrandMotion.pillPop, value: badgePopped)
+        .brandSensoryFeedback(.increase, trigger: toolCount)
+        .onChange(of: toolCount) { oldValue, newValue in
+            guard !reduceMotion, RootShellMotion.badgeShouldPop(from: oldValue, to: newValue) else { return }
+            badgePopped = true
+            Task {
+                try? await Task.sleep(for: .milliseconds(180))
+                badgePopped = false
+            }
+        }
     }
 }
 
