@@ -370,8 +370,7 @@ struct UniverseMapView: View {
         let suns = planets.filter { $0.id != .core }.map {
             NeighborSnap.Sun(id: $0.id, position: $0.position3D)
         }
-        if let snapped = NeighborSnap.snapTarget(currentFocus: current, yaw: cameraRig.yaw, suns: suns, thresholdRadians: 0.28),
-           snapped != current {
+        if let snapped = NeighborSnap.snapTarget(currentFocus: current, yaw: cameraRig.yaw, suns: suns, thresholdRadians: 0.28) {
             BrandHaptics.fire(.light)
             selectCategory(snapped)
         }

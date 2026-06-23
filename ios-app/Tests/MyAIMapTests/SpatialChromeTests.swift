@@ -1,6 +1,5 @@
 // ios-app/Tests/MyAIMapTests/SpatialChromeTests.swift
 import Testing
-import simd
 @testable import MyAIMap
 
 @Suite("SpatialChrome — 3D hides map chrome")

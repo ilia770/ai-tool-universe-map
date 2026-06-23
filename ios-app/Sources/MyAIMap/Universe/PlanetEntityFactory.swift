@@ -218,7 +218,7 @@ enum PlanetEntityFactory {
     static func makeSunLight(data: PlanetData) -> Entity {
         let light = PointLight()
         light.light.color = data.accentUIColor
-        light.light.intensity = data.id == .core ? 9000 : 5200
+        light.light.intensity = 5200
         light.light.attenuationRadius = 9.5
         light.name = "sun-light:\(data.id.rawValue)"
         return light
