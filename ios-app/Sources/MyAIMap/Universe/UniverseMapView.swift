@@ -185,16 +185,12 @@ struct UniverseMapView: View {
         .sheet(isPresented: $accountPresented) {
             AccountSettingsSheet()
                 .environment(model)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+                .liquidGlassSheet()
         }
         .sheet(isPresented: $addToolPresented) {
             AddToolSheet(draft: addToolDraft)
                 .environment(model)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+                .liquidGlassSheet()
         }
         .onChange(of: addToolPresented) { _, isPresented in
             if !isPresented {
