@@ -212,7 +212,7 @@ struct SearchDock: View {
         // put and the panel floats over the transcript above it (review finding
         // R16). Inline stacking pushed the composer down / clipped the keyboard.
         composerRow
-            .overlay(alignment: .bottomLeading) {
+            .overlay(alignment: .topLeading) {
                 Group {
                     if showsAttachmentMenu {
                         attachmentMenuPopover
@@ -220,10 +220,13 @@ struct SearchDock: View {
                         attachmentPreview(selectedAttachment)
                     }
                 }
-                .alignmentGuide(.bottom) { dimensions in
-                    // Pin the panel's bottom to the composer's top so it floats
-                    // upward (with an 8pt gap), not over the row.
-                    dimensions[.top] - 8
+                // Float the panel ABOVE the composer with an 8pt gap so it clears
+                // the keyboard (C2). Anchored to the composer's top edge, the
+                // panel's bottom (+8) sits at that edge, lifting it fully above —
+                // the previous `.bottomLeading` guide pushed it *below* the row,
+                // hiding it behind the keyboard.
+                .alignmentGuide(.top) { dimensions in
+                    dimensions[.bottom] + 8
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .zIndex(2)

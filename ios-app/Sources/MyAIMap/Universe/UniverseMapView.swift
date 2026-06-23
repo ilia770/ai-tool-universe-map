@@ -138,7 +138,7 @@ struct UniverseMapView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(BrandColor.void)
         .preferredColorScheme(.dark)
         .onAppear {
             if planets.isEmpty {

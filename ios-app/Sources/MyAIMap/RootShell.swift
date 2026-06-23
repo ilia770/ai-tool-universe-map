@@ -114,7 +114,9 @@ struct RootShell: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(surface == .chat ? ChatTheme.background : Color.black)
+        // Deep-space backdrop matches the launch screen so the cold-start handoff
+        // never flashes pure black before the first frame draws (C1).
+        .background(surface == .chat ? ChatTheme.background : BrandColor.void)
         .coordinateSpace(name: RootShellCoordinateSpace.name)
         .overlay { ghostFlightOverlay }
         .overlay { onboardingOverlay }
