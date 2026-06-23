@@ -546,6 +546,17 @@ struct UniverseOverlayView: View {
                 )
             }
 
+            if SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) {
+                SpatialRevealCard(
+                    toolName: selectedTool.name,
+                    categoryName: UniverseSeed.category(selectedTool.category).shortName,
+                    summary: selectedTool.summary,
+                    tint: selectedPlanet.swiftUIColor,
+                    onOpen: onDetails
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             if !mode.isDetailOpen {
                 SearchDock(
                     isChatOpen: mode.isChatOpen,
