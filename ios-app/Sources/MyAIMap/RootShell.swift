@@ -74,6 +74,9 @@ struct RootShell: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var surfaceNamespace
+    /// §2 morph: zoom-transition source namespace shared between the chat chrome
+    /// (Profile + composer Plus) and the Account / Add Tool sheets presented here.
+    @Namespace private var chromeMorphNamespace
     // Cold start lands on the map (never the open-ended chat state). The
     // returning-vs-first-run distinction only governs the onboarding overlay.
     @State private var surface: RootSurface = .universe
@@ -100,7 +103,8 @@ struct RootShell: View {
                     onOpenToolInUniverse: openToolInUniverse,
                     onOpenToolDetail: openToolDetail,
                     onBackToMap: { showUniverse(resetSelection: true) },
-                    onCardLand: flyCardToMap
+                    onCardLand: flyCardToMap,
+                    chromeMorphNamespace: chromeMorphNamespace
                 )
                 .transition(diveTransition)
 
@@ -142,11 +146,13 @@ struct RootShell: View {
             AccountSettingsSheet()
                 .environment(model)
                 .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.account, in: chromeMorphNamespace))
         }
         .sheet(isPresented: $addToolPresented) {
             AddToolSheet(draft: addToolDraft)
                 .environment(model)
                 .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.addTool, in: chromeMorphNamespace))
         }
         .onChange(of: addToolPresented) { _, isPresented in
             if !isPresented {

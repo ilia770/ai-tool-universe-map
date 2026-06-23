@@ -31,6 +31,10 @@ struct SearchDock: View {
     let onToolSelect: ((String) -> Void)?
     let onOpenToolDetail: ((String) -> Void)?
     let onChatActivityChange: ((Bool) -> Void)?
+    /// §2 morph: when set, the composer Plus is the zoom source for the Add Tool
+    /// sheet (the primary, persistent add trigger). Optional so the chat-surface
+    /// instance — whose sheet is presented from a different context — can opt out.
+    let addToolMorphNamespace: Namespace.ID?
 
     init(
         isChatOpen: Bool = false,
@@ -39,7 +43,8 @@ struct SearchDock: View {
         onAddSuggestedTool: ((MissingToolSuggestion) -> Void)? = nil,
         onToolSelect: ((String) -> Void)? = nil,
         onOpenToolDetail: ((String) -> Void)? = nil,
-        onChatActivityChange: ((Bool) -> Void)? = nil
+        onChatActivityChange: ((Bool) -> Void)? = nil,
+        addToolMorphNamespace: Namespace.ID? = nil
     ) {
         self.isChatOpen = isChatOpen
         self.dismissAttachmentMenuToken = dismissAttachmentMenuToken
@@ -48,6 +53,7 @@ struct SearchDock: View {
         self.onToolSelect = onToolSelect
         self.onOpenToolDetail = onOpenToolDetail
         self.onChatActivityChange = onChatActivityChange
+        self.addToolMorphNamespace = addToolMorphNamespace
     }
 
     private var previewResults: [Tool] {
@@ -362,6 +368,10 @@ struct SearchDock: View {
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
                 .accessibilityLabel("Add tool")
                 .accessibilityIdentifier("chat-add-tool-button")
+                // Zoom-morph source for the Add Tool sheet (callers pass nil to
+                // opt out — e.g. the universe surface when the empty-state card
+                // already owns the morph, so the id is never duplicated).
+                .morphSource(ChromeMorphID.addTool, in: addToolMorphNamespace)
             }
         }
         .frame(width: 44, height: 44)

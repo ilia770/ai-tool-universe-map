@@ -604,7 +604,10 @@ struct UniverseOverlayView: View {
                     onAddSuggestedTool: onAddSuggestedTool,
                     onToolSelect: onToolSelect,
                     onOpenToolDetail: onOpenToolDetail,
-                    onChatActivityChange: onChatActivityChange
+                    onChatActivityChange: onChatActivityChange,
+                    // When empty, the empty-state card's Add button owns the
+                    // morph; opt the composer out so the id isn't duplicated.
+                    addToolMorphNamespace: model.isUniverseEmpty ? nil : chromeMorphNamespace
                 )
             }
 
@@ -653,9 +656,9 @@ struct UniverseOverlayView: View {
                 .padding(.vertical, 11)
                 .padding(.horizontal, 16)
                 .background(.white.opacity(0.14), in: Capsule())
-                .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
                 .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
+                .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
 
                 Button {
                     BrandHaptics.fire(.light)
