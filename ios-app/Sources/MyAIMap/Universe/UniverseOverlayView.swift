@@ -79,7 +79,7 @@ struct UniverseOverlayView: View {
                     .padding(.bottom, 10)
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen && !cameraRig.isTransitioning && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) && !cameraRig.isTransitioning {
                 rightUniverseRail
             }
         }
@@ -528,7 +528,7 @@ struct UniverseOverlayView: View {
         VStack(spacing: 10) {
             // Tool card + category rail only make sense once the universe has
             // planets/tools. An empty universe shows the onboarding card instead.
-            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
                 PlanetInfoCard(
                     planet: selectedPlanet,
                     selectedTool: selectedTool,
@@ -549,7 +549,7 @@ struct UniverseOverlayView: View {
                 )
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
                 HStack(alignment: .center, spacing: 6) {
                     CategoryRail { id in
                         onCategorySelect(id)
