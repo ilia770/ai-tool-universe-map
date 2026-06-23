@@ -1,5 +1,3 @@
-import Foundation
-
 /// Per-mode brightness for a category sun's PointLight, so lighting follows the
 /// same focus hierarchy as mesh opacity: the focused system is lit, the rest
 /// recede, and overview glows softly without blowing out (8 suns at once).
