@@ -13,6 +13,10 @@ struct UniverseMapView: View {
     @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
+    /// §2 morph: zoom-transition source namespace shared between the chrome
+    /// trigger buttons (in `UniverseOverlayView`) and the sheets presented here,
+    /// so Plus→Add Tool and Profile→Settings feel like one continuous surface.
+    @Namespace private var chromeMorphNamespace
     @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
@@ -95,6 +99,7 @@ struct UniverseMapView: View {
                 onDetails: presentDetail,
                 onAccount: presentAccount,
                 onAddTool: { presentAddTool() },
+                chromeMorphNamespace: chromeMorphNamespace,
                 onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }
             )
         }
@@ -186,11 +191,13 @@ struct UniverseMapView: View {
             AccountSettingsSheet()
                 .environment(model)
                 .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.account, in: chromeMorphNamespace))
         }
         .sheet(isPresented: $addToolPresented) {
             AddToolSheet(draft: addToolDraft)
                 .environment(model)
                 .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.addTool, in: chromeMorphNamespace))
         }
         .onChange(of: addToolPresented) { _, isPresented in
             if !isPresented {
