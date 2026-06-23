@@ -81,6 +81,9 @@ struct ChatScreen: View {
     /// Reports the tapped add-card's frame so the shell can fly a ghost of it
     /// toward the Map pill (signature "tool lands in your universe" moment).
     var onCardLand: (CardLandRequest) -> Void = { _ in }
+    /// §2 morph: namespace (owned by `RootShell`) shared with the Account + Add
+    /// Tool sheets so the chat chrome zoom-morphs into them.
+    var chromeMorphNamespace: Namespace.ID? = nil
 
     private var toolCount: Int {
         model.visibleAllTools.count
@@ -90,7 +93,8 @@ struct ChatScreen: View {
         VStack(spacing: 0) {
             ChatTopBar(
                 onBackToMap: onBackToMap,
-                onOpenSettings: onOpenSettings
+                onOpenSettings: onOpenSettings,
+                chromeMorphNamespace: chromeMorphNamespace
             )
             .padding(.horizontal, 16)
             .padding(.top, 10)
@@ -189,7 +193,8 @@ struct ChatScreen: View {
             onAddSuggestedTool: onAddSuggestedTool,
             onToolSelect: onOpenToolInUniverse,
             onOpenToolDetail: onOpenToolInUniverse,
-            onChatActivityChange: nil
+            onChatActivityChange: nil,
+            addToolMorphNamespace: chromeMorphNamespace
         )
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
@@ -223,6 +228,7 @@ struct ChatScreen: View {
 private struct ChatTopBar: View {
     let onBackToMap: () -> Void
     let onOpenSettings: () -> Void
+    var chromeMorphNamespace: Namespace.ID? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -256,6 +262,7 @@ private struct ChatTopBar: View {
             .buttonStyle(BouncyIconButtonStyle())
             .accessibilityLabel("Account")
             .accessibilityIdentifier("ChatScreen.Account")
+            .morphSource(ChromeMorphID.account, in: chromeMorphNamespace)
         }
     }
 }
