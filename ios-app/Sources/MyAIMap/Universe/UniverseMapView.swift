@@ -276,6 +276,9 @@ struct UniverseMapView: View {
             restoreNavigationMode(animated: true)
         } else if mode.isDetailOpen {
             return
+        } else if model.renderMode == .spatial3D, mode != .overview {
+            BrandHaptics.fire(.light)
+            withAnimation(BrandMotion.flow) { model.universeMode = mode.steppedBack }
         } else {
             resetToOverview()
         }
