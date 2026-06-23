@@ -120,6 +120,9 @@ final class UniverseSceneController {
                 reduceMotion: pauseMotion
             )
             entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
+            if planet.id != .core {
+                entity.addChild(PlanetEntityFactory.makeSunLight(data: planet))
+            }
             planetRoot.addChild(entity)
 
             // Frosted hero halo around the central Founder OS core (only when a

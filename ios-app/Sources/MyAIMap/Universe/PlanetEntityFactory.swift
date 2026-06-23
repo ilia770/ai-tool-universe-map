@@ -213,6 +213,17 @@ enum PlanetEntityFactory {
         return halo
     }
 
+    // A soft point light tinted to the category, parented at the sun so its
+    // tool-planets are lit from their star.
+    static func makeSunLight(data: PlanetData) -> Entity {
+        let light = PointLight()
+        light.light.color = data.accentUIColor
+        light.light.intensity = data.id == .core ? 9000 : 5200
+        light.light.attenuationRadius = 9.5
+        light.name = "sun-light:\(data.id.rawValue)"
+        return light
+    }
+
     static func makeStar(index: Int) -> ModelEntity {
         let radius = Float(0.008 + Double(index % 4) * 0.004)
         let color: UIColor = index.isMultiple(of: 9)
@@ -236,7 +247,7 @@ enum PlanetEntityFactory {
         material.roughness = .init(floatLiteral: data.id == .core ? 0.26 : isSelected ? 0.36 : 0.52)
         material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : 0.06)
         material.emissiveColor = .init(color: data.accentUIColor)
-        material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 0.86 : 0.26) * visualizationStyle.glowBoost
+        material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 1.05 : 0.58) * visualizationStyle.glowBoost
         material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.28)
         material.clearcoatRoughness = .init(floatLiteral: 0.24)
         return material
