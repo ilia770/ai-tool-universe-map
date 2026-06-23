@@ -66,7 +66,19 @@ struct SearchDock: View {
     }
 
     private var showsConversation: Bool {
-        isChatOpen && !conversationCollapsed && (!model.assistantMessages.isEmpty || (fieldFocused && hasQuery))
+        guard isChatOpen, !conversationCollapsed else { return false }
+        // Phase 1 (chat open/show reliability): reveal the chat surface as soon
+        // as chat opens — i.e. the moment the field is focused — even before the
+        // first message. Previously this also required a non-empty query, so
+        // tapping "Ask AI" flipped into chat mode (top chrome/cards hide, map
+        // dims) yet showed no panel, reading on-device as "nothing happened".
+        return fieldFocused || !model.assistantMessages.isEmpty
+    }
+
+    /// True when chat is open and focused but the user has not typed or sent
+    /// anything yet — drives a short prompt so the panel is never blank.
+    private var showsEmptyChatPrompt: Bool {
+        model.assistantMessages.isEmpty && !(fieldFocused && hasQuery)
     }
 
     private var showsCollapsedConversationPill: Bool {
@@ -350,6 +362,10 @@ struct SearchDock: View {
                 VStack(alignment: .leading, spacing: 12) {
                     conversationHeader
 
+                    if showsEmptyChatPrompt {
+                        emptyChatPrompt
+                    }
+
                     if fieldFocused && hasQuery {
                         previewBlock
                     }
@@ -447,6 +463,22 @@ struct SearchDock: View {
             .accessibilityLabel("Collapse chat")
         }
         .padding(.leading, 2)
+    }
+
+    private var emptyChatPrompt: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Ask AI Universe")
+                .font(.system(.subheadline, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            Text("Ask what tool to use, how to combine them, or compare by price and stage. I pull from the tools in your map.")
+                .font(.system(.footnote))
+                .foregroundStyle(BrandColor.textMuted)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, BrandSpacing.s.value)
+        .padding(.vertical, BrandSpacing.s.value)
     }
 
     private var previewBlock: some View {
