@@ -215,10 +215,10 @@ enum PlanetEntityFactory {
 
     // A soft point light tinted to the category, parented at the sun so its
     // tool-planets are lit from their star.
-    static func makeSunLight(data: PlanetData) -> Entity {
+    static func makeSunLight(data: PlanetData, intensity: Float) -> Entity {
         let light = PointLight()
         light.light.color = data.accentUIColor
-        light.light.intensity = 5200
+        light.light.intensity = intensity
         light.light.attenuationRadius = 9.5
         light.name = "sun-light:\(data.id.rawValue)"
         return light

@@ -121,7 +121,10 @@ final class UniverseSceneController {
             )
             entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
             if planet.id != .core {
-                entity.addChild(PlanetEntityFactory.makeSunLight(data: planet))
+                entity.addChild(PlanetEntityFactory.makeSunLight(
+                    data: planet,
+                    intensity: SunLightIntensity.intensity(for: mode, isFocused: isSelected)
+                ))
             }
             planetRoot.addChild(entity)
 
