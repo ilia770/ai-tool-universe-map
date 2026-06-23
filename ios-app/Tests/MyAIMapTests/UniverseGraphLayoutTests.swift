@@ -50,6 +50,39 @@ struct UniverseGraphLayoutTests {
         #expect(remotion?.isContext == true)
     }
 
+    @Test func graphEdgesAnchorAtNodeBoundaries() {
+        let layout = makeLayout(mode: .toolSelected(.analytics, "posthog"))
+        let edge = layout.edges.first { $0.targetID == "tool:posthog" }
+        let source = layout.nodes.first { $0.id == edge?.sourceID }
+        let target = layout.nodes.first { $0.id == edge?.targetID }
+
+        #expect(edge != nil)
+        #expect(source != nil)
+        #expect(target != nil)
+        guard let edge, let source, let target else { return }
+
+        let endpoints = edge.anchoredEndpoints()
+        let sourceDistance = hypot(endpoints.source.x - source.position.x, endpoints.source.y - source.position.y)
+        let targetDistance = hypot(endpoints.target.x - target.position.x, endpoints.target.y - target.position.y)
+
+        #expect(abs(sourceDistance - (source.radius + 2)) < 0.001)
+        #expect(abs(targetDistance - (target.radius + 2)) < 0.001)
+        #expect(endpoints.source != source.position)
+        #expect(endpoints.target != target.position)
+    }
+
+    @Test func twoBranchGraphDoesNotReadAsVerticalStack() {
+        let layout = makeTwoBranchLayout()
+        let branches = layout.nodes.filter { $0.kind == .category && $0.category != .core }
+
+        #expect(branches.count == 2)
+        guard branches.count == 2 else { return }
+
+        let horizontalSpread = abs(branches[0].position.x - branches[1].position.x)
+        let verticalSpread = abs(branches[0].position.y - branches[1].position.y)
+        #expect(horizontalSpread > verticalSpread, "Two branches should balance horizontally, not stack vertically")
+    }
+
     @Test func userAddedToolAppearsInGraph() {
         let custom = Tool(
             id: "random-user-tool",
@@ -269,6 +302,18 @@ struct UniverseGraphLayoutTests {
             planets: planets,
             mode: mode,
             size: size
+        )
+    }
+
+    private func makeTwoBranchLayout() -> UniverseGraphLayoutResult {
+        let included: Set<ToolCategoryId> = [.core, .design, .analytics]
+        let categories = UniverseSeed.categories.filter { included.contains($0.id) }
+        let tools = UniverseSeed.tools.filter { included.contains($0.category) }
+        let planets = PlanetData.makePlanets(categories: categories, tools: tools)
+        return UniverseGraphLayout.make(
+            planets: planets,
+            mode: .overview,
+            size: CGSize(width: 393, height: 852)
         )
     }
 }

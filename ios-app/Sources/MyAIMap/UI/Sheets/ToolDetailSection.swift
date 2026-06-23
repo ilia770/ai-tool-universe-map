@@ -22,7 +22,7 @@ enum ToolPricingPresenter {
         let clean = pricing.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         guard !clean.isEmpty, !lower.contains("unknown") else {
-            return [unknownRow(note: "No verified pricing is stored for this tool.")]
+            return [unknownRow(note: "No verified pricing stored.")]
         }
 
         if lower.contains("internal") {
@@ -186,10 +186,10 @@ struct ToolDetailSection: View {
                     HStack(spacing: BrandSpacing.s.value) {
                         Label(selectedCategoryModel.shortName, systemImage: categoryIcon(selectedTool.category))
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                            .foregroundStyle(.white.opacity(0.88), selectedCategoryModel.color.swiftUIColor)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 5)
-                            .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                            .background(.white.opacity(0.075), in: Capsule())
 
                         stageBadge(selectedTool.stage)
                     }
@@ -213,8 +213,10 @@ struct ToolDetailSection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
 
-            primaryAction
-            copyInfoAction
+            HStack(spacing: BrandSpacing.s.value) {
+                primaryAction
+                copyInfoAction
+            }
         }
         .padding(BrandSpacing.m.value)
         .background(neutralCardBackground)
@@ -224,7 +226,10 @@ struct ToolDetailSection: View {
         Button {
             UIPasteboard.general.string = ToolInfoClipboard.text(
                 name: selectedTool.name,
+                category: selectedCategoryModel.shortName,
                 summary: selectedTool.summary,
+                pricingStatus: clipboardPricingStatus,
+                keyFeatures: knowledge.killerFeatures,
                 url: selectedTool.url?.absoluteString
             )
             BrandHaptics.fire(.success)
@@ -256,7 +261,7 @@ struct ToolDetailSection: View {
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         } else {
-            // No stored URL yet — offer a working "Verify website" CTA (web search
+            // No stored URL yet — offer a working "Search website" CTA (web search
             // for the tool) instead of a dead label. A permanent URL is set via the
             // Add Tool flow.
             Button {
@@ -266,7 +271,7 @@ struct ToolDetailSection: View {
                     browserSheet = item
                 }
             } label: {
-                actionLabel("Verify website", systemImage: "magnifyingglass", foreground: .white.opacity(0.92))
+                actionLabel("Search website", systemImage: "magnifyingglass", foreground: .white.opacity(0.92))
                     .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
@@ -479,8 +484,20 @@ struct ToolDetailSection: View {
     }
 
     private var neutralCardBackground: some View {
-        RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
-            .fill(.white.opacity(0.045))
+        ZStack {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .fill(.white.opacity(0.035))
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(.white.opacity(0.075), lineWidth: 0.8)
+        }
+    }
+
+    private var clipboardPricingStatus: String {
+        let rows = ToolPricingPresenter.rows(for: knowledge.pricing)
+        if rows.count == 1, rows.first?.plan == "Unknown" {
+            return "Unknown"
+        }
+        return knowledge.pricing
     }
 
     private var metadataDivider: some View {

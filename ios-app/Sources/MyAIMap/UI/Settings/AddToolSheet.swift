@@ -188,12 +188,12 @@ struct AddToolSheet: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 28)
+                    Color.clear.frame(height: bottomScrollInset)
                 }
                 .onChange(of: focusedField) { _, field in
                     guard let field else { return }
                     withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
-                        proxy.scrollTo(field, anchor: .center)
+                        proxy.scrollTo(field, anchor: scrollAnchor(for: field))
                     }
                 }
             }
@@ -317,6 +317,11 @@ struct AddToolSheet: View {
                     }
             }
             .id(AddToolFocusedField.name)
+            .overlay(alignment: .bottomLeading) {
+                nameRequirementHint
+                    .offset(y: 22)
+            }
+            .padding(.bottom, 14)
 
             field(label: "Website optional", systemImage: "link") {
                 TextField("https://example.com", text: $website)
@@ -552,7 +557,7 @@ struct AddToolSheet: View {
         case .name:
             return "Next"
         case .website:
-            return canAdd ? "Add" : "Done"
+            return canAdd ? "Add Tool" : "Done"
         case .newBranch:
             return "Done"
         case nil:
@@ -575,6 +580,32 @@ struct AddToolSheet: View {
         case nil:
             focusedField = nil
         }
+    }
+
+    private var bottomScrollInset: CGFloat {
+        focusedField == nil ? 28 : 132
+    }
+
+    private func scrollAnchor(for field: AddToolFocusedField) -> UnitPoint {
+        switch field {
+        case .name:
+            return .top
+        case .website:
+            return .center
+        case .newBranch:
+            return .center
+        }
+    }
+
+    private var nameRequirementHint: some View {
+        HStack(spacing: 5) {
+            Image(systemName: canAdd ? "checkmark.circle.fill" : "info.circle")
+                .font(.system(size: 10, weight: .bold))
+            Text(canAdd ? "Name is enough to add." : "Name required; website can stay empty.")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+        }
+        .foregroundStyle(canAdd ? .white.opacity(0.70) : BrandColor.textMuted)
+        .accessibilityLabel(canAdd ? "Name is enough to add" : "Name is required; website can stay empty")
     }
 
     private var suggestedCategory: ToolCategoryId {

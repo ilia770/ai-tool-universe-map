@@ -32,7 +32,37 @@ enum CopyToastKind: Equatable {
 /// line is omitted when no website has been added.
 enum ToolInfoClipboard {
     static func text(name: String, summary: String, url: String?) -> String {
+        text(
+            name: name,
+            category: nil,
+            summary: summary,
+            pricingStatus: nil,
+            keyFeatures: [],
+            url: url
+        )
+    }
+
+    static func text(
+        name: String,
+        category: String?,
+        summary: String,
+        pricingStatus: String?,
+        keyFeatures: [String],
+        url: String?
+    ) -> String {
         var lines = [name, summary]
+        if let category, !category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.insert("Category: \(category)", at: 1)
+        }
+        if let pricingStatus, !pricingStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("Pricing: \(pricingStatus)")
+        }
+        let features = keyFeatures
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !features.isEmpty {
+            lines.append("Key features: \(features.prefix(3).joined(separator: "; "))")
+        }
         if let url, !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             lines.append(url)
         }

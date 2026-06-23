@@ -98,6 +98,13 @@ struct UniverseOverlayView: View {
                     topChrome
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
+
+                    if model.renderMode == .spatial3D && !model.isUniverseEmpty {
+                        spatialExperimentalNotice
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
 
                 Spacer()
@@ -543,44 +550,79 @@ struct UniverseOverlayView: View {
         Button {
             onAccount()
         } label: {
-            HStack(spacing: 10) {
-                Text(model.renderMode.shortLabel)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 36, height: 30)
-                    .background(selectedPlanet.swiftUIColor, in: Circle())
+            HStack(spacing: 7) {
+                Image(systemName: model.renderMode == .graph2D ? "point.3.connected.trianglepath.dotted" : "cube.transparent")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .frame(width: 18, height: 18)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text(model.renderMode.title)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineLimit(1)
+                Text(model.renderMode == .graph2D ? "2D Graph" : "3D Spatial")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
 
-                        if model.renderMode.isExperimental {
-                            Text("Experimental")
-                                .font(.system(size: 8, weight: .bold, design: .rounded))
-                                .foregroundStyle(selectedPlanet.swiftUIColor)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
-                        }
-                    }
-
-                    Text("Tap to switch")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(BrandColor.textMuted)
-                        .lineLimit(1)
+                if model.renderMode.isExperimental {
+                    Text("Experimental")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.70))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.08), in: Capsule())
                 }
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 12)
-        .padding(.vertical, 8)
-        .glassSurface(in: Capsule(), tint: .white.opacity(0.10), interactive: true)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .glassSurface(in: Capsule(), tint: .white.opacity(0.045), interactive: true)
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel("Visualization mode \(model.renderMode.title)")
-        .accessibilityHint("Opens settings")
+        .accessibilityHint("Opens visualization settings")
+    }
+
+    private var spatialExperimentalNotice: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "cube.transparent")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(width: 26, height: 26)
+                .background(.white.opacity(0.06), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("3D Spatial is experimental")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                Text("Use 2D Graph for daily navigation.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(BrandColor.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                BrandHaptics.fire(.light)
+                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                    model.renderMode = .graph2D
+                }
+            } label: {
+                Text("Use 2D")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.10), in: Capsule())
+                    .overlay {
+                        Capsule().stroke(.white.opacity(0.14), lineWidth: 0.5)
+                    }
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+            .accessibilityLabel("Switch to 2D Graph")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 360)
+        .glassSurface(in: RoundedRectangle(cornerRadius: 20, style: .continuous), tint: .white.opacity(0.045), interactive: false)
+        .accessibilityElement(children: .contain)
     }
 
     private var bottomControls: some View {
