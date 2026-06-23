@@ -17,6 +17,9 @@ struct UniverseOverlayView: View {
     let onDetails: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
+    /// §2 morph: namespace (owned by `UniverseMapView`) shared with the Account
+    /// and Add Tool sheets so the trigger buttons zoom-morph into them.
+    let chromeMorphNamespace: Namespace.ID
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
@@ -529,6 +532,7 @@ struct UniverseOverlayView: View {
             }
             .buttonStyle(BouncyIconButtonStyle())
             .navigationGlassMorphID("UniverseChrome.profile", in: chromeNamespace)
+            .matchedTransitionSource(id: ChromeMorphID.account, in: chromeMorphNamespace)
             .opacity(mode.isDetailOpen ? 0.58 : 1)
             .accessibilityLabel("Account")
         }
@@ -649,6 +653,7 @@ struct UniverseOverlayView: View {
                 .padding(.vertical, 11)
                 .padding(.horizontal, 16)
                 .background(.white.opacity(0.14), in: Capsule())
+                .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
                 .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
 
