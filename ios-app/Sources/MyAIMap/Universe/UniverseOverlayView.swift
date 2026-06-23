@@ -338,8 +338,16 @@ struct UniverseOverlayView: View {
             maxCount: 5
         )
 
+        let center = CGPoint(x: size.width * 0.5, y: size.height * 0.40)
+        let centeredID = OverviewLabelFocus.centeredSunID(
+            packed.compactMap { p in
+                ToolCategoryId(rawValue: p.id).map { (id: $0, point: p.position) }
+            },
+            screenCenter: center
+        )
         return packed.compactMap { placement -> PlanetLabelPlacement? in
             guard let id = ToolCategoryId(rawValue: placement.id),
+                  id == centeredID,
                   var resolved = byID[id] else { return nil }
             resolved.position = placement.position
             return resolved
