@@ -265,7 +265,7 @@ final class UniverseSceneController {
 
     private func addStars() {
         guard starRoot.children.isEmpty else { return }
-        for index in 0..<160 {
+        for index in 0..<120 {
             starRoot.addChild(PlanetEntityFactory.makeStar(index: index))
         }
     }

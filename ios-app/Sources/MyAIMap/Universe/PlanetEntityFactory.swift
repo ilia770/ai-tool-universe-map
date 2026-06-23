@@ -248,8 +248,8 @@ enum PlanetEntityFactory {
         material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : 0.06)
         material.emissiveColor = .init(color: data.accentUIColor)
         material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 1.05 : 0.58) * visualizationStyle.glowBoost
-        material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.28)
-        material.clearcoatRoughness = .init(floatLiteral: 0.24)
+        material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.45)
+        material.clearcoatRoughness = .init(floatLiteral: 0.14)
         return material
     }
 
