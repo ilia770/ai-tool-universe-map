@@ -618,6 +618,7 @@ struct UniverseOverlayView: View {
     /// their first tool (which becomes the first planet) or loads the bundled
     /// sample universe.
     private var emptyStateCard: some View {
+        LiquidGlassCard(cornerRadius: 28) {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
                 .font(.system(size: 34, weight: .light))
@@ -681,7 +682,7 @@ struct UniverseOverlayView: View {
         .padding(.vertical, 26)
         .padding(.horizontal, 24)
         .frame(maxWidth: 320)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous), tint: nil, strokeStrength: 0.12)
+        }
     }
 }
 

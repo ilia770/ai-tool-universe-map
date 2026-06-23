@@ -261,8 +261,7 @@ struct SearchDock: View {
         // Clean dark-translucent glass capsule (CHAT_INPUT_SPEC §1): no accent
         // tint, no black backing plate, no glowing outline. Accent shows only
         // as the field's caret/selection tint above. One soft float shadow.
-        .glassSurface(in: Capsule(), interactive: true)
-        .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
+        .liquidGlassInput()
     }
 
     private var attachmentMenu: some View {
@@ -732,11 +731,8 @@ struct SearchDock: View {
                     .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(1)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
             // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
-            .background(.white.opacity(0.08), in: Capsule())
-            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
+            .actionChipBackground()
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
     }
@@ -769,11 +765,8 @@ struct SearchDock: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
             // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
-            .background(.white.opacity(0.08), in: Capsule())
-            .overlay { Capsule().stroke(.white.opacity(0.10), lineWidth: 0.5) }
+            .actionChipBackground()
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
         .accessibilityLabel("Add \(suggestion.name)")

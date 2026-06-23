@@ -41,18 +41,13 @@ enum ToolInfoClipboard {
 }
 
 /// The glass banner itself. Hosted by `CopyToastModifier`; not used directly.
+/// Thin wrapper over the shared `LiquidGlassToast` so the copy confirmation and
+/// any future toast share one canonical glass capsule.
 private struct CopyToastBanner: View {
     let message: String
 
     var body: some View {
-        Label(message, systemImage: "checkmark.circle.fill")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.white)
-            .labelStyle(.titleAndIcon)
-            .symbolRenderingMode(.hierarchical)
-            .padding(.horizontal, BrandSpacing.l.value)
-            .padding(.vertical, BrandSpacing.s.value + 2)
-            .glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.22))
+        LiquidGlassToast(message: message)
             .accessibilityIdentifier("CopyToast")
     }
 }
