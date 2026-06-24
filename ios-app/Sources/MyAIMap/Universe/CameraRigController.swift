@@ -281,7 +281,7 @@ final class CameraRigController {
                     to: landingTransform,
                     relativeTo: camera?.parent,
                     duration: max(0.1, duration - 0.15),
-                    timingFunction: .easeInOut
+                    timingFunction: CameraEasing.fly
                 )
                 let nanoseconds = UInt64((duration + 0.05) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanoseconds)
