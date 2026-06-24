@@ -154,3 +154,28 @@ count, not "Executed 0 tests".
       265 tests / 32 suites passed.
 - [x] `xcodebuild ... -only-testing:MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates test`;
       1 UI smoke test passed, 0 failed.
+
+## GitHub CI QA gates - 2026-06-25
+
+**Now automated in GitHub Actions**
+- [x] Web verify: typecheck, lint, Vitest, production audit, production build,
+      bundle budget.
+- [x] Web visual smoke: Playwright desktop/tablet/mobile Chromium projects,
+      with CI screenshots, traces/report, and `test-results` uploaded as the
+      `playwright-visual-smoke` artifact.
+- [x] iOS compile gate: `xcodegen generate` +
+      `scripts/ios-verify.sh --test-build-only` on `macos-26`.
+- [x] iOS simulator unit gate:
+      `scripts/ios-verify.sh --run-tests --device-id <sim-id>` with
+      `MyAIMapTests.xcresult` and summary uploaded.
+- [x] iOS UI smoke gate:
+      `scripts/ios-verify.sh --run-ui-tests --device-id <sim-id>` running
+      `MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates`; screenshots
+      and accessibility trees are kept in `MyAIMapUITests.xcresult`.
+
+**Still human-reviewed**
+- [ ] Screenshot/design judgement: CI captures the evidence, but a human still
+      reviews screenshots for taste, hierarchy, overlap, and TestFlight polish.
+- [ ] Real-device QA: physical iPhone, SE-class, and iPad behavior remains a
+      release gate because simulator screenshots do not prove touch feel,
+      system picker behavior, or RealityKit/device performance.

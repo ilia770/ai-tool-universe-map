@@ -7,7 +7,9 @@ SCHEME="MyAIMap"
 DERIVED_DATA="$ROOT_DIR/ios-app/build"
 GENERIC_DESTINATION="generic/platform=iOS Simulator"
 UNIT_TEST_BUNDLE="MyAIMapTests"
+UI_TEST_TARGET="MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates"
 RESULT_BUNDLE="$DERIVED_DATA/MyAIMapTests.xcresult"
+UI_RESULT_BUNDLE="$DERIVED_DATA/MyAIMapUITests.xcresult"
 
 mode="verify"
 device_id=""
@@ -15,7 +17,7 @@ use_existing_project=0
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--run-tests|--full-test] [--device-id <sim-id>] [--use-existing-project]
+Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--run-tests|--run-ui-tests|--full-test] [--device-id <sim-id>] [--use-existing-project]
 
 Default:
   Runs generic simulator build + build-for-testing. This validates Swift compile,
@@ -26,6 +28,8 @@ Options:
   --test-build-only   Run build-for-testing only (fast compile gate, no assertions).
   --run-tests | test  Run `xcodebuild test -only-testing:MyAIMapTests` on a booted
                       simulator id, writing an xcresult bundle. Executes assertions.
+  --run-ui-tests      Run the deterministic XCUITest smoke harness on a booted
+                      simulator id, writing an xcresult bundle with screenshots.
   --full-test         Run build-for-testing, then test-without-building on a booted simulator id.
   --device-id <id>    Simulator UDID for --run-tests / --full-test.
   --use-existing-project
@@ -47,6 +51,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --run-tests|test)
       mode="run-tests"
+      shift
+      ;;
+    --run-ui-tests)
+      mode="run-ui-tests"
       shift
       ;;
     --full-test)
@@ -162,6 +170,29 @@ run_tests() {
   echo "== xcresult bundle: $RESULT_BUNDLE =="
 }
 
+run_ui_tests() {
+  if [[ -z "$device_id" ]]; then
+    echo "--run-ui-tests requires --device-id <sim-id>." >&2
+    echo "Find one with: xcrun simctl list devices available" >&2
+    exit 2
+  fi
+
+  echo "== iOS UI smoke tests ($UI_TEST_TARGET) on $device_id =="
+  xcrun simctl boot "$device_id" 2>/dev/null || true
+  xcrun simctl bootstatus "$device_id" -b
+  rm -rf "$UI_RESULT_BUNDLE"
+  xcodebuild \
+    -project "$PROJECT_PATH" \
+    -scheme "$SCHEME" \
+    -destination "platform=iOS Simulator,id=$device_id" \
+    -derivedDataPath "$DERIVED_DATA" \
+    -resultBundlePath "$UI_RESULT_BUNDLE" \
+    -only-testing:"$UI_TEST_TARGET" \
+    ENABLE_DEBUG_DYLIB=NO \
+    test
+  echo "== xcresult bundle: $UI_RESULT_BUNDLE =="
+}
+
 case "$mode" in
   build)
     run_build
@@ -175,6 +206,9 @@ case "$mode" in
     ;;
   run-tests)
     run_tests
+    ;;
+  run-ui-tests)
+    run_ui_tests
     ;;
   full-test)
     run_full_test

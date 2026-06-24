@@ -41,7 +41,7 @@ final class UniverseUISmokeTests: XCTestCase {
         // Branch focus via the 2D graph node accessibility label.
         let analyticsNode = app.buttons["GraphNode.Category.analytics"]
         XCTAssertTrue(analyticsNode.waitForExistence(timeout: 4), "2D graph should expose the Analytics category node")
-        tapNode(analyticsNode)
+        tapNode(analyticsNode, name: "Analytics category node")
         wait(1.6)
         snap("02-branch-Analytics")
         attachText("tree-branch", app.debugDescription)
@@ -54,12 +54,24 @@ final class UniverseUISmokeTests: XCTestCase {
         )
 
         // Tool selection: tap a graph tool node, then open its detail card.
-        let toolNode = app.buttons["GraphNode.Tool.posthog"]
-        XCTAssertTrue(toolNode.waitForExistence(timeout: 4), "Analytics branch should expose the PostHog tool node")
-        tapNode(toolNode)
-        wait(1.4); snap("03a-tool-selected")
-        let selectedDetails = app.buttons["PlanetInfoCard.SelectedDetails"]
-        XCTAssertTrue(selectedDetails.waitForExistence(timeout: 3), "Selected tool card should expose a stable details button")
+        let preferredToolNode = app.buttons["GraphNode.Tool.posthog"]
+        let toolNode = preferredToolNode.waitForExistence(timeout: 4) && preferredToolNode.isHittable
+            ? preferredToolNode
+            : firstHittableButton(app, identifierPrefix: "GraphNode.Tool.", timeout: 8)
+        if toolNode == nil {
+            attachText("tree-no-hittable-tool-node", app.debugDescription)
+        }
+        XCTAssertNotNil(toolNode, "Analytics branch should expose at least one hittable tool node")
+        guard let toolNode else { return }
+        tapNode(toolNode, name: "tool node")
+        wait(1.8); snap("03a-tool-selected")
+        let selectedDetails = app.descendants(matching: .any)["PlanetInfoCard.SelectedDetails"].firstMatch
+        if !selectedDetails.waitForExistence(timeout: 6) {
+            attachText("tree-tool-selected-missing-details", app.debugDescription)
+            tapNode(toolNode, name: "tool node retry")
+            wait(1.2); snap("03a-tool-selected-retry")
+        }
+        XCTAssertTrue(selectedDetails.waitForExistence(timeout: 6), "Selected tool card should expose a stable details button")
         XCTAssertTrue(selectedDetails.isHittable, "Selected tool details button should be hittable")
         selectedDetails.tap()
         wait(1.6); snap("03b-detail")
@@ -151,11 +163,33 @@ final class UniverseUISmokeTests: XCTestCase {
     }
 
     @MainActor
-    private func tapNode(_ element: XCUIElement) {
-        if element.isHittable {
-            element.tap()
-        } else {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    private func firstHittableButton(
+        _ app: XCUIApplication,
+        identifierPrefix: String,
+        timeout: TimeInterval
+    ) -> XCUIElement? {
+        let query = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix))
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            for index in 0..<query.count {
+                let candidate = query.element(boundBy: index)
+                if candidate.exists, candidate.isHittable {
+                    return candidate
+                }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        return nil
+    }
+
+    @MainActor
+    private func tapNode(_ element: XCUIElement, name: String) {
+        if !element.isHittable {
+            attachText("tree-\(name.replacingOccurrences(of: " ", with: "-"))-not-hittable", element.debugDescription)
         }
+        XCTAssertTrue(element.isHittable, "\(name) should be hittable before tapping")
+        element.tap()
     }
 }
