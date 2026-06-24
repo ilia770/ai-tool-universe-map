@@ -577,7 +577,14 @@ struct UniverseOverlayView: View {
                 }
             }
         }
-        .brandAnimation(BrandMotion.reveal, value: mode.selectedToolID)
+        // Gate the reveal spring to 3D: `bottomControls` is shared with the 2D
+        // graph (PlanetInfoCard/SearchDock), so an unconditional value would
+        // animate 2D content on tool-selection too. In 2D the value is pinned to
+        // nil → constant → no implicit animation (keeps the 2D path untouched).
+        .brandAnimation(
+            BrandMotion.reveal,
+            value: SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) ? mode.selectedToolID : nil
+        )
     }
 
     /// Onboarding shown when the universe has no tools yet: the user either adds
