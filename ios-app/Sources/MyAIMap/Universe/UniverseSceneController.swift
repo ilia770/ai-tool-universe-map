@@ -69,9 +69,9 @@ final class UniverseSceneController {
         while let candidate = current {
             if candidate.name.hasPrefix("planet:") {
                 let raw = String(candidate.name.dropFirst("planet:".count))
-                if let id = ToolCategoryId(rawValue: raw) {
-                    return .planet(id)
-                }
+                // `ToolCategoryId` is now a non-failable string wrapper; the
+                // entity-name prefix already guarantees this is a planet id.
+                return .planet(ToolCategoryId(rawValue: raw))
             }
             if candidate.name.hasPrefix("tool:") {
                 return .tool(String(candidate.name.dropFirst("tool:".count)))
@@ -147,8 +147,8 @@ final class UniverseSceneController {
                     from: .zero,
                     to: planet.position3D,
                     color: planet.uiColor,
-                    opacity: 0.5 * linkFade,
-                    thickness: 0.02,
+                    opacity: 0.075 * linkFade,
+                    thickness: 0.008,
                     name: "link:core-\(planet.id.rawValue)"
                 ))
             }
@@ -218,8 +218,8 @@ final class UniverseSceneController {
                 from: planet.position3D,
                 to: toolWorld,
                 color: category.color.uiColor,
-                opacity: 0.22,
-                thickness: 0.012,
+                opacity: 0.045,
+                thickness: 0.006,
                 name: "link:\(planet.id.rawValue)-\(tool.id)"
             ))
         }
@@ -279,7 +279,7 @@ final class UniverseSceneController {
         case .force3D:
             return [(3.25, 0.06, 0.0), (5.15, 0.052, 0.18), (7.35, 0.04, -0.16), (9.4, 0.03, 0.26)]
         case .orbitalGlass:
-            return [(3.7, 0.035, 0.0), (5.45, 0.032, 0.04), (7.15, 0.025, -0.04)]
+            return [(3.7, 0.018, 0.0), (5.45, 0.015, 0.04), (7.15, 0.012, -0.04)]
         }
     }
 

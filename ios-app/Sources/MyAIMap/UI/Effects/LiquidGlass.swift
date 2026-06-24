@@ -53,6 +53,18 @@ extension View {
     func liquidGlass(cornerRadius: CGFloat, tint: Color? = nil) -> some View {
         glassSurface(cornerRadius: cornerRadius, tint: tint, interactive: false)
     }
+
+    /// Shared identity for floating navigation glass. iOS 26 uses native
+    /// Liquid Glass morphing IDs; older OS paths keep the same role moving via
+    /// matched geometry so controls do not pop through opacity-only changes.
+    @ViewBuilder
+    func navigationGlassMorphID(_ id: String, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffectID(id, in: namespace)
+        } else {
+            self.matchedGeometryEffect(id: id, in: namespace, properties: .frame, anchor: .center)
+        }
+    }
 }
 
 private struct GlassSurfaceModifier<S: InsettableShape>: ViewModifier {

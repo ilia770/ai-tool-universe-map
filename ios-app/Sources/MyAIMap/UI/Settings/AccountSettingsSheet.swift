@@ -3,8 +3,15 @@ import SwiftUI
 struct AccountSettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
+    @State private var showUpgradePlaceholder = false
+    #if DEBUG
+    @State private var deepSeekKeyInput = ""
+    @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+    #endif
+    @Namespace private var sheetChromeNamespace
 
     var body: some View {
         NavigationStack {
@@ -38,6 +45,11 @@ struct AccountSettingsSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .frame(width: 34, height: 34)
+                            .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+                            .navigationGlassMorphID("AccountSheet.close", in: sheetChromeNamespace)
                     }
                     .buttonStyle(BouncyIconButtonStyle())
                 }
@@ -69,7 +81,7 @@ struct AccountSettingsSheet: View {
                 VStack(spacing: BrandSpacing.s.value) {
                     ForEach(UniverseRenderMode.allCases) { renderMode in
                         Button {
-                            withAnimation(BrandMotion.flow) {
+                            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                                 model.renderMode = renderMode
                             }
                         } label: {
@@ -98,19 +110,30 @@ struct AccountSettingsSheet: View {
                 }
             }
 
+            planGroup
+
             settingsGroup(title: "Behavior", systemImage: "hand.tap.fill") {
                 Toggle("Haptics", isOn: $model.hapticsEnabled)
                     .tint(model.selectedCategoryModel.color.swiftUIColor)
-                Text("The assistant asks for a website when a service is missing instead of inventing facts.")
+                Text("Haptics add subtle taps for selections, opening tools, and success or error feedback. Turn off to silence all haptic feedback.")
                     .font(.footnote)
                     .foregroundStyle(BrandColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            #if DEBUG
+            // Developer-only: the DeepSeek API-key entry. Gated behind DEBUG and
+            // the hidden `developer.modeEnabled` flag so it never appears in a
+            // release build or for a normal user (SETTINGS_PROFILE_SPEC §1).
+            if DeveloperMode.isEnabled {
+                deepSeekDeveloperGroup
+            }
+            #endif
+
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
                     Button {
-                        withAnimation(BrandMotion.flow) { _ = model.loadSampleUniverse() }
+                        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { _ = model.loadSampleUniverse() }
                     } label: {
                         universeActionRow("Load sample universe", systemImage: "sparkles", destructive: false)
                     }
@@ -127,7 +150,7 @@ struct AccountSettingsSheet: View {
             }
             .confirmationDialog("Reset universe?", isPresented: $showResetConfirm, titleVisibility: .visible) {
                 Button("Reset everything", role: .destructive) {
-                    withAnimation(BrandMotion.flow) { model.resetUniverse() }
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.resetUniverse() }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -139,7 +162,7 @@ struct AccountSettingsSheet: View {
                     VStack(spacing: BrandSpacing.s.value) {
                         ForEach(model.removedTools) { tool in
                             Button {
-                                withAnimation(BrandMotion.nudge) {
+                                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                                     _ = model.restoreTool(tool.id)
                                 }
                             } label: {
@@ -160,6 +183,107 @@ struct AccountSettingsSheet: View {
             }
         }
     }
+
+    // PLACEHOLDER plan / usage group — no real billing, no StoreKit, no network
+    // (SETTINGS_PROFILE_SPEC §2). Shows plan, usage cap, remaining requests, and
+    // a non-functional Upgrade CTA.
+    private var planGroup: some View {
+        settingsGroup(title: "Plan", systemImage: "creditcard.fill") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                planRow(label: "Plan", value: model.subscription.plan.displayName)
+                planRow(label: "Usage limit", value: "\(model.subscription.aiRequestsLimit) AI requests / month")
+                planRow(label: "Remaining AI requests", value: "\(model.subscription.aiRequestsRemaining)")
+
+                Button {
+                    showUpgradePlaceholder = true
+                } label: {
+                    HStack {
+                        Label("Upgrade", systemImage: "sparkles")
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(BrandSpacing.m.value)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                .accessibilityIdentifier("settings.plan.upgrade")
+            }
+        }
+        .confirmationDialog("Upgrade", isPresented: $showUpgradePlaceholder, titleVisibility: .visible) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Paid plans are coming soon. There's nothing to buy yet.")
+        }
+    }
+
+    private func planRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(BrandColor.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    #if DEBUG
+    private var deepSeekDeveloperGroup: some View {
+        @Bindable var model = model
+        return settingsGroup(title: "AI assistant (developer)", systemImage: "wrench.and.screwdriver.fill") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                HStack(spacing: BrandSpacing.s.value) {
+                    Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
+                        .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
+                    Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+
+                SecureField("DeepSeek API key", text: $deepSeekKeyInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .submitLabel(.done)
+                    .padding(BrandSpacing.m.value)
+                    .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .foregroundStyle(.white)
+
+                HStack(spacing: BrandSpacing.s.value) {
+                    Button {
+                        saveDeepSeekKey()
+                    } label: {
+                        universeActionRow("Save key", systemImage: "tray.and.arrow.down", destructive: false)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                    .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button(role: .destructive) {
+                        clearDeepSeekKey()
+                    } label: {
+                        universeActionRow("Clear", systemImage: "trash", destructive: true)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                    .disabled(!deepSeekKeySet)
+                }
+
+                Text("Developer-only. The DeepSeek key routes the assistant through DeepSeek; on any error it falls back to the on-device assistant. Hidden from normal users.")
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    #endif
 
     private var historyContent: some View {
         settingsGroup(title: "Recent activity", systemImage: "clock.arrow.circlepath") {
@@ -217,11 +341,15 @@ struct AccountSettingsSheet: View {
             content()
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-            strokeStrength: 0.08
+        // Settings group = content panel → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func renderModeRow(_ renderMode: UniverseRenderMode) -> some View {
@@ -229,9 +357,9 @@ struct AccountSettingsSheet: View {
         return HStack(spacing: BrandSpacing.m.value) {
             Text(renderMode.shortLabel)
                 .font(.headline.weight(.bold))
-                .foregroundStyle(isSelected ? .black.opacity(0.82) : .white)
+                .foregroundStyle(.white.opacity(isSelected ? 0.94 : 0.78))
                 .frame(width: 42, height: 34)
-                .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.muted, in: Circle())
+                .background(isSelected ? .white.opacity(0.12) : .white.opacity(0.05), in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 HStack(spacing: 6) {
@@ -242,10 +370,10 @@ struct AccountSettingsSheet: View {
                     if renderMode.isExperimental {
                         Text("Experimental")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                            .foregroundStyle(.white.opacity(0.72))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
-                            .background(model.selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                            .background(.white.opacity(0.08), in: Capsule())
                     }
                 }
                 Text(renderMode.detail)
@@ -258,14 +386,14 @@ struct AccountSettingsSheet: View {
 
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                    .foregroundStyle(.white.opacity(0.82))
             }
         }
         .padding(BrandSpacing.m.value)
-        .background(isSelected ? model.selectedCategoryModel.color.swiftUIColor.opacity(0.12) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        .background(isSelected ? .white.opacity(0.08) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
-                .stroke(isSelected ? model.selectedCategoryModel.color.swiftUIColor.opacity(0.55) : BrandColor.stroke, lineWidth: 1)
+                .stroke(isSelected ? .white.opacity(0.22) : BrandColor.stroke, lineWidth: 1)
         }
     }
 
@@ -306,6 +434,22 @@ struct AccountSettingsSheet: View {
         case .asked: return "sparkles"
         }
     }
+
+    #if DEBUG
+    private func saveDeepSeekKey() {
+        let trimmed = deepSeekKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        KeychainStore.save(trimmed, account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeyInput = ""
+    }
+
+    private func clearDeepSeekKey() {
+        KeychainStore.delete(account: KeychainStore.deepSeekAPIKeyAccount)
+        deepSeekKeySet = false
+        deepSeekKeyInput = ""
+    }
+    #endif
 
     private func open(_ activity: UniverseActivity) {
         guard let id = activity.toolID, model.focusTool(id) else { return }

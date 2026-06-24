@@ -149,7 +149,7 @@ struct UniverseRailView: View {
         guard !gestureState.isActive else { return }
         BrandHaptics.fire(.light)
         onActiveChange(true)
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             // Resigns the keyboard on the inactive→active edge so the rail
             // never coexists with an open keyboard (UI_STATE_MACHINE.md).
             gestureState.begin(activeCategory: activeCategory, activeIndex: activeIndex)
@@ -158,7 +158,7 @@ struct UniverseRailView: View {
 
     private func collapseRail() {
         let wasActive = gestureState.isActive
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             gestureState.reset()
         }
         if wasActive {
@@ -185,14 +185,10 @@ struct UniverseRailView: View {
         guard let category = categories.first(where: { $0.id == id }) else {
             return id.rawValue.capitalized
         }
-        switch category.id {
-        case .core:
-            return "Founder"
-        case .infrastructure:
-            return "Runtime"
-        default:
-            return category.shortName
-        }
+        if category.id == .core { return "Founder" }
+        if category.id == .infrastructure { return "Runtime" }
+        // Built-ins and custom branches alike use their resolved short name.
+        return category.shortName
     }
 }
 

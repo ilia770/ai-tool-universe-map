@@ -75,6 +75,21 @@ enum UniverseAssistantCore {
             )
         }
 
+        // §6 intent #4: existing-universe inventory query ("what do I have for
+        // X") — list the user's OWN tools, optionally scoped to a domain. Runs
+        // before domain/workflow routing so possessive phrasing isn't treated
+        // as a fresh recommendation.
+        if isInventoryQuery(folded), !isFullAppWorkflow(folded) {
+            return inventoryReply(
+                for: trimmed,
+                domain: domainKeyword(for: folded),
+                tools: tools,
+                categoryName: categoryName,
+                knowledge: knowledge,
+                recentActivity: recentActivity
+            )
+        }
+
         if let domain = domainIntent(for: folded),
            !isFullAppWorkflow(folded) {
             return domainReply(
@@ -222,6 +237,77 @@ enum UniverseAssistantCore {
         )
     }
 
+    /// §6 intent #4 — existing-universe query ("what do I have for X"). Lists
+    /// the user's OWN tools (optionally scoped to a domain) as a plain inventory,
+    /// not a workflow recommendation. Empty scope → suggest adding instead.
+    private static func inventoryReply(
+        for query: String,
+        domain: ToolCategoryId?,
+        tools: [Tool],
+        categoryName: (ToolCategoryId) -> String,
+        knowledge: (Tool) -> ToolKnowledge,
+        recentActivity: [UniverseActivity]
+    ) -> AssistantReply {
+        let scoped = domain.map { d in tools.filter { $0.category == d } } ?? tools
+        let listed = Array(scoped.prefix(8))
+
+        if listed.isEmpty {
+            let label = domain.map { categoryName($0).lowercased() } ?? "universe"
+            let suggestions = domain
+                .map { missingSuggestions(from: suggestionTemplates(for: $0), tools: tools, limit: 3) }
+                ?? []
+            let scopeWord = domain == nil ? "any tools yet" : "any \(label) tools yet"
+            return AssistantReply(
+                text: """
+                **Your universe**
+                You do not have \(scopeWord). Add one from the chips below — each tool becomes a node you can ask about later.
+                """,
+                matchIDs: [],
+                missingToolSuggestions: suggestions
+            )
+        }
+
+        let scopeLabel = domain.map { "\(categoryName($0).lowercased()) " } ?? ""
+        let countWord = listed.count == 1 ? "tool" : "tools"
+        let heading = domain == nil
+            ? "Your universe has \(listed.count) \(countWord)."
+            : "You have \(listed.count) \(scopeLabel)\(countWord) in your universe."
+        let lines = recommendedLines(
+            for: listed,
+            allTools: tools,
+            categoryName: categoryName,
+            knowledge: knowledge
+        ).map { "- \($0)" }.joined(separator: "\n")
+        return AssistantReply(
+            text: """
+            **Your \(scopeLabel.isEmpty ? "tools" : scopeLabel + "tools")**
+            \(heading)
+
+            \(lines)
+
+            **Next**
+            Open any chip for its details. Pricing shown is from the universe; verify the website before relying on it.
+            """,
+            matchIDs: listed.map(\.id),
+            missingToolSuggestions: []
+        )
+    }
+
+    /// Detects possessive inventory phrasing ("what do I have", "my tools",
+    /// "что у меня есть") asking about the user's OWN universe — distinct from a
+    /// recommendation ("which tool for X") or a full workflow ask.
+    private static func isInventoryQuery(_ folded: String) -> Bool {
+        let phrases = [
+            "what do i have", "what tools do i have", "which of my tools",
+            "do i have", "what is in my universe", "in my universe",
+            "my current tools", "list my tools", "show my tools",
+            "my stack", "my tools",
+            "что у меня", "какие у меня", "что в моей вселенной",
+            "мои инструменты", "у меня есть",
+        ]
+        return phrases.contains { folded.contains($0) }
+    }
+
     private static func directMatchReply(
         for query: String,
         matches: [Tool],
@@ -342,10 +428,20 @@ enum UniverseAssistantCore {
             return true
         }
 
-        // Short unmatched natural-language fragments are not enough evidence
+        // R15: A short unmatched query that looks like a product name (1-3
+        // tokens, none of them small talk, not a recognized intent) is most
+        // likely an unknown tool the user wants to add — route it to the
+        // missing-service / add-tool path, not general chat. Genuine small talk
+        // is already returned above, so anything reaching here that is name-like
+        // should NOT be treated as general conversation.
+        if (1...3).contains(tokens.count) {
+            return false
+        }
+
+        // Longer unmatched natural-language fragments are not enough evidence
         // for a service lookup. Keep them in general chat unless the user
         // names a tool/service/add intent above.
-        return tokens.count >= 2
+        return true
     }
 
     private static func structuredText(
@@ -572,11 +668,28 @@ enum UniverseAssistantCore {
             folded,
             [
                 "which tool", "which tools", "what tool", "what tools", "should i use",
-                "recommend", "best for", "use for", "какой", "какие", "что использовать",
+                "recommend", "best for", "use for",
+                // Recommendation phrasings that previously fell through to the
+                // missing-service path (R14): "I need …", "looking for …",
+                // "want …", "help me choose …", "which … for …".
+                "i need", "need a", "need an", "need some", "looking for", "look for",
+                "i want", "want a", "want an", "help me choose", "help me pick",
+                "which", "what should",
+                "какой", "какие", "что использовать",
                 "посовет", "подбери", "нужно", "надо",
+                // RU recommendation equivalents (R14): "нужен", "ищу",
+                // "посоветуй", "что для …".
+                "нужен", "нужна", "ищу", "посоветуй", "что для", "для чего",
             ]
         ) else { return nil }
 
+        return domainKeyword(for: folded)
+    }
+
+    /// Maps a folded query to a domain purely by topic keywords, without the
+    /// recommendation-trigger gate of `domainIntent`. Used by the inventory
+    /// path ("what do I have for design"), which is possessive, not a request.
+    private static func domainKeyword(for folded: String) -> ToolCategoryId? {
         let domains: [(ToolCategoryId, [String])] = [
             (.design, ["design", "ui", "ux", "prototype", "mockup", "wireframe", "figma", "дизайн", "интерфейс", "макет", "прототип"]),
             (.coding, ["code", "coding", "developer", "development", "repo", "refactor", "agentic dev", "код", "разработ", "репозитор"]),
@@ -591,77 +704,86 @@ enum UniverseAssistantCore {
     }
 
     private static func preferredIDs(for domain: ToolCategoryId) -> [String] {
-        switch domain {
-        case .coding: return ["codex", "cursor", "claude-code"]
-        case .design: return ["figma", "dessn"]
-        case .research: return ["supadata"]
-        case .analytics: return ["posthog"]
-        case .media: return ["remotion", "runway", "heygen", "higgsfield"]
-        case .distribution: return ["buffer"]
-        case .infrastructure: return ["supabase", "vercel"]
-        case .knowledge: return ["agent-skills", "founder-os"]
-        case .core: return ["founder-os", "openswarm"]
-        }
+        // Keyed by built-in domain; a custom (user/AI-created) branch has no
+        // curated preferred ids and returns `[]` so the assistant simply falls
+        // back to the user's own tools in that branch.
+        preferredIDsByDomain[domain] ?? []
     }
 
+    private static let preferredIDsByDomain: [ToolCategoryId: [String]] = [
+        .coding: ["codex", "cursor", "claude-code"],
+        .design: ["figma", "dessn"],
+        .research: ["supadata"],
+        .analytics: ["posthog"],
+        .media: ["remotion", "runway", "heygen", "higgsfield"],
+        .distribution: ["buffer"],
+        .infrastructure: ["supabase", "vercel"],
+        .knowledge: ["agent-skills", "founder-os"],
+        .core: ["founder-os", "openswarm"],
+    ]
+
     private static func suggestionTemplates(for domain: ToolCategoryId) -> [SuggestionTemplate] {
-        switch domain {
-        case .coding:
-            return [
+        // Custom branches have no built-in suggestion library, so `[]` (the
+        // default) is correct — nothing is fabricated for an unknown branch.
+        suggestionTemplatesByDomain[domain] ?? []
+    }
+
+    private static let suggestionTemplatesByDomain: [ToolCategoryId: [SuggestionTemplate]] = [
+        .coding:
+            [
                 SuggestionTemplate("GitHub", .coding, "Repository hosting, collaboration, and pull-request workflow."),
                 SuggestionTemplate("Replit", .coding, "Cloud coding workspace for quick prototypes."),
                 SuggestionTemplate("Lovable", .coding, "AI app builder for fast full-stack prototypes."),
-            ]
-        case .design:
-            return [
+            ],
+        .design:
+            [
                 SuggestionTemplate("Framer", .design, "Visual website and landing-page builder for polished frontends."),
                 SuggestionTemplate("Mobbin", .design, "UI pattern research for mobile and web product design."),
                 SuggestionTemplate("Relume", .design, "Sitemap and wireframe generation for early product structure."),
-            ]
-        case .research:
-            return [
+            ],
+        .research:
+            [
                 SuggestionTemplate("Perplexity", .research, "Answer and source research before workflow decisions."),
                 SuggestionTemplate("Firecrawl", .research, "Website crawling and extraction for AI-ready context."),
                 SuggestionTemplate("Apify", .research, "Hosted scraping actors and data collection workflows."),
-            ]
-        case .analytics:
-            return [
+            ],
+        .analytics:
+            [
                 SuggestionTemplate("Mixpanel", .analytics, "Product analytics and funnel exploration."),
                 SuggestionTemplate("Amplitude", .analytics, "Behavior analytics for product and growth teams."),
                 SuggestionTemplate("Sentry", .analytics, "Error monitoring and performance visibility."),
-            ]
-        case .media:
-            return [
+            ],
+        .media:
+            [
                 SuggestionTemplate("CapCut", .media, "Fast editing for short-form launch assets."),
                 SuggestionTemplate("ElevenLabs", .media, "Voice generation for explainers and product media."),
                 SuggestionTemplate("Midjourney", .media, "Image ideation for creative direction."),
-            ]
-        case .distribution:
-            return [
+            ],
+        .distribution:
+            [
                 SuggestionTemplate("Hootsuite", .distribution, "Social scheduling and publishing operations."),
                 SuggestionTemplate("Beehiiv", .distribution, "Newsletter publishing and audience growth."),
                 SuggestionTemplate("Taplio", .distribution, "LinkedIn content workflow and scheduling."),
-            ]
-        case .infrastructure:
-            return [
+            ],
+        .infrastructure:
+            [
                 SuggestionTemplate("Neon", .infrastructure, "Serverless Postgres option for database-heavy apps."),
                 SuggestionTemplate("Railway", .infrastructure, "Simple app and service deployment platform."),
                 SuggestionTemplate("Firebase", .infrastructure, "Backend, auth, hosting, and mobile app services."),
-            ]
-        case .knowledge:
-            return [
+            ],
+        .knowledge:
+            [
                 SuggestionTemplate("Notion", .knowledge, "Shared docs, product specs, and team knowledge."),
                 SuggestionTemplate("Obsidian", .knowledge, "Local knowledge base for connected notes."),
                 SuggestionTemplate("Linear", .knowledge, "Issue tracking and product execution memory."),
-            ]
-        case .core:
-            return [
+            ],
+        .core:
+            [
                 SuggestionTemplate("OpenAI Platform", .core, "Model and API layer for AI-native workflows."),
                 SuggestionTemplate("Anthropic Console", .core, "Model console for Claude-based workflows."),
                 SuggestionTemplate("LangSmith", .core, "LLM tracing, evals, and workflow observability."),
-            ]
-        }
-    }
+            ],
+    ]
 
     private static let appWorkflowSuggestions: [SuggestionTemplate] = [
         SuggestionTemplate("GitHub", .coding, "Source control, issues, reviews, and integration hub for the app."),

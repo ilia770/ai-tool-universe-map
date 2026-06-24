@@ -35,9 +35,22 @@ final class UniverseViewModel {
             persist()
         }
     }
+    /// PLACEHOLDER plan / usage state (no billing). Persisted; usage increments
+    /// on each Ask-AI send so the "remaining" count visibly moves.
+    private(set) var subscription: SubscriptionState = .free
     private(set) var activityHistory: [UniverseActivity] = []
     private(set) var hiddenToolIDs: Set<String> = []
     private(set) var customTools: [Tool] = []
+    /// User/AI-created branches (blueprint §8). Persisted alongside custom tools
+    /// and mirrored into `UniverseSeed`'s registry so the seed's `category(_:)`
+    /// resolver can label and color them everywhere.
+    private(set) var customCategories: [ToolCategory] = []
+
+    /// True once the user has completed (or skipped) first-run onboarding.
+    /// Persisted so the one-screen overlay shows only on a true first launch.
+    /// Independent of `isUniverseEmpty` — a user who onboards but adds nothing
+    /// must not see the overlay again (they see the empty-universe state).
+    private(set) var hasSeenOnboarding: Bool = false
 
     @ObservationIgnored private let store: UniverseStore
 
@@ -47,6 +60,10 @@ final class UniverseViewModel {
         self.store = store
         let saved = store.load()
         self.customTools = saved.tools
+        self.customCategories = saved.customCategories
+        // Make persisted custom branches resolvable before any view reads the
+        // seed's `category(_:)` (rail labels, logos, assistant grounding).
+        UniverseSeed.registerCustomCategories(saved.customCategories)
         // Defensive: the core tool (founder-os) must never be hidden. The
         // selection projection falls back to it, so a stale/corrupt persisted
         // hidden set containing it would strand selection (selectedTool == nil).
@@ -55,18 +72,34 @@ final class UniverseViewModel {
         self.hiddenToolIDs = sanitizedHidden
         self.renderMode = saved.renderMode
         self.hapticsEnabled = saved.hapticsEnabled
+        self.hasSeenOnboarding = saved.hasSeenOnboarding
+        self.subscription = saved.subscription
         if sanitizedHidden != saved.hidden {
             persist()
         }
     }
 
     private func persist() {
+        // Keep the seed registry in lockstep with the persisted set so any
+        // mutation (createBranch, reset) immediately reflects in resolution.
+        UniverseSeed.registerCustomCategories(customCategories)
         store.save(
             tools: customTools,
+            customCategories: customCategories,
             hidden: hiddenToolIDs,
             renderMode: renderMode,
-            hapticsEnabled: hapticsEnabled
+            hapticsEnabled: hapticsEnabled,
+            hasSeenOnboarding: hasSeenOnboarding,
+            subscription: subscription
         )
+    }
+
+    /// Marks first-run onboarding complete and persists it. Idempotent: any of
+    /// the overlay's actions, Skip, or a scrim tap may call it.
+    func markOnboardingSeen() {
+        guard !hasSeenOnboarding else { return }
+        hasSeenOnboarding = true
+        persist()
     }
 
     // MARK: - Derived state
@@ -93,6 +126,14 @@ final class UniverseViewModel {
     /// sample data (`loadSampleUniverse()`), never a silent default.
     var allTools: [Tool] {
         customTools
+    }
+
+    /// Every category the renderer may need to lay out: the seed branches plus
+    /// any user/AI-created custom branches. `PlanetData.makePlanets` filters
+    /// this down to categories that actually hold a visible tool, so passing the
+    /// full set is safe — empty branches simply don't light up a planet.
+    var allCategories: [ToolCategory] {
+        UniverseSeed.categories + customCategories
     }
 
     /// True before the user has added (or sampled) anything — drives the
@@ -186,6 +227,7 @@ final class UniverseViewModel {
     /// Wipes the user's universe back to empty (custom tools + hidden ids).
     func resetUniverse() {
         customTools.removeAll()
+        customCategories.removeAll()
         hiddenToolIDs.removeAll()
         universeMode = .overview
         persist()
@@ -227,6 +269,20 @@ final class UniverseViewModel {
         return true
     }
 
+    /// Set by the chat surface to request a tool's full detail sheet. The chat
+    /// and map are mutually-exclusive surfaces, so the chat can't present the
+    /// sheet itself — `UniverseMapView` consumes this on appear/change and clears
+    /// it. §6.3: existing-tool chips open detail, not just a map focus.
+    var pendingDetailToolID: String?
+
+    /// Focus a tool and request its detail sheet (chat "open detail" chips).
+    @discardableResult
+    func requestToolDetail(_ id: String) -> Bool {
+        guard focusTool(id) else { return false }
+        pendingDetailToolID = id
+        return true
+    }
+
     func setHover(_ id: String?) {
         hoveredToolID = id
     }
@@ -265,13 +321,78 @@ final class UniverseViewModel {
             return
         }
 
-        let reply = UniverseAssistantCore.reply(
+        // Placeholder usage accounting: each real Ask-AI send decrements the
+        // remaining count so the Settings number visibly moves (no real quota).
+        consumeAIRequest()
+
+        // Local rule-based reply is always computed first: it stays the default
+        // offline behavior and provides the chip match-IDs the UI relies on.
+        let local = UniverseAssistantCore.reply(
             for: query,
             tools: visibleAllTools,
             categoryName: { UniverseSeed.category($0).shortName },
             knowledge: { ToolKnowledgeBook.knowledge(for: $0) },
             recentActivity: activityHistory
         )
+
+        // Route through the AssistantBackend seam, never DeepSeek directly. Only
+        // the debug/developer DeepSeek path calls out; on missing config OR any
+        // error we fall back to the local reply below. Release builds and normal
+        // users always resolve to `.local`.
+        if activeBackend == .debugDeepSeek {
+            let tools = visibleAllTools
+            let systemPrompt = Self.deepSeekSystemPrompt(for: tools)
+            Task { [weak self] in
+                do {
+                    let text = try await DeepSeekClient().reply(to: query, systemPrompt: systemPrompt)
+                    await self?.appendAssistantReply(text: text, query: query, fallback: local)
+                } catch {
+                    await self?.appendAssistantReply(text: nil, query: query, fallback: local)
+                }
+            }
+            assistantQuery = ""
+            return
+        }
+
+        appendLocalReply(local, query: query)
+    }
+
+    /// The backend the assistant will use, resolved through the seam. Normal
+    /// builds/users get `.local`; `.debugDeepSeek` only when developer mode is
+    /// on AND a key is stored (see `AssistantBackend`).
+    var activeBackend: AssistantBackend {
+        AssistantBackend.resolve(
+            developerModeEnabled: DeveloperMode.isEnabled,
+            hasDeepSeekKey: KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
+        )
+    }
+
+    /// Increments the local placeholder usage counter and persists it.
+    private func consumeAIRequest() {
+        subscription.consumeRequest()
+        persist()
+    }
+
+    private func appendAssistantReply(text: String?, query: String, fallback: AssistantReply) {
+        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            // Missing-key / network / decode failure → local rule-based reply.
+            appendLocalReply(fallback, query: query)
+            return
+        }
+        // DeepSeek answers the text; the local matcher still supplies chip
+        // match-IDs and missing-tool suggestions so the UI keeps working.
+        assistantMessages.append(
+            AssistantMessage(
+                role: .assistant,
+                text: text,
+                matchIDs: fallback.matchIDs,
+                missingToolSuggestions: fallback.missingToolSuggestions
+            )
+        )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: fallback.matchIDs.first)
+    }
+
+    private func appendLocalReply(_ reply: AssistantReply, query: String) {
         assistantMessages.append(
             AssistantMessage(
                 role: .assistant,
@@ -280,13 +401,27 @@ final class UniverseViewModel {
                 missingToolSuggestions: reply.missingToolSuggestions
             )
         )
-        assistantQuery = ""
-        recordActivity(
-            kind: .asked,
-            title: "Asked AI",
-            detail: query,
-            toolID: reply.matchIDs.first
-        )
+        recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: reply.matchIDs.first)
+    }
+
+    /// Grounds the DeepSeek prompt in the user's current catalog so it answers
+    /// about tools that actually exist and keeps the "never fabricate tools"
+    /// principle: when a service is missing, it asks for the website instead of
+    /// inventing facts.
+    private static func deepSeekSystemPrompt(for tools: [Tool]) -> String {
+        let catalog = tools
+            .map { "- \($0.name) (\(UniverseSeed.category($0.category).shortName))" }
+            .joined(separator: "\n")
+        let list = catalog.isEmpty ? "(the user's universe is currently empty)" : catalog
+        return """
+        You are the in-app assistant for "My AI Map", a universe of AI tools the user has added.
+        Only recommend tools from the catalog below. Never invent tools, pricing, or features.
+        If the user asks about a tool not in the catalog, say it isn't in their universe yet and ask for its website URL.
+        Be concise and practical.
+
+        Catalog:
+        \(list)
+        """
     }
 
     @discardableResult
@@ -321,6 +456,67 @@ final class UniverseViewModel {
             toolID: id
         )
         return true
+    }
+
+    /// Palette for custom branches: hues distinct from the seed branch colors so
+    /// a new branch reads as its own orbit, cycled by creation order.
+    private static let customBranchPalette: [(color: ColorHex, glow: ColorHex)] = [
+        (ColorHex(stringLiteral: "#F472B6"), ColorHex(stringLiteral: "#FBCFE8")),
+        (ColorHex(stringLiteral: "#34D399"), ColorHex(stringLiteral: "#A7F3D0")),
+        (ColorHex(stringLiteral: "#FBBF24"), ColorHex(stringLiteral: "#FDE68A")),
+        (ColorHex(stringLiteral: "#A78BFA"), ColorHex(stringLiteral: "#DDD6FE")),
+        (ColorHex(stringLiteral: "#22D3EE"), ColorHex(stringLiteral: "#A5F3FC")),
+        (ColorHex(stringLiteral: "#FB7185"), ColorHex(stringLiteral: "#FECDD3")),
+    ]
+
+    /// Creates a new user/AI branch (blueprint §8). Builds a `ToolCategory` from
+    /// a slug of `name`, picks a palette color not used by the seed, and places
+    /// it at the next free orbital slot. Idempotent on slug: an existing branch
+    /// (seed or custom) with the same id is returned instead of duplicated.
+    /// Registers + persists so the branch is immediately resolvable, rendered,
+    /// and search/assistant-aware.
+    @discardableResult
+    func createBranch(name: String) -> ToolCategoryId {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseSlug = slug(cleanName)
+        let id = ToolCategoryId(rawValue: baseSlug.isEmpty ? uniqueCategorySlug(base: "branch") : uniqueCategorySlug(base: baseSlug))
+
+        let display = cleanName.isEmpty ? id.rawValue.capitalized : cleanName
+        let palette = Self.customBranchPalette[customCategories.count % Self.customBranchPalette.count]
+        // Next free orbital slot: seed branches occupy 0..<8 conceptually, so
+        // fan custom branches out beyond them in even steps.
+        let branchCount = UniverseSeed.categories.filter { $0.id != .core }.count + customCategories.count
+        let angle = Float((branchCount * 47) % 360)
+
+        let category = ToolCategory(
+            id: id,
+            name: display,
+            shortName: display,
+            description: "Custom branch added from intake.",
+            color: palette.color,
+            glow: palette.glow,
+            angle: angle
+        )
+        customCategories.append(category)
+        persist()
+        recordActivity(
+            kind: .added,
+            title: "Created \(display) branch",
+            detail: "New universe branch",
+            toolID: nil
+        )
+        return id
+    }
+
+    private func uniqueCategorySlug(base: String) -> String {
+        var candidate = base
+        var suffix = 2
+        let existing = Set(allCategories.map { $0.id.rawValue })
+        while existing.contains(candidate) {
+            candidate = "\(base)-\(suffix)"
+            suffix += 1
+        }
+        return candidate
     }
 
     @discardableResult

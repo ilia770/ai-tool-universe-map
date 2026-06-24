@@ -65,6 +65,9 @@ enum SearchCore {
 enum ComposerLogic {
     static let userBubbleMaxWidthRatio = 0.80
     static let assistantMessageMaxWidthRatio = 0.86
+    static let composerMinHeight: CGFloat = 44
+    static let composerMaxHeight: CGFloat = 148
+    static let composerMaxLines = 6
 
     /// Send is enabled when there is text OR an attachment; disabled only when
     /// neither exists. (Spec: "Disabled only when no text AND no attachment".)
@@ -90,8 +93,9 @@ enum ComposerLogic {
         return "Attached \(attachmentTitle.lowercased())"
     }
 
-    /// Collapsing hides the transcript, but it should not dismiss the chat mode
-    /// while there is a transcript/draft to reopen.
+    /// Collapsing keeps the transcript resumable but returns map interaction to
+    /// the normal navigation mode. Only active input, visible chat chrome, or an
+    /// attachment affordance should keep the map suppressed.
     static func keepsChatActive(
         isFocused: Bool,
         showsConversation: Bool,
@@ -99,7 +103,7 @@ enum ComposerLogic {
         attachmentMenuOpen: Bool,
         hasAttachment: Bool
     ) -> Bool {
-        isFocused || showsConversation || isCollapsedWithContent || attachmentMenuOpen || hasAttachment
+        isFocused || showsConversation || attachmentMenuOpen || hasAttachment
     }
 
     /// User bubbles should be compact for short text and wrap before becoming a
@@ -116,9 +120,23 @@ enum ComposerLogic {
         "paperclip"
     }
 
-    /// "Remove attachment" is offered only when an attachment exists.
+    /// "Remove attachment" is offered only when an attachment exists. Its home
+    /// is the floating preview's remove button (CHAT_INPUT_SPEC §3), not the
+    /// attachment menu.
     static func showsRemoveAttachment(hasAttachment: Bool) -> Bool {
         hasAttachment
+    }
+
+    /// The float lane above the composer hosts at most one panel: the attachment
+    /// menu OR the staged-attachment preview — never both (CHAT_INPUT_SPEC §4).
+    /// The menu wins while open (state B); otherwise an attachment shows its
+    /// preview (state C). Opening the menu therefore hides the preview.
+    static func showsAttachmentMenu(menuOpen: Bool) -> Bool {
+        menuOpen
+    }
+
+    static func showsAttachmentPreview(menuOpen: Bool, hasAttachment: Bool) -> Bool {
+        hasAttachment && !menuOpen
     }
 
     /// Attach / Add-tool have a single home: the composer. Assistant messages
@@ -126,4 +144,73 @@ enum ComposerLogic {
     /// user toward the composer controls via text. (Spec: "the SAME action
     /// never appears twice on screen at once".)
     static let rendersInMessageAccessButtons = false
+}
+
+/// Pure presentation cleanup for assistant text. The local assistant can keep
+/// verbose internal structure for tests/routing, but the UI should show a short
+/// answer first and move actions into real chips instead of prose.
+enum AssistantResponsePresentation {
+    static func prose(from text: String) -> String {
+        var output: [String] = []
+        var skippingActionSection = false
+
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("|") { continue }
+            if trimmed.hasPrefix("**Next:**") || trimmed.hasPrefix("Next:") { continue }
+
+            if isHeading(trimmed) {
+                if headingTitle(trimmed) == "Action chips" {
+                    skippingActionSection = true
+                    continue
+                }
+                skippingActionSection = false
+            }
+
+            if skippingActionSection { continue }
+
+            if let mapped = mappedHeading(trimmed) {
+                if !mapped.isEmpty {
+                    output.append(mapped)
+                }
+            } else {
+                output.append(rawLine)
+            }
+        }
+
+        return output
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func mappedHeading(_ line: String) -> String? {
+        switch headingTitle(line) {
+        case "Summary":
+            return ""
+        case "Recommended tools":
+            return "**Recommended path**"
+        case "Options":
+            return "**Cost / time tradeoffs**"
+        case "Caveats / tradeoffs":
+            return "**Notes**"
+        default:
+            return nil
+        }
+    }
+
+    private static func isHeading(_ line: String) -> Bool {
+        headingTitle(line) != nil
+    }
+
+    private static func headingTitle(_ line: String) -> String? {
+        guard line.hasPrefix("**"), line.hasSuffix("**"), line.count > 4 else { return nil }
+        return String(line.dropFirst(2).dropLast(2))
+    }
+}
+
+enum AssistantClipboardFormatter {
+    static func text(from rawText: String) -> String {
+        let prose = AssistantResponsePresentation.prose(from: rawText)
+        return prose.isEmpty ? rawText.trimmingCharacters(in: .whitespacesAndNewlines) : prose
+    }
 }

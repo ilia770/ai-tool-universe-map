@@ -3,11 +3,11 @@ import SwiftUI
 /// Named text styles. SF Pro Display via the system, Dynamic Type
 /// honored. No custom font shipped in Phase 0–3.
 enum BrandTypography {
-    /// 44 pt semibold — large modal/sheet titles.
-    static let displayLarge: Font = .system(size: 44, weight: .semibold, design: .rounded)
+    /// Large semibold — large modal/sheet titles.
+    static let displayLarge: Font = .system(.largeTitle, design: .rounded, weight: .semibold)
 
-    /// 28 pt semibold — sheet titles.
-    static let display: Font = .system(size: 34, weight: .semibold, design: .rounded)
+    /// Title semibold — sheet titles.
+    static let display: Font = .system(.title, design: .rounded, weight: .semibold)
 
     /// `.title3` semibold — section headers.
     static let title: Font = .system(.title3, design: .rounded, weight: .semibold)
@@ -15,12 +15,16 @@ enum BrandTypography {
     /// `.body` — descriptions, paragraph copy.
     static let body: Font = .system(.body, design: .rounded)
 
+    /// `.callout` — secondary paragraph copy (tool summaries). Scales with
+    /// Dynamic Type; do not replace with a fixed `.system(size:)`.
+    static let bodySecondary: Font = .system(.callout, design: .rounded)
+
     /// `.footnote` semibold — category chips.
     static let chip: Font = .system(.footnote, design: .default, weight: .semibold)
 
-    /// 10 pt semibold uppercase — eyebrow kicker over a section.
+    /// Caption semibold uppercase — eyebrow kicker over a section.
     /// Pair with `.kerning(1.8)` and `.textCase(.uppercase)`.
-    static let eyebrow: Font = .system(size: 10, weight: .semibold, design: .default)
+    static let eyebrow: Font = .system(.caption2, design: .default, weight: .semibold)
 
     /// `.callout` monospaced — confidence percentages, counters.
     static let mono: Font = .system(.callout, design: .monospaced)

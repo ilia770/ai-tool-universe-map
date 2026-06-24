@@ -4,6 +4,7 @@ import UIKit
 /// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
 struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var sceneController = UniverseSceneController()
     @State private var cameraRig = CameraRigController()
@@ -12,6 +13,10 @@ struct UniverseMapView: View {
     @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
+    /// §2 morph: zoom-transition source namespace shared between the chrome
+    /// trigger buttons (in `UniverseOverlayView`) and the sheets presented here,
+    /// so Plus→Add Tool and Profile→Settings feel like one continuous surface.
+    @Namespace private var chromeMorphNamespace
     @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
@@ -26,7 +31,9 @@ struct UniverseMapView: View {
     private var isCompact: Bool { AdaptiveLayout.isCompact(hSizeClass) }
 
     private func rebuildPlanets() {
-        planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: model.visibleAllTools)
+        // Feed seed branches AND user/AI-created custom branches; makePlanets
+        // only emits planets for categories that hold a visible tool.
+        planets = PlanetData.makePlanets(categories: model.allCategories, tools: model.visibleAllTools)
     }
 
     private var selectedPlanet: PlanetData {
@@ -93,6 +100,7 @@ struct UniverseMapView: View {
                 onDetails: presentDetail,
                 onAccount: presentAccount,
                 onAddTool: { presentAddTool() },
+                chromeMorphNamespace: chromeMorphNamespace,
                 onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }
             )
         }
@@ -131,12 +139,21 @@ struct UniverseMapView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(BrandColor.void)
         .preferredColorScheme(.dark)
         .onAppear {
+            if planets.isEmpty {
+                rebuildPlanets()
+            }
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
             focusCamera(for: mode, animated: false)
+            // A chat "open detail" chip sets the request before this surface
+            // mounts, so consume it here (onChange alone would miss it).
+            consumePendingDetailRequest()
+        }
+        .onChange(of: model.pendingDetailToolID) { _, _ in
+            consumePendingDetailRequest()
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
             BrandHaptics.isEnabled = isEnabled
@@ -174,24 +191,24 @@ struct UniverseMapView: View {
         .sheet(isPresented: $accountPresented) {
             AccountSettingsSheet()
                 .environment(model)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+                .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.account, in: chromeMorphNamespace))
         }
         .sheet(isPresented: $addToolPresented) {
             AddToolSheet(draft: addToolDraft)
                 .environment(model)
-                .presentationDetents([.fraction(0.72), .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+                .liquidGlassSheet()
+                .navigationTransition(.zoom(sourceID: ChromeMorphID.addTool, in: chromeMorphNamespace))
         }
         .onChange(of: addToolPresented) { _, isPresented in
             if !isPresented {
                 addToolDraft = nil
             }
         }
-        .onAppear { if planets.isEmpty { rebuildPlanets() } }
-        .onChange(of: model.visibleAllTools.count) { _, _ in rebuildPlanets() }
+        .onChange(of: model.visibleAllTools.map(\.id)) { _, _ in
+            rebuildPlanets()
+            focusCamera(for: mode, animated: false)
+        }
     }
 
     private func selectCategory(_ id: ToolCategoryId) {
@@ -216,24 +233,19 @@ struct UniverseMapView: View {
             BrandHaptics.fire(.medium)
         }
 
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(id)
         }
     }
 
     private func focusToolFromMap(_ id: String) {
-        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
-        guard model.selection.selectedToolID != id else {
-            if mode == .toolSelected(tool.category, id) {
-                presentDetail()
-            } else {
-                BrandHaptics.fire(.light)
-                model.universeMode = .toolSelected(tool.category, id)
-            }
+        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
+        guard mode.selectedToolID != id else {
+            presentDetail()
             return
         }
         BrandHaptics.fire(.medium)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.focusTool(id)
         }
     }
@@ -266,7 +278,7 @@ struct UniverseMapView: View {
             return
         }
         BrandHaptics.fireRich(.pocketClose)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             model.selectCategory(.core)
         }
     }
@@ -289,6 +301,24 @@ struct UniverseMapView: View {
         if case .chatOpen(let category, _) = mode {
             let planet = category.flatMap { id in planets.first { $0.id == id } }
             cameraRig.enterChat(focusedOn: planet, animated: animated)
+            return
+        }
+
+        if let toolID = mode.selectedToolID,
+           mode.focusedCategory == .core {
+            let core = planets.first(where: { $0.id == .core }) ?? PlanetData.core(from: model.visibleAllTools)
+            guard toolID != PlanetData.centralCoreToolID,
+                  let toolIndex = core.tools.firstIndex(where: { $0.id == toolID }) else {
+                cameraRig.focus(category: core, animated: animated)
+                return
+            }
+            cameraRig.focus(
+                tool: core.tools[toolIndex],
+                around: core,
+                index: toolIndex,
+                count: core.tools.count,
+                animated: animated
+            )
             return
         }
 
@@ -320,6 +350,19 @@ struct UniverseMapView: View {
             return
         }
         cameraRig.focus(category: planet, animated: animated)
+    }
+
+    /// Presents the detail for a tool requested from the chat surface (§6.3).
+    /// Selection was already set by `requestToolDetail`; this just opens the
+    /// sheet (or, on iPad, the inspector already shows it via the selection).
+    private func consumePendingDetailRequest() {
+        guard let id = model.pendingDetailToolID else { return }
+        model.pendingDetailToolID = nil
+        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
+        if mode.selectedToolID != id {
+            _ = model.focusTool(id)
+        }
+        presentDetail()
     }
 
     private func presentDetail() {

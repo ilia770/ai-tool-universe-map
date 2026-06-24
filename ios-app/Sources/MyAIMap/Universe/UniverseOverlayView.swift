@@ -3,6 +3,7 @@ import simd
 
 struct UniverseOverlayView: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let planets: [PlanetData]
     let mode: UniverseMode
@@ -16,9 +17,13 @@ struct UniverseOverlayView: View {
     let onDetails: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
+    /// §2 morph: namespace (owned by `UniverseMapView`) shared with the Account
+    /// and Add Tool sheets so the trigger buttons zoom-morph into them.
+    let chromeMorphNamespace: Namespace.ID
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
 
     @State private var isRailActive = false
+    @Namespace private var chromeNamespace
 
     private var isFocusedOnTool: Bool {
         guard let selectedToolID = mode.selectedToolID else { return false }
@@ -52,12 +57,35 @@ struct UniverseOverlayView: View {
             }
 
             if isRailActive {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.28))
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                // RIGHT_RAIL_SPEC: the rail must not cover the map. Constrain the
+                // readability treatment to a trailing strip behind the rail/list
+                // that fades to clear toward the map, instead of a full-screen scrim.
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    // Frosted dim strip behind the rail text picker: a real material
+                    // blur softened by a mask that fades to clear toward the map, so
+                    // the readability treatment never covers the map (RIGHT_RAIL_SPEC).
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            LinearGradient(
+                                colors: [.clear, Color.black.opacity(0.34)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .mask(
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: railContrastWidth)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
 
             if model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen {
@@ -70,6 +98,13 @@ struct UniverseOverlayView: View {
                     topChrome
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
+
+                    if model.renderMode == .spatial3D && !model.isUniverseEmpty {
+                        spatialExperimentalNotice
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
 
                 Spacer()
@@ -283,8 +318,9 @@ struct UniverseOverlayView: View {
     }
 
     private func toolLabelSafeInsets() -> LabelPacker.SafeInsets {
-        // Mirrors the prior clampedToolLabelPoint bounds.
-        LabelPacker.SafeInsets(top: 112, leading: 70, bottom: 244, trailing: 108)
+        // In 3D mode the experimental notice sits below top chrome; reserve
+        // that band so projected labels do not fight the escape hatch.
+        LabelPacker.SafeInsets(top: model.renderMode == .spatial3D ? 176 : 112, leading: 70, bottom: 244, trailing: 108)
     }
 
     private func toolLabelPosition(from point: CGPoint, around planetPosition: SIMD3<Float>, in size: CGSize) -> CGPoint {
@@ -340,15 +376,17 @@ struct UniverseOverlayView: View {
 
         let center = CGPoint(x: size.width * 0.5, y: size.height * 0.40)
         let centeredID = OverviewLabelFocus.centeredSunID(
-            packed.compactMap { p in
-                ToolCategoryId(rawValue: p.id).map { (id: $0, point: p.position) }
+            packed.map { p in
+                (id: ToolCategoryId(rawValue: p.id), point: p.position)
             },
             screenCenter: center
         )
         return packed.compactMap { placement -> PlanetLabelPlacement? in
-            guard let id = ToolCategoryId(rawValue: placement.id),
-                  id == centeredID,
-                  var resolved = byID[id] else { return nil }
+            // `ToolCategoryId` is now a non-failable string wrapper; the
+            // `byID` lookup filters ids that have no planet. In overview only
+            // the centred sun speaks (OverviewLabelFocus).
+            let id = ToolCategoryId(rawValue: placement.id)
+            guard id == centeredID, var resolved = byID[id] else { return nil }
             resolved.position = placement.position
             return resolved
         }
@@ -362,18 +400,23 @@ struct UniverseOverlayView: View {
     }
 
     private func overviewLabelPriority(for id: ToolCategoryId) -> Int {
-        switch id {
-        case .media: return 0
-        case .coding: return 1
-        case .design: return 2
-        case .research: return 3
-        case .analytics: return 4
-        case .infrastructure: return 5
-        case .knowledge: return 6
-        case .distribution: return 7
-        case .core: return 8
-        }
+        // Lower wins more label space. Built-ins keep their tuned order; custom
+        // (user/AI-created) branches sort last so they never displace a seed
+        // label, but still appear once seed labels are placed.
+        Self.overviewLabelPriorityByCategory[id] ?? 9
     }
+
+    private static let overviewLabelPriorityByCategory: [ToolCategoryId: Int] = [
+        .media: 0,
+        .coding: 1,
+        .design: 2,
+        .research: 3,
+        .analytics: 4,
+        .infrastructure: 5,
+        .knowledge: 6,
+        .distribution: 7,
+        .core: 8,
+    ]
 
     private func labelPosition(for planet: PlanetData, projection: UniverseLabelProjection, in size: CGSize) -> CGPoint {
         let center = CGPoint(x: size.width * 0.5, y: size.height * 0.39)
@@ -394,7 +437,7 @@ struct UniverseOverlayView: View {
         )
         return CGPoint(
             x: min(max(raw.x, 68), size.width - 98),
-            y: min(max(raw.y, 98), size.height - 238)
+            y: min(max(raw.y, model.renderMode == .spatial3D ? 162 : 98), size.height - 238)
         )
     }
 
@@ -448,6 +491,11 @@ struct UniverseOverlayView: View {
         }
     }
 
+    /// Width of the trailing readability strip behind the active rail. Sized a
+    /// little wider than the rail list (184pt) so labels read clearly while the
+    /// rest of the map stays uncovered.
+    private var railContrastWidth: CGFloat { 220 }
+
     private var rightUniverseRail: some View {
         HStack {
             Spacer()
@@ -456,7 +504,7 @@ struct UniverseOverlayView: View {
                 activeCategory: mode.focusedCategory,
                 tint: selectedPlanet.swiftUIColor,
                 onActiveChange: { isActive in
-                    withAnimation(BrandMotion.nudge) {
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                         isRailActive = isActive
                     }
                 },
@@ -468,68 +516,123 @@ struct UniverseOverlayView: View {
     private var railCategories: [ToolCategory] {
         // Only categories that actually have a planet (>=1 tool). Otherwise a
         // sparse universe exposes empty chips that dead-end on tap (ES-1).
+        // Sourced from `allCategories` (seed + custom) so user/AI-created
+        // branches get rail chips once they hold a tool.
         let present = Set(planets.map(\.id))
-        let core = UniverseSeed.categories.filter { $0.id == .core && present.contains(.core) }
-        let branches = UniverseSeed.categories.filter { $0.id != .core && present.contains($0.id) }
+        let all = model.allCategories
+        let core = all.filter { $0.id == .core && present.contains(.core) }
+        let branches = all.filter { $0.id != .core && present.contains($0.id) }
         return core + branches
     }
 
     private var topChrome: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 16) {
+                    topChromeContent
+                }
+            } else {
+                topChromeContent
+            }
+        }
+        .brandAnimation(BrandMotion.morph, value: mode)
+    }
+
+    private var topChromeContent: some View {
         HStack(alignment: .top, spacing: 12) {
             visualizationControl
+                .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
                 .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
             Spacer()
             Button(action: onAccount) {
-                UserAvatarImage(size: 46, tint: selectedPlanet.swiftUIColor)
+                UserAvatarImage(size: 46, tint: .white.opacity(0.88))
             }
             .buttonStyle(BouncyIconButtonStyle())
+            .navigationGlassMorphID("UniverseChrome.profile", in: chromeNamespace)
+            .matchedTransitionSource(id: ChromeMorphID.account, in: chromeMorphNamespace)
             .opacity(mode.isDetailOpen ? 0.58 : 1)
             .accessibilityLabel("Account")
         }
+        .transition(.scale(scale: 0.94).combined(with: .opacity))
     }
 
     private var visualizationControl: some View {
         Button {
             onAccount()
         } label: {
-            HStack(spacing: 10) {
-                Text(model.renderMode.shortLabel)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 36, height: 30)
-                    .background(selectedPlanet.swiftUIColor, in: Circle())
+            HStack(spacing: 7) {
+                Image(systemName: model.renderMode == .graph2D ? "point.3.connected.trianglepath.dotted" : "cube.transparent")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .frame(width: 18, height: 18)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text(model.renderMode.title)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineLimit(1)
+                Text(model.renderMode == .graph2D ? "2D Graph" : "3D Spatial")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
 
-                        if model.renderMode.isExperimental {
-                            Text("Experimental")
-                                .font(.system(size: 8, weight: .bold, design: .rounded))
-                                .foregroundStyle(selectedPlanet.swiftUIColor)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(selectedPlanet.swiftUIColor.opacity(0.12), in: Capsule())
-                        }
-                    }
-
-                    Text("Tap to switch")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(BrandColor.textMuted)
-                        .lineLimit(1)
+                if model.renderMode.isExperimental {
+                    Text("Experimental")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.70))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.08), in: Capsule())
                 }
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 12)
-        .padding(.vertical, 8)
-        .liquidGlass(in: Capsule(), tint: selectedPlanet.swiftUIColor.opacity(0.44), strokeStrength: 0.08)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .glassSurface(in: Capsule(), tint: .white.opacity(0.045), interactive: true)
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel("Visualization mode \(model.renderMode.title)")
-        .accessibilityHint("Opens settings")
+        .accessibilityHint("Opens visualization settings")
+    }
+
+    private var spatialExperimentalNotice: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "cube.transparent")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(width: 26, height: 26)
+                .background(.white.opacity(0.06), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("3D Spatial is experimental")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                Text("Use 2D Graph for daily navigation.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(BrandColor.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                BrandHaptics.fire(.light)
+                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                    model.renderMode = .graph2D
+                }
+            } label: {
+                Text("Use 2D")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.10), in: Capsule())
+                    .overlay {
+                        Capsule().stroke(.white.opacity(0.14), lineWidth: 0.5)
+                    }
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+            .accessibilityLabel("Switch to 2D Graph")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 360)
+        .glassSurface(in: RoundedRectangle(cornerRadius: 20, style: .continuous), tint: .white.opacity(0.045), interactive: false)
+        .accessibilityElement(children: .contain)
     }
 
     private var bottomControls: some View {
@@ -565,7 +668,10 @@ struct UniverseOverlayView: View {
                     onAddSuggestedTool: onAddSuggestedTool,
                     onToolSelect: onToolSelect,
                     onOpenToolDetail: onOpenToolDetail,
-                    onChatActivityChange: onChatActivityChange
+                    onChatActivityChange: onChatActivityChange,
+                    // When empty, the empty-state card's Add button owns the
+                    // morph; opt the composer out so the id isn't duplicated.
+                    addToolMorphNamespace: model.isUniverseEmpty ? nil : chromeMorphNamespace
                 )
             }
 
@@ -591,6 +697,7 @@ struct UniverseOverlayView: View {
     /// their first tool (which becomes the first planet) or loads the bundled
     /// sample universe.
     private var emptyStateCard: some View {
+        LiquidGlassCard(cornerRadius: 28) {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
                 .font(.system(size: 34, weight: .light))
@@ -623,10 +730,25 @@ struct UniverseOverlayView: View {
                 .background(.white.opacity(0.14), in: Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
+                .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
 
                 Button {
                     BrandHaptics.fire(.light)
-                    withAnimation(BrandMotion.flow) {
+                    onChatActivityChange(true)
+                } label: {
+                    Label("Ask AI", systemImage: "sparkle")
+                        .font(.callout.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+                .padding(.vertical, 9)
+                .padding(.horizontal, 16)
+                .glassSurface(in: Capsule(), interactive: true)
+                .foregroundStyle(.white.opacity(0.9))
+
+                Button {
+                    BrandHaptics.fire(.light)
+                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                         _ = model.loadSampleUniverse()
                     }
                 } label: {
@@ -640,7 +762,7 @@ struct UniverseOverlayView: View {
         .padding(.vertical, 26)
         .padding(.horizontal, 24)
         .frame(maxWidth: 320)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous), tint: nil, strokeStrength: 0.12)
+        }
     }
 }
 

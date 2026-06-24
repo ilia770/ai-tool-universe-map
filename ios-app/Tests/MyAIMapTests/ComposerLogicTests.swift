@@ -72,6 +72,36 @@ struct ComposerLogicTests {
         #expect(ComposerLogic.showsRemoveAttachment(hasAttachment: true) == true)
     }
 
+    // MARK: - Float lane: menu vs preview are mutually exclusive (§4)
+
+    @Test func floatLaneEmptyWhenNoAttachmentAndMenuClosed() {
+        // State A — no panel above the composer.
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: false) == false)
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: false, hasAttachment: false) == false)
+    }
+
+    @Test func menuShowsAndPreviewHiddenWhileMenuOpen() {
+        // State B — menu open; preview suppressed even if an attachment exists.
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: true) == true)
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: true, hasAttachment: true) == false)
+    }
+
+    @Test func previewShowsWhenAttachedAndMenuClosed() {
+        // State C — attachment staged, menu closed.
+        #expect(ComposerLogic.showsAttachmentPreview(menuOpen: false, hasAttachment: true) == true)
+        #expect(ComposerLogic.showsAttachmentMenu(menuOpen: false) == false)
+    }
+
+    @Test func menuAndPreviewAreNeverBothVisible() {
+        for menuOpen in [true, false] {
+            for hasAttachment in [true, false] {
+                let menu = ComposerLogic.showsAttachmentMenu(menuOpen: menuOpen)
+                let preview = ComposerLogic.showsAttachmentPreview(menuOpen: menuOpen, hasAttachment: hasAttachment)
+                #expect(!(menu && preview))
+            }
+        }
+    }
+
     // MARK: - De-duplication of access actions
 
     @Test func inMessageAccessActionsAreNeverRenderedAsButtons() {
@@ -82,14 +112,14 @@ struct ComposerLogicTests {
 
     // MARK: - Collapse / expand state
 
-    @Test func collapsedConversationKeepsChatActiveWhenItHasContent() {
+    @Test func collapsedConversationReturnsMapInteractionEvenWithContent() {
         #expect(ComposerLogic.keepsChatActive(
             isFocused: false,
             showsConversation: false,
             isCollapsedWithContent: true,
             attachmentMenuOpen: false,
             hasAttachment: false
-        ))
+        ) == false)
     }
 
     @Test func idleCollapsedConversationWithoutContentDoesNotKeepChatActive() {
@@ -121,5 +151,61 @@ struct ComposerLogicTests {
 
     @Test func userBubbleMaxWidthUsesConfiguredRatio() {
         #expect(ComposerLogic.userBubbleMaxWidth(availableWidth: 400) == 320)
+    }
+
+    @Test func composerAutoGrowLimitsStayInReadableRange() {
+        #expect(ComposerLogic.composerMinHeight == 44)
+        #expect(ComposerLogic.composerMaxHeight >= 120)
+        #expect(ComposerLogic.composerMaxHeight <= 160)
+        #expect(ComposerLogic.composerMaxLines == 6)
+    }
+
+    // MARK: - Assistant response presentation
+
+    @Test func assistantPresentationRemovesActionChipsProse() {
+        let prose = AssistantResponsePresentation.prose(from: """
+        **Summary**
+        Use Figma first.
+
+        **Recommended tools**
+        - Figma for design.
+
+        **Action chips**
+        Open existing tool chips for details. Add suggested missing tools from their chips.
+        """)
+
+        #expect(prose.hasPrefix("Use Figma first."))
+        #expect(prose.contains("**Recommended path**"))
+        #expect(!prose.contains("Action chips"))
+        #expect(!prose.contains("Open existing tool chips"))
+    }
+
+    @Test func assistantPresentationRenamesTradeoffSections() {
+        let prose = AssistantResponsePresentation.prose(from: """
+        **Options**
+        - Fastest: Figma.
+
+        **Caveats / tradeoffs**
+        - Pricing unknown.
+        """)
+
+        #expect(prose.contains("**Cost / time tradeoffs**"))
+        #expect(prose.contains("**Notes**"))
+    }
+
+    @Test func assistantClipboardUsesVisibleProseOnly() {
+        let text = AssistantClipboardFormatter.text(from: """
+        **Summary**
+        Use Figma first.
+
+        | Tool | Why |
+        | --- | --- |
+        | Figma | Design |
+
+        **Action chips**
+        Open existing tool chips for details.
+        """)
+
+        #expect(text == "Use Figma first.")
     }
 }

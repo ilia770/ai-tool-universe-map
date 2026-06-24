@@ -29,4 +29,16 @@ struct ToolPricingPresenterTests {
         #expect(rows.contains { $0.plan == "Unknown" && $0.value == "Verify website" })
         #expect(!rows.contains { $0.plan == "Pro" })
     }
+
+    @Test func websiteSearchURLPercentEncodesQueryDelimiters() {
+        let url = ToolWebsiteSearchURL.url(for: "M&A C++=Foo?")
+
+        #expect(url?.absoluteString == "https://duckduckgo.com/?q=M%26A%20C%2B%2B%3DFoo%3F")
+    }
+
+    @Test func clipboardPricingKeepsUnknownVerificationCaveat() {
+        let status = ToolDetailClipboardFormatting.pricingStatus(for: "Unknown pricing model.")
+
+        #expect(status == "Unknown - verify website")
+    }
 }

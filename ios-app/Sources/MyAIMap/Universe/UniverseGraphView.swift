@@ -18,6 +18,7 @@ struct UniverseGraphNode: Identifiable, Equatable {
     let hitRadius: CGFloat
     let isSelected: Bool
     let isContext: Bool
+    let showsLabel: Bool
     let opacity: Double
 }
 
@@ -26,10 +27,28 @@ struct UniverseGraphEdge: Identifiable, Equatable {
     let targetID: String
     let source: CGPoint
     let target: CGPoint
+    let sourceRadius: CGFloat
+    let targetRadius: CGFloat
     let category: ToolCategoryId
     let isEmphasized: Bool
 
     var id: String { "\(sourceID)->\(targetID)" }
+
+    func anchoredEndpoints(inset: CGFloat = 2) -> (source: CGPoint, target: CGPoint) {
+        let vector = CGVector(dx: target.x - source.x, dy: target.y - source.y)
+        let distance = max(sqrt(vector.dx * vector.dx + vector.dy * vector.dy), 1)
+        let direction = CGVector(dx: vector.dx / distance, dy: vector.dy / distance)
+        return (
+            CGPoint(
+                x: source.x + direction.dx * (sourceRadius + inset),
+                y: source.y + direction.dy * (sourceRadius + inset)
+            ),
+            CGPoint(
+                x: target.x - direction.dx * (targetRadius + inset),
+                y: target.y - direction.dy * (targetRadius + inset)
+            )
+        )
+    }
 }
 
 struct UniverseGraphLayoutResult: Equatable {
@@ -129,6 +148,16 @@ enum UniverseGraphLayout {
             let isCategorySelected = draft.toolID == nil && draft.category == mode.focusedCategory && selectedToolID == nil
             let isContext = draft.category == mode.focusedCategory
             let opacity = opacity(for: draft, mode: mode, selectedToolID: selectedToolID)
+            // Label-culling contract: the collision solver only guarantees that
+            // node *circles* never overlap (a screen cannot pack ~53 tool labels
+            // without collision). So core and category labels — few, always
+            // useful for orientation — always render, but a *tool* label only
+            // renders when that tool is selected or lives in the focused
+            // category (context). Every other tool node is a bare circle, so no
+            // unfocused tool labels can overlap.
+            let showsLabel = draft.kind != .tool
+                || isToolSelected
+                || isContext
             return UniverseGraphNode(
                 id: draft.id,
                 title: draft.title,
@@ -141,19 +170,22 @@ enum UniverseGraphLayout {
                 hitRadius: draft.hitRadius,
                 isSelected: isToolSelected || isCategorySelected,
                 isContext: isContext,
+                showsLabel: showsLabel,
                 opacity: opacity
             )
         }
 
-        let nodePositions = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.position) })
+        let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
         let edges = edgeSeeds.compactMap { seed -> UniverseGraphEdge? in
-            guard let source = nodePositions[seed.sourceID],
-                  let target = nodePositions[seed.targetID] else { return nil }
+            guard let source = nodesByID[seed.sourceID],
+                  let target = nodesByID[seed.targetID] else { return nil }
             return UniverseGraphEdge(
                 sourceID: seed.sourceID,
                 targetID: seed.targetID,
-                source: source,
-                target: target,
+                source: source.position,
+                target: target.position,
+                sourceRadius: source.radius,
+                targetRadius: target.radius,
                 category: seed.category,
                 isEmphasized: seed.category == mode.focusedCategory
             )
@@ -192,8 +224,16 @@ enum UniverseGraphLayout {
 
     private static func categoryPoint(index: Int, count: Int, center: CGPoint, bounds: CGRect, spreadScale: CGFloat = 1) -> CGPoint {
         guard count > 0 else { return center }
-        let step = (2 * CGFloat.pi) / CGFloat(count)
-        let angle = -CGFloat.pi / 2 + CGFloat(index) * step
+        let angle: CGFloat
+        if count == 2 {
+            // Two-branch universes otherwise stack into a vertical debug-looking
+            // schematic. Bias them to balanced upper diagonals so branch -> tool
+            // relations read as a map immediately.
+            angle = index == 0 ? -CGFloat.pi * 0.80 : -CGFloat.pi * 0.20
+        } else {
+            let step = (2 * CGFloat.pi) / CGFloat(count)
+            angle = -CGFloat.pi / 2 + CGFloat(index) * step
+        }
         let radiusX = min(bounds.width * 0.39, 168 * spreadScale)
         let radiusY = min(bounds.height * 0.34, 142 * spreadScale)
         return CGPoint(
@@ -395,6 +435,188 @@ enum UniverseGraphLayout {
     }
 }
 
+enum UniverseGraphViewport {
+    static func focusPan(
+        layout: UniverseGraphLayoutResult,
+        mode: UniverseMode,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        guard let focusRect = focusRect(layout: layout, mode: mode) else { return .zero }
+
+        let projected = project(rect: focusRect, viewport: viewport, scale: scale, pan: .zero)
+        let padding = focusPadding(for: viewport)
+        let leftLimit = padding.leading
+        let rightLimit = max(leftLimit + 80, viewport.width - padding.trailing)
+        let topLimit = padding.top
+        let bottomLimit = max(topLimit + 80, viewport.height - padding.bottom)
+
+        var proposed = CGSize.zero
+        let availableWidth = rightLimit - leftLimit
+        if projected.width > availableWidth {
+            proposed.width = (leftLimit + rightLimit) / 2 - projected.midX
+        } else if projected.minX < leftLimit {
+            proposed.width = leftLimit - projected.minX
+        } else if projected.maxX > rightLimit {
+            proposed.width = rightLimit - projected.maxX
+        }
+
+        let availableHeight = bottomLimit - topLimit
+        if projected.height > availableHeight {
+            proposed.height = (topLimit + bottomLimit) / 2 - projected.midY
+        } else if projected.minY < topLimit {
+            proposed.height = topLimit - projected.minY
+        } else if projected.maxY > bottomLimit {
+            proposed.height = bottomLimit - projected.maxY
+        }
+
+        return clampedPan(proposed, layout: layout, viewport: viewport, scale: scale)
+    }
+
+    static func clampedPan(
+        _ proposed: CGSize,
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        let limit = panLimit(layout: layout, viewport: viewport, scale: scale)
+        return CGSize(
+            width: min(max(proposed.width, -limit.width), limit.width),
+            height: min(max(proposed.height, -limit.height), limit.height)
+        )
+    }
+
+    static func visiblePan(
+        storedPan: CGSize,
+        focusPan: CGSize,
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        clampedPan(
+            CGSize(width: focusPan.width + storedPan.width, height: focusPan.height + storedPan.height),
+            layout: layout,
+            viewport: viewport,
+            scale: scale
+        )
+    }
+
+    static func storedPan(
+        forVisiblePan visiblePan: CGSize,
+        focusPan: CGSize,
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        // `panLimit` is a visible-screen constraint. Stored user pan is
+        // relative to auto-focus pan, so clamping it independently can distort
+        // the next `focusPan + storedPan` round-trip.
+        return CGSize(
+            width: visiblePan.width - focusPan.width,
+            height: visiblePan.height - focusPan.height
+        )
+    }
+
+    static func projectedFrame(
+        for node: UniverseGraphNode,
+        viewport: CGSize,
+        scale: CGFloat,
+        pan: CGSize
+    ) -> CGRect {
+        project(
+            rect: CGRect(
+                x: node.position.x - node.hitRadius,
+                y: node.position.y - node.hitRadius,
+                width: node.hitRadius * 2,
+                height: node.hitRadius * 2
+            ),
+            viewport: viewport,
+            scale: scale,
+            pan: pan
+        )
+    }
+
+    private static func focusRect(layout: UniverseGraphLayoutResult, mode: UniverseMode) -> CGRect? {
+        let focusNodes: [UniverseGraphNode]
+        switch mode {
+        case .overview, .detail, .chatOpen:
+            return nil
+        case .branchFocus(let category):
+            focusNodes = layout.nodes.filter { $0.category == category }
+        case .toolSelected(let category, let toolID):
+            focusNodes = layout.nodes.filter { node in
+                (node.kind == .category && node.category == category) || node.toolID == toolID
+            }
+        }
+
+        return focusNodes
+            .map { node in
+                CGRect(
+                    x: node.position.x - node.hitRadius,
+                    y: node.position.y - node.hitRadius,
+                    width: node.hitRadius * 2,
+                    height: node.hitRadius * 2
+                )
+            }
+            .reduce(nil) { partial, rect in
+                partial?.union(rect) ?? rect
+            }
+    }
+
+    private static func focusPadding(for viewport: CGSize) -> EdgeInsets {
+        EdgeInsets(
+            top: min(max(viewport.height * 0.11, 88), 116),
+            leading: min(max(viewport.width * 0.15, 56), 78),
+            bottom: min(max(viewport.height * 0.27, 220), 270),
+            trailing: min(max(viewport.width * 0.12, 48), 72)
+        )
+    }
+
+    private static func project(rect: CGRect, viewport: CGSize, scale: CGFloat, pan: CGSize) -> CGRect {
+        let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+        return CGRect(
+            x: center.x + (rect.minX - center.x) * scale + pan.width,
+            y: center.y + (rect.minY - center.y) * scale + pan.height,
+            width: rect.width * scale,
+            height: rect.height * scale
+        )
+    }
+
+    private static func panLimit(
+        layout: UniverseGraphLayoutResult,
+        viewport: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        guard !layout.nodes.isEmpty else { return .zero }
+
+        let minX = layout.nodes.map { $0.position.x - $0.hitRadius }.min() ?? 0
+        let maxX = layout.nodes.map { $0.position.x + $0.hitRadius }.max() ?? viewport.width
+        let minY = layout.nodes.map { $0.position.y - $0.hitRadius }.min() ?? 0
+        let maxY = layout.nodes.map { $0.position.y + $0.hitRadius }.max() ?? viewport.height
+
+        let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+        let scaledMinX = center.x + (minX - center.x) * scale
+        let scaledMaxX = center.x + (maxX - center.x) * scale
+        let scaledMinY = center.y + (minY - center.y) * scale
+        let scaledMaxY = center.y + (maxY - center.y) * scale
+        let edgePadding: CGFloat = 48
+
+        let horizontalNeed = max(
+            max(0, edgePadding - scaledMinX),
+            max(0, scaledMaxX - viewport.width + edgePadding)
+        )
+        let verticalNeed = max(
+            max(0, edgePadding - scaledMinY),
+            max(0, scaledMaxY - viewport.height + edgePadding)
+        )
+
+        return CGSize(
+            width: max(120, horizontalNeed),
+            height: max(92, verticalNeed)
+        )
+    }
+}
+
 private struct NodeDraft {
     let id: String
     let title: String
@@ -429,7 +651,19 @@ struct UniverseGraphView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = UniverseGraphLayout.make(planets: planets, mode: mode, size: proxy.size)
-            let visiblePan = clampedPan(currentPan, layout: layout, viewport: proxy.size, scale: currentScale)
+            let focusPan = UniverseGraphViewport.focusPan(
+                layout: layout,
+                mode: mode,
+                viewport: proxy.size,
+                scale: currentScale
+            )
+            let visiblePan = UniverseGraphViewport.visiblePan(
+                storedPan: currentPan,
+                focusPan: focusPan,
+                layout: layout,
+                viewport: proxy.size,
+                scale: currentScale
+            )
             ZStack {
                 background
                     .onTapGesture {
@@ -448,6 +682,9 @@ struct UniverseGraphView: View {
             .blur(radius: CGFloat(mode.mapBlurRadius))
             .brandAnimation(BrandMotion.flow, value: mode.signature)
             .brandAnimation(BrandMotion.flow, value: planets.map(\.toolCount))
+            .onChange(of: mode.signature) { _, _ in
+                pan = .zero
+            }
         }
     }
 
@@ -527,21 +764,23 @@ struct UniverseGraphView: View {
     private func drawEdges(_ edges: [UniverseGraphEdge], context: inout GraphicsContext, phase: TimeInterval) {
         for edge in edges {
             let color = UniverseSeed.category(edge.category).color.swiftUIColor
-            let vector = CGVector(dx: edge.target.x - edge.source.x, dy: edge.target.y - edge.source.y)
+            let endpoints = edge.anchoredEndpoints()
+            let vector = CGVector(dx: endpoints.target.x - endpoints.source.x, dy: endpoints.target.y - endpoints.source.y)
             let distance = max(sqrt(vector.dx * vector.dx + vector.dy * vector.dy), 1)
             let normal = CGVector(dx: -vector.dy / distance, dy: vector.dx / distance)
-            let wobble = effectiveReduceMotion ? 0 : sin(phase * 0.55 + Double(edge.targetID.hashValue % 17)) * 8
+            let wobble = effectiveReduceMotion ? 0 : sin(phase * 0.55 + Double(edge.targetID.hashValue % 17)) * 5
+            let bend = min(max(distance * 0.16, 16), 34)
             let control = CGPoint(
-                x: (edge.source.x + edge.target.x) / 2 + normal.dx * (18 + wobble),
-                y: (edge.source.y + edge.target.y) / 2 + normal.dy * (18 + wobble)
+                x: (endpoints.source.x + endpoints.target.x) / 2 + normal.dx * (bend + wobble),
+                y: (endpoints.source.y + endpoints.target.y) / 2 + normal.dy * (bend + wobble)
             )
 
             var path = Path()
-            path.move(to: edge.source)
-            path.addQuadCurve(to: edge.target, control: control)
+            path.move(to: endpoints.source)
+            path.addQuadCurve(to: endpoints.target, control: control)
 
-            let opacity = edge.isEmphasized ? 0.52 : 0.18
-            let width: CGFloat = edge.isEmphasized ? 1.8 : 1.05
+            let opacity = edge.isEmphasized ? 0.44 : 0.14
+            let width: CGFloat = edge.isEmphasized ? 1.7 : 0.95
             context.stroke(path, with: .color(color.opacity(opacity)), lineWidth: width)
         }
     }
@@ -554,8 +793,25 @@ struct UniverseGraphView: View {
             }
             .onEnded { value in
                 guard mode.allowsMapGestures else { return }
-                pan = clampedPan(
-                    CGSize(width: pan.width + value.translation.width, height: pan.height + value.translation.height),
+                let focusPan = UniverseGraphViewport.focusPan(
+                    layout: layout,
+                    mode: mode,
+                    viewport: viewport,
+                    scale: currentScale
+                )
+                let proposedVisiblePan = UniverseGraphViewport.visiblePan(
+                    storedPan: CGSize(
+                        width: pan.width + value.translation.width,
+                        height: pan.height + value.translation.height
+                    ),
+                    focusPan: focusPan,
+                    layout: layout,
+                    viewport: viewport,
+                    scale: currentScale
+                )
+                pan = UniverseGraphViewport.storedPan(
+                    forVisiblePan: proposedVisiblePan,
+                    focusPan: focusPan,
                     layout: layout,
                     viewport: viewport,
                     scale: currentScale
@@ -571,58 +827,44 @@ struct UniverseGraphView: View {
             }
             .onEnded { value in
                 guard mode.allowsMapGestures else { return }
+                let previousScale = scale
+                let previousFocusPan = UniverseGraphViewport.focusPan(
+                    layout: layout,
+                    mode: mode,
+                    viewport: viewport,
+                    scale: previousScale
+                )
+                let previousVisiblePan = UniverseGraphViewport.visiblePan(
+                    storedPan: pan,
+                    focusPan: previousFocusPan,
+                    layout: layout,
+                    viewport: viewport,
+                    scale: previousScale
+                )
                 let nextScale = min(max(scale * value.magnification, 0.5), 1.55)
+                let nextFocusPan = UniverseGraphViewport.focusPan(
+                    layout: layout,
+                    mode: mode,
+                    viewport: viewport,
+                    scale: nextScale
+                )
                 scale = nextScale
-                pan = clampedPan(pan, layout: layout, viewport: viewport, scale: nextScale)
+                let nextVisiblePan = UniverseGraphViewport.clampedPan(
+                    previousVisiblePan,
+                    layout: layout,
+                    viewport: viewport,
+                    scale: nextScale
+                )
+                pan = UniverseGraphViewport.storedPan(
+                    forVisiblePan: nextVisiblePan,
+                    focusPan: nextFocusPan,
+                    layout: layout,
+                    viewport: viewport,
+                    scale: nextScale
+                )
             }
     }
 
-    private func clampedPan(
-        _ proposed: CGSize,
-        layout: UniverseGraphLayoutResult,
-        viewport: CGSize,
-        scale: CGFloat
-    ) -> CGSize {
-        let limit = panLimit(layout: layout, viewport: viewport, scale: scale)
-        return CGSize(
-            width: min(max(proposed.width, -limit.width), limit.width),
-            height: min(max(proposed.height, -limit.height), limit.height)
-        )
-    }
-
-    private func panLimit(
-        layout: UniverseGraphLayoutResult,
-        viewport: CGSize,
-        scale: CGFloat
-    ) -> CGSize {
-        guard !layout.nodes.isEmpty else { return .zero }
-
-        let minX = layout.nodes.map { $0.position.x - $0.hitRadius }.min() ?? 0
-        let maxX = layout.nodes.map { $0.position.x + $0.hitRadius }.max() ?? viewport.width
-        let minY = layout.nodes.map { $0.position.y - $0.hitRadius }.min() ?? 0
-        let maxY = layout.nodes.map { $0.position.y + $0.hitRadius }.max() ?? viewport.height
-
-        let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
-        let scaledMinX = center.x + (minX - center.x) * scale
-        let scaledMaxX = center.x + (maxX - center.x) * scale
-        let scaledMinY = center.y + (minY - center.y) * scale
-        let scaledMaxY = center.y + (maxY - center.y) * scale
-        let edgePadding: CGFloat = 48
-
-        let horizontalNeed = max(
-            max(0, edgePadding - scaledMinX),
-            max(0, scaledMaxX - viewport.width + edgePadding)
-        )
-        let verticalNeed = max(
-            max(0, edgePadding - scaledMinY),
-            max(0, scaledMaxY - viewport.height + edgePadding)
-        )
-
-        return CGSize(
-            width: max(120, horizontalNeed),
-            height: max(92, verticalNeed)
-        )
-    }
 }
 
 private struct GraphNodeButton: View {
@@ -638,6 +880,14 @@ private struct GraphNodeButton: View {
         Button(action: action) {
             VStack(spacing: 5) {
                 ZStack {
+                    if node.isSelected {
+                        Circle()
+                            .stroke(.white.opacity(0.36), lineWidth: 8)
+                            .frame(width: node.radius * 2 + 16, height: node.radius * 2 + 16)
+                            .blur(radius: 5)
+                            .opacity(0.72)
+                    }
+
                     Circle()
                         .fill(color.opacity(node.kind == .tool ? 0.18 : 0.24))
                         .frame(width: node.radius * 2.55, height: node.radius * 2.55)
@@ -652,37 +902,49 @@ private struct GraphNodeButton: View {
                         }
                         .frame(width: node.radius * 2, height: node.radius * 2)
 
-                    Circle()
-                        .fill(color)
-                        .frame(width: innerDotSize, height: innerDotSize)
-                        .shadow(color: color.opacity(node.isSelected ? 0.78 : 0.36), radius: node.isSelected ? 12 : 6)
-
-                    if node.kind != .tool {
-                        Image(systemName: node.kind == .core ? "sparkles" : "circle.grid.cross")
+                    if node.kind == .tool {
+                        Text(toolInitials)
+                            .font(.system(size: node.isSelected ? 11 : 10, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white.opacity(node.isSelected ? 0.96 : 0.82))
+                            .shadow(color: color.opacity(node.isSelected ? 0.72 : 0.34), radius: node.isSelected ? 10 : 5)
+                    } else {
+                        Image(systemName: node.kind == .core ? "sparkles" : "circle.hexagongrid.fill")
                             .font(.system(size: node.kind == .core ? 16 : 13, weight: .bold))
-                            .foregroundStyle(.black.opacity(0.72))
+                            .foregroundStyle(.white.opacity(node.isSelected ? 0.94 : 0.82))
+                            .shadow(color: color.opacity(node.isSelected ? 0.62 : 0.30), radius: node.isSelected ? 9 : 5)
                     }
                 }
                 .scaleEffect(node.isSelected && !reduceMotion ? 1.08 : 1)
 
-                VStack(spacing: 1) {
-                    Text(node.title)
-                        .font(labelFont)
-                        .foregroundStyle(.white.opacity(node.opacity))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                    Text(node.subtitle)
-                        .font(.system(size: node.kind == .tool ? 8 : 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(BrandColor.textMuted.opacity(node.opacity))
-                        .lineLimit(1)
+                // Labels are culled for unfocused tool nodes (see the
+                // label-culling contract in UniverseGraphLayout.make), so only
+                // node circles are guaranteed not to overlap. Rendering the
+                // label only when shown also keeps the bare circles compact.
+                if node.showsLabel {
+                    VStack(spacing: 1) {
+                        Text(node.title)
+                            .font(labelFont)
+                            .foregroundStyle(.white.opacity(node.opacity))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                        Text(node.subtitle)
+                            .font(.system(size: node.kind == .tool ? 8 : 9, weight: .semibold, design: .rounded))
+                            .foregroundStyle(BrandColor.textMuted.opacity(node.opacity))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, node.kind == .tool ? 3 : 4)
+                    .frame(width: labelWidth)
+                    .background(.black.opacity(node.isSelected ? 0.36 : 0.24), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
-                .frame(width: labelWidth)
             }
             .opacity(node.opacity)
+            .frame(minWidth: node.hitRadius * 2, minHeight: node.hitRadius * 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.94, haptic: nil, pressedOpacity: 0.92))
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var innerDotSize: CGFloat {
@@ -691,6 +953,15 @@ private struct GraphNodeButton: View {
         case .category: return 13
         case .tool: return 8
         }
+    }
+
+    private var toolInitials: String {
+        let words = node.title
+            .split { !$0.isLetter && !$0.isNumber }
+            .prefix(2)
+            .compactMap(\.first)
+        let initials = String(words).uppercased()
+        return initials.isEmpty ? "AI" : initials
     }
 
     private var labelFont: Font {
@@ -717,6 +988,17 @@ private struct GraphNodeButton: View {
             return "Category node, \(node.title), \(node.subtitle)"
         case .tool:
             return "Tool node, \(node.title)"
+        }
+    }
+
+    private var accessibilityIdentifier: String {
+        switch node.kind {
+        case .core:
+            return "GraphNode.Core.\(node.id)"
+        case .category:
+            return "GraphNode.Category.\(node.category.rawValue)"
+        case .tool:
+            return "GraphNode.Tool.\(node.toolID ?? node.id)"
         }
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ToolPricingRow: Identifiable, Equatable, Sendable {
     let id: String
@@ -21,7 +22,7 @@ enum ToolPricingPresenter {
         let clean = pricing.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         guard !clean.isEmpty, !lower.contains("unknown") else {
-            return [unknownRow(note: "No verified pricing is stored for this tool.")]
+            return [unknownRow(note: "No verified pricing stored.")]
         }
 
         if lower.contains("internal") {
@@ -85,15 +86,51 @@ enum ToolPricingPresenter {
     }
 }
 
+enum ToolWebsiteSearchURL {
+    static func url(for toolName: String) -> URL? {
+        let trimmed = toolName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "duckduckgo.com"
+        components.path = "/"
+
+        let queryValueAllowed = CharacterSet.urlQueryAllowed
+            .subtracting(CharacterSet(charactersIn: "&=+?"))
+        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) else {
+            return nil
+        }
+        components.percentEncodedQuery = "q=\(encoded)"
+        return components.url
+    }
+}
+
+enum ToolDetailClipboardFormatting {
+    static func pricingStatus(for pricing: String) -> String {
+        let rows = ToolPricingPresenter.rows(for: pricing)
+        if rows.count == 1, rows.first?.plan == "Unknown" {
+            return "Unknown - verify website"
+        }
+        return pricing
+    }
+}
+
 /// Selected-tool detail card. Reads the selected tool from the single
 /// navigation machine and presents it as a premium product profile, not an
 /// admin dashboard.
 struct ToolDetailSection: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onOpenRelatedTool: ((String) -> Void)?
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+    /// Drives the copy-confirmation toast when the user copies tool info.
+    @State private var copyToastKind: CopyToastKind?
+    /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
+    @ScaledMetric(relativeTo: .body) private var pricingIconGlyph: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var pricingIconContainer: CGFloat = 28
 
     init(onOpenRelatedTool: ((String) -> Void)? = nil) {
         self.onOpenRelatedTool = onOpenRelatedTool
@@ -141,8 +178,13 @@ struct ToolDetailSection: View {
             metadataSection
             secondaryActions
         }
+        // Text scales with Dynamic Type; clamp the largest accessibility sizes
+        // so the dense pricing/metadata rows stay readable without clipping.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
+        .accessibilityIdentifier("ToolDetailSection.Root")
+        .copyToast($copyToastKind)
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
             isPresented: $isShowingRemoveConfirmation,
@@ -174,10 +216,10 @@ struct ToolDetailSection: View {
                     HStack(spacing: BrandSpacing.s.value) {
                         Label(selectedCategoryModel.shortName, systemImage: categoryIcon(selectedTool.category))
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                            .foregroundStyle(.white.opacity(0.88), selectedCategoryModel.color.swiftUIColor)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 5)
-                            .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Capsule())
+                            .background(.white.opacity(0.075), in: Capsule())
 
                         stageBadge(selectedTool.stage)
                     }
@@ -195,16 +237,43 @@ struct ToolDetailSection: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
 
             Text(selectedTool.summary)
-                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .font(BrandTypography.bodySecondary)
                 .lineSpacing(4)
                 .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
 
-            primaryAction
+            HStack(spacing: BrandSpacing.s.value) {
+                primaryAction
+                copyInfoAction
+            }
         }
         .padding(BrandSpacing.m.value)
         .background(neutralCardBackground)
+    }
+
+    private var copyInfoAction: some View {
+        Button {
+            UIPasteboard.general.string = ToolInfoClipboard.text(
+                name: selectedTool.name,
+                category: selectedCategoryModel.shortName,
+                summary: selectedTool.summary,
+                pricingStatus: clipboardPricingStatus,
+                keyFeatures: knowledge.killerFeatures,
+                url: selectedTool.url?.absoluteString
+            )
+            BrandHaptics.fire(.success)
+            copyToastKind = .toolInfo
+        } label: {
+            Label("Copy tool info", systemImage: "doc.on.doc")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
+        .accessibilityIdentifier("ToolDetailSection.CopyInfo")
     }
 
     @ViewBuilder
@@ -213,17 +282,32 @@ struct ToolDetailSection: View {
             Button {
                 browserSheet = item
             } label: {
-                actionLabel("Open website", systemImage: "safari", foreground: .black.opacity(0.84))
-                    .background(selectedCategoryModel.color.swiftUIColor, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                actionLabel("Open website", systemImage: "safari", foreground: .white.opacity(0.92))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         } else {
-            Label("Website not added", systemImage: "lock.doc")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BrandColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 48)
-                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+            // No stored URL yet — offer a working "Search website" CTA (web search
+            // for the tool) instead of a dead label. A permanent URL is set via the
+            // Add Tool flow.
+            Button {
+                if let url = ToolWebsiteSearchURL.url(for: selectedTool.name),
+                   let item = BrowserSheetItem(url: url) {
+                    browserSheet = item
+                }
+            } label: {
+                actionLabel("Search website", systemImage: "magnifyingglass", foreground: .white.opacity(0.92))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light, pressedOpacity: 0.92))
         }
     }
 
@@ -240,10 +324,10 @@ struct ToolDetailSection: View {
     private func pricingRow(_ row: ToolPricingRow) -> some View {
         HStack(alignment: .top, spacing: BrandSpacing.m.value) {
             Image(systemName: row.icon)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
-                .frame(width: 28, height: 28)
-                .background(selectedCategoryModel.color.swiftUIColor.opacity(0.12), in: Circle())
+                .font(.system(size: pricingIconGlyph, weight: .bold))
+                .foregroundStyle(.white.opacity(0.82))
+                .frame(width: pricingIconContainer, height: pricingIconContainer)
+                .background(.white.opacity(0.08), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -253,7 +337,7 @@ struct ToolDetailSection: View {
                     Spacer(minLength: BrandSpacing.s.value)
                     Text(row.value)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(selectedCategoryModel.color.swiftUIColor)
+                        .foregroundStyle(.white.opacity(0.72))
                         .multilineTextAlignment(.trailing)
                 }
 
@@ -429,8 +513,16 @@ struct ToolDetailSection: View {
     }
 
     private var neutralCardBackground: some View {
-        RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
-            .fill(.white.opacity(0.045))
+        ZStack {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .fill(.white.opacity(0.035))
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(.white.opacity(0.075), lineWidth: 0.8)
+        }
+    }
+
+    private var clipboardPricingStatus: String {
+        ToolDetailClipboardFormatting.pricingStatus(for: knowledge.pricing)
     }
 
     private var metadataDivider: some View {
@@ -473,17 +565,7 @@ struct ToolDetailSection: View {
     }
 
     private func categoryIcon(_ category: ToolCategoryId) -> String {
-        switch category {
-        case .coding: return "chevron.left.forwardslash.chevron.right"
-        case .design: return "paintpalette"
-        case .research: return "doc.text.magnifyingglass"
-        case .analytics: return "chart.xyaxis.line"
-        case .media: return "sparkles.tv"
-        case .distribution: return "paperplane"
-        case .infrastructure: return "server.rack"
-        case .knowledge: return "books.vertical"
-        case .core: return "sparkles"
-        }
+        CategorySymbol.name(for: category)
     }
 
     private func orbitLabel(_ orbit: OrbitRing) -> String {
@@ -517,7 +599,7 @@ struct ToolDetailSection: View {
     private func openToolInDetail(_ id: String) {
         guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.nudge) {
+        withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
             if let onOpenRelatedTool {
                 onOpenRelatedTool(tool.id)
             } else {
@@ -527,7 +609,7 @@ struct ToolDetailSection: View {
     }
 
     private func removeSelectedTool() {
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             _ = model.deleteTool(selectedTool.id)
         }
     }

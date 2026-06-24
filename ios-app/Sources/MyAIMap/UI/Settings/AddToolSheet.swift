@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AddToolBranchMode: String, CaseIterable, Identifiable, Equatable {
     case auto
@@ -40,8 +41,7 @@ enum AddToolLogic {
         activeCategory: ToolCategoryId
     ) -> ToolCategoryId {
         let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        let scored = ToolCategoryId.allCases
-            .filter { $0 != .core }
+        let scored = ToolCategoryId.builtins
             .map { category -> (ToolCategoryId, Int) in
                 let keywordHits = autoKeywords(for: category).reduce(0) { score, keyword in
                     text.contains(keyword) ? score + 1 : score
@@ -69,6 +69,10 @@ enum AddToolLogic {
                 : "Using the active universe branch until a name or website gives a stronger signal."
         }
 
+        if let proposed = proposedBranchName(name: name, website: website, activeCategory: activeCategory) {
+            return "No existing branch fits — I'll create a '\(proposed)' branch."
+        }
+
         let text = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         let matchedKeywords = autoKeywords(for: suggestedCategory).contains { text.contains($0) }
         if matchedKeywords {
@@ -77,45 +81,71 @@ enum AddToolLogic {
         return "No strong keyword match; using the active universe context."
     }
 
-    static func autoKeywords(for category: ToolCategoryId) -> [String] {
-        switch category {
-        case .coding:
-            return ["code", "coding", "developer", "dev", "repo", "github", "ide", "agent", "cursor", "codex", "replit", "lovable"]
-        case .design:
-            return ["design", "figma", "prototype", "ui", "ux", "mockup", "framer", "mobbin", "relume"]
-        case .research:
-            return ["research", "data", "scrape", "crawler", "search", "browser", "api", "source", "firecrawl", "perplexity"]
-        case .analytics:
-            return ["analytics", "metric", "event", "growth", "funnel", "experiment", "posthog", "tracking", "sentry", "amplitude", "mixpanel"]
-        case .media:
-            return ["video", "media", "image", "creative", "render", "motion", "audio", "gen", "runway", "heygen"]
-        case .distribution:
-            return ["social", "publish", "schedule", "distribution", "launch", "buffer", "channel", "newsletter"]
-        case .infrastructure:
-            return ["infra", "database", "backend", "deploy", "server", "cloud", "runtime", "supabase", "vercel", "neon", "railway", "firebase"]
-        case .knowledge:
-            return ["knowledge", "docs", "skill", "wiki", "notion", "memory", "linear", "obsidian"]
-        case .core:
-            return []
+    /// The Auto path proposes a NEW branch (blueprint §8) when no built-in
+    /// branch keyword fits and the active context is the centre (no branch to
+    /// fall back on). Returns the proposed branch name (the tool's own name), or
+    /// `nil` when an existing branch is a good enough home. Kept pure/testable.
+    static func proposedBranchName(
+        name: String,
+        website: String,
+        activeCategory: ToolCategoryId
+    ) -> String? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return nil }
+        // Only propose from the centre: when the user is already focused on a
+        // branch, that branch is the natural home and we don't override it.
+        guard activeCategory == .core else { return nil }
+        let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let anyKeywordHit = ToolCategoryId.builtins.contains { category in
+            autoKeywords(for: category).contains { text.contains($0) }
         }
+        // A weak signal (no keyword hit anywhere) from the centre → new branch.
+        return anyKeywordHit ? nil : cleanName
     }
+
+    static func autoKeywords(for category: ToolCategoryId) -> [String] {
+        // Keyed by built-in id; custom (user/AI-created) branches have no
+        // keyword profile and fall through to `[]` so they score zero in the
+        // auto-suggest pass (they are only selected manually or via the
+        // "no existing branch fits" proposal).
+        autoKeywordsByCategory[category] ?? []
+    }
+
+    private static let autoKeywordsByCategory: [ToolCategoryId: [String]] = [
+        .coding: ["code", "coding", "developer", "dev", "repo", "github", "ide", "agent", "cursor", "codex", "replit", "lovable"],
+        .design: ["design", "figma", "prototype", "ui", "ux", "mockup", "framer", "mobbin", "relume"],
+        .research: ["research", "data", "scrape", "crawler", "search", "browser", "api", "source", "firecrawl", "perplexity"],
+        .analytics: ["analytics", "metric", "event", "growth", "funnel", "experiment", "posthog", "tracking", "sentry", "amplitude", "mixpanel"],
+        .media: ["video", "media", "image", "creative", "render", "motion", "audio", "gen", "runway", "heygen"],
+        .distribution: ["social", "publish", "schedule", "distribution", "launch", "buffer", "channel", "newsletter"],
+        .infrastructure: ["infra", "database", "backend", "deploy", "server", "cloud", "runtime", "supabase", "vercel", "neon", "railway", "firebase"],
+        .knowledge: ["knowledge", "docs", "skill", "wiki", "notion", "memory", "linear", "obsidian"],
+    ]
 }
 
 private enum AddToolFocusedField: Hashable {
     case name
     case website
+    case newBranch
 }
 
 struct AddToolSheet: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let draft: MissingToolSuggestion?
     @State private var name = ""
     @State private var website = ""
     @State private var category: ToolCategoryId = .analytics
     @State private var branchMode: AddToolBranchMode = .auto
+    /// Manual "+ New branch": when on, the resolved branch is created from
+    /// `newBranchName` on Add instead of using the picker selection.
+    @State private var isCreatingBranch = false
+    @State private var newBranchName = ""
     @State private var didApplyDraft = false
+    @State private var discardConfirmationPresented = false
     @FocusState private var focusedField: AddToolFocusedField?
+    @Namespace private var sheetChromeNamespace
 
     init(draft: MissingToolSuggestion? = nil) {
         self.draft = draft
@@ -137,6 +167,13 @@ struct AddToolSheet: View {
         UniverseSeed.category(resolvedCategory)
     }
 
+    private var hasUnsavedChanges: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !website.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || branchMode == .manual
+            || !newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -151,12 +188,12 @@ struct AddToolSheet: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 28)
+                    Color.clear.frame(height: bottomScrollInset)
                 }
                 .onChange(of: focusedField) { _, field in
                     guard let field else { return }
-                    withAnimation(BrandMotion.nudge) {
-                        proxy.scrollTo(field, anchor: .center)
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                        proxy.scrollTo(field, anchor: scrollAnchor(for: field))
                     }
                 }
             }
@@ -165,14 +202,17 @@ struct AddToolSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        focusedField = nil
-                        dismiss()
+                    sheetChromeButton("Cancel", systemImage: "xmark", enabled: true) {
+                        requestDismiss()
                     }
+                    .navigationGlassMorphID("AddToolSheet.cancel", in: sheetChromeNamespace)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add") { add() }
+                    sheetChromeButton("Add", systemImage: "plus", enabled: canAdd, prominent: true) {
+                        add()
+                    }
                         .disabled(!canAdd)
+                        .navigationGlassMorphID("AddToolSheet.add", in: sheetChromeNamespace)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -184,6 +224,25 @@ struct AddToolSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .background {
+            InteractiveDismissAttemptHandler(isDisabled: hasUnsavedChanges) {
+                handleInteractiveDismissAttempt()
+            }
+            .frame(width: 0, height: 0)
+        }
+        .confirmationDialog(
+            "Discard this tool?",
+            isPresented: $discardConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Discard", role: .destructive) {
+                focusedField = nil
+                dismiss()
+            }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("The name, website, or branch choice has not been added yet.")
+        }
         .onAppear {
             focusedField = .name
             if !didApplyDraft, let draft {
@@ -208,11 +267,41 @@ struct AddToolSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.35),
-            strokeStrength: 0.08
+        // Sheet info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
+    }
+
+    private func sheetChromeButton(
+        _ title: String,
+        systemImage: String,
+        enabled: Bool,
+        prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .font(.system(.footnote, weight: .bold))
+            }
+            .foregroundStyle(.white.opacity(enabled ? 0.88 : 0.36))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .glassSurface(
+                in: Capsule(),
+                tint: .white.opacity(prominent && enabled ? 0.14 : 0.07),
+                interactive: enabled
+            )
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
     }
 
     private var fields: some View {
@@ -228,6 +317,11 @@ struct AddToolSheet: View {
                     }
             }
             .id(AddToolFocusedField.name)
+            .overlay(alignment: .bottomLeading) {
+                nameRequirementHint
+                    .offset(y: 22)
+            }
+            .padding(.bottom, 14)
 
             field(label: "Website optional", systemImage: "link") {
                 TextField("https://example.com", text: $website)
@@ -266,10 +360,10 @@ struct AddToolSheet: View {
 
                 HStack(spacing: BrandSpacing.m.value) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(UniverseSeed.category(resolvedCategory).shortName)
+                        Text(branchHeaderTitle)
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.white)
-                        Text(branchMode == .auto ? autoBranchReason : "Selected manually. Auto suggestions will not override this branch.")
+                        Text(branchHeaderReason)
                             .font(.caption)
                             .foregroundStyle(BrandColor.textMuted)
                             .lineLimit(2)
@@ -287,24 +381,66 @@ struct AddToolSheet: View {
                 .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
 
                 if branchMode == .manual {
-                    Picker("Branch", selection: $category) {
-                        ForEach(UniverseSeed.categories.filter { $0.id != .core }) { category in
-                            Text(category.shortName).tag(category.id)
+                    if isCreatingBranch {
+                        VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                            TextField("New branch name", text: $newBranchName)
+                                .focused($focusedField, equals: .newBranch)
+                                .submitLabel(.done)
+                                .textInputAutocapitalization(.words)
+                                .autocorrectionDisabled()
+                                .padding(BrandSpacing.m.value)
+                                .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                                .id(AddToolFocusedField.newBranch)
+
+                            Button {
+                                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                                    isCreatingBranch = false
+                                    newBranchName = ""
+                                }
+                            } label: {
+                                Label("Pick an existing branch instead", systemImage: "arrow.uturn.backward")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BrandColor.textMuted)
+                            }
+                            .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
                         }
+                    } else {
+                        Picker("Branch", selection: $category) {
+                            ForEach(model.allCategories.filter { $0.id != .core }) { category in
+                                Text(category.shortName).tag(category.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(BrandSpacing.m.value)
+                        .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+
+                        Button {
+                            BrandHaptics.fire(.light)
+                            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                                isCreatingBranch = true
+                            }
+                            focusedField = .newBranch
+                        } label: {
+                            Label("New branch", systemImage: "plus.circle")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(resolvedCategoryModel.color.swiftUIColor)
+                        }
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
                     }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(BrandSpacing.m.value)
-                    .background(BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
                 }
             }
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.25),
-            strokeStrength: 0.08
+        // Sheet form card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func branchModeButton(_ mode: AddToolBranchMode) -> some View {
@@ -312,7 +448,7 @@ struct AddToolSheet: View {
         return Button {
             guard branchMode != mode else { return }
             BrandHaptics.fire(.light)
-            withAnimation(BrandMotion.nudge) {
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 branchMode = mode
             }
         } label: {
@@ -342,11 +478,15 @@ struct AddToolSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(BrandSpacing.l.value)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.2),
-            strokeStrength: 0.06
+        // Guardrails info card = content → solid surface, not glass (glass MAP).
+        .background(
+            BrandColor.card,
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
     }
 
     private func field<Content: View>(
@@ -370,8 +510,46 @@ struct AddToolSheet: View {
 
     private func add() {
         focusedField = nil
-        guard model.addCustomTool(name: name, urlString: website, category: resolvedCategory) else { return }
+        let category = categoryForAdd()
+        guard model.addCustomTool(name: name, urlString: website, category: category) else { return }
         dismiss()
+    }
+
+    /// Resolves the branch to add into, creating a NEW branch when the user
+    /// asked for one (manual "+ New branch") or when Auto proposed one because
+    /// no existing branch fit (blueprint §8).
+    private func categoryForAdd() -> ToolCategoryId {
+        if branchMode == .manual {
+            let pending = newBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isCreatingBranch, !pending.isEmpty {
+                return model.createBranch(name: pending)
+            }
+            return category
+        }
+        if let proposed = AddToolLogic.proposedBranchName(
+            name: name,
+            website: website,
+            activeCategory: model.selection.activeCategory
+        ) {
+            return model.createBranch(name: proposed)
+        }
+        return suggestedCategory
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        if hasUnsavedChanges {
+            discardConfirmationPresented = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func handleInteractiveDismissAttempt() {
+        focusedField = nil
+        if hasUnsavedChanges {
+            discardConfirmationPresented = true
+        }
     }
 
     private var keyboardToolbarTitle: String {
@@ -379,7 +557,9 @@ struct AddToolSheet: View {
         case .name:
             return "Next"
         case .website:
-            return canAdd ? "Add" : "Done"
+            return canAdd ? "Add Tool" : "Done"
+        case .newBranch:
+            return "Done"
         case nil:
             return "Done"
         }
@@ -395,9 +575,37 @@ struct AddToolSheet: View {
             } else {
                 focusedField = nil
             }
+        case .newBranch:
+            focusedField = nil
         case nil:
             focusedField = nil
         }
+    }
+
+    private var bottomScrollInset: CGFloat {
+        focusedField == nil ? 28 : 132
+    }
+
+    private func scrollAnchor(for field: AddToolFocusedField) -> UnitPoint {
+        switch field {
+        case .name:
+            return .top
+        case .website:
+            return .center
+        case .newBranch:
+            return .center
+        }
+    }
+
+    private var nameRequirementHint: some View {
+        HStack(spacing: 5) {
+            Image(systemName: canAdd ? "checkmark.circle.fill" : "info.circle")
+                .font(.system(size: 10, weight: .bold))
+            Text(canAdd ? "Name is enough to add." : "Name required; website can stay empty.")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+        }
+        .foregroundStyle(canAdd ? .white.opacity(0.70) : BrandColor.textMuted)
+        .accessibilityLabel(canAdd ? "Name is enough to add" : "Name is required; website can stay empty")
     }
 
     private var suggestedCategory: ToolCategoryId {
@@ -416,9 +624,80 @@ struct AddToolSheet: View {
             suggestedCategory: suggestedCategory
         )
     }
+
+    /// Title shown in the branch summary card: the pending new-branch name when
+    /// one is being created, otherwise the resolved branch's short name.
+    private var branchHeaderTitle: String {
+        if branchMode == .manual, isCreatingBranch {
+            let pending = newBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return pending.isEmpty ? "New branch" : pending
+        }
+        if branchMode == .auto,
+           let proposed = AddToolLogic.proposedBranchName(
+               name: name,
+               website: website,
+               activeCategory: model.selection.activeCategory
+           ) {
+            return proposed
+        }
+        return UniverseSeed.category(resolvedCategory).shortName
+    }
+
+    private var branchHeaderReason: String {
+        if branchMode == .manual {
+            return isCreatingBranch
+                ? "A new branch will be created and this tool placed in it."
+                : "Selected manually. Auto suggestions will not override this branch."
+        }
+        return autoBranchReason
+    }
 }
 
 #Preview {
     AddToolSheet()
         .environment(UniverseViewModel())
+}
+
+private struct InteractiveDismissAttemptHandler: UIViewControllerRepresentable {
+    let isDisabled: Bool
+    let onAttempt: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isDisabled: isDisabled, onAttempt: onAttempt)
+    }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.isDisabled = isDisabled
+        context.coordinator.onAttempt = onAttempt
+        DispatchQueue.main.async {
+            let controller = uiViewController.parent?.presentationController
+                ?? uiViewController.presentationController
+            controller?.delegate = context.coordinator
+        }
+    }
+
+    final class Coordinator: NSObject, UIAdaptivePresentationControllerDelegate {
+        var isDisabled: Bool
+        var onAttempt: () -> Void
+
+        init(isDisabled: Bool, onAttempt: @escaping () -> Void) {
+            self.isDisabled = isDisabled
+            self.onAttempt = onAttempt
+        }
+
+        func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool {
+            !isDisabled
+        }
+
+        func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+            guard isDisabled else { return }
+            DispatchQueue.main.async { [onAttempt] in
+                onAttempt()
+            }
+        }
+    }
 }

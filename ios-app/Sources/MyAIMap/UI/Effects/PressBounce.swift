@@ -65,3 +65,45 @@ struct BouncyIconButtonStyle: ButtonStyle {
         return reduceMotion ? 1 : pressedScale
     }
 }
+
+// MARK: - Project-owned sensory feedback (R8)
+
+extension View {
+    /// Project-owned wrapper around `.sensoryFeedback(_:trigger:)` that
+    /// also honors the in-app Haptics toggle (`BrandHaptics.isEnabled`).
+    ///
+    /// `.sensoryFeedback` only respects the *system* haptics setting, so
+    /// a bare call would keep firing even after the user turns haptics
+    /// off in the app's settings. Route all new `.sensoryFeedback` call
+    /// sites through this so the toggle stays authoritative.
+    ///
+    /// ```swift
+    /// SomeControl()
+    ///   .brandSensoryFeedback(.selection, trigger: selectedID)
+    /// ```
+    @ViewBuilder
+    func brandSensoryFeedback<T: Equatable>(
+        _ feedback: SensoryFeedback,
+        trigger: T
+    ) -> some View {
+        if BrandHaptics.isEnabled {
+            self.sensoryFeedback(feedback, trigger: trigger)
+        } else {
+            self
+        }
+    }
+
+    /// Haptic-only press feedback for glass controls. Apple's interactive
+    /// glass (`.glassEffect(.interactive())`) already supplies the visual
+    /// press response, so glass controls should NOT stack `.scaleEffect`
+    /// or `PressableButtonStyle` — they only need the haptic. This is the
+    /// one-liner for that: a light selection tick on press, gated by the
+    /// in-app Haptics toggle.
+    ///
+    /// ```swift
+    /// GlassChip().glassPressFeedback(isPressed)
+    /// ```
+    func glassPressFeedback(_ trigger: Bool) -> some View {
+        brandSensoryFeedback(.selection, trigger: trigger)
+    }
+}

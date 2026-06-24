@@ -20,7 +20,20 @@ struct CategoryRail: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 6) {
+            // Neighbouring glass chips share one container so the system merges
+            // their lensing instead of stacking individual glass layers.
+            chipRow
+                .modifier(CategoryChipContainer())
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollClipDisabled()
+        .contentMargins(.horizontal, 2, for: .scrollContent)
+        .frame(height: 48)
+    }
+
+    private var chipRow: some View {
+        LazyHStack(spacing: 6) {
                 ForEach(presentCategories) { category in
                     Button {
                         onSelect(category.id)
@@ -40,7 +53,7 @@ struct CategoryRail: View {
                         .padding(.vertical, 8)
                         .scaleEffect(isSelected ? 1.035 : 1)
                         .background(.black.opacity(isSelected ? 0.12 : 0.04), in: Capsule())
-                        .liquidGlass(in: Capsule(), tint: isSelected ? category.color.swiftUIColor : nil, strokeStrength: isSelected ? 0.16 : 0.06)
+                        .glassSurface(in: Capsule(), tint: isSelected ? category.color.swiftUIColor : nil, interactive: true)
                         .overlay(
                             Capsule()
                                 .stroke(isSelected ? category.color.swiftUIColor.opacity(0.64) : .white.opacity(0.12), lineWidth: 1)
@@ -55,15 +68,22 @@ struct CategoryRail: View {
                     .brandAnimation(BrandMotion.nudge, value: model.selection.activeCategory)
                     .id(category.id)
                 }
-            }
-            .padding(.vertical, 8)
-            .scrollTargetLayout()
         }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollClipDisabled()
-        .contentMargins(.horizontal, 2, for: .scrollContent)
-        .frame(height: 48)
+        .padding(.vertical, 8)
+        .scrollTargetLayout()
+    }
+}
+
+/// Wraps the chip row in a `GlassEffectContainer` on iOS 26 so adjacent glass
+/// capsules merge their lensing; older OSes render the row unchanged.
+private struct CategoryChipContainer: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer { content }
+        } else {
+            content
+        }
     }
 }
 

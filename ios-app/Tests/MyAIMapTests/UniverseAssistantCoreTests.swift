@@ -140,4 +140,68 @@ struct UniverseAssistantCoreTests {
         #expect(!reply.text.contains("website URL"))
         #expect(!reply.text.contains("I did not find this service"))
     }
+
+    // R14: recommendation phrasing ("I need …", "looking for …") must route to
+    // a domain/recommendation answer, not the missing-service URL request.
+    @Test func iNeedADesignToolRoutesToRecommendation() {
+        let reply = reply("I need a design tool")
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(!reply.text.contains("website URL"))
+        #expect(reply.matchIDs.contains("figma"))
+        #expect(reply.text.contains("Recommended tools"))
+    }
+
+    @Test func lookingForAnalyticsRoutesToRecommendation() {
+        let reply = reply("looking for analytics")
+        #expect(!reply.text.contains("I did not find this service"))
+        #expect(!reply.text.contains("website URL"))
+        #expect(reply.matchIDs.contains("posthog"))
+        #expect(reply.text.contains("Recommended tools"))
+    }
+
+    // R15: a name-like short unknown query routes to the add-tool / missing
+    // service path (asks for a website), instead of falling into generic chat.
+    @Test func multiWordUnknownToolAsksForWebsite() {
+        let reply = reply("Magic Canvas")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(reply.text.contains("website URL"))
+    }
+
+    @Test func singleTokenUnknownToolAsksForWebsite() {
+        let reply = reply("Zylo")
+        #expect(reply.matchIDs.isEmpty)
+        #expect(reply.text.contains("website URL"))
+    }
+
+    // §6 intent #4: an existing-universe inventory query ("what do I have for X")
+    // lists the user's OWN tools — not a workflow recommendation and not a
+    // missing-service prompt.
+    @Test func inventoryQueryForDomainListsExistingTools() {
+        let reply = reply("what tools do I have for analytics")
+        #expect(reply.matchIDs.contains("posthog"))
+        #expect(reply.text.contains("Your"))
+        // Inventory answers are a plain listing, not the workflow Options block.
+        #expect(!reply.text.contains("Fastest:"))
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func inventoryQueryWholeUniverseListsTools() {
+        let reply = reply("what do I have in my universe")
+        #expect(!reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("website URL"))
+        #expect(!reply.text.contains("I did not find this service"))
+    }
+
+    @Test func russianInventoryQueryListsTools() {
+        let reply = reply("что у меня есть")
+        #expect(!reply.matchIDs.isEmpty)
+        #expect(!reply.text.contains("website URL"))
+    }
+
+    @Test func inventoryQueryForEmptyDomainSuggestsAdding() {
+        let postHog = UniverseSeed.tools.first { $0.id == "posthog" }!
+        let reply = reply("what do I have for design", tools: [postHog])
+        #expect(reply.matchIDs.isEmpty)
+        #expect(!reply.missingToolSuggestions.isEmpty)
+    }
 }

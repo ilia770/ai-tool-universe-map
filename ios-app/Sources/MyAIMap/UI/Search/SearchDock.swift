@@ -1,5 +1,7 @@
+import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// Bottom assistant dock. Collapsed it is a ChatGPT-like input plus a
 /// right-side action button; once the user asks something, it grows a compact
@@ -8,36 +10,50 @@ import UIKit
 /// Command-K focuses the field on iPad / hardware keyboards.
 struct SearchDock: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
-    @State private var selectedAttachment: AssistantAttachmentKind?
+    @State private var selectedAttachment: AssistantAttachmentPayload?
+    @State private var photoPickerPresented = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var fileImporterPresented = false
     @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
     // Neutral seed; the real width arrives via the width preference key once
     // layout runs. UIScreen.main is the physical screen (wrong under iPad
     // Split View / Stage Manager) and is deprecated on iOS 26.
     @State private var dockWidth: CGFloat = 320
+    @Namespace private var chatChromeNamespace
 
     let isChatOpen: Bool
+    let dismissAttachmentMenuToken: UUID?
     let onAddTool: () -> Void
     let onAddSuggestedTool: ((MissingToolSuggestion) -> Void)?
     let onToolSelect: ((String) -> Void)?
     let onOpenToolDetail: ((String) -> Void)?
     let onChatActivityChange: ((Bool) -> Void)?
+    /// §2 morph: when set, the composer Plus is the zoom source for the Add Tool
+    /// sheet (the primary, persistent add trigger). Optional so the chat-surface
+    /// instance — whose sheet is presented from a different context — can opt out.
+    let addToolMorphNamespace: Namespace.ID?
 
     init(
         isChatOpen: Bool = false,
+        dismissAttachmentMenuToken: UUID? = nil,
         onAddTool: @escaping () -> Void = {},
         onAddSuggestedTool: ((MissingToolSuggestion) -> Void)? = nil,
         onToolSelect: ((String) -> Void)? = nil,
         onOpenToolDetail: ((String) -> Void)? = nil,
-        onChatActivityChange: ((Bool) -> Void)? = nil
+        onChatActivityChange: ((Bool) -> Void)? = nil,
+        addToolMorphNamespace: Namespace.ID? = nil
     ) {
         self.isChatOpen = isChatOpen
+        self.dismissAttachmentMenuToken = dismissAttachmentMenuToken
         self.onAddTool = onAddTool
         self.onAddSuggestedTool = onAddSuggestedTool
         self.onToolSelect = onToolSelect
         self.onOpenToolDetail = onOpenToolDetail
         self.onChatActivityChange = onChatActivityChange
+        self.addToolMorphNamespace = addToolMorphNamespace
     }
 
     private var previewResults: [Tool] {
@@ -82,7 +98,7 @@ struct SearchDock: View {
     }
 
     private var showsCollapsedConversationPill: Bool {
-        isChatOpen && conversationCollapsed && hasConversationContent
+        conversationCollapsed && hasConversationContent
     }
 
     private var chatIsActive: Bool {
@@ -108,6 +124,36 @@ struct SearchDock: View {
     }
 
     var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 12) {
+                    dockContent
+                }
+            } else {
+                dockContent
+            }
+        }
+        .photosPicker(
+            isPresented: $photoPickerPresented,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            preferredItemEncoding: .automatic
+        )
+        .fileImporter(
+            isPresented: $fileImporterPresented,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImporterResult(result)
+        } onCancellation: {
+            fieldFocused = true
+        }
+        .onChange(of: selectedPhotoItem) { _, item in
+            handlePhotoPickerSelection(item)
+        }
+    }
+
+    private var dockContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsConversation {
                 conversationPanel
@@ -117,12 +163,7 @@ struct SearchDock: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            if attachmentMenuOpen {
-                attachmentMenuPopover
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            composerRow
+            composerWithAttachmentOverlay
         }
         .frame(maxWidth: .infinity)
         .brandAnimation(BrandMotion.nudge, value: showsConversation)
@@ -160,10 +201,52 @@ struct SearchDock: View {
             attachmentMenuOpen = false
             conversationCollapsed = true
         }
+        .onChange(of: dismissAttachmentMenuToken) { _, _ in
+            attachmentMenuOpen = false
+        }
+    }
+
+    private var showsAttachmentMenu: Bool {
+        ComposerLogic.showsAttachmentMenu(menuOpen: attachmentMenuOpen)
+    }
+
+    private var showsAttachmentPreview: Bool {
+        ComposerLogic.showsAttachmentPreview(
+            menuOpen: attachmentMenuOpen,
+            hasAttachment: selectedAttachment != nil
+        )
+    }
+
+    private var composerWithAttachmentOverlay: some View {
+        // The float lane above the composer hosts the menu OR the staged-
+        // attachment preview — mutually exclusive (CHAT_INPUT_SPEC §4). Both
+        // float as an overlay with no layout footprint, so the composer stays
+        // put and the panel floats over the transcript above it (review finding
+        // R16). Inline stacking pushed the composer down / clipped the keyboard.
+        composerRow
+            .overlay(alignment: .topLeading) {
+                Group {
+                    if showsAttachmentMenu {
+                        attachmentMenuPopover
+                    } else if let selectedAttachment, showsAttachmentPreview {
+                        attachmentPreview(selectedAttachment)
+                    }
+                }
+                // Float the panel ABOVE the composer with an 8pt gap so it clears
+                // the keyboard (C2). Anchored to the composer's top edge, the
+                // panel's bottom (+8) sits at that edge, lifting it fully above —
+                // the previous `.bottomLeading` guide pushed it *below* the row,
+                // hiding it behind the keyboard.
+                .alignmentGuide(.top) { dimensions in
+                    dimensions[.bottom] + 8
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(2)
+            }
     }
 
     private var composerRow: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
             composer
             trailingActionButton
         }
@@ -172,10 +255,10 @@ struct SearchDock: View {
 
     private var composer: some View {
         @Bindable var model = model
-        return HStack(spacing: 8) {
+        return HStack(alignment: .bottom, spacing: 8) {
             attachmentMenu
 
-            TextField("Ask AI Universe", text: $model.assistantQuery)
+            TextField("Ask AI Universe", text: $model.assistantQuery, axis: .vertical)
                 .font(.system(.body, weight: .medium))
                 .foregroundStyle(.white)
                 .tint(model.selectedCategoryModel.color.swiftUIColor)
@@ -183,6 +266,8 @@ struct SearchDock: View {
                 .submitLabel(.search)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .lineLimit(1...ComposerLogic.composerMaxLines)
+                .frame(maxHeight: ComposerLogic.composerMaxHeight, alignment: .bottom)
                 .onSubmit(submit)
                 .onChange(of: fieldFocused) { _, focused in
                     if focused {
@@ -192,27 +277,21 @@ struct SearchDock: View {
                         attachmentMenuOpen = false
                     }
                 }
-
-            if let selectedAttachment {
-                attachmentPill(selectedAttachment)
-            }
+                .accessibilityIdentifier("chat-composer-field")
         }
-        .frame(maxWidth: .infinity, minHeight: 44)
+        .frame(maxWidth: .infinity, minHeight: ComposerLogic.composerMinHeight, alignment: .bottom)
         .padding(5)
-        .background(.black.opacity(0.12), in: Capsule())
-        .liquidGlass(
-            in: Capsule(),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.5),
-            strokeStrength: 0.08
-        )
-        .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
+        // Clean dark-translucent glass capsule (CHAT_INPUT_SPEC §1): no accent
+        // tint, no black backing plate, no glowing outline. Accent shows only
+        // as the field's caret/selection tint above. One soft float shadow.
+        .liquidGlassInput()
     }
 
     private var attachmentMenu: some View {
         Button {
             BrandHaptics.fire(.light)
             fieldFocused = true
-            withAnimation(BrandMotion.nudge) {
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 attachmentMenuOpen.toggle()
             }
         } label: {
@@ -220,67 +299,45 @@ struct SearchDock: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(selectedAttachment == nil ? .white.opacity(0.74) : model.selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 36, height: 36)
-                .liquidGlass(
-                    in: Circle(),
-                    tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.35),
-                    strokeStrength: 0.07
-                )
+                // Lives inside the composer pill (already glass); a nested glass
+                // here would double-lens. Solid fill keeps the tappable affordance.
+                .background(.white.opacity(0.08), in: Circle())
         }
-        .buttonStyle(BouncyIconButtonStyle())
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
         .accessibilityLabel("Attach photo or file")
+        .accessibilityIdentifier("chat-attach-button")
     }
 
     private var attachmentMenuPopover: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
+                // Two items only (CHAT_INPUT_SPEC §2). The remove path lives on
+                // the floating preview's remove button (§3), not in this menu.
                 ForEach(AssistantAttachmentKind.allCases) { kind in
                     attachmentMenuItem(kind)
-                }
-
-                if ComposerLogic.showsRemoveAttachment(hasAttachment: selectedAttachment != nil) {
-                    Divider()
-                        .overlay(.white.opacity(0.12))
-                    Button {
-                        BrandHaptics.fire(.light)
-                        selectedAttachment = nil
-                        attachmentMenuOpen = false
-                    } label: {
-                        Label("Remove attachment", systemImage: "xmark.circle")
-                            .font(.system(.footnote, weight: .semibold))
-                            .foregroundStyle(.red.opacity(0.9))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 9)
-                    }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
-                    .accessibilityLabel("Remove attachment")
                 }
             }
             .padding(7)
             .frame(width: 164)
-            .background(
-                .black.opacity(0.30),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
-            .liquidGlass(
+            // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
+            // panel, no black backing plate, no heavy accent tint. One shadow.
+            .glassSurface(
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.34),
-                strokeStrength: 0.08
+                interactive: true
             )
             .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
 
             Spacer(minLength: 0)
         }
         .padding(.leading, 2)
-        .padding(.bottom, -2)
+        .allowsHitTesting(attachmentMenuOpen)
     }
 
     private func attachmentMenuItem(_ kind: AssistantAttachmentKind) -> some View {
         Button {
             BrandHaptics.fire(.light)
-            selectedAttachment = kind
             attachmentMenuOpen = false
-            fieldFocused = true
+            presentAttachmentPicker(kind)
         } label: {
             Label(kind.title, systemImage: kind.icon)
                 .font(.system(.footnote, weight: .semibold))
@@ -288,10 +345,11 @@ struct SearchDock: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 9)
-                .background(.white.opacity(selectedAttachment == kind ? 0.12 : 0.055), in: Capsule())
+                .background(.white.opacity(selectedAttachment?.kind == kind ? 0.12 : 0.055), in: Capsule())
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
         .accessibilityLabel(kind.title)
+        .accessibilityIdentifier(kind.accessibilityIdentifier)
     }
 
     private var trailingActionButton: some View {
@@ -309,9 +367,10 @@ struct SearchDock: View {
                             Circle().stroke(.white.opacity(canSend ? 0.18 : 0.10), lineWidth: 1)
                         }
                 }
-                .buttonStyle(BouncyIconButtonStyle())
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
                 .disabled(!canSend)
                 .accessibilityLabel(canSend ? "Send" : "Send unavailable")
+                .accessibilityIdentifier("chat-send-button")
             } else {
                 Button {
                     onAddTool()
@@ -323,37 +382,76 @@ struct SearchDock: View {
                         .background(model.selectedCategoryModel.color.swiftUIColor, in: Circle())
                         .shadow(color: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32), radius: 12, x: 0, y: 7)
                 }
-                .buttonStyle(BouncyIconButtonStyle())
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
                 .accessibilityLabel("Add tool")
+                .accessibilityIdentifier("chat-add-tool-button")
+                // Zoom-morph source for the Add Tool sheet (callers pass nil to
+                // opt out — e.g. the universe surface when the empty-state card
+                // already owns the morph, so the id is never duplicated).
+                .morphSource(ChromeMorphID.addTool, in: addToolMorphNamespace)
             }
         }
         .frame(width: 44, height: 44)
     }
 
-    private func attachmentPill(_ kind: AssistantAttachmentKind) -> some View {
-        Button {
-            BrandHaptics.fire(.light)
-            selectedAttachment = nil
-            attachmentMenuOpen = false
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: kind.icon)
-                    .font(.system(size: 11, weight: .bold))
-                Text(kind.shortTitle)
-                    .font(.system(.caption2, weight: .semibold))
-                    .lineLimit(1)
+    /// Floating Liquid Glass attachment preview above the input (CHAT_INPUT_SPEC
+    /// §3): thumbnail / type glyph, name + type, and a trailing remove button.
+    /// Same float lane as the menu and mutually exclusive with it. It floats with
+    /// no layout footprint, so it never crowds the text field or covers the chat.
+    private func attachmentPreview(_ attachment: AssistantAttachmentPayload) -> some View {
+        HStack(alignment: .bottom) {
+            HStack(spacing: 10) {
+                Image(systemName: attachment.kind.icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        .white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: BrandRadius.tight.value, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attachment.previewName)
+                        .font(.system(.footnote, weight: .semibold))
+                        .foregroundStyle(BrandColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(attachment.previewDetail)
+                        .font(.system(.caption2, weight: .medium))
+                        .foregroundStyle(BrandColor.textMuted)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    BrandHaptics.fire(.light)
+                    withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                        selectedAttachment = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.74))
+                        .frame(width: 28, height: 28)
+                        .background(.white.opacity(0.08), in: Circle())
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
+                .accessibilityLabel("Remove attachment")
+                .accessibilityIdentifier("chat-attachment-remove")
             }
-            .foregroundStyle(.white.opacity(0.84))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .liquidGlass(
-                in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.45),
-                strokeStrength: 0.06
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
+            // card, no accent backing, one soft shadow.
+            .glassSurface(
+                in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous),
+                interactive: true
             )
+            .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
-        .accessibilityLabel("Remove \(kind.title)")
+        .padding(.leading, 2)
+        // Width follows the dock, not full-bleed past the composer.
+        .frame(maxWidth: dockWidth)
     }
 
     private var conversationPanel: some View {
@@ -381,22 +479,23 @@ struct SearchDock: View {
             .frame(maxWidth: .infinity, maxHeight: 284)
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("chat-transcript")
             .onChange(of: model.assistantMessages.count) { _, _ in
                 guard let last = model.assistantMessages.last else { return }
-                withAnimation(BrandMotion.nudge) {
+                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
         }
+        // Transcript is content, not chrome — solid reading surface (glass MAP).
         .background(
-            .black.opacity(0.18),
+            BrandColor.glassSolid,
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
-            tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.38),
-            strokeStrength: 0.08
-        )
+        .overlay {
+            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+                .stroke(BrandColor.stroke, lineWidth: 0.5)
+        }
         .shadow(color: .black.opacity(0.32), radius: 16, x: 0, y: 8)
         .simultaneousGesture(TapGesture().onEnded {
             attachmentMenuOpen = false
@@ -407,9 +506,10 @@ struct SearchDock: View {
         Button {
             BrandHaptics.fire(.light)
             attachmentMenuOpen = false
-            withAnimation(BrandMotion.nudge) {
+            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                 conversationCollapsed = false
             }
+            onChatActivityChange?(true)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "text.bubble.fill")
@@ -424,13 +524,12 @@ struct SearchDock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(maxWidth: 152)
-            .liquidGlass(
-                in: Capsule(),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                strokeStrength: 0.06
-            )
+            // Floating chrome — neutral glass, no accent fill (visual spec §2/§4).
+            .glassSurface(in: Capsule(), interactive: true)
+            .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .brandAnimation(BrandMotion.morph, value: conversationCollapsed)
     }
 
     private var conversationHeader: some View {
@@ -443,7 +542,7 @@ struct SearchDock: View {
 
             Button {
                 BrandHaptics.fire(.light)
-                withAnimation(BrandMotion.nudge) {
+                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                     conversationCollapsed = true
                     fieldFocused = false
                     attachmentMenuOpen = false
@@ -453,13 +552,11 @@ struct SearchDock: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
                     .frame(width: 30, height: 30)
-                    .liquidGlass(
-                        in: Circle(),
-                        tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.32),
-                        strokeStrength: 0.06
-                    )
+                    // Floating chrome — neutral glass icon button (visual spec §2).
+                    .glassSurface(in: Circle(), interactive: true)
+                    .navigationGlassMorphID("SearchDock.chatCollapse", in: chatChromeNamespace)
             }
-            .buttonStyle(BouncyIconButtonStyle(pressedScale: 0.9))
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil, pressedOpacity: 1))
             .accessibilityLabel("Collapse chat")
         }
         .padding(.leading, 2)
@@ -537,11 +634,16 @@ struct SearchDock: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 13)
             .padding(.vertical, 10)
-            .liquidGlass(
-                in: RoundedRectangle(cornerRadius: 19, style: .continuous),
-                tint: model.selectedCategoryModel.color.swiftUIColor.opacity(0.62),
-                strokeStrength: 0.08
+            // Chat bubble is content — neutral solid surface, never accent fill
+            // (LIQUID_GLASS_VISUAL_SPEC C2). Speaker conveyed by alignment + tone.
+            .background(
+                .white.opacity(0.07),
+                in: RoundedRectangle(cornerRadius: 19, style: .continuous)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(.white.opacity(0.10), lineWidth: 0.5)
+            }
     }
 
     private func assistantResponse(_ message: AssistantMessage, matches: [Tool]) -> some View {
@@ -551,13 +653,11 @@ struct SearchDock: View {
                 MarkdownMessageText(text: prose, fontSize: 15, weight: .regular, color: .white.opacity(0.88))
             }
 
-            if !matches.isEmpty {
-                toolSummaryTable(matches)
-            }
-
             if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
-                actionStrip(for: matches, missingSuggestions: message.missingToolSuggestions)
-                nextHint("Next: open one, or ask me to compare them by price, stage, and daily use.")
+                assistantChipSections(matches: matches, missingSuggestions: message.missingToolSuggestions)
+                if !message.missingToolSuggestions.isEmpty {
+                    nextHint("Suggested tools are not verified in your universe yet; pricing unknown, verify website.")
+                }
             } else if needsAccessActions(message) {
                 // Single home for Attach / Add-tool is the composer below. The
                 // message only guides the user there — rendering duplicate
@@ -568,6 +668,28 @@ struct SearchDock: View {
         .frame(maxWidth: assistantMessageMaxWidth, alignment: .leading)
         .padding(.vertical, 2)
         .shadow(color: .black.opacity(0.58), radius: 8, x: 0, y: 2)
+    }
+
+    private func assistantChipSections(matches: [Tool], missingSuggestions: [MissingToolSuggestion]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !matches.isEmpty {
+                assistantChipLabel("Already in your universe")
+                actionStrip(for: matches, missingSuggestions: [])
+            }
+            if !missingSuggestions.isEmpty {
+                assistantChipLabel("Suggested to add")
+                actionStrip(for: [], missingSuggestions: missingSuggestions)
+            }
+        }
+    }
+
+    private func assistantChipLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(.caption2, weight: .bold))
+            .tracking(0.7)
+            .textCase(.uppercase)
+            .foregroundStyle(.white.opacity(0.54))
+            .padding(.top, 2)
     }
 
     private func toolSummaryTable(_ tools: [Tool]) -> some View {
@@ -669,18 +791,15 @@ struct SearchDock: View {
             HStack(spacing: 7) {
                 Image(systemName: "arrow.up.right.circle.fill")
                     .font(.system(size: 13, weight: .bold))
+                    // Accent on the icon only (tiny highlight), not the fill.
+                    .foregroundStyle(category.color.swiftUIColor)
                 Text(tool.name)
                     .font(.system(.footnote, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(1)
             }
-            .foregroundStyle(.white.opacity(0.88))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .liquidGlass(
-                in: Capsule(),
-                tint: category.color.swiftUIColor.opacity(0.55),
-                strokeStrength: 0.08
-            )
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
+            .actionChipBackground()
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
     }
@@ -689,7 +808,7 @@ struct SearchDock: View {
         let category = UniverseSeed.category(suggestion.category)
         return Button {
             BrandHaptics.fire(.light)
-            withAnimation(BrandMotion.flow) {
+            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
                 if let onAddSuggestedTool {
                     onAddSuggestedTool(suggestion)
                 } else {
@@ -700,9 +819,12 @@ struct SearchDock: View {
             HStack(spacing: 7) {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 13, weight: .bold))
+                    // Accent on the icon only (tiny highlight), not the fill.
+                    .foregroundStyle(category.color.swiftUIColor)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Add \(suggestion.name)")
                         .font(.system(.footnote, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.88))
                         .lineLimit(1)
                     Text(category.shortName)
                         .font(.system(.caption2, weight: .medium))
@@ -710,14 +832,8 @@ struct SearchDock: View {
                         .lineLimit(1)
                 }
             }
-            .foregroundStyle(.white.opacity(0.88))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .liquidGlass(
-                in: Capsule(),
-                tint: category.color.swiftUIColor.opacity(0.42),
-                strokeStrength: 0.08
-            )
+            // Chip style (LIQUID_GLASS_VISUAL_SPEC §3/C6): neutral capsule + hairline.
+            .actionChipBackground()
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.95, haptic: nil))
         .accessibilityLabel("Add \(suggestion.name)")
@@ -730,20 +846,7 @@ struct SearchDock: View {
     }
 
     private func assistantProse(from text: String) -> String {
-        text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.hasPrefix("|") else { return true }
-                return false
-            }
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                return !trimmed.hasPrefix("**Next:**") && !trimmed.hasPrefix("Next:")
-            }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        AssistantResponsePresentation.prose(from: text)
     }
 
     private func resultRow(_ tool: Tool) -> some View {
@@ -776,7 +879,7 @@ struct SearchDock: View {
 
     private func select(_ tool: Tool) {
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             if let onToolSelect {
                 onToolSelect(tool.id)
             } else {
@@ -788,7 +891,7 @@ struct SearchDock: View {
 
     private func openDetail(_ tool: Tool) {
         BrandHaptics.fire(.light)
-        withAnimation(BrandMotion.flow) {
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
             if let onOpenToolDetail {
                 onOpenToolDetail(tool.id)
             } else if let onToolSelect {
@@ -814,7 +917,7 @@ struct SearchDock: View {
         conversationCollapsed = false
         attachmentMenuOpen = false
         model.assistantQuery = outgoingText
-        withAnimation(BrandMotion.flow) { model.askAssistant(attachmentOnly: attachmentOnly) }
+        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.askAssistant(attachmentOnly: attachmentOnly) }
         selectedAttachment = nil
         fieldFocused = false
     }
@@ -823,6 +926,109 @@ struct SearchDock: View {
         model.assistantQuery = ""
         selectedAttachment = nil
         fieldFocused = false
+    }
+}
+
+private extension SearchDock {
+    var usesDeterministicAttachmentPicker: Bool {
+        ProcessInfo.processInfo.arguments.contains("-uitestStatic")
+    }
+
+    func presentAttachmentPicker(_ kind: AssistantAttachmentKind) {
+        if usesDeterministicAttachmentPicker {
+            selectedAttachment = .deterministic(kind)
+            fieldFocused = true
+            return
+        }
+
+        fieldFocused = false
+        switch kind {
+        case .photo:
+            photoPickerPresented = true
+        case .files:
+            fileImporterPresented = true
+        }
+    }
+
+    func handlePhotoPickerSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        selectedAttachment = AssistantAttachmentPayload(
+            kind: .photo,
+            previewName: "Selected photo",
+            previewDetail: "Loading image",
+            messageTitle: "photo"
+        )
+        Task {
+            let size = try? await item.loadTransferable(type: Data.self)?.count
+            await MainActor.run {
+                selectedAttachment = AssistantAttachmentPayload(
+                    kind: .photo,
+                    previewName: "Selected photo",
+                    previewDetail: size.map(byteCountString) ?? "Image",
+                    messageTitle: "photo"
+                )
+                fieldFocused = true
+            }
+        }
+    }
+
+    func handleFileImporterResult(_ result: Result<[URL], any Error>) {
+        guard case .success(let urls) = result, let url = urls.first else {
+            fieldFocused = true
+            return
+        }
+        selectedAttachment = payload(for: url)
+        fieldFocused = true
+    }
+
+    func payload(for url: URL) -> AssistantAttachmentPayload {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
+        let type = resourceValues?.contentType?.localizedDescription
+            ?? (url.pathExtension.isEmpty ? "Document" : url.pathExtension.uppercased())
+        let size = resourceValues?.fileSize.map(byteCountString)
+        return AssistantAttachmentPayload(
+            kind: .files,
+            previewName: url.lastPathComponent.isEmpty ? "Selected file" : url.lastPathComponent,
+            previewDetail: [type, size].compactMap { $0 }.joined(separator: " - "),
+            messageTitle: url.lastPathComponent.isEmpty ? "file" : "file \(url.lastPathComponent)"
+        )
+    }
+
+    func byteCountString(_ bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+}
+
+private struct AssistantAttachmentPayload: Equatable {
+    let kind: AssistantAttachmentKind
+    let previewName: String
+    let previewDetail: String
+    let messageTitle: String
+
+    static func deterministic(_ kind: AssistantAttachmentKind) -> AssistantAttachmentPayload {
+        switch kind {
+        case .photo:
+            return AssistantAttachmentPayload(
+                kind: .photo,
+                previewName: "Selected photo",
+                previewDetail: "Image",
+                messageTitle: "photo"
+            )
+        case .files:
+            return AssistantAttachmentPayload(
+                kind: .files,
+                previewName: "Selected file",
+                previewDetail: "Document",
+                messageTitle: "file"
+            )
+        }
     }
 }
 
@@ -839,13 +1045,6 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         }
     }
 
-    var shortTitle: String {
-        switch self {
-        case .photo: return "Photo"
-        case .files: return "File"
-        }
-    }
-
     var messageTitle: String {
         switch self {
         case .photo: return "photo"
@@ -857,6 +1056,13 @@ private enum AssistantAttachmentKind: CaseIterable, Identifiable, Equatable {
         switch self {
         case .photo: return "photo"
         case .files: return "doc"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .photo: return "chat-attachment-photo"
+        case .files: return "chat-attachment-files"
         }
     }
 }
