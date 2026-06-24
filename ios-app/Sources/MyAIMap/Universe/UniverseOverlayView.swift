@@ -554,6 +554,7 @@ struct UniverseOverlayView: View {
                     tint: selectedPlanet.swiftUIColor,
                     onOpen: onDetails
                 )
+                .parallaxTilt(maxOffset: 6)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
@@ -576,6 +577,7 @@ struct UniverseOverlayView: View {
                 }
             }
         }
+        .brandAnimation(BrandMotion.reveal, value: mode.selectedToolID)
     }
 
     /// Onboarding shown when the universe has no tools yet: the user either adds
