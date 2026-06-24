@@ -40,6 +40,39 @@ enum RootShellMotion {
         guard let source, let destination else { return false }
         return !source.isEmpty && !destination.isEmpty
     }
+
+    /// Card→planet flight: a ghost of the tapped chat chip seats on the tool's
+    /// planet in the universe. It only lands once the universe has published a
+    /// frame for the *same* tool the flight is for (the published frame tracks
+    /// the current selection, so this rejects a stale frame from a previously
+    /// selected tool) and both anchors are present and non-empty.
+    static func toolGhostShouldLand(
+        activeToolID: String?,
+        publishedToolID: String?,
+        source: CGRect?,
+        destination: CGRect?
+    ) -> Bool {
+        guard let activeToolID, activeToolID == publishedToolID else { return false }
+        return shouldFlyGhost(source: source, destination: destination)
+    }
+}
+
+/// Payload describing the chat tool-chip that was tapped to open a tool's
+/// detail, so the shell can fly a matching ghost into that tool's planet.
+struct ToolFlightRequest: Equatable {
+    let id: UUID
+    let toolID: String
+    let title: String
+    let sourceFrame: CGRect
+    let tint: Color
+}
+
+/// The tool-planet anchor the universe publishes up to the shell: which tool it
+/// is (so a stale frame from a previous selection is rejected) and where its
+/// node sits in the shared flight coordinate space.
+struct ToolFlightTarget: Equatable {
+    let toolID: String
+    let frame: CGRect
 }
 
 /// Payload describing the chat card that was tapped to add a tool, so the shell
@@ -63,6 +96,15 @@ private struct MapPillFramePreferenceKey: PreferenceKey {
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         let next = nextValue()
         if next != .zero { value = next }
+    }
+}
+
+/// Reports the currently-selected tool's planet anchor (in the shared flight
+/// space) up to the shell, so a card→planet ghost knows where to land.
+struct ToolFlightTargetPreferenceKey: PreferenceKey {
+    static let defaultValue: ToolFlightTarget? = nil
+    static func reduce(value: inout ToolFlightTarget?, nextValue: () -> ToolFlightTarget?) {
+        if let next = nextValue() { value = next }
     }
 }
 
@@ -91,6 +133,13 @@ struct RootShell: View {
     @State private var flyingGhost: CardLandRequest?
     /// Drives the ghost from its source frame toward the Map pill once mounted.
     @State private var ghostLanded = false
+    /// A card→planet flight, if any: a ghost of the tapped chat tool-chip flying
+    /// into that tool's planet. Set on tap, cleared once it seats.
+    @State private var toolFlight: ToolFlightRequest?
+    /// The tool-planet anchor the universe last published (shared flight space).
+    @State private var toolFlightTarget: ToolFlightTarget?
+    /// Drives the tool ghost from its chip toward the planet once the anchor is known.
+    @State private var toolGhostLanded = false
 
     var body: some View {
         ZStack {
@@ -102,6 +151,7 @@ struct RootShell: View {
                     onAddSuggestedTool: { presentAddTool(draft: $0) },
                     onOpenToolInUniverse: openToolInUniverse,
                     onOpenToolDetail: openToolDetail,
+                    onOpenToolFlight: flyToolToPlanet,
                     onBackToMap: { showUniverse(resetSelection: true) },
                     onCardLand: flyCardToMap,
                     chromeMorphNamespace: chromeMorphNamespace
@@ -119,9 +169,14 @@ struct RootShell: View {
         .background(surface == .chat ? ChatTheme.background : BrandColor.void)
         .coordinateSpace(name: RootShellCoordinateSpace.name)
         .overlay { ghostFlightOverlay }
+        .overlay { toolFlightOverlay }
         .overlay { onboardingOverlay }
         .onPreferenceChange(MapPillFramePreferenceKey.self) { frame in
             mapPillFrame = frame
+        }
+        .onPreferenceChange(ToolFlightTargetPreferenceKey.self) { target in
+            toolFlightTarget = target
+            seatToolGhostIfReady()
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             surfaceSwitchChrome
@@ -239,6 +294,38 @@ struct RootShell: View {
         }
     }
 
+    /// The card→planet flight ghost: a capsule mimicking the tapped chat tool
+    /// chip that flies from the chip's frame into the tool's planet on the map,
+    /// shrinking + fading as it arrives so it reads as diving into the universe.
+    /// Honours reduce-motion via the caller (which skips the flight).
+    @ViewBuilder
+    private var toolFlightOverlay: some View {
+        if let flight = toolFlight, let target = toolFlightTarget?.frame {
+            let destination = CGPoint(x: target.midX, y: target.midY)
+            let origin = CGPoint(x: flight.sourceFrame.midX, y: flight.sourceFrame.midY)
+            let position = toolGhostLanded ? destination : origin
+
+            HStack(spacing: 6) {
+                Image(systemName: "circle.hexagongrid.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(flight.title)
+                    .font(.system(.footnote, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(flight.tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(flight.tint.opacity(0.16), in: Capsule())
+            .overlay { Capsule().stroke(flight.tint.opacity(0.5), lineWidth: 1) }
+            .scaleEffect(toolGhostLanded ? 0.32 : 1)
+            .opacity(toolGhostLanded ? 0 : 1)
+            .position(position)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .transition(.identity)
+        }
+    }
+
     /// The one-screen first-run onboarding, layered above the map. Each action
     /// (and Skip / scrim tap) marks onboarding seen so it never returns, then
     /// routes to the matching destination.
@@ -294,6 +381,51 @@ struct RootShell: View {
                 flyingGhost = nil
                 ghostLanded = false
             }
+        }
+    }
+
+    /// Card→planet orbit motion: open a tool's detail from a chat chip AND fly a
+    /// ghost of the chip into that tool's planet on the map. The detail open is
+    /// the substance; the flight is the signature "dive into the universe" cue.
+    /// Under reduce-motion (or with no captured source frame) it falls back to a
+    /// plain detail open. In render modes that publish no planet anchor (e.g.
+    /// the RealityKit 3D scene), the ghost simply never seats — a clean no-op.
+    private func flyToolToPlanet(_ request: ToolFlightRequest) {
+        guard !reduceMotion, !request.sourceFrame.isEmpty else {
+            openToolDetail(request.toolID)
+            return
+        }
+        // Reset any prior flight so a stale published target can't seat this one.
+        toolGhostLanded = false
+        toolFlightTarget = nil
+        toolFlight = request
+        openToolDetail(request.toolID)
+        let activeID = request.id
+        Task {
+            try? await Task.sleep(for: .milliseconds(760))
+            if toolFlight?.id == activeID {
+                toolFlight = nil
+                toolGhostLanded = false
+            }
+        }
+    }
+
+    /// Seats the in-flight tool ghost once the universe publishes a planet anchor
+    /// for the *same* tool the flight is for. Re-checked whenever the universe
+    /// republishes (mount, layout, selection change), so the flight rides the
+    /// dive into the freshly-mounted map.
+    private func seatToolGhostIfReady() {
+        guard let flight = toolFlight, !toolGhostLanded,
+              RootShellMotion.toolGhostShouldLand(
+                  activeToolID: flight.toolID,
+                  publishedToolID: toolFlightTarget?.toolID,
+                  source: flight.sourceFrame,
+                  destination: toolFlightTarget?.frame
+              )
+        else { return }
+        BrandHaptics.fireRich(.toolLand)
+        withBrandAnimation(BrandMotion.morph, reduceMotion: reduceMotion) {
+            toolGhostLanded = true
         }
     }
 

@@ -49,6 +49,37 @@ struct RootShellGhostFlightTests {
     }
 }
 
+/// Pure-logic coverage for the card→planet tool-flight land gate: the ghost
+/// only seats when an active flight's tool matches the frame the universe
+/// published (guards against a stale frame from a previously-selected tool)
+/// and both anchors are present and non-empty.
+@Suite("RootShell tool-flight land gate")
+struct RootShellToolFlightTests {
+    private let source = CGRect(x: 20, y: 400, width: 120, height: 32)
+    private let target = CGRect(x: 180, y: 300, width: 84, height: 84)
+
+    @Test("Lands when ids match and both anchors are known")
+    func landsWhenMatched() {
+        #expect(RootShellMotion.toolGhostShouldLand(activeToolID: "cursor", publishedToolID: "cursor", source: source, destination: target))
+    }
+
+    @Test("Does not land on a stale frame from another tool")
+    func skipsWhenIDMismatch() {
+        #expect(!RootShellMotion.toolGhostShouldLand(activeToolID: "cursor", publishedToolID: "linear", source: source, destination: target))
+    }
+
+    @Test("Does not land when no flight is active")
+    func skipsWhenNoActive() {
+        #expect(!RootShellMotion.toolGhostShouldLand(activeToolID: nil, publishedToolID: "cursor", source: source, destination: target))
+    }
+
+    @Test("Does not land when an anchor is missing or empty")
+    func skipsWhenAnchorMissing() {
+        #expect(!RootShellMotion.toolGhostShouldLand(activeToolID: "cursor", publishedToolID: "cursor", source: nil, destination: target))
+        #expect(!RootShellMotion.toolGhostShouldLand(activeToolID: "cursor", publishedToolID: "cursor", source: source, destination: .zero))
+    }
+}
+
 /// Pure-logic coverage for the first-run gate: cold start always lands on the
 /// map, and the one-screen onboarding overlay shows only on a true first run.
 @Suite("RootShell first-run gate")

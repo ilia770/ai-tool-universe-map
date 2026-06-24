@@ -74,6 +74,10 @@ struct ChatScreen: View {
     /// detail (not just a map focus). Defaults to the in-universe focus so older
     /// call sites keep working.
     var onOpenToolDetail: (String) -> Void = { _ in }
+    /// §orbit: an existing-tool chip also flies a ghost of itself into that
+    /// tool's planet on the map as it opens detail (the detail open is the
+    /// substance). Defaults to a no-op so older call sites keep working.
+    var onOpenToolFlight: (ToolFlightRequest) -> Void = { _ in }
     /// Always-enabled "back to map" control (§3.3 navigation spec): lets the
     /// user leave the chat surface for the map at any time, regardless of tool
     /// count. No half-state — it lands cleanly on the map surface.
@@ -133,6 +137,7 @@ struct ChatScreen: View {
                                 matches: tools(for: message.matchIDs),
                                 isLatest: index == messages.count - 1,
                                 onOpenTool: onOpenToolDetail,
+                                onOpenToolFlight: onOpenToolFlight,
                                 onAddSuggestedTool: onAddSuggestedTool,
                                 onCardLand: onCardLand,
                                 onCopyAnswer: { copyToastKind = .answer }
@@ -370,6 +375,7 @@ private struct ChatMessageTurn: View {
     let matches: [Tool]
     var isLatest: Bool = false
     let onOpenTool: (String) -> Void
+    var onOpenToolFlight: (ToolFlightRequest) -> Void = { _ in }
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
     var onCardLand: (CardLandRequest) -> Void = { _ in }
     /// Fired after the assistant answer is written to the pasteboard so the host
@@ -447,7 +453,11 @@ private struct ChatMessageTurn: View {
                         chipSectionLabel("Already in your universe")
                         ChatChipRow {
                             ForEach(matches.prefix(4)) { tool in
-                                ToolChip(tool: tool) { onOpenTool(tool.id) }
+                                ChatExistingToolChip(
+                                    tool: tool,
+                                    onOpenFlight: onOpenToolFlight,
+                                    onOpen: { onOpenTool(tool.id) }
+                                )
                             }
                         }
                     }
@@ -690,6 +700,47 @@ private struct ChatMissingToolChip: View {
                 sent = false
             }
         }
+    }
+}
+
+/// Existing-tool chip in the chat transcript. Reuses the canonical `ToolChip`
+/// look, but captures its own frame so a tap both opens the tool's detail and
+/// flies a ghost of the chip into that tool's planet on the map (§orbit). Falls
+/// back to a plain detail open if the frame isn't known yet.
+private struct ChatExistingToolChip: View {
+    let tool: Tool
+    var onOpenFlight: (ToolFlightRequest) -> Void = { _ in }
+    let onOpen: () -> Void
+
+    /// Captured frame of this chip in the shared flight coordinate space.
+    @State private var frame: CGRect = .zero
+
+    private var tint: Color { UniverseSeed.category(tool.category).color.swiftUIColor }
+
+    var body: some View {
+        ToolChip(tool: tool) { tapped() }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: ChipFramePreferenceKey.self,
+                        value: proxy.frame(in: .named(RootShellCoordinateSpace.name))
+                    )
+                }
+            }
+            .onPreferenceChange(ChipFramePreferenceKey.self) { frame = $0 }
+    }
+
+    private func tapped() {
+        guard !frame.isEmpty else { onOpen(); return }
+        onOpenFlight(
+            ToolFlightRequest(
+                id: UUID(),
+                toolID: tool.id,
+                title: tool.name,
+                sourceFrame: frame,
+                tint: tint
+            )
+        )
     }
 }
 
