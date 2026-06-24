@@ -736,6 +736,25 @@ struct UniverseGraphView: View {
                 )
                 .position(node.position)
                 .zIndex(node.isSelected ? 20 : node.isContext ? 10 : Double(node.radius))
+                .background { toolFlightAnchor(for: node) }
+            }
+        }
+    }
+
+    /// Publishes the selected tool node's on-screen frame (in the shared flight
+    /// coordinate space) so the shell can land a card→planet ghost on it. Only
+    /// the selected tool reports — the shell rejects any other tool's frame.
+    @ViewBuilder
+    private func toolFlightAnchor(for node: UniverseGraphNode) -> some View {
+        if let toolID = node.toolID, toolID == mode.selectedToolID {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: ToolFlightTargetPreferenceKey.self,
+                    value: ToolFlightTarget(
+                        toolID: toolID,
+                        frame: proxy.frame(in: .named(RootShellCoordinateSpace.name))
+                    )
+                )
             }
         }
     }
