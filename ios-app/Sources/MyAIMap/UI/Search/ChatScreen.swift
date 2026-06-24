@@ -435,20 +435,34 @@ private struct ChatMessageTurn: View {
     private var assistantTurn: some View {
         // No leading avatar: assistant content spans the column, left-aligned.
         VStack(alignment: .leading, spacing: 12) {
-            ChatMarkdownText(text: assistantProse(from: message.text), font: .system(.body), color: ChatTheme.text)
-                .lineSpacing(5)
+            let prose = assistantProse(from: message.text)
+            if !prose.isEmpty {
+                ChatMarkdownText(text: prose, font: .system(.body), color: ChatTheme.text)
+                    .lineSpacing(5)
+            }
 
             if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
-                ChatChipRow {
-                    ForEach(matches.prefix(4)) { tool in
-                        ToolChip(tool: tool) { onOpenTool(tool.id) }
+                VStack(alignment: .leading, spacing: 8) {
+                    if !matches.isEmpty {
+                        chipSectionLabel("Already in your universe")
+                        ChatChipRow {
+                            ForEach(matches.prefix(4)) { tool in
+                                ToolChip(tool: tool) { onOpenTool(tool.id) }
+                            }
+                        }
                     }
-                    ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
-                        ChatMissingToolChip(
-                            suggestion: suggestion,
-                            onCardLand: onCardLand,
-                            onAdd: { onAddSuggestedTool(suggestion) }
-                        )
+
+                    if !message.missingToolSuggestions.isEmpty {
+                        chipSectionLabel("Suggested to add")
+                        ChatChipRow {
+                            ForEach(message.missingToolSuggestions.prefix(4)) { suggestion in
+                                ChatMissingToolChip(
+                                    suggestion: suggestion,
+                                    onCardLand: onCardLand,
+                                    onAdd: { onAddSuggestedTool(suggestion) }
+                                )
+                            }
+                        }
                     }
                 }
                 // The chip group reveals a beat after the prose so the tools
@@ -467,10 +481,19 @@ private struct ChatMessageTurn: View {
         }
     }
 
+    private func chipSectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(.caption2, weight: .bold))
+            .tracking(0.7)
+            .textCase(.uppercase)
+            .foregroundStyle(ChatTheme.secondaryText)
+            .padding(.top, 2)
+    }
+
     private var assistantActionRow: some View {
         HStack(spacing: 18) {
             Button {
-                UIPasteboard.general.string = message.text
+                UIPasteboard.general.string = AssistantClipboardFormatter.text(from: message.text)
                 BrandHaptics.fire(.success)
                 onCopyAnswer()
             } label: {
@@ -480,38 +503,13 @@ private struct ChatMessageTurn: View {
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil))
             .accessibilityLabel("Copy message")
             .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
-
-            if !matches.isEmpty {
-                Button {
-                    if let first = matches.first { onOpenTool(first.id) }
-                } label: {
-                    Image(systemName: "map")
-                        .font(.system(size: 14, weight: .medium))
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
-                .accessibilityLabel("Open in Universe")
-                .accessibilityIdentifier("ChatScreen.Action.Open.\(message.id)")
-            }
         }
         .foregroundStyle(ChatTheme.secondaryText)
         .padding(.top, 2)
     }
 
     private func assistantProse(from text: String) -> String {
-        text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.hasPrefix("|") else { return true }
-                return false
-            }
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                return !trimmed.hasPrefix("**Next:**") && !trimmed.hasPrefix("Next:")
-            }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        AssistantResponsePresentation.prose(from: text)
     }
 }
 

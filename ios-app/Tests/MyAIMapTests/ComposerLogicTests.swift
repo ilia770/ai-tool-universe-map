@@ -152,4 +152,60 @@ struct ComposerLogicTests {
     @Test func userBubbleMaxWidthUsesConfiguredRatio() {
         #expect(ComposerLogic.userBubbleMaxWidth(availableWidth: 400) == 320)
     }
+
+    @Test func composerAutoGrowLimitsStayInReadableRange() {
+        #expect(ComposerLogic.composerMinHeight == 44)
+        #expect(ComposerLogic.composerMaxHeight >= 120)
+        #expect(ComposerLogic.composerMaxHeight <= 160)
+        #expect(ComposerLogic.composerMaxLines == 6)
+    }
+
+    // MARK: - Assistant response presentation
+
+    @Test func assistantPresentationRemovesActionChipsProse() {
+        let prose = AssistantResponsePresentation.prose(from: """
+        **Summary**
+        Use Figma first.
+
+        **Recommended tools**
+        - Figma for design.
+
+        **Action chips**
+        Open existing tool chips for details. Add suggested missing tools from their chips.
+        """)
+
+        #expect(prose.hasPrefix("Use Figma first."))
+        #expect(prose.contains("**Recommended path**"))
+        #expect(!prose.contains("Action chips"))
+        #expect(!prose.contains("Open existing tool chips"))
+    }
+
+    @Test func assistantPresentationRenamesTradeoffSections() {
+        let prose = AssistantResponsePresentation.prose(from: """
+        **Options**
+        - Fastest: Figma.
+
+        **Caveats / tradeoffs**
+        - Pricing unknown.
+        """)
+
+        #expect(prose.contains("**Cost / time tradeoffs**"))
+        #expect(prose.contains("**Notes**"))
+    }
+
+    @Test func assistantClipboardUsesVisibleProseOnly() {
+        let text = AssistantClipboardFormatter.text(from: """
+        **Summary**
+        Use Figma first.
+
+        | Tool | Why |
+        | --- | --- |
+        | Figma | Design |
+
+        **Action chips**
+        Open existing tool chips for details.
+        """)
+
+        #expect(text == "Use Figma first.")
+    }
 }

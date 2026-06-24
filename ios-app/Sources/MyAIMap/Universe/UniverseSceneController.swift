@@ -141,8 +141,8 @@ final class UniverseSceneController {
                     from: .zero,
                     to: planet.position3D,
                     color: planet.uiColor,
-                    opacity: 0.22 * linkFade,
-                    thickness: 0.014,
+                    opacity: 0.075 * linkFade,
+                    thickness: 0.008,
                     name: "link:core-\(planet.id.rawValue)"
                 ))
             }
@@ -212,8 +212,8 @@ final class UniverseSceneController {
                 from: planet.position3D,
                 to: toolWorld,
                 color: category.color.uiColor,
-                opacity: 0.12,
-                thickness: 0.009,
+                opacity: 0.045,
+                thickness: 0.006,
                 name: "link:\(planet.id.rawValue)-\(tool.id)"
             ))
         }

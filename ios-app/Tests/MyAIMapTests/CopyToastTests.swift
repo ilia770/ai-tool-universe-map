@@ -29,4 +29,20 @@ struct CopyToastTests {
         let text = ToolInfoClipboard.text(name: "Acme", summary: "A tool.", url: "   ")
         #expect(text == "Acme\nA tool.")
     }
+
+    @Test func richClipboardIncludesProfileSummary() {
+        let text = ToolInfoClipboard.text(
+            name: "Claude",
+            category: "Coding",
+            summary: "AI assistant for coding.",
+            pricingStatus: "Unknown - verify website",
+            keyFeatures: ["Code help", "Review", "Planning", "Extra ignored"],
+            url: nil
+        )
+
+        #expect(text.contains("Category: Coding"))
+        #expect(text.contains("Pricing: Unknown - verify website"))
+        #expect(text.contains("Key features: Code help; Review; Planning"))
+        #expect(!text.contains("Extra ignored"))
+    }
 }

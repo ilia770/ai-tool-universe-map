@@ -11,10 +11,11 @@ RESULT_BUNDLE="$DERIVED_DATA/MyAIMapTests.xcresult"
 
 mode="verify"
 device_id=""
+use_existing_project=0
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--run-tests|--full-test] [--device-id <sim-id>]
+Usage: bash scripts/ios-verify.sh [--build-only|--test-build-only|--run-tests|--full-test] [--device-id <sim-id>] [--use-existing-project]
 
 Default:
   Runs generic simulator build + build-for-testing. This validates Swift compile,
@@ -27,6 +28,9 @@ Options:
                       simulator id, writing an xcresult bundle. Executes assertions.
   --full-test         Run build-for-testing, then test-without-building on a booted simulator id.
   --device-id <id>    Simulator UDID for --run-tests / --full-test.
+  --use-existing-project
+                      Allow an existing generated .xcodeproj when xcodegen is
+                      not installed. Intended only for emergency local checks.
   -h, --help          Show this help.
 USAGE
 }
@@ -53,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       device_id="${2:-}"
       shift 2
       ;;
+    --use-existing-project)
+      use_existing_project=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -72,7 +80,13 @@ if command -v xcodegen >/dev/null 2>&1; then
   echo "== XcodeGen =="
   (cd "$ROOT_DIR/ios-app" && xcodegen generate)
 else
-  echo "xcodegen not found; using existing MyAIMap.xcodeproj." >&2
+  if [[ "$use_existing_project" != "1" ]]; then
+    echo "xcodegen not found; refusing to use a potentially stale MyAIMap.xcodeproj." >&2
+    echo "Install with: brew install xcodegen" >&2
+    echo "Temporary escape hatch: pass --use-existing-project." >&2
+    exit 1
+  fi
+  echo "xcodegen not found; using existing MyAIMap.xcodeproj by explicit request." >&2
   echo "Install with: brew install xcodegen" >&2
 fi
 

@@ -234,7 +234,7 @@ struct SearchDock: View {
     }
 
     private var composerRow: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
             composer
             trailingActionButton
         }
@@ -243,10 +243,10 @@ struct SearchDock: View {
 
     private var composer: some View {
         @Bindable var model = model
-        return HStack(spacing: 8) {
+        return HStack(alignment: .bottom, spacing: 8) {
             attachmentMenu
 
-            TextField("Ask AI Universe", text: $model.assistantQuery)
+            TextField("Ask AI Universe", text: $model.assistantQuery, axis: .vertical)
                 .font(.system(.body, weight: .medium))
                 .foregroundStyle(.white)
                 .tint(model.selectedCategoryModel.color.swiftUIColor)
@@ -254,6 +254,8 @@ struct SearchDock: View {
                 .submitLabel(.search)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .lineLimit(1...ComposerLogic.composerMaxLines)
+                .frame(maxHeight: ComposerLogic.composerMaxHeight, alignment: .bottom)
                 .onSubmit(submit)
                 .onChange(of: fieldFocused) { _, focused in
                     if focused {
@@ -265,7 +267,7 @@ struct SearchDock: View {
                 }
                 .accessibilityIdentifier("chat-composer-field")
         }
-        .frame(maxWidth: .infinity, minHeight: 44)
+        .frame(maxWidth: .infinity, minHeight: ComposerLogic.composerMinHeight, alignment: .bottom)
         .padding(5)
         // Clean dark-translucent glass capsule (CHAT_INPUT_SPEC §1): no accent
         // tint, no black backing plate, no glowing outline. Accent shows only
@@ -619,13 +621,11 @@ struct SearchDock: View {
                 MarkdownMessageText(text: prose, fontSize: 15, weight: .regular, color: .white.opacity(0.88))
             }
 
-            if !matches.isEmpty {
-                toolSummaryTable(matches)
-            }
-
             if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
-                actionStrip(for: matches, missingSuggestions: message.missingToolSuggestions)
-                nextHint("Next: open one, or ask me to compare them by price, stage, and daily use.")
+                assistantChipSections(matches: matches, missingSuggestions: message.missingToolSuggestions)
+                if !message.missingToolSuggestions.isEmpty {
+                    nextHint("Suggested tools are not verified in your universe yet; pricing unknown, verify website.")
+                }
             } else if needsAccessActions(message) {
                 // Single home for Attach / Add-tool is the composer below. The
                 // message only guides the user there — rendering duplicate
@@ -636,6 +636,28 @@ struct SearchDock: View {
         .frame(maxWidth: assistantMessageMaxWidth, alignment: .leading)
         .padding(.vertical, 2)
         .shadow(color: .black.opacity(0.58), radius: 8, x: 0, y: 2)
+    }
+
+    private func assistantChipSections(matches: [Tool], missingSuggestions: [MissingToolSuggestion]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !matches.isEmpty {
+                assistantChipLabel("Already in your universe")
+                actionStrip(for: matches, missingSuggestions: [])
+            }
+            if !missingSuggestions.isEmpty {
+                assistantChipLabel("Suggested to add")
+                actionStrip(for: [], missingSuggestions: missingSuggestions)
+            }
+        }
+    }
+
+    private func assistantChipLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(.caption2, weight: .bold))
+            .tracking(0.7)
+            .textCase(.uppercase)
+            .foregroundStyle(.white.opacity(0.54))
+            .padding(.top, 2)
     }
 
     private func toolSummaryTable(_ tools: [Tool]) -> some View {
@@ -792,20 +814,7 @@ struct SearchDock: View {
     }
 
     private func assistantProse(from text: String) -> String {
-        text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.hasPrefix("|") else { return true }
-                return false
-            }
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                return !trimmed.hasPrefix("**Next:**") && !trimmed.hasPrefix("Next:")
-            }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        AssistantResponsePresentation.prose(from: text)
     }
 
     private func resultRow(_ tool: Tool) -> some View {

@@ -187,7 +187,6 @@ struct RootShell: View {
                 surface: surface,
                 toolCount: model.visibleAllTools.count,
                 namespace: surfaceNamespace,
-                selectedToolName: explicitlySelectedTool?.name,
                 onShowChat: askAboutSelection,
                 onShowUniverse: { showUniverse(resetSelection: true) }
             )
@@ -397,11 +396,10 @@ private struct DiveTransitionModifier: ViewModifier {
     }
 }
 
-private struct RootSurfaceSwitch: View {
+struct RootSurfaceSwitch: View {
     let surface: RootSurface
     let toolCount: Int
     let namespace: Namespace.ID
-    let selectedToolName: String?
     let onShowChat: () -> Void
     let onShowUniverse: () -> Void
 
@@ -429,13 +427,8 @@ private struct RootSurfaceSwitch: View {
                     selected: false,
                     action: onShowChat
                 )
-                .accessibilityLabel(selectedToolName.map { "Ask about \($0)" } ?? "Ask about this")
+                .accessibilityLabel("Open Ask AI")
                 .accessibilityIdentifier("RootShell.ShowChat")
-
-                if let selectedToolName {
-                    rootContextChip(selectedToolName)
-                        .transition(.scale(scale: 0.92).combined(with: .opacity))
-                }
             }
 
             rootRouteButton(
@@ -443,18 +436,9 @@ private struct RootSurfaceSwitch: View {
                 systemImage: "map.fill",
                 morphID: "RootChrome.mapRoute",
                 selected: surface == .universe,
-                action: onShowUniverse,
-                accessory: {
-                    Text("\(toolCount)")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.88))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(.white.opacity(surface == .universe ? 0.16 : 0.10), in: Capsule())
-                        .contentTransition(.numericText(value: Double(toolCount)))
-                        .scaleEffect(badgePopped ? 1.18 : 1)
-                }
+                action: onShowUniverse
             )
+            .scaleEffect(badgePopped ? 1.04 : 1)
             // Always enabled: an empty/low-tool map is a valid destination
             // (it shows the empty-state card), so the Map pill is never a
             // dead-end that traps a new user in chat.
@@ -464,7 +448,6 @@ private struct RootSurfaceSwitch: View {
         .foregroundStyle(.white.opacity(0.88))
         .brandAnimation(BrandMotion.pillPop, value: badgePopped)
         .brandAnimation(BrandMotion.morph, value: surface)
-        .brandAnimation(BrandMotion.morph, value: selectedToolName)
         .brandSensoryFeedback(.increase, trigger: toolCount)
         .onChange(of: toolCount) { oldValue, newValue in
             guard !reduceMotion, RootShellMotion.badgeShouldPop(from: oldValue, to: newValue) else { return }
@@ -476,13 +459,12 @@ private struct RootSurfaceSwitch: View {
         }
     }
 
-    private func rootRouteButton<Accessory: View>(
+    private func rootRouteButton(
         title: String,
         systemImage: String,
         morphID: String,
         selected: Bool,
-        action: @escaping () -> Void,
-        @ViewBuilder accessory: () -> Accessory
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
@@ -491,7 +473,6 @@ private struct RootSurfaceSwitch: View {
                 Text(title)
                     .font(.system(.footnote, weight: .bold))
                     .lineLimit(1)
-                accessory()
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -505,42 +486,6 @@ private struct RootSurfaceSwitch: View {
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
         .transition(.scale(scale: 0.92).combined(with: .opacity))
-    }
-
-    private func rootRouteButton(
-        title: String,
-        systemImage: String,
-        morphID: String,
-        selected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        rootRouteButton(
-            title: title,
-            systemImage: systemImage,
-            morphID: morphID,
-            selected: selected,
-            action: action
-        ) {
-            EmptyView()
-        }
-    }
-
-    private func rootContextChip(_ title: String) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(.white.opacity(0.72))
-                .frame(width: 6, height: 6)
-            Text(title)
-                .font(.system(.caption, weight: .semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(.white.opacity(0.78))
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 150)
-        .glassSurface(in: Capsule(), tint: .white.opacity(0.06), interactive: false)
-        .navigationGlassMorphID("RootChrome.context", in: namespace)
-        .accessibilityLabel("Selected \(title)")
     }
 }
 
