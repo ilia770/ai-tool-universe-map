@@ -25,4 +25,12 @@ struct NeighborSnapTests {
         let result = NeighborSnap.snapTarget(currentFocus: .coding, yaw: codingBearing, suns: suns, thresholdRadians: 0.3)
         #expect(result == nil)
     }
+
+    @Test func noSnapWhenNoNeighborsAvailable() {
+        // Empty galaxy, or every sun filtered out as the current focus: the
+        // loop never runs, so there is nothing to snap to.
+        #expect(NeighborSnap.snapTarget(currentFocus: .coding, yaw: 0, suns: [], thresholdRadians: 0.3) == nil)
+        let onlyFocus: [NeighborSnap.Sun] = [.init(id: .coding, position: SIMD3<Float>(0, 0, 6))]
+        #expect(NeighborSnap.snapTarget(currentFocus: .coding, yaw: 0, suns: onlyFocus, thresholdRadians: 0.3) == nil)
+    }
 }
