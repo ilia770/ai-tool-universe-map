@@ -35,13 +35,13 @@ struct CopyToastTests {
             name: "Claude",
             category: "Coding",
             summary: "AI assistant for coding.",
-            pricingStatus: "Unknown",
+            pricingStatus: "Unknown - verify website",
             keyFeatures: ["Code help", "Review", "Planning", "Extra ignored"],
             url: nil
         )
 
         #expect(text.contains("Category: Coding"))
-        #expect(text.contains("Pricing: Unknown"))
+        #expect(text.contains("Pricing: Unknown - verify website"))
         #expect(text.contains("Key features: Code help; Review; Planning"))
         #expect(!text.contains("Extra ignored"))
     }

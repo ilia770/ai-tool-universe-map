@@ -96,12 +96,14 @@ struct ChromeSnapshotTests {
         }
     }
 
-    @Test func rootShellRendersChatFirst() throws {
+    @Test func rootSurfaceSwitchRendersMapFirstChrome() throws {
         for reduce in [false, true] {
-            let model = makeModel(sample: true)
-            try assertRenders("RootShell", reduceTransparency: reduce) {
-                RootShell()
-                    .environment(model)
+            try assertRenders(
+                "RootSurfaceSwitch",
+                reduceTransparency: reduce,
+                size: CGSize(width: 393, height: 120)
+            ) {
+                RootSurfaceSwitchSnapshotHarness(surface: .universe, toolCount: 12)
             }
         }
     }
@@ -206,5 +208,24 @@ struct ChromeSnapshotTests {
                     .environment(model)
             }
         }
+    }
+}
+
+private struct RootSurfaceSwitchSnapshotHarness: View {
+    let surface: RootSurface
+    let toolCount: Int
+    @Namespace private var namespace
+
+    var body: some View {
+        RootSurfaceSwitch(
+            surface: surface,
+            toolCount: toolCount,
+            namespace: namespace,
+            onShowChat: {},
+            onShowUniverse: {}
+        )
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.void)
     }
 }

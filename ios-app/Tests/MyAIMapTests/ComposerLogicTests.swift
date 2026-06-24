@@ -192,4 +192,20 @@ struct ComposerLogicTests {
         #expect(prose.contains("**Cost / time tradeoffs**"))
         #expect(prose.contains("**Notes**"))
     }
+
+    @Test func assistantClipboardUsesVisibleProseOnly() {
+        let text = AssistantClipboardFormatter.text(from: """
+        **Summary**
+        Use Figma first.
+
+        | Tool | Why |
+        | --- | --- |
+        | Figma | Design |
+
+        **Action chips**
+        Open existing tool chips for details.
+        """)
+
+        #expect(text == "Use Figma first.")
+    }
 }

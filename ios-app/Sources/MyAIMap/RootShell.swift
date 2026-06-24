@@ -396,7 +396,7 @@ private struct DiveTransitionModifier: ViewModifier {
     }
 }
 
-private struct RootSurfaceSwitch: View {
+struct RootSurfaceSwitch: View {
     let surface: RootSurface
     let toolCount: Int
     let namespace: Namespace.ID

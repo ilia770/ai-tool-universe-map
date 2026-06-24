@@ -910,7 +910,8 @@ private struct GraphNodeButton: View {
                     } else {
                         Image(systemName: node.kind == .core ? "sparkles" : "circle.hexagongrid.fill")
                             .font(.system(size: node.kind == .core ? 16 : 13, weight: .bold))
-                            .foregroundStyle(.black.opacity(0.72))
+                            .foregroundStyle(.white.opacity(node.isSelected ? 0.94 : 0.82))
+                            .shadow(color: color.opacity(node.isSelected ? 0.62 : 0.30), radius: node.isSelected ? 9 : 5)
                     }
                 }
                 .scaleEffect(node.isSelected && !reduceMotion ? 1.08 : 1)
@@ -941,7 +942,7 @@ private struct GraphNodeButton: View {
             .frame(minWidth: node.hitRadius * 2, minHeight: node.hitRadius * 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.94, haptic: .light, pressedOpacity: 0.92))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.94, haptic: nil, pressedOpacity: 0.92))
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
     }

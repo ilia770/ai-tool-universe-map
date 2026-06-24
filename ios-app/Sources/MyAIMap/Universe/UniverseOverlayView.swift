@@ -318,8 +318,9 @@ struct UniverseOverlayView: View {
     }
 
     private func toolLabelSafeInsets() -> LabelPacker.SafeInsets {
-        // Mirrors the prior clampedToolLabelPoint bounds.
-        LabelPacker.SafeInsets(top: 112, leading: 70, bottom: 244, trailing: 108)
+        // In 3D mode the experimental notice sits below top chrome; reserve
+        // that band so projected labels do not fight the escape hatch.
+        LabelPacker.SafeInsets(top: model.renderMode == .spatial3D ? 176 : 112, leading: 70, bottom: 244, trailing: 108)
     }
 
     private func toolLabelPosition(from point: CGPoint, around planetPosition: SIMD3<Float>, in size: CGSize) -> CGPoint {
@@ -427,7 +428,7 @@ struct UniverseOverlayView: View {
         )
         return CGPoint(
             x: min(max(raw.x, 68), size.width - 98),
-            y: min(max(raw.y, 98), size.height - 238)
+            y: min(max(raw.y, model.renderMode == .spatial3D ? 162 : 98), size.height - 238)
         )
     }
 

@@ -493,7 +493,7 @@ private struct ChatMessageTurn: View {
     private var assistantActionRow: some View {
         HStack(spacing: 18) {
             Button {
-                UIPasteboard.general.string = message.text
+                UIPasteboard.general.string = AssistantClipboardFormatter.text(from: message.text)
                 BrandHaptics.fire(.success)
                 onCopyAnswer()
             } label: {
@@ -503,18 +503,6 @@ private struct ChatMessageTurn: View {
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil))
             .accessibilityLabel("Copy message")
             .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
-
-            if !matches.isEmpty {
-                Button {
-                    if let first = matches.first { onOpenTool(first.id) }
-                } label: {
-                    Image(systemName: "map")
-                        .font(.system(size: 14, weight: .medium))
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: .light))
-                .accessibilityLabel("Open in Universe")
-                .accessibilityIdentifier("ChatScreen.Action.Open.\(message.id)")
-            }
         }
         .foregroundStyle(ChatTheme.secondaryText)
         .padding(.top, 2)

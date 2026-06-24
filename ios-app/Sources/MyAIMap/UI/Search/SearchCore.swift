@@ -207,3 +207,10 @@ enum AssistantResponsePresentation {
         return String(line.dropFirst(2).dropLast(2))
     }
 }
+
+enum AssistantClipboardFormatter {
+    static func text(from rawText: String) -> String {
+        let prose = AssistantResponsePresentation.prose(from: rawText)
+        return prose.isEmpty ? rawText.trimmingCharacters(in: .whitespacesAndNewlines) : prose
+    }
+}

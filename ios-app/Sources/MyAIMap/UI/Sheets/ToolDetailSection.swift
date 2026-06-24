@@ -86,6 +86,36 @@ enum ToolPricingPresenter {
     }
 }
 
+enum ToolWebsiteSearchURL {
+    static func url(for toolName: String) -> URL? {
+        let trimmed = toolName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "duckduckgo.com"
+        components.path = "/"
+
+        let queryValueAllowed = CharacterSet.urlQueryAllowed
+            .subtracting(CharacterSet(charactersIn: "&=+?"))
+        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) else {
+            return nil
+        }
+        components.percentEncodedQuery = "q=\(encoded)"
+        return components.url
+    }
+}
+
+enum ToolDetailClipboardFormatting {
+    static func pricingStatus(for pricing: String) -> String {
+        let rows = ToolPricingPresenter.rows(for: pricing)
+        if rows.count == 1, rows.first?.plan == "Unknown" {
+            return "Unknown - verify website"
+        }
+        return pricing
+    }
+}
+
 /// Selected-tool detail card. Reads the selected tool from the single
 /// navigation machine and presents it as a premium product profile, not an
 /// admin dashboard.
@@ -265,8 +295,7 @@ struct ToolDetailSection: View {
             // for the tool) instead of a dead label. A permanent URL is set via the
             // Add Tool flow.
             Button {
-                if let query = selectedTool.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                   let url = URL(string: "https://duckduckgo.com/?q=\(query)"),
+                if let url = ToolWebsiteSearchURL.url(for: selectedTool.name),
                    let item = BrowserSheetItem(url: url) {
                     browserSheet = item
                 }
@@ -493,11 +522,7 @@ struct ToolDetailSection: View {
     }
 
     private var clipboardPricingStatus: String {
-        let rows = ToolPricingPresenter.rows(for: knowledge.pricing)
-        if rows.count == 1, rows.first?.plan == "Unknown" {
-            return "Unknown"
-        }
-        return knowledge.pricing
+        ToolDetailClipboardFormatting.pricingStatus(for: knowledge.pricing)
     }
 
     private var metadataDivider: some View {
