@@ -114,7 +114,7 @@ struct UniverseOverlayView: View {
                     .padding(.bottom, 10)
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen && !cameraRig.isTransitioning && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) && !cameraRig.isTransitioning {
                 rightUniverseRail
             }
         }
@@ -374,10 +374,19 @@ struct UniverseOverlayView: View {
             maxCount: 5
         )
 
+        let center = CGPoint(x: size.width * 0.5, y: size.height * 0.40)
+        let centeredID = OverviewLabelFocus.centeredSunID(
+            packed.map { p in
+                (id: ToolCategoryId(rawValue: p.id), point: p.position)
+            },
+            screenCenter: center
+        )
         return packed.compactMap { placement -> PlanetLabelPlacement? in
             // `ToolCategoryId` is now a non-failable string wrapper; the
-            // `byID` lookup is what filters ids that have no planet.
-            guard var resolved = byID[ToolCategoryId(rawValue: placement.id)] else { return nil }
+            // `byID` lookup filters ids that have no planet. In overview only
+            // the centred sun speaks (OverviewLabelFocus).
+            let id = ToolCategoryId(rawValue: placement.id)
+            guard id == centeredID, var resolved = byID[id] else { return nil }
             resolved.position = placement.position
             return resolved
         }
@@ -630,7 +639,7 @@ struct UniverseOverlayView: View {
         VStack(spacing: 10) {
             // Tool card + category rail only make sense once the universe has
             // planets/tools. An empty universe shows the onboarding card instead.
-            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
                 PlanetInfoCard(
                     planet: selectedPlanet,
                     selectedTool: selectedTool,
@@ -638,6 +647,18 @@ struct UniverseOverlayView: View {
                     mode: mode,
                     onOpenDetails: onDetails
                 )
+            }
+
+            if SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) {
+                SpatialRevealCard(
+                    toolName: selectedTool.name,
+                    categoryName: UniverseSeed.category(selectedTool.category).shortName,
+                    summary: selectedTool.summary,
+                    tint: selectedPlanet.swiftUIColor,
+                    onOpen: onDetails
+                )
+                .parallaxTilt(maxOffset: 6)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
             if !mode.isDetailOpen {
@@ -654,7 +675,7 @@ struct UniverseOverlayView: View {
                 )
             }
 
-            if !mode.isDetailOpen && !mode.isChatOpen && !model.isUniverseEmpty {
+            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
                 HStack(alignment: .center, spacing: 6) {
                     CategoryRail { id in
                         onCategorySelect(id)
@@ -662,6 +683,14 @@ struct UniverseOverlayView: View {
                 }
             }
         }
+        // Gate the reveal spring to 3D: `bottomControls` is shared with the 2D
+        // graph (PlanetInfoCard/SearchDock), so an unconditional value would
+        // animate 2D content on tool-selection too. In 2D the value is pinned to
+        // nil → constant → no implicit animation (keeps the 2D path untouched).
+        .brandAnimation(
+            BrandMotion.reveal,
+            value: SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) ? mode.selectedToolID : nil
+        )
     }
 
     /// Onboarding shown when the universe has no tools yet: the user either adds

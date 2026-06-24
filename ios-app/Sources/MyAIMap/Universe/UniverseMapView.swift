@@ -75,7 +75,8 @@ struct UniverseMapView: View {
                         gestureController: gestureController,
                         onPlanetTap: selectCategory,
                         onToolTap: focusToolFromMap,
-                        onEmptyTap: handleEmptySpaceTap
+                        onEmptyTap: handleEmptySpaceTap,
+                        onOrbitSettled: maybeSnapToNeighborSun
                     )
                 }
             }
@@ -288,6 +289,9 @@ struct UniverseMapView: View {
             restoreNavigationMode(animated: true)
         } else if mode.isDetailOpen {
             return
+        } else if model.renderMode == .spatial3D, mode != .overview {
+            BrandHaptics.fire(.light)
+            withAnimation(BrandMotion.flow) { model.universeMode = mode.steppedBack }
         } else {
             resetToOverview()
         }
@@ -402,6 +406,17 @@ struct UniverseMapView: View {
         let category = model.selection.activeCategory
         guard category != .core else { return .overview }
         return .branchFocus(category)
+    }
+
+    private func maybeSnapToNeighborSun() {
+        guard model.renderMode == .spatial3D, case .branchFocus(let current) = mode else { return }
+        let suns = planets.filter { $0.id != .core }.map {
+            NeighborSnap.Sun(id: $0.id, position: $0.position3D)
+        }
+        if let snapped = NeighborSnap.snapTarget(currentFocus: current, yaw: cameraRig.yaw, suns: suns, thresholdRadians: 0.28) {
+            BrandHaptics.fire(.light)
+            selectCategory(snapped)
+        }
     }
 
     private func dismissKeyboard() {

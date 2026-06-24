@@ -12,6 +12,7 @@ struct UniverseRealityView: View {
     let onPlanetTap: @MainActor @Sendable (ToolCategoryId) -> Void
     let onToolTap: @MainActor @Sendable (String) -> Void
     let onEmptyTap: @MainActor @Sendable () -> Void
+    let onOrbitSettled: @MainActor @Sendable () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -75,6 +76,7 @@ struct UniverseRealityView: View {
                         return
                     }
                     gestureController.dragEnded(value, camera: cameraRig)
+                    onOrbitSettled()
                 }
         )
         .simultaneousGesture(

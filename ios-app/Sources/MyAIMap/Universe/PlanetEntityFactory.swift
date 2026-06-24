@@ -23,7 +23,7 @@ enum PlanetEntityFactory {
         if data.id == .core {
             radius = data.radius * 0.54
         } else {
-            radius = data.radius * visualizationStyle.categoryScale * (isSelected ? 1.20 : 0.84)
+            radius = data.radius * visualizationStyle.categoryScale * (isSelected ? 1.28 : 0.80)
         }
 
         let planet = ModelEntity(
@@ -80,7 +80,7 @@ enum PlanetEntityFactory {
         material.roughness = .init(floatLiteral: 0.42)
         material.metallic = .init(floatLiteral: 0.08)
         material.emissiveColor = .init(color: category.glow.uiColor)
-        material.emissiveIntensity = (isSelected ? 1.2 : 0.38) * visualizationStyle.glowBoost
+        material.emissiveIntensity = (isSelected ? 1.6 : 0.30) * visualizationStyle.glowBoost
 
         let body = ModelEntity(mesh: .generateSphere(radius: radius), materials: [material])
         body.name = "tool:\(tool.id)"
@@ -89,7 +89,7 @@ enum PlanetEntityFactory {
 
         let halo = ModelEntity(
             mesh: .generateSphere(radius: radius * (isSelected ? 1.34 : 1.22)),
-            materials: [unlitGlow(color: category.glow.uiColor, opacity: isSelected ? 0.16 : 0.055)]
+            materials: [unlitGlow(color: category.glow.uiColor, opacity: isSelected ? 0.22 : 0.04)]
         )
         root.addChild(halo)
 
@@ -213,6 +213,17 @@ enum PlanetEntityFactory {
         return halo
     }
 
+    // A soft point light tinted to the category, parented at the sun so its
+    // tool-planets are lit from their star.
+    static func makeSunLight(data: PlanetData, intensity: Float) -> Entity {
+        let light = PointLight()
+        light.light.color = data.accentUIColor
+        light.light.intensity = intensity
+        light.light.attenuationRadius = 9.5
+        light.name = "sun-light:\(data.id.rawValue)"
+        return light
+    }
+
     static func makeStar(index: Int) -> ModelEntity {
         let radius = Float(0.004 + Double(index % 3) * 0.002)
         let color = UIColor(white: 1, alpha: 1)
@@ -234,9 +245,9 @@ enum PlanetEntityFactory {
         material.roughness = .init(floatLiteral: data.id == .core ? 0.26 : isSelected ? 0.36 : 0.52)
         material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : 0.06)
         material.emissiveColor = .init(color: data.accentUIColor)
-        material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 0.86 : 0.26) * visualizationStyle.glowBoost
-        material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.28)
-        material.clearcoatRoughness = .init(floatLiteral: 0.24)
+        material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 1.05 : 0.58) * visualizationStyle.glowBoost
+        material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.45)
+        material.clearcoatRoughness = .init(floatLiteral: 0.14)
         return material
     }
 

@@ -40,7 +40,7 @@ enum GalaxyDustGeometry {
 
     /// VERY low opacity so overlapping blobs accumulate into a faint depth
     /// wash rather than reading as solid balls.
-    static let opacity: Float = 0.07
+    static let opacity: Float = 0.05
 
     /// Default seed for the production dust layer.
     static let defaultSeed: UInt64 = 0xD057_C105

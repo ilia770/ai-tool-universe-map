@@ -210,6 +210,24 @@ enum UniverseMode: Equatable, Sendable {
 }
 
 extension UniverseMode {
+    /// Parent navigation state for tap-on-empty in 3D: tool → its sun →
+    /// overview. Detail/chat dismissal is handled by their own paths; this
+    /// covers the spatial step-up walk.
+    var steppedBack: UniverseMode {
+        switch self {
+        case .overview, .branchFocus:
+            return .overview
+        case .toolSelected(let category, _):
+            return .branchFocus(category)
+        case .detail(let category, let toolID):
+            return .toolSelected(category, toolID)
+        case .chatOpen:
+            return .overview
+        }
+    }
+}
+
+extension UniverseMode {
     static func chatContext(
         activeCategory: ToolCategoryId,
         projectedSelectedToolID: String,
