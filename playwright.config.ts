@@ -5,6 +5,12 @@ export default defineConfig({
   timeout: 60_000,
   workers: 1,
   retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI
+    ? [
+        ['list'],
+        ['html', { outputFolder: 'playwright-report', open: 'never' }],
+      ]
+    : [['list']],
   webServer: {
     command: 'npm run dev',
     url: 'http://127.0.0.1:5177',
@@ -13,6 +19,7 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://127.0.0.1:5177',
+    screenshot: process.env.CI ? 'on' : 'only-on-failure',
     trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
     // Suppress motion to reduce per-frame WebGL noise during assertions.
     reducedMotion: 'reduce',
