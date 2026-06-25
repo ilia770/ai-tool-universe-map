@@ -171,7 +171,7 @@ struct UniverseOverlayView: View {
 
             PlanetFloatingLabel(
                 title: planet.title,
-                subtitle: planet.id == .core ? "Core" : "\(planet.toolCount) tools",
+                subtitle: planet.id == .core ? "Core" : Pluralize.count(planet.toolCount, "tool"),
                 color: planet.swiftUIColor,
                 isSelected: planet.id == selectedPlanet.id
             )
