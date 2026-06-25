@@ -76,7 +76,6 @@ struct OnboardingOverlay: View {
                 appeared = true
             }
         }
-        .accessibilityIdentifier("Onboarding.Overlay")
     }
 
     private var card: some View {
@@ -144,6 +143,7 @@ struct OnboardingOverlay: View {
             .modifier(OnboardingButtonSurface(isPrimary: action.isPrimary))
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light))
+        .hitArea()
         .accessibilityIdentifier(action.accessibilityIdentifier)
     }
 }
