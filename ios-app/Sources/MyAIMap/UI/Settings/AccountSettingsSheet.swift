@@ -39,12 +39,21 @@ struct AccountSettingsSheet: View {
                         Text(section.title)
                     }
 
-                    switch section {
-                    case .settings:
-                        settingsContent
-                    case .history:
-                        historyContent
+                    // Keyed container + asymmetric transition so the Settings↔History
+                    // swap removes the outgoing panel cleanly instead of an additive
+                    // crossfade (both panels at 50% overlapped = unreadable text-on-text).
+                    // Removal is `.identity` (old gone immediately) → the panels are never
+                    // simultaneously visible; the new panel fades in over empty space.
+                    Group {
+                        switch section {
+                        case .settings:
+                            settingsContent
+                        case .history:
+                            historyContent
+                        }
                     }
+                    .id(section)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
                 }
                 .padding(BrandSpacing.l.value)
             }

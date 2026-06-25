@@ -68,6 +68,11 @@ struct PlanetInfoCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        // Swap the card's labels (mode tag / title / subtitle) instantly when the
+        // branch or tool changes. The default content transition crossfades old↔new
+        // text, leaving both strings overlapped mid-animation ("Founder OS" ghosting
+        // over the previous title). `.identity` replaces the text in one frame.
+        .contentTransition(.identity)
         // Translucent card: ultraThinMaterial frosts the universe behind it
         // (light back-blur) instead of a flat opaque fill.
         .background(
