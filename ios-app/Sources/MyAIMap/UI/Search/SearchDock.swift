@@ -955,6 +955,15 @@ struct SearchDock: View {
         BrandHaptics.fire(.light)
         conversationCollapsed = false
         attachmentMenuOpen = false
+        // F4 (send broken in 3D): the conversation panel only reveals while
+        // `isChatOpen` is true, which is driven up by the focus→activity chain.
+        // `submit()` blurs the field at the end, so if the field-focus that
+        // opened chat hadn't yet round-tripped back as `isChatOpen` (notably in
+        // the 3D map where the RealityKit surface can swallow the focus event),
+        // the reply appended below stayed hidden — the user "sends" and sees
+        // nothing. Notify the parent to open chat *now*, synchronously with the
+        // send, so the reply is always visible regardless of the focus timing.
+        onChatActivityChange?(true)
         model.assistantQuery = outgoingText
         withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { model.askAssistant(attachmentOnly: attachmentOnly) }
         selectedAttachment = nil

@@ -143,6 +143,19 @@ struct ComposerLogicTests {
         ))
     }
 
+    /// F4 (send broken in 3D): `submit()` blurs the field, but the visible
+    /// transcript (`showsConversation`) must keep chat active so the just-sent
+    /// reply stays on screen instead of the surface snapping back to the map.
+    @Test func sentReplyKeepsChatActiveAfterFieldBlur() {
+        #expect(ComposerLogic.keepsChatActive(
+            isFocused: false,
+            showsConversation: true,
+            isCollapsedWithContent: false,
+            attachmentMenuOpen: false,
+            hasAttachment: false
+        ))
+    }
+
     // MARK: - Message layout contracts
 
     @Test func userBubbleRatioStaysInRequestedRange() {
