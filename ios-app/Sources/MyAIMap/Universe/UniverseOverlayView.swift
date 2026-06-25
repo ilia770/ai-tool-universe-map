@@ -41,6 +41,18 @@ struct UniverseOverlayView: View {
 
     var body: some View {
         ZStack {
+            // D1: the top chrome floats over the map with no safe-area inset, so
+            // map node labels near the top (e.g. a node's "Research" label) read
+            // as clipped UNDER the pills. We can't push the free-form 2D graph
+            // layout down without touching 2D graph logic (Track A), so back the
+            // chrome band with a subtle top scrim that fades to clear: any label
+            // beneath stays legible and the overlap reads as intentional. Sits at
+            // the back of the stack — over the 2D map, behind the 3D label layers
+            // (which manage their own placement) and behind the chrome itself.
+            if !mode.isDetailOpen && !mode.isChatOpen {
+                topChromeScrim
+            }
+
             if model.renderMode == .spatial3D && mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
@@ -523,6 +535,24 @@ struct UniverseOverlayView: View {
         let core = all.filter { $0.id == .core && present.contains(.core) }
         let branches = all.filter { $0.id != .core && present.contains($0.id) }
         return core + branches
+    }
+
+    /// D1: dark-to-clear gradient behind the floating top chrome so map node
+    /// labels that fall under the pills stay readable instead of looking clipped.
+    /// Pinned to the top and extended through the top safe area; never blocks map
+    /// hit-testing. Tuned to cover the status bar + chrome band (≈ safe-area top +
+    /// 14pt top padding + cluster height) then fade out.
+    private var topChromeScrim: some View {
+        LinearGradient(
+            colors: [BrandColor.void.opacity(0.72), BrandColor.void.opacity(0)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 140)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+        .transition(.opacity)
     }
 
     private var topChrome: some View {
