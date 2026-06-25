@@ -17,7 +17,10 @@ struct AccountSettingsSheet: View {
     private var sectionBinding: Binding<Int> {
         Binding(
             get: { AccountSection.allCases.firstIndex(of: section) ?? 0 },
-            set: { section = AccountSection.allCases[$0] }
+            set: {
+                guard $0 < AccountSection.allCases.count else { return }
+                section = AccountSection.allCases[$0]
+            }
         )
     }
 
