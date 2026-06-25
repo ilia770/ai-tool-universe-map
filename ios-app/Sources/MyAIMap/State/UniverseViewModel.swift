@@ -102,6 +102,15 @@ final class UniverseViewModel {
         persist()
     }
 
+    /// UI-test harness reset for the first-run overlay. Kept explicit so the
+    /// default UI-test flags can still suppress onboarding, while
+    /// `-uitestOnboarding` can exercise the real first-run surface.
+    func resetOnboardingForUITests() {
+        guard hasSeenOnboarding else { return }
+        hasSeenOnboarding = false
+        persist()
+    }
+
     // MARK: - Derived state
 
     /// Read-only projection of `universeMode` for surfaces that think in terms
