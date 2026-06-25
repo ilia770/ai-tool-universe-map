@@ -14,6 +14,10 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
     let base: String
     var spacing: CGFloat = BrandSpacing.xs.value
     var tint: Color? = nil
+    /// Per-option accessibility identifier. Defaults to `"<base>.<index>"`;
+    /// override to preserve pre-existing identifiers (e.g. a migrated control
+    /// whose ids are already asserted by UI tests).
+    var identifier: (Int) -> String = { _ in "" }
     @ViewBuilder let label: (Option, Bool) -> Label
 
     @Namespace private var ns
@@ -45,7 +49,7 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
                         in: ns
                     )
                     .hitArea()
-                    .accessibilityIdentifier("\(base).\(index)")
+                    .accessibilityIdentifier({ let id = identifier(index); return id.isEmpty ? "\(base).\(index)" : id }())
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
