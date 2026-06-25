@@ -143,7 +143,7 @@ enum AppLanguage: String, CaseIterable, Identifiable, Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .system: return "Follow device language"
+        case .system: return "System"
         case .english: return "English"
         case .russian: return "Russian"
         }
