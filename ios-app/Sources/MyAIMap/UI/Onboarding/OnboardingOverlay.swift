@@ -76,7 +76,6 @@ struct OnboardingOverlay: View {
                 appeared = true
             }
         }
-        .accessibilityIdentifier("Onboarding.Overlay")
     }
 
     private var card: some View {
@@ -118,6 +117,7 @@ struct OnboardingOverlay: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
             .buttonStyle(.plain)
+            .hitArea()
             .accessibilityIdentifier("Onboarding.Skip")
         }
         .padding(.vertical, 30)
@@ -134,7 +134,7 @@ struct OnboardingOverlay: View {
                 Image(systemName: action.systemImage)
                     .font(.system(size: 14, weight: .bold))
                 Text(action.title)
-                    .font(.callout.weight(.semibold))
+                    .font(BrandTypography.controlLabel)
             }
             .frame(maxWidth: .infinity, minHeight: 30)
             .padding(.vertical, 11)
@@ -143,6 +143,7 @@ struct OnboardingOverlay: View {
             .modifier(OnboardingButtonSurface(isPrimary: action.isPrimary))
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: .light))
+        .hitArea()
         .accessibilityIdentifier(action.accessibilityIdentifier)
     }
 }

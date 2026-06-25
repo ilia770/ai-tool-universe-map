@@ -302,6 +302,7 @@ struct AddToolSheet: View {
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .hitArea()
     }
 
     private var fields: some View {
@@ -349,13 +350,14 @@ struct AddToolSheet: View {
 
                     Spacer()
 
-                    HStack(spacing: 4) {
-                        ForEach(AddToolBranchMode.allCases) { mode in
-                            branchModeButton(mode)
-                        }
+                    GlassMorphCluster(
+                        options: AddToolBranchMode.allCases,
+                        selection: branchModeBinding,
+                        base: "addTool.branchMode",
+                        tint: resolvedCategoryModel.color.swiftUIColor
+                    ) { mode, _ in
+                        Label(mode.title, systemImage: mode.icon)
                     }
-                    .padding(3)
-                    .background(.white.opacity(0.055), in: Capsule())
                 }
 
                 HStack(spacing: BrandSpacing.m.value) {
@@ -443,27 +445,21 @@ struct AddToolSheet: View {
         }
     }
 
-    private func branchModeButton(_ mode: AddToolBranchMode) -> some View {
-        let isSelected = branchMode == mode
-        return Button {
-            guard branchMode != mode else { return }
-            BrandHaptics.fire(.light)
-            withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
-                branchMode = mode
+    /// Bridges the enum branch mode to the cluster's `Binding<Int>`, preserving
+    /// the prior tap behaviour (guard, light haptic, nudge animation).
+    private var branchModeBinding: Binding<Int> {
+        Binding(
+            get: { AddToolBranchMode.allCases.firstIndex(of: branchMode) ?? 0 },
+            set: { index in
+                guard index < AddToolBranchMode.allCases.count else { return }
+                let target = AddToolBranchMode.allCases[index]
+                guard branchMode != target else { return }
+                BrandHaptics.fire(.light)
+                withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
+                    branchMode = target
+                }
             }
-        } label: {
-            Label(mode.title, systemImage: mode.icon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(isSelected ? .black.opacity(0.84) : .white.opacity(0.72))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(
-                    isSelected ? resolvedCategoryModel.color.swiftUIColor : .clear,
-                    in: Capsule()
-                )
-        }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.94, haptic: nil))
-        .accessibilityLabel("Select \(mode.title) branch mode")
+        )
     }
 
     private var guardrails: some View {

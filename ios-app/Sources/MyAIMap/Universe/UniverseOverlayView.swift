@@ -535,7 +535,12 @@ struct UniverseOverlayView: View {
                 topChromeContent
             }
         }
-        .brandAnimation(BrandMotion.morph, value: mode)
+        // Gate the chrome morph to 3D: `mode` also changes on the 2D graph
+        // (planet/tool taps), so an unconditional value animates the shared
+        // top chrome on 2D nav too. In 2D pin the value to a constant → no
+        // implicit animation (keeps the 2D path untouched, Track A). Mirrors
+        // the `bottomControls` reveal gate below.
+        .brandAnimation(BrandMotion.morph, value: model.renderMode == .spatial3D ? mode : .overview)
     }
 
     private var topChromeContent: some View {
@@ -556,22 +561,43 @@ struct UniverseOverlayView: View {
         .transition(.scale(scale: 0.94).combined(with: .opacity))
     }
 
+    private struct RenderModeOption: Identifiable {
+        let id: Int
+        let title: String
+        let icon: String
+    }
+
+    /// Selection derives from `model.renderMode`; tapping a slot switches the
+    /// mode directly (previously this control mislabelled itself as a viz toggle
+    /// but actually opened the Account sheet). 2D stays the cold-start default
+    /// (Track A) — this only lets the user opt into 3D and back.
+    private var renderModeBinding: Binding<Int> {
+        Binding(
+            get: { model.renderMode == .graph2D ? 0 : 1 },
+            set: { index in
+                let target: UniverseRenderMode = index == 0 ? .graph2D : .spatial3D
+                guard model.renderMode != target else { return }
+                BrandHaptics.fire(.light)
+                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                    model.renderMode = target
+                }
+            }
+        )
+    }
+
     private var visualizationControl: some View {
-        Button {
-            onAccount()
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: model.renderMode == .graph2D ? "point.3.connected.trianglepath.dotted" : "cube.transparent")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.76))
-                    .frame(width: 18, height: 18)
-
-                Text(model.renderMode == .graph2D ? "2D Graph" : "3D Spatial")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .lineLimit(1)
-
-                if model.renderMode.isExperimental {
+        GlassMorphCluster(
+            options: [
+                RenderModeOption(id: 0, title: "2D Graph", icon: "point.3.connected.trianglepath.dotted"),
+                RenderModeOption(id: 1, title: "3D Spatial", icon: "cube.transparent"),
+            ],
+            selection: renderModeBinding,
+            base: "universe.renderMode"
+        ) { option, isSelected in
+            HStack(spacing: BrandSpacing.xs.value) {
+                Image(systemName: option.icon).font(.system(size: 11, weight: .bold))
+                Text(option.title)
+                if option.id == 1, isSelected {
                     Text("Experimental")
                         .font(.system(size: 8, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.70))
@@ -581,12 +607,7 @@ struct UniverseOverlayView: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .glassSurface(in: Capsule(), tint: .white.opacity(0.045), interactive: true)
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-        .accessibilityLabel("Visualization mode \(model.renderMode.title)")
-        .accessibilityHint("Opens visualization settings")
+        .accessibilityLabel("Visualization mode")
     }
 
     private var spatialExperimentalNotice: some View {

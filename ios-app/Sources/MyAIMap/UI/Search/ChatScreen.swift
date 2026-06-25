@@ -511,6 +511,7 @@ private struct ChatMessageTurn: View {
                     .font(.system(size: 14, weight: .medium))
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.9, haptic: nil))
+            .hitArea()
             .accessibilityLabel("Copy message")
             .accessibilityIdentifier("ChatScreen.Action.Copy.\(message.id)")
         }

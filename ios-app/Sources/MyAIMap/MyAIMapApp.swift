@@ -24,12 +24,14 @@ struct MyAIMapApp: App {
                     if arguments.contains("-uitestSeedChat") {
                         seedChatForVisualQA()
                     }
-                    // UI/visual-QA harnesses seed a populated state and assert on
-                    // the map/chat directly; the first-run overlay would cover it.
-                    // Force-quitting and relaunching is the real first-run path.
-                    if arguments.contains("-uitestSampleUniverse")
+                    if arguments.contains("-uitestOnboarding") {
+                        model.resetOnboardingForUITests()
+                    } else if arguments.contains("-uitestSampleUniverse")
                         || arguments.contains("-uitestSeedChat")
                         || arguments.contains("-uitestStatic") {
+                        // UI/visual-QA harnesses seed a populated state and assert on
+                        // the map/chat directly; the first-run overlay would cover it.
+                        // Force-quitting and relaunching is the real first-run path.
                         model.markOnboardingSeen()
                     }
                 }
