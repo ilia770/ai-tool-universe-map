@@ -267,7 +267,7 @@ struct SearchDock: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .lineLimit(1...ComposerLogic.composerMaxLines)
-                .frame(maxHeight: ComposerLogic.composerMaxHeight, alignment: .bottom)
+                .fixedSize(horizontal: false, vertical: true)
                 .onSubmit(submit)
                 .onChange(of: fieldFocused) { _, focused in
                     if focused {

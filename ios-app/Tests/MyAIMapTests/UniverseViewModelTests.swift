@@ -86,6 +86,16 @@ struct UniverseViewModelTests {
         #expect(reloaded.subscription.aiRequestsUsed == 1)
     }
 
+    @Test func askAssistantClearsDraftAfterLocalReply() {
+        let model = makeModel(sample: true)
+        model.assistantQuery = "what analytics tool should I use"
+
+        model.askAssistant()
+
+        #expect(model.assistantQuery == "")
+        #expect(model.assistantMessages.contains { $0.role == .user && $0.text == "what analytics tool should I use" })
+    }
+
     @Test func attachmentOnlyAskDoesNotConsumeRequest() {
         let model = makeModel()
         let startUsed = model.subscription.aiRequestsUsed

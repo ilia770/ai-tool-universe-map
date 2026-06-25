@@ -411,6 +411,7 @@ final class UniverseViewModel {
             )
         )
         recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: reply.matchIDs.first)
+        assistantQuery = ""
     }
 
     /// Grounds the DeepSeek prompt in the user's current catalog so it answers
