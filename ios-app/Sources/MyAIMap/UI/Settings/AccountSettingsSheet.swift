@@ -39,11 +39,13 @@ struct AccountSettingsSheet: View {
                         Text(section.title)
                     }
 
-                    // Keyed container + asymmetric transition so the Settings↔History
-                    // swap removes the outgoing panel cleanly instead of an additive
-                    // crossfade (both panels at 50% overlapped = unreadable text-on-text).
-                    // Removal is `.identity` (old gone immediately) → the panels are never
-                    // simultaneously visible; the new panel fades in over empty space.
+                    // Keyed container with the section swap animation suppressed, so
+                    // Settings↔History replaces in ONE frame with no crossfade. A
+                    // `.transition(removal: .identity)` does NOT remove instantly — it
+                    // holds the outgoing panel at full opacity for the whole animation
+                    // duration while the new one fades in, which reproduces the
+                    // text-on-text overlap (B1). `.animation(.none, value: section)`
+                    // guarantees no overlap.
                     Group {
                         switch section {
                         case .settings:
@@ -53,7 +55,7 @@ struct AccountSettingsSheet: View {
                         }
                     }
                     .id(section)
-                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                    .animation(.none, value: section)
                 }
                 .padding(BrandSpacing.l.value)
             }
@@ -92,7 +94,7 @@ struct AccountSettingsSheet: View {
                 Text("AI Universe")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("\(model.visibleAllTools.count) active tools")
+                Text(Pluralize.count(model.visibleAllTools.count, "active tool"))
                     .font(.subheadline)
                     .foregroundStyle(BrandColor.textSecondary)
             }
