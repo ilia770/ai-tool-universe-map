@@ -111,7 +111,11 @@ struct UniverseOverlayView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
 
-                    if model.renderMode == .spatial3D && !model.isUniverseEmpty {
+                    // F2 (can't get back from 3D to 2D): always surface the exit
+                    // affordance in 3D — including the empty universe, where the
+                    // map chrome (which hosts the other 2D/3D switch) is hidden, so
+                    // without this the user is trapped in 3D with no way back.
+                    if model.renderMode == .spatial3D {
                         spatialExperimentalNotice
                             .padding(.horizontal, 16)
                             .padding(.top, 10)
@@ -671,18 +675,27 @@ struct UniverseOverlayView: View {
                     model.renderMode = .graph2D
                 }
             } label: {
-                Text("Use 2D")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(.white.opacity(0.10), in: Capsule())
-                    .overlay {
-                        Capsule().stroke(.white.opacity(0.14), lineWidth: 0.5)
-                    }
+                // F2: a clear, sized exit control so the user is never unsure how
+                // to leave 3D. Label + icon, ~44pt tap height, accent fill.
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Back to 2D")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(.white.opacity(0.16), in: Capsule())
+                .overlay {
+                    Capsule().stroke(.white.opacity(0.24), lineWidth: 1)
+                }
             }
             .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-            .accessibilityLabel("Switch to 2D Graph")
+            .accessibilityLabel("Back to 2D Graph")
+            .accessibilityIdentifier("spatial-exit-to-2d")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

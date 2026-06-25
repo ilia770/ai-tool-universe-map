@@ -81,18 +81,45 @@ final class UniverseSceneController {
         return nil
     }
 
+    /// Cache key deciding whether the RealityKit scene must be rebuilt. Must
+    /// encode every input that changes what is drawn.
+    ///
+    /// F3 (deleted tool reappears in 3D): the satellites (tool nodes) are built
+    /// from each planet's actual tools, but the key previously used only the
+    /// per-planet `toolCount`. Deleting a tool while adding another in the same
+    /// category (or any edit that preserves per-category counts) left the key
+    /// unchanged, so the scene never rebuilt and the removed tool's satellite
+    /// persisted. Encode the actual tool ids so any change to the visible tool
+    /// set forces a rebuild. `visibleAllTools` already filters hidden/removed
+    /// tools upstream, so a removed tool drops out of this key immediately.
+    static func sceneSignature(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        reduceMotion: Bool
+    ) -> String {
+        [
+            mode.signature,
+            visualizationStyle.rawValue,
+            planets.map { planet in
+                "\(planet.id.rawValue):\(planet.tools.map(\.id).joined(separator: ","))"
+            }.joined(separator: "|"),
+            reduceMotion ? "reduce" : "motion",
+        ].joined(separator: "#")
+    }
+
     private func rebuildIfNeeded(
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
         reduceMotion: Bool
     ) {
-        let signature = [
-            mode.signature,
-            visualizationStyle.rawValue,
-            planets.map { "\($0.id.rawValue):\($0.toolCount)" }.joined(separator: "|"),
-            reduceMotion ? "reduce" : "motion",
-        ].joined(separator: "#")
+        let signature = Self.sceneSignature(
+            planets: planets,
+            mode: mode,
+            visualizationStyle: visualizationStyle,
+            reduceMotion: reduceMotion
+        )
         guard signature != sceneSignature else { return }
         sceneSignature = signature
         clearDynamicChildren()
