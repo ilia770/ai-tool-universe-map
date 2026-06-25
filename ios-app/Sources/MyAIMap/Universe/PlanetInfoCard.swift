@@ -68,9 +68,10 @@ struct PlanetInfoCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        // Info card = content → solid surface, not glass (glass MAP).
+        // Translucent card: ultraThinMaterial frosts the universe behind it
+        // (light back-blur) instead of a flat opaque fill.
         .background(
-            BrandColor.glassSolid,
+            .ultraThinMaterial,
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
         .overlay {

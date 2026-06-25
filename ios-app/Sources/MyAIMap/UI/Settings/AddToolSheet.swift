@@ -197,7 +197,10 @@ struct AddToolSheet: View {
                     }
                 }
             }
-            .background(BrandColor.void.ignoresSafeArea())
+            // Translucent dark glass tint over the frosted presentation backdrop
+            // (set below) so the universe shows through with a light back-blur
+            // instead of a flat opaque void fill.
+            .background(BrandColor.glass.ignoresSafeArea())
             .navigationTitle("Add Tool")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -224,6 +227,7 @@ struct AddToolSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .presentationBackground(.ultraThinMaterial)
         .background {
             InteractiveDismissAttemptHandler(isDisabled: hasUnsavedChanges) {
                 handleInteractiveDismissAttempt()

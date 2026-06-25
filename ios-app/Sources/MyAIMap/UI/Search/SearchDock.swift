@@ -490,9 +490,10 @@ struct SearchDock: View {
                 }
             }
         }
-        // Transcript is content, not chrome — solid reading surface (glass MAP).
+        // Translucent reading surface: ultraThinMaterial frosts the universe
+        // behind the transcript (light back-blur) instead of a flat opaque fill.
         .background(
-            BrandColor.glassSolid,
+            .ultraThinMaterial,
             in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
         )
         .overlay {

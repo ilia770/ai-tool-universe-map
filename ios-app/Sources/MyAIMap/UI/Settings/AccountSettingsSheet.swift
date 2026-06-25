@@ -49,7 +49,10 @@ struct AccountSettingsSheet: View {
                 .padding(BrandSpacing.l.value)
             }
             .scrollIndicators(.hidden)
-            .background(BrandColor.void.ignoresSafeArea())
+            // Translucent dark glass tint over the frosted presentation backdrop
+            // (set below) so the universe shows through with a light back-blur
+            // instead of a flat opaque void fill.
+            .background(BrandColor.glass.ignoresSafeArea())
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -69,6 +72,7 @@ struct AccountSettingsSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .presentationBackground(.ultraThinMaterial)
     }
 
     private var accountHeader: some View {
