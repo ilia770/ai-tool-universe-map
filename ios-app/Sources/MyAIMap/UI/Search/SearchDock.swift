@@ -182,7 +182,13 @@ struct SearchDock: View {
             // initial already-open state.
             if isChatOpen {
                 conversationCollapsed = false
-                fieldFocused = true
+                // Focus (raise keyboard) ONLY for a fresh, empty chat — the user
+                // needs to type. With prior messages this is a remount (e.g.
+                // returning from a tool-detail sheet) or a post-send reveal, where
+                // forcing the keyboard back up is unwanted.
+                if model.assistantMessages.isEmpty {
+                    fieldFocused = true
+                }
             }
             onChatActivityChange?(chatIsActive)
         }
@@ -217,9 +223,14 @@ struct SearchDock: View {
             // `isChatOpen` without touching the field). `showsConversation` needs
             // the field focused (or a prior message) to reveal the panel, so an
             // externally-opened chat with an empty transcript showed nothing —
-            // "Ask AI did nothing". Reveal + focus so the chat surface appears.
+            // "Ask AI did nothing". Reveal the panel; focus (raise keyboard) ONLY
+            // for an empty chat (fresh open → user types). After a send the reply
+            // flips `isChatOpen` true with messages present — reveal it WITHOUT
+            // re-raising the keyboard that `submit()` just dismissed.
             conversationCollapsed = false
-            fieldFocused = true
+            if model.assistantMessages.isEmpty {
+                fieldFocused = true
+            }
         }
         .onChange(of: dismissAttachmentMenuToken) { _, _ in
             attachmentMenuOpen = false

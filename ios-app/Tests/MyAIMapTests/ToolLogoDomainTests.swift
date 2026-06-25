@@ -64,5 +64,8 @@ struct ToolLogoDomainTests {
             let t = tool(id: id, url: "https://github.com/org/\(id)")
             #expect(ToolLogoDomain.assetCandidates(for: t).contains("github-com"))
         }
+        // `openswarm` is in the override map but has NO url in the seed — the
+        // override alone must still resolve it to the GitHub asset.
+        #expect(ToolLogoDomain.assetCandidates(for: tool(id: "openswarm")).contains("github-com"))
     }
 }
