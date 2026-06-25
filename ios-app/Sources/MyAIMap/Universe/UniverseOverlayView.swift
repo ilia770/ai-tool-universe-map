@@ -597,15 +597,20 @@ struct UniverseOverlayView: View {
             HStack(spacing: BrandSpacing.xs.value) {
                 Image(systemName: option.icon).font(.system(size: 11, weight: .bold))
                 Text(option.title)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if option.id == 1, isSelected {
                     Text("Experimental")
                         .font(.system(size: 8, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.70))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(.white.opacity(0.08), in: Capsule())
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityLabel("Visualization mode")
     }

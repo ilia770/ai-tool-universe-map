@@ -12,7 +12,7 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
     let options: [Option]
     @Binding var selection: Int
     let base: String
-    var spacing: CGFloat = BrandSpacing.xs.value
+    var spacing: CGFloat = BrandSpacing.s.value
     var tint: Color? = nil
     /// Per-option accessibility identifier. Defaults to `"<base>.<index>"`;
     /// override to preserve pre-existing identifiers (e.g. a migrated control
@@ -39,21 +39,28 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
                     } label: {
                         label(option, isSelected)
                             .font(BrandTypography.controlLabel)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.88)
+                            .fixedSize(horizontal: true, vertical: false)
                             .padding(.horizontal, BrandSpacing.m.value)
                             .padding(.vertical, BrandSpacing.s.value)
+                            .frame(minHeight: HitArea.minimum)
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(.clear)
+                                        .glassSurface(tint: tint ?? .white.opacity(0.10), interactive: true)
+                                        .navigationGlassMorphID("\(base).active", in: ns)
+                                }
+                            }
                     }
                     .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
-                    .glassSurface(tint: isSelected ? (tint ?? .white.opacity(0.10)) : nil, interactive: true)
-                    .navigationGlassMorphID(
-                        GlassMorphSelection.glassID(optionIndex: index, selectedIndex: selectedIndex, base: base),
-                        in: ns
-                    )
                     .hitArea()
                     .accessibilityIdentifier({ let id = identifier(index); return id.isEmpty ? "\(base).\(index)" : id }())
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
-            .padding(spacing)
+            .padding(BrandSpacing.xs.value)
         }
     }
 
