@@ -10,6 +10,9 @@ struct MyAIMapApp: App {
 
     var body: some Scene {
         WindowGroup {
+            if ProcessInfo.processInfo.arguments.contains("-uitestGlassDemo") {
+                GlassDemoScreen()
+            } else {
             RootShell()
                 .environment(model)
                 .preferredColorScheme(.dark)
@@ -30,6 +33,7 @@ struct MyAIMapApp: App {
                         model.markOnboardingSeen()
                     }
                 }
+            }
         }
     }
 

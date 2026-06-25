@@ -22,6 +22,11 @@ enum BrandTypography {
     /// `.footnote` semibold — category chips.
     static let chip: Font = .system(.footnote, design: .default, weight: .semibold)
 
+    /// Primary control label — buttons, pills, tab/segment labels. Rounded so
+    /// the interactive layer reads as one tactile family (secondary/metadata
+    /// stay `.default`).
+    static let controlLabel: Font = .system(.subheadline, design: .rounded, weight: .semibold)
+
     /// Caption semibold uppercase — eyebrow kicker over a section.
     /// Pair with `.kerning(1.8)` and `.textCase(.uppercase)`.
     static let eyebrow: Font = .system(.caption2, design: .default, weight: .semibold)
