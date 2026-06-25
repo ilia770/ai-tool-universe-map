@@ -8,8 +8,15 @@ DERIVED_DATA="$ROOT_DIR/ios-app/build"
 GENERIC_DESTINATION="generic/platform=iOS Simulator"
 UNIT_TEST_BUNDLE="MyAIMapTests"
 UI_TEST_TARGET="MyAIMapUITests/UniverseUISmokeTests/testCaptureKeyStates"
+UI_TEST_TARGETS=(
+  "$UI_TEST_TARGET"
+  "MyAIMapUITests/GlassSurfaceAddToolBranchModeUITests"
+  "MyAIMapUITests/GlassSurfaceAccountSectionUITests"
+  "MyAIMapUITests/GlassSurfaceOnboardingUITests"
+)
 RESULT_BUNDLE="$DERIVED_DATA/MyAIMapTests.xcresult"
 UI_RESULT_BUNDLE="$DERIVED_DATA/MyAIMapUITests.xcresult"
+UI_RESULT_DIR="$DERIVED_DATA/MyAIMapUITests.xcresults"
 
 mode="verify"
 device_id=""
@@ -28,8 +35,9 @@ Options:
   --test-build-only   Run build-for-testing only (fast compile gate, no assertions).
   --run-tests | test  Run `xcodebuild test -only-testing:MyAIMapTests` on a booted
                       simulator id, writing an xcresult bundle. Executes assertions.
-  --run-ui-tests      Run the deterministic XCUITest smoke harness on a booted
-                      simulator id, writing an xcresult bundle with screenshots.
+  --run-ui-tests      Run deterministic XCUITest smoke/glass-surface harnesses
+                      sequentially on a booted simulator id, writing xcresult
+                      bundles with screenshots.
   --full-test         Run build-for-testing, then test-without-building on a booted simulator id.
   --device-id <id>    Simulator UDID for --run-tests / --full-test.
   --use-existing-project
@@ -177,20 +185,39 @@ run_ui_tests() {
     exit 2
   fi
 
-  echo "== iOS UI smoke tests ($UI_TEST_TARGET) on $device_id =="
+  echo "== iOS UI smoke/glass-surface tests on $device_id =="
   xcrun simctl boot "$device_id" 2>/dev/null || true
   xcrun simctl bootstatus "$device_id" -b
   rm -rf "$UI_RESULT_BUNDLE"
-  xcodebuild \
-    -project "$PROJECT_PATH" \
-    -scheme "$SCHEME" \
-    -destination "platform=iOS Simulator,id=$device_id" \
-    -derivedDataPath "$DERIVED_DATA" \
-    -resultBundlePath "$UI_RESULT_BUNDLE" \
-    -only-testing:"$UI_TEST_TARGET" \
-    ENABLE_DEBUG_DYLIB=NO \
-    test
-  echo "== xcresult bundle: $UI_RESULT_BUNDLE =="
+  rm -rf "$UI_RESULT_DIR"
+  mkdir -p "$UI_RESULT_DIR"
+
+  local status=0
+  for target in "${UI_TEST_TARGETS[@]}"; do
+    local result_bundle
+    if [[ "$target" == "$UI_TEST_TARGET" ]]; then
+      result_bundle="$UI_RESULT_BUNDLE"
+    else
+      result_bundle="$UI_RESULT_DIR/$(echo "$target" | tr '/:' '__').xcresult"
+    fi
+
+    echo "== iOS UI test ($target) on $device_id =="
+    if xcodebuild \
+      -project "$PROJECT_PATH" \
+      -scheme "$SCHEME" \
+      -destination "platform=iOS Simulator,id=$device_id" \
+      -derivedDataPath "$DERIVED_DATA" \
+      -resultBundlePath "$result_bundle" \
+      -only-testing:"$target" \
+      ENABLE_DEBUG_DYLIB=NO \
+      test; then
+      echo "== xcresult bundle: $result_bundle =="
+    else
+      status=1
+      echo "!! UI test failed ($target); xcresult bundle: $result_bundle" >&2
+    fi
+  done
+  return "$status"
 }
 
 case "$mode" in

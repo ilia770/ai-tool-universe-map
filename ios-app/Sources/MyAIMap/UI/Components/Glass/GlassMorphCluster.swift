@@ -18,6 +18,9 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
     /// override to preserve pre-existing identifiers (e.g. a migrated control
     /// whose ids are already asserted by UI tests).
     var identifier: (Int) -> String = { _ in "" }
+    /// Optional VoiceOver label for controls whose visible text needs more
+    /// context than the slot title alone.
+    var accessibilityLabel: (Option, Bool) -> String? = { _, _ in nil }
     @ViewBuilder let label: (Option, Bool) -> Label
 
     @Namespace private var ns
@@ -50,6 +53,7 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
                     )
                     .hitArea()
                     .accessibilityIdentifier({ let id = identifier(index); return id.isEmpty ? "\(base).\(index)" : id }())
+                    .modifier(OptionalAccessibilityLabel(label: accessibilityLabel(option, isSelected)))
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
@@ -63,6 +67,19 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
             GlassEffectContainer(spacing: spacing) { content() }
         } else {
             content()
+        }
+    }
+}
+
+private struct OptionalAccessibilityLabel: ViewModifier {
+    let label: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let label {
+            content.accessibilityLabel(Text(label))
+        } else {
+            content
         }
     }
 }

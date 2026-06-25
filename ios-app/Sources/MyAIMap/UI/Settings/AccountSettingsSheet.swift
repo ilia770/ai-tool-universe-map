@@ -31,9 +31,12 @@ struct AccountSettingsSheet: View {
                         options: AccountSection.allCases,
                         selection: sectionBinding,
                         base: "account.section",
-                        tint: model.selectedCategoryModel.color.swiftUIColor
-                    ) { section, _ in
+                        accessibilityLabel: { section, _ in
+                            "Account section, \(section.title)"
+                        }
+                    ) { section, isSelected in
                         Text(section.title)
+                            .foregroundStyle(isSelected ? BrandColor.textPrimary : BrandColor.textSecondary)
                     }
 
                     switch section {

@@ -14,6 +14,7 @@ struct UniverseOverlayView: View {
     let onToolSelect: (String) -> Void
     let onOpenToolDetail: (String) -> Void
     let onChatActivityChange: (Bool) -> Void
+    let onShowChat: () -> Void
     let onDetails: () -> Void
     let onAccount: () -> Void
     let onAddTool: () -> Void
@@ -587,7 +588,10 @@ struct UniverseOverlayView: View {
                 RenderModeOption(id: 1, title: "3D Spatial", icon: "cube.transparent"),
             ],
             selection: renderModeBinding,
-            base: "universe.renderMode"
+            base: "universe.renderMode",
+            accessibilityLabel: { option, _ in
+                "Switch to \(option.title) visualization"
+            }
         ) { option, isSelected in
             HStack(spacing: BrandSpacing.xs.value) {
                 Image(systemName: option.icon).font(.system(size: 11, weight: .bold))
@@ -750,7 +754,7 @@ struct UniverseOverlayView: View {
 
                 Button {
                     BrandHaptics.fire(.light)
-                    onChatActivityChange(true)
+                    onShowChat()
                 } label: {
                     Label("Ask AI", systemImage: "sparkle")
                         .font(.callout.weight(.medium))

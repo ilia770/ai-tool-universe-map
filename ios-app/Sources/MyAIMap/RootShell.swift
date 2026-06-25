@@ -159,7 +159,7 @@ struct RootShell: View {
                 .transition(diveTransition)
 
             case .universe:
-                UniverseScreen()
+                UniverseScreen(onShowChat: showChat)
                     .transition(diveTransition)
             }
         }
@@ -179,7 +179,9 @@ struct RootShell: View {
             seatToolGhostIfReady()
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            surfaceSwitchChrome
+            if !RootFirstRun.showsOnboarding(hasSeenOnboarding: model.hasSeenOnboarding) {
+                surfaceSwitchChrome
+            }
         }
         .preferredColorScheme(.dark)
         .brandAnimation(BrandMotion.morph, value: surface)
@@ -565,7 +567,10 @@ struct RootSurfaceSwitch: View {
             selection: selectionBinding,
             base: "RootShell.Surface",
             spacing: BrandSpacing.xs.value,
-            identifier: { $0 == 0 ? "RootShell.ShowChat" : "RootShell.ShowUniverse" }
+            identifier: { $0 == 0 ? "RootShell.ShowChat" : "RootShell.ShowUniverse" },
+            accessibilityLabel: { option, _ in
+                option.id == 0 ? "Open Ask AI" : "Open universe map, \(toolCount) tools"
+            }
         ) { option, _ in
             HStack(spacing: BrandSpacing.s.value) {
                 Image(systemName: option.icon).font(.system(size: 13, weight: .bold))

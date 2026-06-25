@@ -141,8 +141,9 @@ jobs:
         working-directory: ios-app
         run: xcodegen generate
 
-      # Runs UniverseUISmokeTests/testCaptureKeyStates. The test launches with
-      # -uitestStatic -uitestSampleUniverse, taps map/chat/detail/settings/
+      # Runs UniverseUISmokeTests/testCaptureKeyStates plus the focused
+      # glass-surface XCUITest classes sequentially. The smoke test launches
+      # with -uitestStatic -uitestSampleUniverse, taps map/chat/detail/settings/
       # attachment states, and stores kept screenshots/text trees in xcresult.
       - name: Boot simulator and run UI smoke
         run: |
@@ -157,16 +158,28 @@ jobs:
       - name: Print UI smoke xcresult summary
         if: always()
         run: |
-          SUMMARY_PATH="ios-app/build/MyAIMapUITests-summary.json"
-          if [ ! -d "ios-app/build/MyAIMapUITests.xcresult" ]; then
-            echo "No UI smoke xcresult bundle found."
+          if [ ! -d ios-app/build ]; then
+            echo "No UI build directory found."
             exit 0
           fi
 
-          xcrun xcresulttool get test-results summary \
-            --path ios-app/build/MyAIMapUITests.xcresult \
-            | tee "$SUMMARY_PATH"
-          grep -E '"(passedTests|failedTests|result)"' "$SUMMARY_PATH" || true
+          bundles="$(find ios-app/build -maxdepth 3 -name '*.xcresult' \
+            \( -path '*/MyAIMapUITests.xcresult' -o -path '*/MyAIMapUITests.xcresults/*' \) \
+            -print)"
+          if [ -z "$bundles" ]; then
+            echo "No UI xcresult bundles found."
+            exit 0
+          fi
+
+          while IFS= read -r bundle; do
+            [ -n "$bundle" ] || continue
+            summary_path="${bundle%.xcresult}-summary.json"
+            echo "== $bundle =="
+            xcrun xcresulttool get test-results summary \
+              --path "$bundle" \
+              | tee "$summary_path"
+            grep -E '"(passedTests|failedTests|result)"' "$summary_path" || true
+          done <<< "$bundles"
 
       - name: Upload UI smoke xcresult bundle
         if: always()
@@ -176,4 +189,6 @@ jobs:
           path: |
             ios-app/build/MyAIMapUITests.xcresult
             ios-app/build/MyAIMapUITests-summary.json
+            ios-app/build/MyAIMapUITests.xcresults/*.xcresult
+            ios-app/build/MyAIMapUITests.xcresults/*-summary.json
           if-no-files-found: ignore

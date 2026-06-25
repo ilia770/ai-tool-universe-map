@@ -3,6 +3,7 @@ import UIKit
 
 /// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
 struct UniverseMapView: View {
+    private let onShowChat: (() -> Void)?
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var hSizeClass
@@ -20,6 +21,10 @@ struct UniverseMapView: View {
     @State private var addToolDraft: MissingToolSuggestion?
 
     @State private var planets: [PlanetData] = []
+
+    init(onShowChat: (() -> Void)? = nil) {
+        self.onShowChat = onShowChat
+    }
 
     /// Read alias for the single source of truth. All writes go to
     /// `model.universeMode`; the view never stores a second copy of the mode
@@ -97,6 +102,7 @@ struct UniverseMapView: View {
                 onToolSelect: focusToolFromMap,
                 onOpenToolDetail: openToolDetailFromChat,
                 onChatActivityChange: setChatOpen,
+                onShowChat: requestChatSurface,
                 onDetails: presentDetail,
                 onAccount: presentAccount,
                 onAddTool: { presentAddTool() },
@@ -388,6 +394,14 @@ struct UniverseMapView: View {
             )
         } else if mode.isChatOpen {
             restoreNavigationMode(animated: true)
+        }
+    }
+
+    private func requestChatSurface() {
+        if let onShowChat {
+            onShowChat()
+        } else {
+            setChatOpen(true)
         }
     }
 

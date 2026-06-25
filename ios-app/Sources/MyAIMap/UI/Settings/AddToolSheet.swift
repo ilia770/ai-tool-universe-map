@@ -312,6 +312,7 @@ struct AddToolSheet: View {
                     .submitLabel(.next)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
+                    .accessibilityIdentifier("addTool.nameField")
                     .onSubmit {
                         focusedField = .website
                     }
@@ -330,6 +331,7 @@ struct AddToolSheet: View {
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .accessibilityIdentifier("addTool.websiteField")
                     .onSubmit {
                         if canAdd {
                             add()
@@ -353,9 +355,12 @@ struct AddToolSheet: View {
                         options: AddToolBranchMode.allCases,
                         selection: branchModeBinding,
                         base: "addTool.branchMode",
-                        tint: resolvedCategoryModel.color.swiftUIColor
-                    ) { mode, _ in
+                        accessibilityLabel: { mode, _ in
+                            "Select \(mode.title) branch mode"
+                        }
+                    ) { mode, isSelected in
                         Label(mode.title, systemImage: mode.icon)
+                            .foregroundStyle(isSelected ? BrandColor.textPrimary : BrandColor.textSecondary)
                     }
                 }
 
@@ -453,6 +458,7 @@ struct AddToolSheet: View {
                 let target = AddToolBranchMode.allCases[index]
                 guard branchMode != target else { return }
                 BrandHaptics.fire(.light)
+                focusedField = nil
                 withBrandAnimation(BrandMotion.nudge, reduceMotion: reduceMotion) {
                     branchMode = target
                 }

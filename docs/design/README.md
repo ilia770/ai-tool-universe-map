@@ -49,6 +49,10 @@ Current repo screenshots:
 - `screenshots/ai-tool-universe-design-cluster.png`
 - `screenshots/vercel-camera-drag-compact-panel.png`
 - `screenshots/vercel-large-logo-badges.png`
+- `screenshots/glass-surface-xcuitests/onboarding.png`
+- `screenshots/glass-surface-xcuitests/addtool-branch-mode.png`
+- `screenshots/glass-surface-xcuitests/addtool-keyboard.png`
+- `screenshots/glass-surface-xcuitests/settings-section.png`
 
 ## Design QA Rubric
 
@@ -146,4 +150,3 @@ Apply to My AI Map:
 Do not copy:
 - What to avoid.
 ```
-
