@@ -176,6 +176,14 @@ struct SearchDock: View {
         .brandAnimation(BrandMotion.nudge, value: fieldFocused)
         .brandAnimation(BrandMotion.nudge, value: selectedAttachment)
         .onAppear {
+            // If the dock mounts already in chat mode (e.g. chat opened before
+            // this dock instance appeared), reveal + focus so the panel shows;
+            // `onChange(of:isChatOpen)` only fires on later transitions, not the
+            // initial already-open state.
+            if isChatOpen {
+                conversationCollapsed = false
+                fieldFocused = true
+            }
             onChatActivityChange?(chatIsActive)
         }
         .onChange(of: chatIsActive) { _, isActive in
@@ -199,10 +207,19 @@ struct SearchDock: View {
             dockWidth = width
         }
         .onChange(of: isChatOpen) { _, isOpen in
-            guard !isOpen else { return }
-            fieldFocused = false
-            attachmentMenuOpen = false
-            conversationCollapsed = true
+            guard isOpen else {
+                fieldFocused = false
+                attachmentMenuOpen = false
+                conversationCollapsed = true
+                return
+            }
+            // Chat was opened from outside the dock (the map "Ask AI" buttons flip
+            // `isChatOpen` without touching the field). `showsConversation` needs
+            // the field focused (or a prior message) to reveal the panel, so an
+            // externally-opened chat with an empty transcript showed nothing —
+            // "Ask AI did nothing". Reveal + focus so the chat surface appears.
+            conversationCollapsed = false
+            fieldFocused = true
         }
         .onChange(of: dismissAttachmentMenuToken) { _, _ in
             attachmentMenuOpen = false
