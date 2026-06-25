@@ -103,22 +103,28 @@ struct OnboardingOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: 10) {
-                ForEach(OnboardingAction.allCases) { action in
-                    actionButton(action)
+            // Skip belongs to the same cluster as the action buttons so it
+            // reads as the quiet tertiary option *below* them — a tighter,
+            // deliberate gap rather than the 22pt section break that made it
+            // look like a detached, free-floating control.
+            VStack(spacing: 14) {
+                VStack(spacing: 10) {
+                    ForEach(OnboardingAction.allCases) { action in
+                        actionButton(action)
+                    }
                 }
-            }
 
-            Button {
-                onAction(nil)
-            } label: {
-                Text("Skip")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.6))
+                Button {
+                    onAction(nil)
+                } label: {
+                    Text("Skip")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .hitArea()
+                .accessibilityIdentifier("Onboarding.Skip")
             }
-            .buttonStyle(.plain)
-            .hitArea()
-            .accessibilityIdentifier("Onboarding.Skip")
         }
         .padding(.vertical, 30)
         .padding(.horizontal, 26)
