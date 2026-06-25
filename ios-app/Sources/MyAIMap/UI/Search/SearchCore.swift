@@ -68,6 +68,21 @@ enum ComposerLogic {
     static let composerMinHeight: CGFloat = 44
     static let composerMaxHeight: CGFloat = 148
     static let composerMaxLines = 6
+    /// The transcript scroll region never grows past this; beyond it the
+    /// content scrolls. (C1: previously the ScrollView was greedy and always
+    /// claimed this full height even when empty — a giant dead area above the
+    /// composer.)
+    static let transcriptMaxHeight: CGFloat = 284
+
+    /// The transcript sizes to its measured content but is capped at
+    /// ``transcriptMaxHeight``. Before the content is measured (`contentHeight`
+    /// still 0) it reports 0 so the empty panel does not reserve the full cap —
+    /// the Ask-AI empty state then shows only its short prompt, not ~284pt of
+    /// dead "water" above the composer (C1).
+    static func transcriptHeight(contentHeight: CGFloat) -> CGFloat {
+        guard contentHeight > 0 else { return 0 }
+        return min(contentHeight, transcriptMaxHeight)
+    }
 
     /// Send is enabled when there is text OR an attachment; disabled only when
     /// neither exists. (Spec: "Disabled only when no text AND no attachment".)

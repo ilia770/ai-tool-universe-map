@@ -18,6 +18,9 @@ struct SearchDock: View {
     @State private var fileImporterPresented = false
     @State private var attachmentMenuOpen = false
     @State private var conversationCollapsed = false
+    // Measured height of the transcript's content; drives the panel's size so it
+    // fits its content and only scrolls once it exceeds the cap (C1).
+    @State private var transcriptContentHeight: CGFloat = 0
     // Neutral seed; the real width arrives via the width preference key once
     // layout runs. UIScreen.main is the physical screen (wrong under iPad
     // Split View / Stage Manager) and is deprecated on iOS 26.
@@ -478,8 +481,18 @@ struct SearchDock: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 10)
+                // Measure the content so the panel can size to it (C1): an empty
+                // Ask-AI state shows only the short prompt instead of reserving
+                // the full cap of dead space.
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    transcriptContentHeight = height
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: 284)
+            .frame(maxWidth: .infinity)
+            // Grow with content, cap (and start scrolling) at transcriptMaxHeight.
+            .frame(height: ComposerLogic.transcriptHeight(contentHeight: transcriptContentHeight))
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
             .accessibilityIdentifier("chat-transcript")
@@ -552,7 +565,12 @@ struct SearchDock: View {
                     attachmentMenuOpen = false
                 }
             } label: {
-                Image(systemName: "chevron.down")
+                // `xmark`, not `chevron.down`: this dismisses the chat panel
+                // (collapses it to the "Show chat" pill). A down-chevron at the
+                // top of a scrollable transcript read as "scroll to bottom" and
+                // confused users (C5); a close glyph is unambiguous and keeps the
+                // collapse affordance the restore pill depends on.
+                Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
                     .frame(width: 30, height: 30)

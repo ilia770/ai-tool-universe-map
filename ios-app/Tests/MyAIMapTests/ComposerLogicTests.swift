@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import MyAIMap
 
@@ -158,6 +159,28 @@ struct ComposerLogicTests {
         #expect(ComposerLogic.composerMaxHeight >= 120)
         #expect(ComposerLogic.composerMaxHeight <= 160)
         #expect(ComposerLogic.composerMaxLines == 6)
+    }
+
+    // MARK: - Transcript sizes to content, caps at the max (C1)
+
+    @Test func transcriptUnmeasuredReservesNoHeight() {
+        // Before the content is measured the panel must not reserve the full
+        // cap — that was the giant empty "water" above the composer (C1).
+        #expect(ComposerLogic.transcriptHeight(contentHeight: 0) == 0)
+    }
+
+    @Test func transcriptFitsShortContent() {
+        #expect(ComposerLogic.transcriptHeight(contentHeight: 120) == 120)
+    }
+
+    @Test func transcriptCapsTallContent() {
+        #expect(ComposerLogic.transcriptHeight(contentHeight: 600) == ComposerLogic.transcriptMaxHeight)
+    }
+
+    @Test func transcriptNeverExceedsCap() {
+        for height in [0, 100, 283, 284, 285, 600, 800] {
+            #expect(ComposerLogic.transcriptHeight(contentHeight: CGFloat(height)) <= ComposerLogic.transcriptMaxHeight)
+        }
     }
 
     // MARK: - Assistant response presentation
