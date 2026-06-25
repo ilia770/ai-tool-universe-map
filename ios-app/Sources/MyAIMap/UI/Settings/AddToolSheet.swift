@@ -302,6 +302,7 @@ struct AddToolSheet: View {
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .hitArea()
     }
 
     private var fields: some View {
@@ -450,6 +451,7 @@ struct AddToolSheet: View {
         Binding(
             get: { AddToolBranchMode.allCases.firstIndex(of: branchMode) ?? 0 },
             set: { index in
+                guard index < AddToolBranchMode.allCases.count else { return }
                 let target = AddToolBranchMode.allCases[index]
                 guard branchMode != target else { return }
                 BrandHaptics.fire(.light)
