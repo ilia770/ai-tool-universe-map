@@ -304,6 +304,9 @@ struct SearchDock: View {
                 .background(.white.opacity(0.08), in: Circle())
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.92, haptic: nil, pressedOpacity: 1))
+        // NOTE: no `.hitArea()` here — this button is embedded in the composer
+        // pill (liquidGlassInput), which already provides a large tap region;
+        // force-growing it to 44pt overflows the pill and shifts the menu anchor.
         .accessibilityLabel("Attach photo or file")
         .accessibilityIdentifier("chat-attach-button")
     }

@@ -538,48 +538,43 @@ struct RootSurfaceSwitch: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var badgePopped = false
 
-    @ViewBuilder
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 16) {
-                switchContent
-            }
-        } else {
-            switchContent
-        }
+    private struct SurfaceOption: Identifiable {
+        let id: Int
+        let title: String
+        let icon: String
     }
 
-    private var switchContent: some View {
-        HStack(spacing: 9) {
-            if surface == .universe {
-                rootRouteButton(
-                    title: "Ask AI",
-                    systemImage: "text.bubble.fill",
-                    morphID: "RootChrome.askRoute",
-                    selected: false,
-                    action: onShowChat
-                )
-                .accessibilityLabel("Open Ask AI")
-                .accessibilityIdentifier("RootShell.ShowChat")
-            }
+    private let options = [
+        SurfaceOption(id: 0, title: "Ask AI", icon: "text.bubble.fill"),
+        SurfaceOption(id: 1, title: "Map", icon: "map.fill"),
+    ]
 
-            rootRouteButton(
-                title: "Map",
-                systemImage: "map.fill",
-                morphID: "RootChrome.mapRoute",
-                selected: surface == .universe,
-                action: onShowUniverse
-            )
-            .scaleEffect(badgePopped ? 1.04 : 1)
-            // Always enabled: an empty/low-tool map is a valid destination
-            // (it shows the empty-state card), so the Map pill is never a
-            // dead-end that traps a new user in chat.
-            .accessibilityLabel("Open universe map, \(toolCount) tools")
-            .accessibilityIdentifier("RootShell.ShowUniverse")
+    /// Selection derives from the surface (the source of truth); tapping a slot
+    /// fires the matching route callback, which flips the surface, which morphs
+    /// the single glass selection to the new slot.
+    private var selectionBinding: Binding<Int> {
+        Binding(
+            get: { surface == .chat ? 0 : 1 },
+            set: { index in index == 0 ? onShowChat() : onShowUniverse() }
+        )
+    }
+
+    var body: some View {
+        GlassMorphCluster(
+            options: options,
+            selection: selectionBinding,
+            base: "RootShell.Surface",
+            spacing: BrandSpacing.xs.value,
+            identifier: { $0 == 0 ? "RootShell.ShowChat" : "RootShell.ShowUniverse" }
+        ) { option, _ in
+            HStack(spacing: BrandSpacing.s.value) {
+                Image(systemName: option.icon).font(.system(size: 13, weight: .bold))
+                Text(option.title).lineLimit(1)
+            }
         }
         .foregroundStyle(.white.opacity(0.88))
+        .scaleEffect(badgePopped ? 1.04 : 1)
         .brandAnimation(BrandMotion.pillPop, value: badgePopped)
-        .brandAnimation(BrandMotion.morph, value: surface)
         .brandSensoryFeedback(.increase, trigger: toolCount)
         .onChange(of: toolCount) { oldValue, newValue in
             guard !reduceMotion, RootShellMotion.badgeShouldPop(from: oldValue, to: newValue) else { return }
@@ -589,35 +584,6 @@ struct RootSurfaceSwitch: View {
                 badgePopped = false
             }
         }
-    }
-
-    private func rootRouteButton(
-        title: String,
-        systemImage: String,
-        morphID: String,
-        selected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .bold))
-                Text(title)
-                    .font(.system(.footnote, weight: .bold))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background {
-                if selected {
-                    Capsule().fill(.white.opacity(0.11))
-                }
-            }
-            .glassSurface(in: Capsule(), tint: selected ? .white.opacity(0.10) : nil, interactive: true)
-            .navigationGlassMorphID(morphID, in: namespace)
-        }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
-        .transition(.scale(scale: 0.92).combined(with: .opacity))
     }
 }
 
