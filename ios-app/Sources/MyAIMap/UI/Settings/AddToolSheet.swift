@@ -188,7 +188,7 @@ struct AddToolSheet: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: bottomScrollInset)
+                    bottomActionBar
                 }
                 .onChange(of: focusedField) { _, field in
                     guard let field else { return }
@@ -216,13 +216,6 @@ struct AddToolSheet: View {
                     }
                         .disabled(!canAdd)
                         .navigationGlassMorphID("AddToolSheet.add", in: sheetChromeNamespace)
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button(keyboardToolbarTitle) {
-                        handleKeyboardToolbarAction()
-                    }
-                    .font(.headline.weight(.semibold))
                 }
             }
         }
@@ -582,8 +575,39 @@ struct AddToolSheet: View {
         }
     }
 
-    private var bottomScrollInset: CGFloat {
-        focusedField == nil ? 28 : 132
+    /// Docked bottom action bar. The advance/submit action lives INSIDE the
+    /// scroll view's bottom safe-area inset rather than a free-floating keyboard
+    /// accessory (`ToolbarItemGroup(placement: .keyboard)`). Because the inset's
+    /// reserved space IS the button's own footprint, form content can never
+    /// scroll underneath the pill and get clipped (D4: the "Manual" branch pill
+    /// and "Relation logic" card were covered by the floating accessory button).
+    /// Keyboard avoidance lifts the bar above the keyboard, so it stays reachable.
+    @ViewBuilder
+    private var bottomActionBar: some View {
+        if focusedField != nil {
+            HStack {
+                Spacer()
+                Button(action: handleKeyboardToolbarAction) {
+                    Text(keyboardToolbarTitle)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .padding(.horizontal, BrandSpacing.l.value)
+                        .padding(.vertical, BrandSpacing.s.value)
+                        .glassSurface(
+                            in: Capsule(),
+                            tint: resolvedCategoryModel.color.swiftUIColor.opacity(0.18),
+                            interactive: true
+                        )
+                }
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+                .hitArea()
+            }
+            .padding(.horizontal, BrandSpacing.l.value)
+            .padding(.vertical, BrandSpacing.s.value)
+            .background(.ultraThinMaterial)
+        } else {
+            Color.clear.frame(height: 28)
+        }
     }
 
     private func scrollAnchor(for field: AddToolFocusedField) -> UnitPoint {
