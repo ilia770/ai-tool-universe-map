@@ -13,18 +13,28 @@ struct AccountSettingsSheet: View {
     #endif
     @Namespace private var sheetChromeNamespace
 
+    /// Bridges the `AccountSection` enum to the cluster's `Binding<Int>`.
+    private var sectionBinding: Binding<Int> {
+        Binding(
+            get: { AccountSection.allCases.firstIndex(of: section) ?? 0 },
+            set: { section = AccountSection.allCases[$0] }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
                     accountHeader
 
-                    Picker("Account section", selection: $section) {
-                        ForEach(AccountSection.allCases) { section in
-                            Text(section.title).tag(section)
-                        }
+                    GlassMorphCluster(
+                        options: AccountSection.allCases,
+                        selection: sectionBinding,
+                        base: "account.section",
+                        tint: model.selectedCategoryModel.color.swiftUIColor
+                    ) { section, _ in
+                        Text(section.title)
                     }
-                    .pickerStyle(.segmented)
 
                     switch section {
                     case .settings:
