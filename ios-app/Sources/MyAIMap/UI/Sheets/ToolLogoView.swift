@@ -58,24 +58,66 @@ enum ToolMonogram {
     }
 }
 
-/// Tool logo for the detail card. Renders a category-tinted monogram
-/// placeholder — never a broken-image box. The app is fully local
-/// (no network), so the monogram is the canonical icon; if a tool ever
-/// ships a bundled asset matching its id we surface that, otherwise the
-/// monogram is the graceful fallback the spec requires.
+/// Pure logic for the bundled-logo lookup key. Resolves a tool's brand
+/// domain the same way the web app does (`getToolLogoDomain`,
+/// `src/lib/tool-logos.ts`): an explicit `logoDomain`, then a per-id
+/// override, then the host of the tool's `url`. The app is fully local
+/// (no logo.dev network fetch), so we only render a logo when the resolved
+/// domain has a bundled asset; otherwise the monogram is the fallback.
+enum ToolLogoDomain {
+    /// Per-id domain overrides, mirroring `logoDomainOverrides` on the web
+    /// so id-only tools (e.g. GitHub-hosted skills) resolve to a brand we
+    /// bundle. Kept minimal: only ids whose `url` host doesn't already give
+    /// the right brand and that we actually ship an asset for.
+    static let overrides: [String: String] = [
+        "agent-skills": "github.com",
+        "api-mega-list": "github.com",
+        "deer-flow": "github.com",
+        "designer-skills": "github.com",
+        "mattpocock-skills": "github.com",
+        "openswarm": "github.com",
+        "shannon": "github.com",
+    ]
+
+    /// Resolved brand domain (e.g. "github.com"), or nil if none applies.
+    static func resolve(for tool: Tool) -> String? {
+        if let explicit = tool.logoDomain { return explicit }
+        if let override = overrides[tool.id] { return override }
+        return host(of: tool.url)
+    }
+
+    /// Hostname with a leading `www.` stripped, matching the web's
+    /// `getDomainFromUrl`.
+    static func host(of url: URL?) -> String? {
+        guard let host = url?.host, !host.isEmpty else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// Asset-catalog candidate keys, most specific first: the tool id, then
+    /// the resolved domain with dots turned into dashes (asset names can't
+    /// contain dots), then the raw domain.
+    static func assetCandidates(for tool: Tool) -> [String] {
+        var keys = [tool.id]
+        if let domain = resolve(for: tool) {
+            keys.append(domain.replacingOccurrences(of: ".", with: "-"))
+            keys.append(domain)
+        }
+        return keys
+    }
+}
+
+/// Tool logo for the detail card. Surfaces a bundled brand asset when the
+/// tool resolves to a domain we ship (e.g. GitHub), otherwise renders a
+/// category-tinted monogram placeholder — never a broken-image box. The app
+/// is fully local (no logo.dev network fetch), so the monogram is the
+/// graceful fallback the spec requires.
 struct ToolLogoView: View {
     let tool: Tool
     let accent: Color
     var size: CGFloat = 56
 
     private var bundledLogo: UIImage? {
-        let candidates = [
-            tool.id,
-            tool.logoDomain?.replacingOccurrences(of: ".", with: "-"),
-            tool.logoDomain,
-        ].compactMap { $0 }
-
-        for candidate in candidates {
+        for candidate in ToolLogoDomain.assetCandidates(for: tool) {
             if let image = UIImage(named: candidate) {
                 return image
             }
