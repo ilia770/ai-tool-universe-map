@@ -125,7 +125,7 @@ struct PlanetInfoCard: View {
         if planet.id == .media {
             return "Tap Remotion or a nearby satellite to inspect the Media branch"
         }
-        return "\(planet.toolCount) satellites · \(planet.subtitle)"
+        return "\(Pluralize.count(planet.toolCount, "satellite")) · \(planet.subtitle)"
     }
 
     private var accessibilityLabel: String {

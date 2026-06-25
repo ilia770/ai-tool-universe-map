@@ -115,7 +115,7 @@ enum UniverseGraphLayout {
                 NodeDraft(
                     id: categoryID,
                     title: planet.title,
-                    subtitle: "\(planet.toolCount) tools",
+                    subtitle: Pluralize.count(planet.toolCount, "tool"),
                     category: planet.id,
                     toolID: nil,
                     kind: .category,
