@@ -535,7 +535,12 @@ struct UniverseOverlayView: View {
                 topChromeContent
             }
         }
-        .brandAnimation(BrandMotion.morph, value: mode)
+        // Gate the chrome morph to 3D: `mode` also changes on the 2D graph
+        // (planet/tool taps), so an unconditional value animates the shared
+        // top chrome on 2D nav too. In 2D pin the value to a constant → no
+        // implicit animation (keeps the 2D path untouched, Track A). Mirrors
+        // the `bottomControls` reveal gate below.
+        .brandAnimation(BrandMotion.morph, value: model.renderMode == .spatial3D ? mode : .overview)
     }
 
     private var topChromeContent: some View {
