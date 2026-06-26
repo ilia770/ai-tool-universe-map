@@ -316,6 +316,14 @@ struct SearchDock: View {
         // tint, no black backing plate, no glowing outline. Accent shows only
         // as the field's caret/selection tint above. One soft float shadow.
         .liquidGlassInput()
+        // Pin a STABLE, UNIQUE glass identity (C4). The composer pill is the only
+        // un-id'd glass element sharing the dock's `GlassEffectContainer` with the
+        // morphing chat-collapse↔restore-pill pair (both `SearchDock.chatCollapse`).
+        // Without its own id, the container reconciled the pill's glass into that
+        // travelling morph mid-collapse/reveal, snapshotting the embedded attach
+        // glyph as a tiny rotated sliver pinned to a corner. A distinct id excludes
+        // the composer (and its attach button) from any morph, keeping it static.
+        .navigationGlassMorphID("SearchDock.composer", in: chatChromeNamespace)
     }
 
     private var attachmentMenu: some View {
