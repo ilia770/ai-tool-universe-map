@@ -85,4 +85,70 @@ square-texel artifacts. Needs to at least be presentable; not the priority.
   not silently decided.
 
 ## Log
-(append per landed slice)
+
+### 2026-06-26 — WS-A 2D overview redesign (landed, commit ecdbb48)
+- **Progressive disclosure**: overview now emits core + categories only (no
+  tool nodes), matching the 3D scene. The ~50-tool seed no longer crams the
+  screen — overview reads as a clean hub-and-spoke, verified on iPhone 16 Pro,
+  no edge clipping. Before/after in `screenshots/polish-sprint/baseline` vs
+  `after-A`.
+- **Focused tools on a ring** around their category (double-ring for dense
+  branches) instead of a tall grid that marched off the top edge; labels space
+  evenly. (`after-A2`.)
+- **Spokes visible**: core→category edge opacity 0.14 → 0.26.
+- **Top inset raised** so the overview ring clears the route/render chrome.
+- Tests: `UniverseGraphLayoutTests` rewritten to the new contract; full
+  `MyAIMapTests` suite green.
+
+**Findings while auditing (good news — already fixed in current code, the stale
+`screenshots/glass-surface-xcuitests` set predates them):**
+- Account/Settings sheet spacing + the History pill look clean in the current
+  build.
+- Add Tool already has a docked, keyboard-avoiding action bar (D4 fixed).
+- Onboarding copy already trimmed; state machine already single-source-of-truth.
+→ WS-D / WS-E are smaller than the original audit feared. Re-scoped to: verify
+  fresh captures (3D, Add Tool, History via `PolishCaptureTests`), branch-focus
+  top-clip polish, and the map top-chrome stacking.
+
+### 2026-06-26 — WS-A2 / WS-B / WS-D / WS-C verified (captures in `after-B`, `extra`)
+- **WS-A2 branch focus**: ring + smaller radii + top inset → focused tools sit
+  in a Coding-centred ring, clear of chrome and tappable (`after-B/02-branch`).
+  Remaining nit for the joint session: the densest branch (Coding, 11 tools)
+  still grazes the chrome at the very top arc — fully solving needs either a
+  smarter auto-pan top-bias or capping simultaneously-shown tools.
+- **WS-D sheets**: fresh captures show Add Tool (`extra/12-addtool-name`) already
+  has a docked, keyboard-avoiding "Next" bar — no overlap. Account/Settings
+  clean. The earlier "broken sheet" screenshots were the stale
+  `glass-surface-xcuitests` set. **No WS-D code change needed.**
+- **WS-B map chrome**: overview now clears the chrome via the top inset. The two
+  stacked pill rows (route switch + render toggle) do not overlap each other in
+  2D. **Open design question for the user** (not changed unilaterally): the
+  render toggle is also in Settings → Visualization, so the on-map 2D/3D toggle
+  is arguably redundant chrome; consider dropping it from the map top bar.
+- **WS-C 3D** (`extra/10-3d-spatial`): renders fine, no square artifacts, labels
+  legible, clearly badged Experimental. But it is flat/dim at the default camera
+  (reads almost like the 2D ring) and the experimental-notice banner + "Back to
+  2D" pill crowd the top toggle row. Per `VISUALIZATION_SPEC` (3D defects are
+  out of scope; "readability > 3D wow"; 2D is the default), a blind RealityKit
+  overhaul is deliberately **deferred to the joint session**. Concrete
+  recommendations below.
+
+## 3D recommendations (for the joint session — needs live device iteration)
+1. **Default camera**: pull to a clearer 3/4 orbit with more depth separation so
+   it does not read as a flat 2D ring; current framing wastes the 3D.
+2. **Top chrome**: in 3D, collapse the redundant exit affordances — the render
+   toggle, the "experimental" banner, and the "Back to 2D" pill currently stack.
+   Keep one clear exit; move the experimental note to a quieter spot.
+3. **Depth cues**: stronger fog/scale falloff and a faint ground/orbit grid so
+   the planets read as positioned in space, not scattered dots.
+4. **Decide its role**: is 3D a "wow" showcase or a real navigation mode? If
+   showcase only, simplify it to an auto-orbiting hero view; if navigation,
+   invest in label de-overlap + tap precision (the `LabelPacker` is already
+   there to build on).
+
+## Status summary
+- **2D map (the core complaint): rebuilt and verified.** Overview + branch focus
+  read as a clean, intuitive map; no clipping; tests green.
+- **Sheets / onboarding / state machine: audited, already solid** in current
+  code — minimal changes needed (one copy unification).
+- **3D: assessed, documented, deferred** to the joint session by design.

@@ -122,10 +122,7 @@ struct PlanetInfoCard: View {
         if planet.id == .core {
             return "Choose a branch to reveal its tools"
         }
-        if planet.id == .media {
-            return "Tap Remotion or a nearby satellite to inspect the Media branch"
-        }
-        return "\(Pluralize.count(planet.toolCount, "satellite")) · \(planet.subtitle)"
+        return "\(Pluralize.count(planet.toolCount, "tool")) · \(planet.subtitle)"
     }
 
     private var accessibilityLabel: String {
