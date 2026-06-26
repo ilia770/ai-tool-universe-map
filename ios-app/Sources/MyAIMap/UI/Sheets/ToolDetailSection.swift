@@ -183,7 +183,6 @@ struct ToolDetailSection: View {
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .brandAnimation(BrandMotion.flow, value: model.selection.activeCategory)
         .brandAnimation(BrandMotion.nudge, value: model.selection.selectedToolID)
-        .accessibilityIdentifier("ToolDetailSection.Root")
         .copyToast($copyToastKind)
         .confirmationDialog(
             "Remove \(selectedTool.name)?",
@@ -230,6 +229,7 @@ struct ToolDetailSection: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.78)
                         .contentTransition(.opacity)
+                        .accessibilityIdentifier("ToolDetailSection.Title")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

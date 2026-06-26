@@ -137,8 +137,22 @@ private func assertLegalHitTarget(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    XCTAssertGreaterThanOrEqual(element.frame.width, 44, "\(name) width should be at least 44pt", file: file, line: line)
-    XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(name) height should be at least 44pt", file: file, line: line)
+    let minimumHitTarget: CGFloat = 44
+    let layoutEpsilon: CGFloat = 0.01
+    XCTAssertGreaterThanOrEqual(
+        element.frame.width,
+        minimumHitTarget - layoutEpsilon,
+        "\(name) width should be at least 44pt",
+        file: file,
+        line: line
+    )
+    XCTAssertGreaterThanOrEqual(
+        element.frame.height,
+        minimumHitTarget - layoutEpsilon,
+        "\(name) height should be at least 44pt",
+        file: file,
+        line: line
+    )
 }
 
 @MainActor

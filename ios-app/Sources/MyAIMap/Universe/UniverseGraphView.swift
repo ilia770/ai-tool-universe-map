@@ -62,17 +62,23 @@ enum UniverseGraphLayout {
             return UniverseGraphLayoutResult(nodes: [], edges: [])
         }
 
-        // Large universes (e.g. the full sample seed) cannot fit inside one
-        // phone screen without overlap. Grow the working area — and the ring /
-        // tool spreads — with node count so the collision solver always has
-        // room; the view lets the user pan/zoom across the larger canvas. Small
-        // hand-built universes (<= baseline) keep spreadScale == 1, unchanged.
-        let nodeTotal = planets.reduce(0) { $0 + $1.tools.count } + planets.count
+        // Progressive disclosure: tool nodes are emitted only for the focused
+        // category, matching the 3D scene's satellite reveal (UniverseMode
+        // .showsToolLabels / .showsSatellites are both false in overview). The
+        // overview is therefore just core + categories — a clean hub-and-spoke
+        // that fits one screen — and the working area only has to grow with the
+        // nodes actually drawn, never the full ~50-tool seed.
+        let showsTools = mode.showsToolLabels
+        let focusedCategory = mode.focusedCategory
+        let focusedToolCount = showsTools
+            ? (planets.first { $0.id == focusedCategory }?.tools.count ?? 0)
+            : 0
+        let nodeTotal = planets.count + focusedToolCount
         let spreadScale = max(1, (CGFloat(nodeTotal) / 18).squareRoot())
         let bounds = graphBounds(in: size, spreadScale: spreadScale)
         let corePlanet = planets.first { $0.id == .core }
         let branches = planets.filter { $0.id != .core }
-        let corePoint = CGPoint(x: bounds.midX, y: bounds.minY + bounds.height * 0.42)
+        let corePoint = CGPoint(x: bounds.midX, y: bounds.minY + bounds.height * 0.46)
         var drafts: [NodeDraft] = []
         var edgeSeeds: [(sourceID: String, targetID: String, category: ToolCategoryId)] = []
 
@@ -92,14 +98,16 @@ enum UniverseGraphLayout {
                     isPinned: true
                 )
             )
-            appendCoreToolDrafts(
-                from: corePlanet,
-                around: corePoint,
-                into: &drafts,
-                edgeSeeds: &edgeSeeds,
-                bounds: bounds,
-                spreadScale: spreadScale
-            )
+            if showsTools && focusedCategory == .core {
+                appendCoreToolDrafts(
+                    from: corePlanet,
+                    around: corePoint,
+                    into: &drafts,
+                    edgeSeeds: &edgeSeeds,
+                    bounds: bounds,
+                    spreadScale: spreadScale
+                )
+            }
         }
 
         for (index, planet) in branches.enumerated() {
@@ -129,15 +137,17 @@ enum UniverseGraphLayout {
             if corePlanet != nil {
                 edgeSeeds.append((nodeID(forCategory: .core), categoryID, planet.id))
             }
-            appendToolDrafts(
-                from: planet,
-                categoryPoint: categoryPoint,
-                corePoint: corePoint,
-                into: &drafts,
-                edgeSeeds: &edgeSeeds,
-                bounds: bounds,
-                spreadScale: spreadScale
-            )
+            if showsTools && focusedCategory == planet.id {
+                appendToolDrafts(
+                    from: planet,
+                    categoryPoint: categoryPoint,
+                    corePoint: corePoint,
+                    into: &drafts,
+                    edgeSeeds: &edgeSeeds,
+                    bounds: bounds,
+                    spreadScale: spreadScale
+                )
+            }
         }
 
         resolveCollisions(in: &drafts, bounds: bounds)
@@ -198,7 +208,11 @@ enum UniverseGraphLayout {
         let width = max(size.width, 320)
         let height = max(size.height, 560)
         let horizontalInset = max(24, min(width * 0.07, 42))
-        let topInset = max(76, min(height * 0.12, 112))
+        // Reserve enough top room for the route pill + render-mode chrome so the
+        // overview ring (which is not auto-panned) never tucks its top category
+        // under the controls. Focus modes get their own larger clearance via
+        // UniverseGraphViewport.focusPadding.
+        let topInset = max(108, min(height * 0.16, 150))
         let lowerLimit = height - max(214, min(height * 0.26, 286))
         let graphHeight = max(330, lowerLimit - topInset)
         let baseWidth = width - horizontalInset * 2
@@ -234,8 +248,8 @@ enum UniverseGraphLayout {
             let step = (2 * CGFloat.pi) / CGFloat(count)
             angle = -CGFloat.pi / 2 + CGFloat(index) * step
         }
-        let radiusX = min(bounds.width * 0.39, 168 * spreadScale)
-        let radiusY = min(bounds.height * 0.34, 142 * spreadScale)
+        let radiusX = min(bounds.width * 0.41, 172 * spreadScale)
+        let radiusY = min(bounds.height * 0.36, 156 * spreadScale)
         return CGPoint(
             x: center.x + cos(angle) * radiusX,
             y: center.y + sin(angle) * radiusY
@@ -276,21 +290,35 @@ enum UniverseGraphLayout {
         bounds: CGRect,
         spreadScale: CGFloat = 1
     ) {
-        let direction = normalized(CGVector(dx: categoryPoint.x - corePoint.x, dy: categoryPoint.y - corePoint.y))
-        let perpendicular = CGVector(dx: -direction.dy, dy: direction.dx)
         let categoryID = nodeID(forCategory: planet.id)
         let count = max(planet.tools.count, 1)
 
+        // Focused tools sit on an even ring AROUND their category, not a tall
+        // grid marching away from the core. A symmetric ring is compact (so the
+        // auto-pan can centre the whole cluster inside the tappable band without
+        // clipping under the top chrome) and spaces labels evenly instead of
+        // colliding them in dense rows. The ring grows with count so arc spacing
+        // stays roughly constant. For large branches it splits into two rings.
+        let awayAngle = atan2(categoryPoint.y - corePoint.y, categoryPoint.x - corePoint.x)
+        let useTwoRings = count > 7
+        let innerCount = useTwoRings ? Int((Double(count) / 2).rounded(.up)) : count
+        let outerCount = count - innerCount
+        let innerRadius = (max(80, CGFloat(min(count, innerCount)) * 15)) * spreadScale
+        let outerRadius = innerRadius + 56 * spreadScale
+
         for (index, tool) in planet.tools.enumerated() {
-            let row = CGFloat(index / 4)
-            let rowCount = CGFloat(min(4, max(count - index / 4 * 4, 1)))
-            let slot = CGFloat(index % 4) - (rowCount - 1) / 2
-            let distance: CGFloat = (72 + row * 38) * spreadScale
-            let spread: CGFloat = (count <= 2 ? 48 : 42) * spreadScale
+            let onInner = index < innerCount
+            let ringCount = onInner ? innerCount : max(outerCount, 1)
+            let ringIndex = onInner ? index : index - innerCount
+            let ringRadius = onInner ? innerRadius : outerRadius
+            // Stagger the outer ring half a slot so outer nodes nest between
+            // inner ones instead of stacking radially.
+            let stagger = onInner ? 0 : CGFloat.pi / CGFloat(max(ringCount, 1))
+            let angle = awayAngle + stagger + (2 * .pi) * CGFloat(ringIndex) / CGFloat(max(ringCount, 1))
             let point = clamp(
                 CGPoint(
-                    x: categoryPoint.x + direction.dx * distance + perpendicular.dx * slot * spread,
-                    y: categoryPoint.y + direction.dy * distance + perpendicular.dy * slot * spread
+                    x: categoryPoint.x + cos(angle) * ringRadius,
+                    y: categoryPoint.y + sin(angle) * ringRadius
                 ),
                 radius: 44,
                 bounds: bounds
@@ -542,7 +570,10 @@ enum UniverseGraphViewport {
         case .overview, .detail, .chatOpen:
             return nil
         case .branchFocus(let category):
-            focusNodes = layout.nodes.filter { $0.category == category }
+            let toolNodes = layout.nodes.filter { $0.kind == .tool && $0.category == category }
+            focusNodes = toolNodes.isEmpty
+                ? layout.nodes.filter { $0.category == category }
+                : toolNodes
         case .toolSelected(let category, let toolID):
             focusNodes = layout.nodes.filter { node in
                 (node.kind == .category && node.category == category) || node.toolID == toolID
@@ -565,7 +596,7 @@ enum UniverseGraphViewport {
 
     private static func focusPadding(for viewport: CGSize) -> EdgeInsets {
         EdgeInsets(
-            top: min(max(viewport.height * 0.11, 88), 116),
+            top: min(max(viewport.height * 0.23, 196), 228),
             leading: min(max(viewport.width * 0.15, 56), 78),
             bottom: min(max(viewport.height * 0.27, 220), 270),
             trailing: min(max(viewport.width * 0.12, 48), 72)
@@ -609,10 +640,11 @@ enum UniverseGraphViewport {
             max(0, edgePadding - scaledMinY),
             max(0, scaledMaxY - viewport.height + edgePadding)
         )
+        let focusChromeClearance = focusPadding(for: viewport).top + edgePadding
 
         return CGSize(
             width: max(120, horizontalNeed),
-            height: max(92, verticalNeed)
+            height: max(focusChromeClearance, verticalNeed)
         )
     }
 }
@@ -798,8 +830,12 @@ struct UniverseGraphView: View {
             path.move(to: endpoints.source)
             path.addQuadCurve(to: endpoints.target, control: control)
 
-            let opacity = edge.isEmphasized ? 0.44 : 0.14
-            let width: CGFloat = edge.isEmphasized ? 1.7 : 0.95
+            // Spokes are the whole point of a hub-and-spoke map, so the resting
+            // (non-emphasized) edge has to actually read against the dark field —
+            // not the near-invisible hairline it was. Focused edges still pull
+            // clearly ahead.
+            let opacity = edge.isEmphasized ? 0.5 : 0.26
+            let width: CGFloat = edge.isEmphasized ? 1.8 : 1.15
             context.stroke(path, with: .color(color.opacity(opacity)), lineWidth: width)
         }
     }

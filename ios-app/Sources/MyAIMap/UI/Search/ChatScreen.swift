@@ -105,10 +105,16 @@ struct ChatScreen: View {
             .padding(.bottom, 8)
 
             transcript
+                .zIndex(0)
 
             composer
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
+                // The starter prompt can extend to the bottom edge of the
+                // transcript's AX frame while the keyboard squeezes the layout.
+                // Keep composer controls and their floating attachment menu
+                // above that scroll content for both rendering and hit testing.
+                .zIndex(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ChatTheme.background.ignoresSafeArea())

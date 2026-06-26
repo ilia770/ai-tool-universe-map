@@ -11,11 +11,19 @@ import SwiftUI
 enum AdaptiveLayout {
 
     /// True on compact-width screens (iPhone in any orientation,
-    /// iPad in slide-over). Drives the bottom-sheet vs split-view
-    /// branching.
+    /// iPad in slide-over). A missing size class is treated as compact
+    /// because UI-test / hosted SwiftUI roots can report nil before the
+    /// environment resolves, and the bottom sheet is the safer fallback.
     @MainActor
     static func isCompact(_ horizontal: UserInterfaceSizeClass?) -> Bool {
-        horizontal == .compact
+        switch horizontal {
+        case .compact, .none:
+            return true
+        case .regular:
+            return false
+        @unknown default:
+            return true
+        }
     }
 
     /// Recommended bottom-sheet detents per size class. Compact gets
