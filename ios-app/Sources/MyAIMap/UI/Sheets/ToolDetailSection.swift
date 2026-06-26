@@ -126,6 +126,8 @@ struct ToolDetailSection: View {
     @State private var isShowingRemoveConfirmation = false
     @State private var browserSheet: BrowserSheetItem?
     @State private var isMetadataExpanded = false
+    @State private var isStrengthsExpanded = false
+    @State private var isMoreExpanded = false
     /// Drives the copy-confirmation toast when the user copies tool info.
     @State private var copyToastKind: CopyToastKind?
     /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
@@ -168,13 +170,11 @@ struct ToolDetailSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
             headerBlock
-            pricingSection
             bestForSection
             bulletSection(title: "Key features", icon: "sparkles", items: knowledge.killerFeatures, symbol: "sparkle")
-            bulletSection(title: "Strengths", icon: "checkmark.seal", items: knowledge.strengths, symbol: "checkmark.circle")
-            bulletSection(title: "Tradeoffs", icon: "exclamationmark.triangle", items: knowledge.tradeoffs, symbol: "minus.circle")
-            commonUsersSection
-            relatedToolsSection
+            pricingSection
+            strengthsTradeoffsSection
+            moreSection
             metadataSection
             secondaryActions
         }
@@ -368,10 +368,34 @@ struct ToolDetailSection: View {
         }
     }
 
-    private var commonUsersSection: some View {
-        sectionBlock(title: "Common users", icon: "person.2") {
+    /// Merged Strengths + Tradeoffs, collapsed behind a disclosure so the first
+    /// screen stays focused on the value (best for, key features, pricing).
+    private var strengthsTradeoffsSection: some View {
+        disclosureBlock(title: "Strengths & tradeoffs", icon: "scalemass", isExpanded: $isStrengthsExpanded) {
+            VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
+                bulletList(knowledge.strengths, symbol: "checkmark.circle")
+                bulletList(knowledge.tradeoffs, symbol: "minus.circle")
+            }
+        }
+    }
+
+    /// Secondary context — common users and related tools — tucked behind one
+    /// disclosure to keep the stack short.
+    private var moreSection: some View {
+        disclosureBlock(title: "More", icon: "ellipsis.circle", isExpanded: $isMoreExpanded) {
+            VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
+                commonUsersContent
+                relatedToolsContent
+            }
+        }
+    }
+
+    private var commonUsersContent: some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
+            sectionHeader(title: "Common users", icon: "person.2")
             bulletList([knowledge.typicalUsers], symbol: "person.crop.circle")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func bulletList(_ items: [String], symbol: String) -> some View {
@@ -386,8 +410,9 @@ struct ToolDetailSection: View {
         }
     }
 
-    private var relatedToolsSection: some View {
-        sectionBlock(title: "Related tools", icon: "link") {
+    private var relatedToolsContent: some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
+            sectionHeader(title: "Related tools", icon: "link")
             VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 if explicitRelatedTools.isEmpty {
                     Text("Nearby tools from the same branch.")
@@ -416,6 +441,7 @@ struct ToolDetailSection: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func relatedToolButton(_ tool: Tool) -> some View {
@@ -500,6 +526,26 @@ struct ToolDetailSection: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(BrandSpacing.m.value)
+        .background(neutralCardBackground)
+    }
+
+    /// Collapsible card matching `metadataSection` — used for secondary info so
+    /// the first screen isn't a tall stack of always-expanded sections.
+    private func disclosureBlock<Content: View>(
+        title: String,
+        icon: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(isExpanded: isExpanded) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, BrandSpacing.s.value)
+        } label: {
+            sectionHeader(title: title, icon: icon)
+        }
+        .tint(selectedCategoryModel.color.swiftUIColor)
         .padding(BrandSpacing.m.value)
         .background(neutralCardBackground)
     }
