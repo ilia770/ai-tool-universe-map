@@ -579,9 +579,14 @@ struct UniverseOverlayView: View {
 
     private var topChromeContent: some View {
         HStack(alignment: .top, spacing: 12) {
-            visualizationControl
-                .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
-                .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
+            // In 3D the experimental notice below already owns the "Back to 2D"
+            // exit, so showing the 2D/3D toggle here too just crowds and collides
+            // with that row. Show the toggle only in 2D; 3D exits via the notice.
+            if model.renderMode == .graph2D {
+                visualizationControl
+                    .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
+                    .opacity(mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
+            }
             Spacer()
             Button(action: onAccount) {
                 UserAvatarImage(size: 46, tint: .white.opacity(0.88))

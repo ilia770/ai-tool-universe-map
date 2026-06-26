@@ -491,7 +491,11 @@ enum UniverseGraphViewport {
 
         let availableHeight = bottomLimit - topLimit
         if projected.height > availableHeight {
-            proposed.height = (topLimit + bottomLimit) / 2 - projected.midY
+            // Cluster taller than the band (the densest branches, e.g. Coding's
+            // 11 tools): pin its top just below the chrome so the top arc never
+            // tucks under the route / render controls. The overflow falls into
+            // the lower area, which the user can pan to reach.
+            proposed.height = topLimit - projected.minY
         } else if projected.minY < topLimit {
             proposed.height = topLimit - projected.minY
         } else if projected.maxY > bottomLimit {
@@ -952,8 +956,28 @@ private struct GraphNodeButton: View {
                     Circle()
                         .fill(.black.opacity(0.34))
                         .overlay {
+                            // Category/core discs carry a subtle radial sheen in
+                            // their own colour so each branch is identifiable at a
+                            // glance; tool discs stay neutral so the core →
+                            // category → tool tier still reads.
+                            if node.kind != .tool {
+                                Circle()
+                                    .fill(
+                                        RadialGradient(
+                                            colors: [color.opacity(0.34), color.opacity(0.05)],
+                                            center: .center,
+                                            startRadius: 1,
+                                            endRadius: node.radius
+                                        )
+                                    )
+                            }
+                        }
+                        .overlay {
                             Circle()
-                                .stroke(color.opacity(node.isSelected ? 0.95 : 0.42), lineWidth: node.isSelected ? 2.4 : 1.1)
+                                .stroke(
+                                    color.opacity(node.isSelected ? 0.95 : (node.kind == .tool ? 0.42 : 0.62)),
+                                    lineWidth: node.isSelected ? 2.4 : (node.kind == .tool ? 1.1 : 1.6)
+                                )
                         }
                         .frame(width: node.radius * 2, height: node.radius * 2)
 

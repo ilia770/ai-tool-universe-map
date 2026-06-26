@@ -26,10 +26,11 @@ final class PolishCaptureTests: XCTestCase {
             wait(2.5)
             snap("10-3d-spatial")
         }
-        // Back to 2D for the remaining captures.
-        let toggle2D = app.buttons["universe.renderMode.0"]
-        if toggle2D.waitForExistence(timeout: 3) {
-            tap(toggle2D)
+        // Back to 2D for the remaining captures (the on-map toggle is hidden in
+        // 3D now; the experimental notice owns the exit).
+        let exit2D = app.buttons["spatial-exit-to-2d"]
+        if exit2D.waitForExistence(timeout: 3) {
+            tap(exit2D)
             wait(1.2)
         }
 
