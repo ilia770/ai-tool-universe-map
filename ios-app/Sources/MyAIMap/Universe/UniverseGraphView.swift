@@ -303,7 +303,7 @@ enum UniverseGraphLayout {
         let useTwoRings = count > 7
         let innerCount = useTwoRings ? Int((Double(count) / 2).rounded(.up)) : count
         let outerCount = count - innerCount
-        let innerRadius = (max(80, CGFloat(min(count, innerCount)) * 15)) * spreadScale
+        let innerRadius = (max(80, CGFloat(innerCount) * 15)) * spreadScale
         let outerRadius = innerRadius + 56 * spreadScale
 
         for (index, tool) in planet.tools.enumerated() {

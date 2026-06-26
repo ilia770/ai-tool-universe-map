@@ -146,6 +146,27 @@ square-texel artifacts. Needs to at least be presentable; not the priority.
    invest in label de-overlap + tap precision (the `LabelPacker` is already
    there to build on).
 
+### 2026-06-26 — WS-H/I/J landed (commit 8022917) + subagent review (WS-L)
+- **WS-I category-colour hierarchy**, **WS-H focus top-align**, **WS-J 3D chrome
+  declutter** — all verified on device captures (`screenshots/polish-sprint/
+  verify`). The 3D scene actually renders as depth-laid colour planets; hiding
+  the redundant on-map toggle removed the top-chrome collision.
+- **Disk incident**: the user's Data volume was already ~99% full; my ~12 build
+  artifacts tipped it to 0 and one verify run failed on IO (not code — graph
+  unit tests passed, app rendered fine). Reclaimed space (removed DerivedData,
+  old xcresults, the iPad sim); re-verified green. **Keep build artifacts
+  pruned — this machine has little headroom.**
+- **Two parallel code-review subagents** reviewed `df31dd0..HEAD`. Fixed:
+  - Render toggle was removed with `if` → broke the glassEffectID/matchedGeometry
+    source mid-morph (pop instead of animate). Now hidden via opacity +
+    allowsHitTesting so the id source stays alive. (overlay)
+  - Top-align had no SE-width coverage → added an SE branch-focus tappability
+    test + a core-focus "only core tools" test. (tests)
+  - Removed an innerRadius `min()` no-op.
+- **Noted, not changed** (pre-existing / joint-session): in 3D + chatOpen the
+  whole top chrome (incl. Back-to-2D) is hidden — chat dismiss restores the mode,
+  but a visible exit there would be nicer. Lower priority.
+
 ## Status summary
 - **2D map (the core complaint): rebuilt and verified.** Overview + branch focus
   read as a clean, intuitive map; no clipping; tests green.

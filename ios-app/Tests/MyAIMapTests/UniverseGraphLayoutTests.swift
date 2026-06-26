@@ -264,6 +264,64 @@ struct UniverseGraphLayoutTests {
         }
     }
 
+    @Test func focusedBranchAutoPanKeepsAToolTouchableAtSECompactWidth() {
+        // The top-align fallback for tall clusters must still leave at least one
+        // focused tool fully inside the tappable band on the smallest phone.
+        let viewport = CGSize(width: 320, height: 568)
+        let topChromeBottom: CGFloat = 196
+        let bottomDockTop = viewport.height - 214
+
+        for category in UniverseSeed.categories.map(\.id) where category != .core {
+            let layout = makeLayout(mode: .branchFocus(category), size: viewport)
+            let focusPan = UniverseGraphViewport.focusPan(
+                layout: layout,
+                mode: .branchFocus(category),
+                viewport: viewport,
+                scale: 1
+            )
+            let pan = UniverseGraphViewport.visiblePan(
+                storedPan: .zero,
+                focusPan: focusPan,
+                layout: layout,
+                viewport: viewport,
+                scale: 1
+            )
+            let toolFrames = layout.nodes
+                .filter { $0.kind == .tool && $0.category == category }
+                .map {
+                    UniverseGraphViewport.projectedFrame(
+                        for: $0,
+                        viewport: viewport,
+                        scale: 1,
+                        pan: pan
+                    )
+                }
+
+            #expect(
+                toolFrames.contains { frame in
+                    frame.minX >= 0
+                        && frame.maxX <= viewport.width
+                        && frame.minY >= topChromeBottom
+                        && frame.maxY <= bottomDockTop
+                },
+                "\(category.rawValue) at SE width should keep at least one focused tool fully tappable; frames=\(toolFrames)"
+            )
+        }
+    }
+
+    @Test func coreFocusRevealsOnlyCoreToolsNotOtherBranches() {
+        // Guards the progressive-disclosure contract for the core branch: if
+        // core is ever focused, only core tools may appear — never a flood of
+        // every category's tools (which is what would happen if .overview's
+        // focusedCategory == .core leaked into tool emission).
+        let layout = makeLayout(mode: .toolSelected(.core, "founder-os"))
+        let toolNodes = layout.nodes.filter { $0.kind == .tool }
+        #expect(
+            toolNodes.allSatisfy { $0.category == .core },
+            "core focus should emit only core tools; got \(toolNodes.map { ($0.id, $0.category) })"
+        )
+    }
+
     @Test func focusPanRoundTripsStoredPanWithoutDrift() {
         let viewport = CGSize(width: 402, height: 874)
         let mode = UniverseMode.branchFocus(.analytics)
