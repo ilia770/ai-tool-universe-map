@@ -22,37 +22,37 @@ enum ToolPricingPresenter {
         let clean = pricing.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         guard !clean.isEmpty, !lower.contains("unknown") else {
-            return [unknownRow(note: "No verified pricing stored.")]
+            return [unknownRow(note: "No pricing stored.")]
         }
 
         if lower.contains("internal") {
             return [
                 ToolPricingRow(plan: "Internal", value: "Variable", note: clean, icon: "building.2"),
-                unknownRow(note: "Cost depends on connected model, agent, and storage usage."),
+                unknownRow(note: "Depends on model, agent, and storage usage."),
             ]
         }
 
         if lower.contains("open-source") || lower.contains("open source") {
             var rows = [
-                ToolPricingRow(plan: "Free", value: "$0 core", note: "Open-source core is noted locally.", icon: "checkmark.circle"),
+                ToolPricingRow(plan: "Free", value: "$0 core", note: "Open-source core.", icon: "checkmark.circle"),
             ]
             if lower.contains("paid") || lower.contains("cloud") {
-                rows.append(ToolPricingRow(plan: "Paid/cloud", value: "Hosted options", note: "Verify current limits and render/runtime costs.", icon: "creditcard"))
+                rows.append(ToolPricingRow(plan: "Paid/cloud", value: "Hosted options", note: "Verify limits and runtime cost.", icon: "creditcard"))
             }
-            rows.append(unknownRow(note: "Exact hosted pricing is not verified locally."))
+            rows.append(unknownRow(note: "Hosted pricing not stored."))
             return rows
         }
 
         if lower.contains("freemium") {
             var rows = [
-                ToolPricingRow(plan: "Free", value: "$0 tier", note: "Free tier or trial is noted locally; verify current limits.", icon: "checkmark.circle"),
-                ToolPricingRow(plan: "Paid tier", value: "Verify website", note: "Exact paid plan name and price are not stored locally.", icon: "creditcard"),
+                ToolPricingRow(plan: "Free", value: "$0 tier", note: "Free tier or trial; verify limits.", icon: "checkmark.circle"),
+                ToolPricingRow(plan: "Paid tier", value: "Verify website", note: "Plan and price not stored.", icon: "creditcard"),
             ]
             if lower.contains("team") {
-                rows.append(ToolPricingRow(plan: "Team", value: "Team subscription", note: "Team pricing exists in the local note; verify website.", icon: "person.3"))
+                rows.append(ToolPricingRow(plan: "Team", value: "Team subscription", note: "Team plan available.", icon: "person.3"))
             }
             if lower.contains("enterprise") {
-                rows.append(ToolPricingRow(plan: "Enterprise", value: "Paid/custom", note: "Enterprise availability is noted locally; verify terms.", icon: "building.2"))
+                rows.append(ToolPricingRow(plan: "Enterprise", value: "Paid/custom", note: "Enterprise available; verify terms.", icon: "building.2"))
             }
             return rows
         }
@@ -62,22 +62,22 @@ enum ToolPricingPresenter {
                 ToolPricingRow(plan: "Subscription / usage", value: "Verify website", note: clean, icon: "creditcard"),
             ]
             if lower.contains("team") {
-                rows.append(ToolPricingRow(plan: "Team", value: "Team plan", note: "Team plan is referenced locally; verify current price.", icon: "person.3"))
+                rows.append(ToolPricingRow(plan: "Team", value: "Team plan", note: "Team plan available.", icon: "person.3"))
             }
-            rows.append(unknownRow(note: "Exact price is not stored locally."))
+            rows.append(unknownRow(note: "Price not stored."))
             return rows
         }
 
         if lower.contains("depends") || lower.contains("variable") {
             return [
                 ToolPricingRow(plan: "Variable", value: "Depends on setup", note: clean, icon: "slider.horizontal.3"),
-                unknownRow(note: "Verify website or implementation before budgeting."),
+                unknownRow(note: "Verify before budgeting."),
             ]
         }
 
         return [
             ToolPricingRow(plan: "Pricing note", value: "Verify website", note: clean, icon: "info.circle"),
-            unknownRow(note: "Exact plan prices are not stored locally."),
+            unknownRow(note: "Plan prices not stored."),
         ]
     }
 
@@ -195,7 +195,7 @@ struct ToolDetailSection: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the tool from your map. The action cannot be undone from this sheet.")
+            Text("Removes this tool from your map.")
         }
         .sheet(item: $browserSheet) { item in
             InAppBrowserSheet(url: item.url)
@@ -390,13 +390,13 @@ struct ToolDetailSection: View {
         sectionBlock(title: "Related tools", icon: "link") {
             VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 if explicitRelatedTools.isEmpty {
-                    Text("No explicit relations are verified yet. Showing nearby tools from the same branch.")
+                    Text("Nearby tools from the same branch.")
                         .font(.caption)
                         .foregroundStyle(BrandColor.textMuted)
                 }
 
                 if relatedDisplayTools.isEmpty {
-                    Text("No related tools available in this universe yet.")
+                    Text("No related tools yet.")
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.textSecondary)
                 } else {
@@ -465,7 +465,7 @@ struct ToolDetailSection: View {
             }
             .padding(.top, BrandSpacing.s.value)
         } label: {
-            sectionHeader(title: "Metadata / technical details", icon: "info.circle")
+            sectionHeader(title: "Details", icon: "info.circle")
         }
         .tint(selectedCategoryModel.color.swiftUIColor)
         .padding(BrandSpacing.m.value)

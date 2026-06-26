@@ -65,8 +65,8 @@ enum AddToolLogic {
         let clean = "\(name) \(website)".trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else {
             return activeCategory == .core
-                ? "Will use Analytics until a name or website gives a stronger signal."
-                : "Using the active universe branch until a name or website gives a stronger signal."
+                ? "Using Analytics until name or website gives a signal."
+                : "Using the active branch until name or website gives a signal."
         }
 
         if let proposed = proposedBranchName(name: name, website: website, activeCategory: activeCategory) {
@@ -76,9 +76,9 @@ enum AddToolLogic {
         let text = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
         let matchedKeywords = autoKeywords(for: suggestedCategory).contains { text.contains($0) }
         if matchedKeywords {
-            return "Suggested automatically from name, website, and universe context."
+            return "Suggested from name, website, and context."
         }
-        return "No strong keyword match; using the active universe context."
+        return "No strong match; using the active context."
     }
 
     /// The Auto path proposes a NEW branch (blueprint §8) when no built-in
@@ -238,7 +238,7 @@ struct AddToolSheet: View {
             }
             Button("Keep editing", role: .cancel) {}
         } message: {
-            Text("The name, website, or branch choice has not been added yet.")
+            Text("This tool hasn't been added yet.")
         }
         .onAppear {
             focusedField = .name
@@ -258,7 +258,7 @@ struct AddToolSheet: View {
             Text("Place a service")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
-            Text("Add only the name if that is all you have. Website and branch can stay automatic; the app will keep claims guarded until a source is verified.")
+            Text("Name is enough. Website and branch can stay automatic.")
                 .font(.subheadline)
                 .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -465,7 +465,7 @@ struct AddToolSheet: View {
                 .font(.caption.weight(.bold))
                 .tracking(1.1)
                 .foregroundStyle(BrandColor.textMuted)
-            Text("Auto branch uses the name, website, and active universe context. Relations stay local to the chosen branch, so broad brands are not connected to everything by default.")
+            Text("Relations stay local to the chosen branch, so broad brands aren't linked to everything.")
                 .font(.footnote)
                 .foregroundStyle(BrandColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -670,8 +670,8 @@ struct AddToolSheet: View {
     private var branchHeaderReason: String {
         if branchMode == .manual {
             return isCreatingBranch
-                ? "A new branch will be created and this tool placed in it."
-                : "Selected manually. Auto suggestions will not override this branch."
+                ? "A new branch will be created for this tool."
+                : "Selected manually. Auto won't override this."
         }
         return autoBranchReason
     }

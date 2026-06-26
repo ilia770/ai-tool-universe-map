@@ -95,7 +95,7 @@ struct OnboardingOverlay: View {
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("AI Universe maps your tools into branches. Add tools, ask AI what to use, and explore your stack visually.")
+                Text("Map your tools into branches. Add tools, ask AI, and explore your stack.")
                     .font(.subheadline)
                     .lineSpacing(3)
                     .foregroundStyle(.white.opacity(0.72))

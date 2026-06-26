@@ -131,7 +131,7 @@ struct AccountSettingsSheet: View {
                     .disabled(true)
                     .opacity(0.58)
 
-                    Text("System follows your device language. Manual language selection is coming soon.")
+                    Text("Follows your device language. Manual selection coming soon.")
                         .font(.footnote)
                         .foregroundStyle(BrandColor.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -143,7 +143,7 @@ struct AccountSettingsSheet: View {
             settingsGroup(title: "Behavior", systemImage: "hand.tap.fill") {
                 Toggle("Haptics", isOn: $model.hapticsEnabled)
                     .tint(model.selectedCategoryModel.color.swiftUIColor)
-                Text("Haptics add subtle taps for selections, opening tools, and success or error feedback. Turn off to silence all haptic feedback.")
+                Text("Subtle taps for selections and feedback. Turn off to silence them.")
                     .font(.footnote)
                     .foregroundStyle(BrandColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -320,7 +320,7 @@ struct AccountSettingsSheet: View {
                     Text("No activity yet")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
-                    Text("Added, removed, restored, opened, and assistant actions will appear here.")
+                    Text("Your tool and assistant actions will appear here.")
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
