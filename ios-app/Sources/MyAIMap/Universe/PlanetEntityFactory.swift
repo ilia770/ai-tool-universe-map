@@ -273,7 +273,17 @@ enum PlanetEntityFactory {
         descriptor.normals = MeshBuffer(torus.normals)
         descriptor.primitives = .triangles(torus.indices)
         let mesh = (try? MeshResource.generate(from: [descriptor])) ?? .generateSphere(radius: tube)
-        return ModelEntity(mesh: mesh, materials: [unlitGlow(color: color, opacity: opacity)])
+
+        // G2: thin transparent orbit rings z-fought / poked through the opaque
+        // planet body at its silhouette edges, where the ring crosses in front
+        // of and behind the sphere at near-equal depth. A transparent ring must
+        // never write depth (it would fight the planet's own depth and clip the
+        // body), but must still READ depth so the half of the ring that passes
+        // behind the planet is correctly occluded. So: readsDepth on (default),
+        // writesDepth off → rings always pass cleanly behind the planet.
+        var material = unlitGlow(color: color, opacity: opacity)
+        material.writesDepth = false
+        return ModelEntity(mesh: mesh, materials: [material])
     }
 
     private static func configureTap(on entity: ModelEntity, radius: Float) {

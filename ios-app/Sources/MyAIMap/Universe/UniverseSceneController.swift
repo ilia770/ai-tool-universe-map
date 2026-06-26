@@ -35,11 +35,23 @@ final class UniverseSceneController {
             root.addChild(satelliteRoot)
             root.addChild(lightRoot)
             root.addChild(camera)
-            cameraRig.attach(camera)
             addLights()
             addStars()
             addBackdropAndIBL()
         }
+
+        // G1 (empty 3D scene on return): `sceneController` is `@State` and so
+        // outlives the `RealityView`. Toggling render mode (3D → 2D/chat/detail
+        // → 3D) tears down `UniverseRealityView` and builds a fresh one, whose
+        // `make` closure calls `makeScene` again. The persisted entity graph no
+        // longer participates in the new `RealityView`'s content as built, so
+        // the scene came back empty (only a couple of stray static rings, no
+        // planet/satellites). Re-attach the camera to the new content's render
+        // pass and force a from-scratch rebuild of the dynamic graph every time
+        // the scene mounts, by invalidating the rebuild gate. `update`/`F3` edits
+        // keep using the signature gate so steady-state frames stay cheap.
+        cameraRig.attach(camera)
+        sceneSignature = ""
 
         rebuildIfNeeded(
             planets: planets,

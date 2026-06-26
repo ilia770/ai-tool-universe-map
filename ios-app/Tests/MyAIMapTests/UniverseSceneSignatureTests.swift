@@ -55,4 +55,18 @@ struct UniverseSceneSignatureTests {
         let b = signature(for: [tool("alpha"), tool("beta")])
         #expect(a == b)
     }
+
+    /// G1 (empty 3D scene on return): on a fresh `RealityView` mount the
+    /// controller resets its cached signature to `""` to force a full rebuild
+    /// of the dynamic entity graph, even when the scene inputs are unchanged.
+    /// That only works if a real signature is never itself the empty string —
+    /// otherwise the rebuild gate (`signature != cached`) could short-circuit
+    /// and the scene would come back empty. Guard that invariant here.
+    @Test func realSignatureIsNeverEmptySoMountAlwaysForcesRebuild() {
+        let real = signature(for: [tool("alpha"), tool("beta")])
+        #expect(!real.isEmpty)
+        // The reset sentinel used by `makeScene` must differ from any real
+        // signature so `rebuildIfNeeded` always re-enters after a remount.
+        #expect(real != "")
+    }
 }
