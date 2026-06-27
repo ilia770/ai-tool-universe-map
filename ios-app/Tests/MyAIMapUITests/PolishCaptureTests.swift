@@ -69,6 +69,23 @@ final class PolishCaptureTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testCaptureEmptyState() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uitestStatic", "-uitestOnboarding"]
+        app.launch()
+        wait(2.0)
+        // First-run onboarding over the empty map.
+        snap("20-onboarding")
+        // Skip → the empty universe map (first-run, no tools yet).
+        let skip = app.buttons["Onboarding.Skip"]
+        if skip.waitForExistence(timeout: 4), skip.isHittable {
+            tap(skip)
+            wait(1.5)
+            snap("21-empty-map")
+        }
+    }
+
     // MARK: - Helpers
 
     @MainActor private func tap(_ element: XCUIElement) {
