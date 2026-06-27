@@ -437,9 +437,9 @@ private struct ChatMessageTurn: View {
             .padding(.vertical, 11)
             // Neutral content surface (LIQUID_GLASS_VISUAL_SPEC C2): no accent
             // fill on the bubble. Speaker conveyed by right alignment + tone.
-            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous)
                     .stroke(.white.opacity(0.10), lineWidth: 0.5)
             }
     }

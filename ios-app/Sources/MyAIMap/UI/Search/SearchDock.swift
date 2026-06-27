@@ -696,10 +696,10 @@ struct SearchDock: View {
             // (LIQUID_GLASS_VISUAL_SPEC C2). Speaker conveyed by alignment + tone.
             .background(
                 .white.opacity(0.07),
-                in: RoundedRectangle(cornerRadius: 19, style: .continuous)
+                in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous)
                     .stroke(.white.opacity(0.10), lineWidth: 0.5)
             }
     }

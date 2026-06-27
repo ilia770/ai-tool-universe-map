@@ -45,7 +45,7 @@ struct CategoryRail: View {
                                 .frame(width: 7, height: 7)
                                 .shadow(color: category.color.swiftUIColor.opacity(isSelected ? 0.9 : 0.25), radius: isSelected ? 7 : 2)
                             Text(category.shortName)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(BrandTypography.chip)
                                 .lineLimit(1)
                         }
                         .foregroundStyle(isSelected ? .white : .white.opacity(0.66))

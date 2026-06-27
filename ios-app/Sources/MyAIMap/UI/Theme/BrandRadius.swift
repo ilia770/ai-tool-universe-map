@@ -24,5 +24,9 @@ enum BrandRadius: CGFloat {
     /// Glass icon-button container.
     case glassButton = 16
 
+    /// Chat message bubble — same shape in the inline transcript and the full
+    /// chat screen, so both read from this and never disagree (was 19 vs 20).
+    case bubble = 20
+
     var value: CGFloat { rawValue }
 }

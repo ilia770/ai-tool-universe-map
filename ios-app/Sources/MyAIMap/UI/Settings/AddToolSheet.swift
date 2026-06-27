@@ -624,9 +624,9 @@ struct AddToolSheet: View {
     private var nameRequirementHint: some View {
         HStack(spacing: 5) {
             Image(systemName: canAdd ? "checkmark.circle.fill" : "info.circle")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption2.weight(.bold))
             Text(canAdd ? "Name is enough to add." : "Name required; website can stay empty.")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(canAdd ? .white.opacity(0.70) : BrandColor.textMuted)
         .accessibilityLabel(canAdd ? "Name is enough to add" : "Name is required; website can stay empty")
