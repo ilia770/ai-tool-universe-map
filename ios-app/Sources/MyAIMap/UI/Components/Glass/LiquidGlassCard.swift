@@ -11,7 +11,7 @@ struct LiquidGlassCard<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     init(
-        cornerRadius: CGFloat = 28,
+        cornerRadius: CGFloat = BrandRadius.floatingCard.value,
         tint: Color? = nil,
         interactive: Bool = false,
         @ViewBuilder content: @escaping () -> Content

@@ -38,7 +38,7 @@ struct SpatialRevealCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 18)
             .padding(.horizontal, 20)
-            .liquidGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous), tint: tint.opacity(0.4))
+            .liquidGlass(in: RoundedRectangle(cornerRadius: BrandRadius.revealCard.value, style: .continuous), tint: tint.opacity(0.4))
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: nil, pressedOpacity: 0.92))
         .frame(maxWidth: 340)

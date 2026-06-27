@@ -55,6 +55,19 @@ Recurring off-grid values and sites:
 recurring values (`BrandSpacing.sm = 10`, badge tokens) preserving pixels, then
 replace literals — verify a screenshot diff per screen shows no movement.
 
-## Fixed in this pass
-(see commit) — A: AddTool hint + CategoryRail chip → Dynamic Type. B: user-bubble
-radius unified via `BrandRadius.bubble`.
+## Fixed
+- **A (accessibility)**: AddTool name hint + CategoryRail chip → Dynamic Type.
+- **B (corner radii, value-preserving tokenize)**: added `BrandRadius` tokens
+  `bubble=20 (shared by bubbles + notices/popovers), promptCard=14,
+  revealCard=26, floatingCard=28,
+  graphLabel=9, sheetPresentation=42` and replaced the inline radii in
+  LiquidGlassSheet, LiquidGlassCard, ChatScreen, SearchDock, SpatialRevealCard,
+  UniverseOverlayView (notice), UniverseGraphView (node label). Same pixels.
+- **C (partial)**: added `BrandSpacing.sm = 10`; replaced the paired 10pt
+  notice/card insets (UniverseOverlayView notice, PlanetInfoCard). Same pixels.
+
+## Still queued (low priority — single-use micro-values)
+Badge/chip insets of 3/5/6/7/9px (ToolDetailSection badges, ToolAnchorBadge,
+ActionChip, CategoryRail gap) and one-off card pads (14, 18, RootSheet 20/22/28,
+RightUniverseRail metrics). These are single-use optical values; tokenizing each
+as a named constant is over-abstraction. Revisit only if a shared rhythm emerges.

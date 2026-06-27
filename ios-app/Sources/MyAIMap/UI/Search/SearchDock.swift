@@ -364,7 +364,7 @@ struct SearchDock: View {
             // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
             // panel, no black backing plate, no heavy accent tint. One shadow.
             .glassSurface(
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+                in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous),
                 interactive: true
             )
             .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 8)

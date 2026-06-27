@@ -1014,7 +1014,7 @@ private struct GraphNodeButton: View {
                     .padding(.horizontal, 7)
                     .padding(.vertical, node.kind == .tool ? 3 : 4)
                     .frame(width: labelWidth)
-                    .background(.black.opacity(node.isSelected ? 0.36 : 0.24), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .background(.black.opacity(node.isSelected ? 0.36 : 0.24), in: RoundedRectangle(cornerRadius: BrandRadius.graphLabel.value, style: .continuous))
                 }
             }
             .opacity(node.opacity)

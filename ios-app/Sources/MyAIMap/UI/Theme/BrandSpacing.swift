@@ -13,6 +13,10 @@ enum BrandSpacing: CGFloat {
     /// 8 — between chips, between an icon and its label.
     case s = 8
 
+    /// 10 — compact control vertical rhythm (composer/card/notice insets that
+    /// sit between s and m).
+    case sm = 10
+
     /// 12 — card inner padding.
     case m = 12
 

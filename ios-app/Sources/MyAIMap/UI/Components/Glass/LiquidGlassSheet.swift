@@ -10,7 +10,7 @@ struct LiquidGlassSheet: ViewModifier {
         content
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
-            .presentationCornerRadius(42)
+            .presentationCornerRadius(BrandRadius.sheetPresentation.value)
     }
 }
 

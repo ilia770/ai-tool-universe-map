@@ -708,10 +708,10 @@ struct UniverseOverlayView: View {
             .accessibilityLabel("Back to 2D Graph")
             .accessibilityIdentifier("spatial-exit-to-2d")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, BrandSpacing.m.value)
+        .padding(.vertical, BrandSpacing.sm.value)
         .frame(maxWidth: 360)
-        .glassSurface(in: RoundedRectangle(cornerRadius: 20, style: .continuous), tint: .white.opacity(0.045), interactive: false)
+        .glassSurface(in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous), tint: .white.opacity(0.045), interactive: false)
         .accessibilityElement(children: .contain)
     }
 

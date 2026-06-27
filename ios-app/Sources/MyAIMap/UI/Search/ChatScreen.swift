@@ -354,9 +354,9 @@ private struct ChatStarterPanel: View {
                         .foregroundStyle(ChatTheme.text)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 13)
-                        .background(ChatTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(ChatTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: BrandRadius.promptCard.value, style: .continuous))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: BrandRadius.promptCard.value, style: .continuous)
                                 .stroke(BrandColor.stroke, lineWidth: 0.5)
                         }
                     }
