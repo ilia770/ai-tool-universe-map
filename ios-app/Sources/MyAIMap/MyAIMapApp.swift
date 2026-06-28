@@ -34,6 +34,13 @@ struct MyAIMapApp: App {
                         // Force-quitting and relaunching is the real first-run path.
                         model.markOnboardingSeen()
                     }
+                    // Boot pre-focused on a tool so the connection trace can be
+                    // screenshotted via `simctl` without driving XCUITest.
+                    if let idx = arguments.firstIndex(of: "-uitestFocusTool"),
+                       idx + 1 < arguments.count,
+                       let tool = model.visibleAllTools.first(where: { $0.id == arguments[idx + 1] }) {
+                        model.universeMode = .toolSelected(tool.category, tool.id)
+                    }
                 }
             }
         }
