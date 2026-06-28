@@ -43,7 +43,9 @@ enum ConstellationLayout {
 
         let width = max(size.width, 320)
         let height = max(size.height, 560)
-        let insetX: CGFloat = 28, insetTop: CGFloat = 120, insetBottom: CGFloat = 200
+        // insetTop clears the route pill + render-mode chrome so the top
+        // constellations never tuck under the controls.
+        let insetX: CGFloat = 28, insetTop: CGFloat = 156, insetBottom: CGFloat = 200
         let field = CGRect(x: insetX, y: insetTop,
                            width: width - insetX * 2,
                            height: height - insetTop - insetBottom)
