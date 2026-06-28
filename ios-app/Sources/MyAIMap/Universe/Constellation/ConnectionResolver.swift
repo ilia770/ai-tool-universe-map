@@ -28,7 +28,10 @@ enum ConnectionResolver {
         return all[i + 1]
     }
 
-    static func connections(for tool: Tool, in tools: [Tool]) -> [Connection] {
+    /// - Parameter aiRelations: related tool ids the AI resolved for this tool
+    ///   (Phase 2, served from cache). They render as `.ai` — stronger than any
+    ///   derived link, weaker than a hand-curated `relationIds` entry.
+    static func connections(for tool: Tool, in tools: [Tool], aiRelations: [String] = []) -> [Connection] {
         var strongest: [String: ConnectionKind] = [:]
 
         func offer(_ id: String, _ kind: ConnectionKind) {
@@ -39,6 +42,9 @@ enum ConnectionResolver {
         let catalog = Set(tools.map(\.id))
         for id in tool.relationIds where catalog.contains(id) && id != tool.id {
             offer(id, .curated)
+        }
+        for id in aiRelations where catalog.contains(id) && id != tool.id {
+            offer(id, .ai)
         }
 
         let next = nextStage(after: tool.stage)

@@ -14,6 +14,9 @@ struct ConstellationView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var traceProgress: Double = 0
+    /// Bumped after an async AI-relation fetch lands so the view recomputes
+    /// `connections` (which re-reads the cache) and the new AI lines appear.
+    @State private var relationsVersion = 0
 
     private var effectiveReduceMotion: Bool {
         reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
@@ -22,12 +25,25 @@ struct ConstellationView: View {
     private var allTools: [Tool] { planets.flatMap(\.tools) }
 
     /// Connections for the currently selected tool, keyed by target tool id.
+    /// The derived base shows instantly; cached AI relations (Phase 2) upgrade
+    /// the set to brighter `.ai` lines once resolved.
     private var connections: [String: ConnectionKind] {
         guard let id = mode.selectedToolID,
               let tool = allTools.first(where: { $0.id == id }) else { return [:] }
+        let ai = RelationCache.shared.relatedIDs(for: id) ?? []
         var map: [String: ConnectionKind] = [:]
-        for c in ConnectionResolver.connections(for: tool, in: allTools) { map[c.targetID] = c.kind }
+        for c in ConnectionResolver.connections(for: tool, in: allTools, aiRelations: ai) { map[c.targetID] = c.kind }
         return map
+    }
+
+    /// Lazily resolve + cache AI relations the first time a tool is focused.
+    private func fetchAIRelationsIfNeeded() async {
+        guard let id = mode.selectedToolID,
+              RelationCache.shared.relatedIDs(for: id) == nil,
+              let tool = allTools.first(where: { $0.id == id }) else { return }
+        let ids = await RelationAI.relatedIDs(for: tool, in: allTools)
+        RelationCache.shared.store(ids, for: id)
+        relationsVersion += 1
     }
 
     var body: some View {
@@ -50,6 +66,9 @@ struct ConstellationView: View {
             .opacity(mode.mapOpacity)
             .blur(radius: CGFloat(mode.mapBlurRadius))
             .brandAnimation(BrandMotion.flow, value: mode.signature)
+            .task(id: mode.selectedToolID) {
+                await fetchAIRelationsIfNeeded()
+            }
             .onChange(of: mode.selectedToolID) { _, newID in
                 guard newID != nil else {
                     // Deselect → reverse-draw the trace away.

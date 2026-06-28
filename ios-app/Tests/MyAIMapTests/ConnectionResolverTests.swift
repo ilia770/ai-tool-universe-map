@@ -59,4 +59,32 @@ struct ConnectionResolverTests {
         #expect(ConnectionResolver.nextStage(after: .research) == .planning)
         #expect(ConnectionResolver.nextStage(after: .review) == nil)
     }
+
+    @Test func aiRelationBecomesAIKindOverDerived() {
+        let a = tool("a", .coding, .execution)
+        let b = tool("b", .coding, .execution) // derived .alternative, but AI wins
+        let result = ConnectionResolver.connections(for: a, in: [a, b], aiRelations: ["b"])
+        #expect(result.contains(Connection(targetID: "b", kind: .ai)))
+        #expect(result.filter { $0.targetID == "b" }.count == 1)
+    }
+
+    @Test func curatedStillWinsOverAI() {
+        let a = tool("a", .coding, .execution, relations: ["b"]) // curated
+        let b = tool("b", .coding, .execution)
+        let result = ConnectionResolver.connections(for: a, in: [a, b], aiRelations: ["b"])
+        #expect(result.contains(Connection(targetID: "b", kind: .curated)))
+    }
+
+    @Test func aiRelationCanCrossCategory() {
+        let a = tool("a", .coding, .execution)
+        let b = tool("b", .design, .execution) // different category — no derived link
+        let result = ConnectionResolver.connections(for: a, in: [a, b], aiRelations: ["b"])
+        #expect(result.contains(Connection(targetID: "b", kind: .ai)))
+    }
+
+    @Test func unknownAIRelationIsIgnored() {
+        let a = tool("a", .coding, .execution)
+        let result = ConnectionResolver.connections(for: a, in: [a], aiRelations: ["ghost"])
+        #expect(!result.contains { $0.targetID == "ghost" })
+    }
 }
