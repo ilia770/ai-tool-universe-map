@@ -46,14 +46,14 @@ final class UniverseUISmokeTests: XCTestCase {
         attachText("tree-overview", app.debugDescription)
 
         // Branch focus via a hittable 2D graph node accessibility label.
-        let categoryNode = firstHittableButton(app, identifierPrefix: "GraphNode.Category.", timeout: 8)
+        let categoryNode = firstHittableButton(app, identifierPrefix: "ConstellationCategory.", timeout: 8)
         if categoryNode == nil {
             attachText("tree-no-hittable-category-node", app.debugDescription)
         }
         XCTAssertNotNil(categoryNode, "2D graph should expose at least one hittable category node")
         guard let categoryNode else { return }
         let categoryName = categoryName(from: categoryNode.label)
-        let categoryID = identifierSuffix(from: categoryNode.identifier, prefix: "GraphNode.Category.")
+        let categoryID = identifierSuffix(from: categoryNode.identifier, prefix: "ConstellationCategory.")
         tapNode(categoryNode, name: "\(categoryName) category node")
         wait(1.6)
         snap("02-branch-\(categoryName)")
@@ -67,7 +67,7 @@ final class UniverseUISmokeTests: XCTestCase {
         )
 
         // Tool selection: tap a graph tool from the focused branch, then open its detail card.
-        let branchToolIdentifiers = seedToolIDsByCategory[categoryID, default: []].map { "GraphNode.Tool.\($0)" }
+        let branchToolIdentifiers = seedToolIDsByCategory[categoryID, default: []].map { "ConstellationStar.\($0)" }
         let toolNode = firstInteractableGraphButton(app, identifiers: branchToolIdentifiers, timeout: 8)
         if toolNode == nil {
             attachText("tree-no-hittable-focused-tool-node", app.debugDescription)
