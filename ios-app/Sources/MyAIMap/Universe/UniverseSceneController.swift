@@ -262,6 +262,40 @@ final class UniverseSceneController {
                 name: "link:\(planet.id.rawValue)-\(tool.id)"
             ))
         }
+
+        addConnectionTraces(in: planet, category: category, mode: mode)
+    }
+
+    /// 3D connection traces (constellation Phase 3): when a tool is focused,
+    /// draw brighter lines from it to the tools it connects to (via the shared
+    /// `ConnectionResolver`). Scoped to the focused category's tools, which are
+    /// the satellites actually rendered, so every line lands on a visible node.
+    private func addConnectionTraces(in planet: PlanetData, category: ToolCategory, mode: UniverseMode) {
+        guard let selectedID = mode.selectedToolID,
+              let selectedTool = planet.tools.first(where: { $0.id == selectedID }),
+              let selectedIndex = planet.tools.firstIndex(where: { $0.id == selectedID }) else { return }
+
+        let count = planet.tools.count
+        let fromWorld = UniverseSpatialLayout.satelliteWorldPosition(
+            for: selectedTool, in: planet, index: selectedIndex, count: count
+        )
+        let connections = ConnectionResolver.connections(for: selectedTool, in: planet.tools)
+        for connection in connections {
+            guard let targetIndex = planet.tools.firstIndex(where: { $0.id == connection.targetID }) else { continue }
+            let targetTool = planet.tools[targetIndex]
+            let toWorld = UniverseSpatialLayout.satelliteWorldPosition(
+                for: targetTool, in: planet, index: targetIndex, count: count
+            )
+            let strong = connection.kind == .curated || connection.kind == .ai || connection.kind == .alternative
+            satelliteRoot.addChild(PlanetEntityFactory.makeLink(
+                from: fromWorld,
+                to: toWorld,
+                color: category.color.uiColor,
+                opacity: strong ? 0.5 : 0.22,
+                thickness: strong ? 0.014 : 0.008,
+                name: "trace:\(selectedID)-\(connection.targetID)"
+            ))
+        }
     }
 
     private func addLights() {
