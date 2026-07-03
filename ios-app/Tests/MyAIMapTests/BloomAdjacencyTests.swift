@@ -44,6 +44,15 @@ struct BloomAdjacencyTests {
         #expect(edges.first?.b == "b")
     }
 
+    @Test func edgesFromDictMatchesEdgesFromTools() {
+        let tools = UniverseSeed.tools
+        let fromTools = BloomAdjacency.edges(tools: tools)
+        let fromDict = BloomAdjacency.edges(from: BloomAdjacency.build(tools: tools))
+        #expect(fromTools.count == fromDict.count)
+        #expect(fromTools.map(\.a) == fromDict.map(\.a))
+        #expect(fromTools.map(\.b) == fromDict.map(\.b))
+    }
+
     @Test func seedRevealsCoreNeighboursInRealSeed() {
         let adj = BloomAdjacency.build(tools: UniverseSeed.tools)
         // Founder OS should have at least one meaningful neighbour to bloom into.

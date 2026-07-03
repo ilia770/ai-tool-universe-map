@@ -25,10 +25,16 @@ enum BloomAdjacency {
 
     /// Unique undirected edges among `tools` (each pair once, a < b by id).
     static func edges(tools: [Tool]) -> [(a: String, b: String)] {
-        let adj = build(tools: tools)
+        edges(from: build(tools: tools))
+    }
+
+    /// Unique undirected edges (each pair once, a < b by id) derived from an
+    /// already-built adjacency dict — avoids rebuilding when a caller has one.
+    /// Byte-identical to `edges(tools:)` for the same tool set.
+    static func edges(from adjacency: [String: [String]]) -> [(a: String, b: String)] {
         var seen = Set<String>()
         var result: [(String, String)] = []
-        for (id, neighbours) in adj {
+        for (id, neighbours) in adjacency {
             for nb in neighbours {
                 let key = id < nb ? "\(id)|\(nb)" : "\(nb)|\(id)"
                 if seen.insert(key).inserted {

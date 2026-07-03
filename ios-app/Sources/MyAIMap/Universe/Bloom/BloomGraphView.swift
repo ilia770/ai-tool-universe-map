@@ -40,8 +40,9 @@ struct BloomGraphView: View {
         let tools = planets.flatMap(\.tools)
         allTools = tools
         toolByID = Dictionary(tools.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        adjacency = BloomAdjacency.build(tools: tools)
-        allEdges = BloomAdjacency.edges(tools: tools)
+        let adj = BloomAdjacency.build(tools: tools)
+        adjacency = adj
+        allEdges = BloomAdjacency.edges(from: adj)
     }
 
     var body: some View {
