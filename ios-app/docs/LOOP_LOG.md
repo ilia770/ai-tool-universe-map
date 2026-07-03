@@ -14,6 +14,16 @@ Format:
 
 ---
 
+## Cycle 3 — 6.3 Bloom draw hotspot — 2026-07-03
+- Did: worker memoized allTools/toolByID/adjacency/allEdges to @State (rebuilt
+  only on tool-set change via .onAppear/.onChange). Confirmed they WERE rebuilt
+  every TimelineView frame (BloomAdjacency.build + dict rebuilds N×/frame).
+  Behavior identical; reduce-motion + uitest paths untouched.
+- Gate: compile gate `--test-build-only` GREEN.
+- Commit: 7a3f74b. Follow-up queued as 6.5 (edges/build dedupe).
+- Next: 6.4 engine guard tests (sim-free).
+- User-decision flags: none.
+
 ## Cycle 2 — 6.1 Bloom perf signposts — 2026-07-03
 - Did: worker added `bloom.tick` + `bloom.layout` os_signpost intervals
   (additive, inert unless tracing; no behavior change). Surfaced a real hotspot

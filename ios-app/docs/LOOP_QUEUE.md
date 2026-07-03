@@ -127,13 +127,15 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [x] 6.1 os_signpost intervals `bloom.tick` + `bloom.layout` — commit 2fe78c1.
       (Frame-budget confirmation on sim deferred to a clear window.)
 - [ ] 6.2 Cap force-sim work (sleep when settled); no busy-loop when idle.
-- [ ] 6.3 **HOTSPOT (found in 6.1):** `BloomGraphView.draw` rebuilds the full
-      `BloomAdjacency.build(tools:)` dict + `allEdges`/`toolByID` computed props
-      EVERY frame just to read the focus's neighbours. Cache/memoize (rebuild
-      only when the tool set changes). Pure-logic + measurable; sim-free gate.
+- [x] 6.3 HOTSPOT fixed — memoized allTools/toolByID/adjacency/allEdges to
+      @State, rebuilt only on tool-set change (was every TimelineView frame).
+      commit 7a3f74b. Follow-up: `edges(from:adjacency)` overload to dedupe the
+      double build in rebuildModel (harmless, off hot path) → 6.5.
 - [ ] 6.4 Engine guard tests (from cycle 1 worker): tap-focus-only path,
       `collapseTo(0)` clamp to root, `reset()` restores initial stack/focus,
       `visibleEdges` filtering while an endpoint is `collapsing`. Sim-free.
+- [ ] 6.5 `BloomAdjacency.edges(from:adjacency)` overload to dedupe the double
+      `build()` in `rebuildModel` (found in 6.3; off hot path, low priority).
 
 ## WS7 — Copy & content
 - [ ] 7.1 Terminology + label-length consistency pass across map + sheets.
