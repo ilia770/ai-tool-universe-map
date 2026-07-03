@@ -2,6 +2,19 @@
 
 Append-only. One block per cycle. Newest at top.
 
+**Idle wakes** (no productive sim-free work + no clear sim window; pruned disk,
+re-armed): cycle 8 @ 23:09 (disk 5.8→6.1 GiB). cycle 9 @ 00:11 — disk hit 8.8 GiB
++ no active Mult build, so ATTEMPTED the objective sim slice (1.1 full-suite
+validation) on a DEDICATED sim `AIMapGate` to avoid fighting Mult's device.
+RESULT: failed — booting a 3rd sim (2 Mult sims already booted) hung at "Waiting
+on BackBoard", killed at 2s (exit 143). Deleted AIMapGate, cleaned up.
+**LESSON: full-sim gate is BLOCKED by a 3-sim RAM wall on this M1 Air. A dedicated
+sim won't boot while both Mult sims are up, and I won't shut Mult's sims
+unattended. Full-suite validation of the 7 Bloom cycles (real assertions + pass
+count) must wait for the user to free the machine, or for MultTracker's loop to
+end + release its sims.** Compile gate remains the reliable green signal (7 cycles
+all compile-green). Updated in place on further idle wakes.
+
 Format:
 ```
 ## Cycle N — <slice id> — <YYYY-MM-DD HH:MM>
