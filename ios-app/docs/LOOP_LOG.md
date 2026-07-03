@@ -14,6 +14,18 @@ Format:
 
 ---
 
+## Cycle 1 — 1.2 BloomEngine invariants — 2026-07-03
+- Did: worker subagent added 8 expand/collapse stack-invariant tests to
+  `BloomEngineTests.swift` (diamond fixture; seed reveal, hidden-only expand,
+  exact collapse restore, mid-stack truncation, no-op guards). Prod untouched.
+- Gate: compile gate `--test-build-only` GREEN (sim-free, no MultTracker fight).
+- Commit: b60f8a9.
+- Next: 1.3 hierarchy/legibility (sim-free view logic where possible) or 1.1
+  snapshot when a clear sim window opens (MultTracker currently holds 26.5 sim).
+- User-decision flags: none.
+- Worker follow-ups queued: tap-focus-only test, collapseTo(0) clamp, visibleEdges
+  during collapse, reset() restore → append to WS1 on next audit refill.
+
 ## Cycle 0 — baseline — 2026-07-03
 - Did: located app, confirmed on branch `polish/day-sprint`; WIP = new Bloom 2D
   renderer (`Universe/Bloom/`) swapped into the `graph2D` slot + 2 new tests.

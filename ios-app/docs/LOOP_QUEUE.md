@@ -85,10 +85,9 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [ ] 1.1 Snapshot baseline of Bloom in overview + one bloomed branch on the
       26.5 sim; confirm it renders (not blank), no clipping, taps select. Save to
       `ios-app/screenshots/loop/bloom-baseline/`.
-- [ ] 1.2 Verify progressive-reveal mechanics end-to-end: tap seed → fan bloom,
-      tap child → deeper bloom, tap again → collapse, breadcrumb reflects stack.
-      Add/extend `BloomEngineTests` for expand/collapse stack invariants (revealed
-      derives from stack; collapse truncates; no orphan nodes).
+- [x] 1.2 (logic) `BloomEngineTests` +8 expand/collapse stack invariants —
+      commit b60f8a9. Remaining (needs sim window): live end-to-end tap→bloom→
+      collapse + breadcrumb check → folded into 1.1 snapshot.
 - [ ] 1.3 Hierarchy + legibility: core vs category vs tool visually distinct
       (size/colour/label weight); dimmed non-focus nodes still readable; labels
       don't overlap at overview (lean on `LabelPacker`).
