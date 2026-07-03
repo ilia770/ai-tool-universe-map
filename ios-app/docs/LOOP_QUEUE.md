@@ -126,7 +126,12 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 ## WS6 — Performance
 - [x] 6.1 os_signpost intervals `bloom.tick` + `bloom.layout` — commit 2fe78c1.
       (Frame-budget confirmation on sim deferred to a clear window.)
-- [ ] 6.2 Cap force-sim work (sleep when settled); no busy-loop when idle.
+- [x] 6.2 Settle-cap — tick early-returns when at rest (velocity/appear/
+      collapsing/camera < eps); every mutation wakes via wake(). +5 tests incl.
+      resume-on-mutation guards. commit 9e0ba90.
+- [ ] 6.7 (from 6.2) Idle `BloomGraphView` TimelineView redraw when
+      `engine.isSettled` to also skip the per-frame Canvas redraw of static
+      content — NEEDS SIM (verify resume stays instant on tap). Visual-gated.
 - [x] 6.3 HOTSPOT fixed — memoized allTools/toolByID/adjacency/allEdges to
       @State, rebuilt only on tool-set change (was every TimelineView frame).
       commit 7a3f74b. Follow-up: `edges(from:adjacency)` overload to dedupe the
@@ -134,8 +139,8 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [x] 6.4 Engine guard tests +4 (tap-focus-only, collapseTo(0) clamp, reset()
       restore, visibleEdges excludes collapsing endpoint) — commit 104daed.
       Follow-up: collapseLast from 3-deep stack, fanSeed geometry → 6.6.
-- [ ] 6.5 `BloomAdjacency.edges(from:adjacency)` overload to dedupe the double
-      `build()` in `rebuildModel` (found in 6.3; off hot path, low priority).
+- [x] 6.5 `BloomAdjacency.edges(from:)` overload — build once in rebuildModel;
+      byte-identical edge set; equivalence test. commit 4cb55cd.
 
 ## WS7 — Copy & content
 - [ ] 7.1 Terminology + label-length consistency pass across map + sheets.

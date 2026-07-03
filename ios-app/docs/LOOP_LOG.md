@@ -14,6 +14,24 @@ Format:
 
 ---
 
+## Cycle 6 — 6.5 Bloom edges dedupe — 2026-07-03
+- Did: added `BloomAdjacency.edges(from: adjacency)` (verbatim body move);
+  rebuildModel builds adjacency once then derives edges → `build()` runs once
+  not twice per tool-set change. Byte-identical edge set; equivalence test.
+- Gate: compile gate GREEN. Commit: 4cb55cd.
+- Next: sim-free vein thinning — remaining high-value work is visual/sim-gated
+  (Bloom look 1.3/1.4/1.5, 3D 2.x, sheets 3.2/3.3, a11y runtime 4.x, QA 8.x).
+  Options next wake: 6.6 (minor tests), or audit-refill for more sim-free ideas,
+  or a clear-sim-window pass for objective sim slices (1.1 snapshot).
+- User-decision flags: none. 2 cycles this wake (5,6).
+
+## Cycle 5 — 6.2 Bloom settle-cap — 2026-07-03
+- Did: settle detection — tick early-returns when velocity/appear/collapsing/
+  camera all < eps; every mutation wakes the sim. Frame-identical while moving.
+  +5 tests incl. resume-on-mutation guards (freeze-regression shield).
+- Gate: compile gate GREEN. Commit: 9e0ba90.
+- User-decision flags: none.
+
 ## Cycle 4 — 6.4 Bloom engine guard tests — 2026-07-03
 - Did: worker added 4 pure-logic tests (tap-focus-only, collapseTo(0) root clamp,
   reset() restore, visibleEdges excludes collapsing endpoint). No prod changes,
