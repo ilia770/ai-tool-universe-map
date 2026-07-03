@@ -18,12 +18,31 @@ struct BloomGraphView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var engine: BloomEngine?
 
+    // Graph model, derived from the tool set. These only change when the tool
+    // set changes — NOT every frame — so they're memoized in @State and rebuilt
+    // via `.onAppear` / `.onChange(of: toolIDs)` instead of recomputed inside the
+    // per-frame TimelineView/Canvas render pass.
+    @State private var allTools: [Tool] = []
+    @State private var toolByID: [String: Tool] = [:]
+    @State private var adjacency: [String: [String]] = [:]
+    @State private var allEdges: [(a: String, b: String)] = []
+
     private var reduced: Bool {
         reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
     }
-    private var allTools: [Tool] { planets.flatMap(\.tools) }
-    private var toolByID: [String: Tool] { Dictionary(allTools.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }) }
-    private var allEdges: [(a: String, b: String)] { BloomAdjacency.edges(tools: allTools) }
+
+    /// Cheap, stable signature of the tool set (order-sensitive, matches how the
+    /// model is derived). Drives `.onChange` so the model rebuilds only when the
+    /// tools actually change.
+    private var toolIDs: [String] { planets.flatMap { $0.tools.map(\.id) } }
+
+    private func rebuildModel() {
+        let tools = planets.flatMap(\.tools)
+        allTools = tools
+        toolByID = Dictionary(tools.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        adjacency = BloomAdjacency.build(tools: tools)
+        allEdges = BloomAdjacency.edges(tools: tools)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -39,13 +58,14 @@ struct BloomGraphView: View {
             }
             .opacity(mode.mapOpacity)
             .blur(radius: CGFloat(mode.mapBlurRadius))
-            .onAppear { ensureEngine() }
+            .onAppear { rebuildModel(); ensureEngine() }
+            .onChange(of: toolIDs) { _, _ in rebuildModel() }
         }
     }
 
     private func ensureEngine() {
         guard engine == nil else { return }
-        let adj = BloomAdjacency.build(tools: allTools)
+        let adj = adjacency
         let seed = allTools.contains(where: { $0.id == PlanetData.centralCoreToolID })
             ? PlanetData.centralCoreToolID
             : (allTools.first?.id ?? "")
@@ -102,7 +122,7 @@ struct BloomGraphView: View {
 
         let focusID = engine.focusID
         let revealed = engine.revealed
-        let neighboursOfFocus = Set(BloomAdjacency.build(tools: allTools)[focusID] ?? []).intersection(revealed)
+        let neighboursOfFocus = Set(adjacency[focusID] ?? []).intersection(revealed)
         let activeSet = neighboursOfFocus.union([focusID])
 
         // Edges (plain curved lines, no arrowheads).
