@@ -14,6 +14,19 @@ Format:
 
 ---
 
+## Cycle 2 — 6.1 Bloom perf signposts — 2026-07-03
+- Did: worker added `bloom.tick` + `bloom.layout` os_signpost intervals
+  (additive, inert unless tracing; no behavior change). Surfaced a real hotspot
+  → queued as 6.3 (adjacency rebuilt every frame in draw).
+- Gate: compile gate `--test-build-only` GREEN.
+- Commit: 2fe78c1.
+- Next: 6.3 hotspot (sim-free) or 6.4 engine guard tests; visual slices wait for
+  a clear sim window.
+- Note: full-sim baseline (cycle 0) TRUNCATED by MultTracker sim contention
+  (output cut at test-start) — full-sim gates stay deferred to clear windows;
+  compile gate is the reliable per-slice signal.
+- User-decision flags: none.
+
 ## Cycle 1 — 1.2 BloomEngine invariants — 2026-07-03
 - Did: worker subagent added 8 expand/collapse stack-invariant tests to
   `BloomEngineTests.swift` (diamond fixture; seed reveal, hidden-only expand,

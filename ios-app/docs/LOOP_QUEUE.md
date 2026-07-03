@@ -124,8 +124,16 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [ ] 5.2 Pan/zoom + gesture-bounds hardening on Bloom; no lost/stuck states.
 
 ## WS6 — Performance
-- [ ] 6.1 Signposts around Bloom sim tick + layout; confirm frame budget on sim.
+- [x] 6.1 os_signpost intervals `bloom.tick` + `bloom.layout` — commit 2fe78c1.
+      (Frame-budget confirmation on sim deferred to a clear window.)
 - [ ] 6.2 Cap force-sim work (sleep when settled); no busy-loop when idle.
+- [ ] 6.3 **HOTSPOT (found in 6.1):** `BloomGraphView.draw` rebuilds the full
+      `BloomAdjacency.build(tools:)` dict + `allEdges`/`toolByID` computed props
+      EVERY frame just to read the focus's neighbours. Cache/memoize (rebuild
+      only when the tool set changes). Pure-logic + measurable; sim-free gate.
+- [ ] 6.4 Engine guard tests (from cycle 1 worker): tap-focus-only path,
+      `collapseTo(0)` clamp to root, `reset()` restores initial stack/focus,
+      `visibleEdges` filtering while an endpoint is `collapsing`. Sim-free.
 
 ## WS7 — Copy & content
 - [ ] 7.1 Terminology + label-length consistency pass across map + sheets.
