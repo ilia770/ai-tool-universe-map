@@ -58,7 +58,7 @@ struct UniverseMapView: View {
             Group {
                 switch model.renderMode {
                 case .graph2D:
-                    ConstellationView(
+                    BloomGraphView(
                         planets: planets,
                         mode: mode,
                         onPlanetTap: selectCategory,
