@@ -143,4 +143,53 @@ struct BloomEngineTests {
         for _ in 0..<120 { e.tick(dt: 1.0 / 60, reduced: false, allEdges: [(a: "a", b: "b"), (a: "b", b: "c")]) }
         #expect(e.nodes["c"] == nil) // faded out + dropped
     }
+
+    // Tapping a revealed node with no hidden neighbours (and not an expanded
+    // parent) falls to the focus-only branch of `tap`: move focus, touch nothing else.
+    @Test func tapRevealedLeafOnlyMovesFocus() {
+        let e = diamond()
+        let before = e.revealed // {a, b, c}; c's neighbours a,b already revealed
+        e.tap("c")
+        #expect(e.focusID == "c")
+        #expect(e.breadcrumb == ["a"]) // no new stack step pushed
+        #expect(e.revealed == before) // nothing revealed or hidden
+    }
+
+    // collapseTo clamps a below-1 step count up to the root step — the stack
+    // keeps exactly the seed step and never empties.
+    @Test func collapseToBelowOneClampsToRootStep() {
+        let e = diamond()
+        e.expand("b") // stack: [a, b]
+        e.collapseTo(stepCount: 0)
+        #expect(e.breadcrumb == ["a"])
+        #expect(!e.revealed.contains("d"))
+        #expect(e.focusID == "a")
+        #expect(e.stack.count == 1) // seed step survives, stack not empty
+    }
+
+    // reset() after deep expansion returns stack, focus, and revealed to the
+    // exact initial (post-init) state.
+    @Test func resetRestoresInitialState() {
+        let e = diamond()
+        e.expand("b")
+        e.expand("d") // deep: stack [a, b, d], e revealed
+        e.reset()
+        #expect(e.breadcrumb == ["a"])
+        #expect(e.revealed == ["a", "b", "c"])
+        #expect(e.focusID == "a")
+    }
+
+    // visibleEdges drops any edge whose endpoint is mid-collapse. After collapse("b")
+    // node c is flagged collapsing (still present as a node) so edge b–c is filtered
+    // out while a–b, both live, stays visible.
+    @Test func visibleEdgesExcludeCollapsingEndpoints() {
+        let e = chain()
+        let edges = [(a: "a", b: "b"), (a: "b", b: "c")]
+        e.expand("b") // reveals c; both edges now live
+        #expect(e.visibleEdges(edges).count == 2)
+        e.collapse("b") // c is now mid-collapse but still a node
+        let vis = e.visibleEdges(edges)
+        #expect(vis.contains { $0.a == "a" && $0.b == "b" })
+        #expect(!vis.contains { $0.a == "c" || $0.b == "c" })
+    }
 }
