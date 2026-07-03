@@ -131,9 +131,9 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       @State, rebuilt only on tool-set change (was every TimelineView frame).
       commit 7a3f74b. Follow-up: `edges(from:adjacency)` overload to dedupe the
       double build in rebuildModel (harmless, off hot path) → 6.5.
-- [ ] 6.4 Engine guard tests (from cycle 1 worker): tap-focus-only path,
-      `collapseTo(0)` clamp to root, `reset()` restores initial stack/focus,
-      `visibleEdges` filtering while an endpoint is `collapsing`. Sim-free.
+- [x] 6.4 Engine guard tests +4 (tap-focus-only, collapseTo(0) clamp, reset()
+      restore, visibleEdges excludes collapsing endpoint) — commit 104daed.
+      Follow-up: collapseLast from 3-deep stack, fanSeed geometry → 6.6.
 - [ ] 6.5 `BloomAdjacency.edges(from:adjacency)` overload to dedupe the double
       `build()` in `rebuildModel` (found in 6.3; off hot path, low priority).
 

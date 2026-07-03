@@ -14,6 +14,16 @@ Format:
 
 ---
 
+## Cycle 4 — 6.4 Bloom engine guard tests — 2026-07-03
+- Did: worker added 4 pure-logic tests (tap-focus-only, collapseTo(0) root clamp,
+  reset() restore, visibleEdges excludes collapsing endpoint). No prod changes,
+  no bugs found. BloomEngineTests now 18 cases.
+- Gate: compile gate `--test-build-only` GREEN.
+- Commit: 104daed. Follow-up queued as 6.6.
+- Next: sim-free WS3.1 (padding tokenization, scoped to one component) or 6.2
+  settle-cap; visual slices (1.x, 2.x, 3.2/3.3, 8.x) wait for a clear sim window.
+- User-decision flags: none. 2 cycles this wake (3,4); re-armed heartbeat.
+
 ## Cycle 3 — 6.3 Bloom draw hotspot — 2026-07-03
 - Did: worker memoized allTools/toolByID/adjacency/allEdges to @State (rebuilt
   only on tool-set change via .onAppear/.onChange). Confirmed they WERE rebuilt
