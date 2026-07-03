@@ -182,6 +182,98 @@ struct BloomEngineTests {
     // visibleEdges drops any edge whose endpoint is mid-collapse. After collapse("b")
     // node c is flagged collapsing (still present as a node) so edge b–c is filtered
     // out while a–b, both live, stays visible.
+    // MARK: - Settle detection (WS6.2)
+
+    // Diamond edges matching diamond()'s adjacency (undirected).
+    private func diamondEdges() -> [(a: String, b: String)] {
+        [(a: "a", b: "b"), (a: "a", b: "c"), (a: "b", b: "c"), (a: "b", b: "d"), (a: "d", b: "e")]
+    }
+
+    // Tick until the sim reports rest (hard cap guards against a non-converging bug).
+    private func settle(_ e: BloomEngine, _ edges: [(a: String, b: String)]) {
+        var n = 0
+        while !e.isSettled && n < 20000 {
+            e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+            n += 1
+        }
+    }
+
+    // With no input the sim reaches rest and then stops moving nodes entirely —
+    // a settled tick is a no-op, so successive positions are bit-identical.
+    @Test func settlesAtRestAndFreezesPositions() {
+        let e = diamond()
+        let edges = diamondEdges()
+        settle(e, edges)
+        #expect(e.isSettled)
+        let before = e.nodes.mapValues { ($0.x, $0.y) }
+        e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+        for (id, p) in before {
+            #expect(abs(e.nodes[id]!.x - p.0) < 1e-9)
+            #expect(abs(e.nodes[id]!.y - p.1) < 1e-9)
+        }
+    }
+
+    // Resume-on-mutation: expand must wake the sim and the next tick advances
+    // state (the newly introduced node ramps its appear in).
+    @Test func expandClearsSettledAndResumes() {
+        let e = diamond()
+        let edges = diamondEdges()
+        settle(e, edges)
+        #expect(e.isSettled)
+        e.expand("b") // introduces d
+        #expect(!e.isSettled)
+        #expect(e.nodes["d"] != nil)
+        let appear0 = e.nodes["d"]!.appear
+        e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+        #expect(e.nodes["d"]!.appear > appear0) // new node springing in → sim advanced
+    }
+
+    // Resume-on-mutation: collapse must wake the sim and the next tick advances
+    // the fade-out of the collapsed node.
+    @Test func collapseClearsSettledAndResumes() {
+        let e = diamond()
+        let edges = diamondEdges()
+        e.expand("b") // reveal d
+        settle(e, edges)
+        #expect(e.isSettled)
+        e.collapse("b") // d begins collapsing
+        #expect(!e.isSettled)
+        let appear0 = e.nodes["d"]!.appear
+        e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+        #expect(e.nodes["d"] == nil || e.nodes["d"]!.appear < appear0) // fading out
+    }
+
+    // Resume-on-mutation: a focus-only tap must wake the sim so the camera can
+    // ease toward the new focus on the next tick.
+    @Test func tapFocusChangeClearsSettledAndResumes() {
+        let e = diamond()
+        let edges = diamondEdges()
+        settle(e, edges)
+        #expect(e.isSettled)
+        #expect(e.focusID == "a")
+        let cx0 = e.camX, cy0 = e.camY
+        e.tap("c") // leaf, no hidden, not expanded → focus-only branch
+        #expect(e.focusID == "c")
+        #expect(!e.isSettled)
+        e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+        #expect(abs(e.camX - cx0) > 1e-6 || abs(e.camY - cy0) > 1e-6) // camera moved toward new focus
+    }
+
+    // Resume-on-mutation: reset must wake the sim; nodes dropped by the reset are
+    // still collapsing on the next tick, so the sim stays unsettled while resolving.
+    @Test func resetClearsSettledAndResumes() {
+        let e = diamond()
+        let edges = diamondEdges()
+        e.expand("b"); e.expand("d") // deep
+        settle(e, edges)
+        #expect(e.isSettled)
+        e.reset()
+        #expect(!e.isSettled)
+        #expect(e.revealed == ["a", "b", "c"])
+        e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges)
+        #expect(!e.isSettled) // d/e still fading out
+    }
+
     @Test func visibleEdgesExcludeCollapsingEndpoints() {
         let e = chain()
         let edges = [(a: "a", b: "b"), (a: "b", b: "c")]

@@ -31,6 +31,13 @@ final class BloomEngine {
     var camX: Double = 0
     var camY: Double = 0
 
+    /// True only when every node is at rest (velocity, spring-in, and collapse
+    /// fades all below `settleEps`) and the camera has arrived at its focus.
+    /// While settled, `tick` skips the O(N²) integration; any mutation calls
+    /// `wake()` to clear it so the next `tick` integrates again.
+    private(set) var isSettled = false
+    private static let settleEps = 0.02
+
     init(adjacency: [String: [String]], seedID: String) {
         self.adjacency = adjacency
         self.seedID = seedID
@@ -73,6 +80,7 @@ final class BloomEngine {
             collapse(id)
         } else {
             focusID = id
+            wake()
         }
     }
 
@@ -126,7 +134,11 @@ final class BloomEngine {
         syncNodes()
     }
 
-    func focus(_ id: String) { focusID = id }
+    func focus(_ id: String) { focusID = id; wake() }
+
+    /// Clear the settled flag so the next `tick` resumes integrating. Called by
+    /// every mutation (via `syncNodes()` or directly on focus-only changes).
+    private func wake() { isSettled = false }
 
     /// Breadcrumb labels (one per stack step's parent).
     var breadcrumb: [String] { stack.map(\.parent) }
@@ -159,9 +171,11 @@ final class BloomEngine {
                 nodes[id] = node
             }
         }
+        wake() // any reveal/collapse change re-opens the sim
     }
 
     func tick(dt: Double, reduced: Bool, allEdges: [(a: String, b: String)]) {
+        if isSettled { return } // at rest — skip integration; nothing would move
         let signpostState = signposter.beginInterval("bloom.tick")
         defer { signposter.endInterval("bloom.tick", signpostState) }
 
@@ -199,9 +213,13 @@ final class BloomEngine {
         // Integrate + appear ramp + collapse fade.
         let appearGain = reduced ? 0.2 : 0.12
         let appearBias = reduced ? 0.02 : 0.012
+        var maxVel = 0.0
+        var allAppeared = true
+        var anyCollapsing = false
         for id in ids {
             guard var n = nodes[id] else { continue }
             if n.collapsing {
+                anyCollapsing = true
                 n.x += (n.px - n.x) * 0.16
                 n.y += (n.py - n.y) * 0.16
                 n.vx = 0; n.vy = 0
@@ -215,14 +233,26 @@ final class BloomEngine {
             n.vx *= 0.86; n.vy *= 0.86
             n.x += n.vx; n.y += n.vy
             if n.appear < 1 { n.appear = min(1, n.appear + (1 - n.appear) * appearGain + appearBias) }
+            maxVel = max(maxVel, abs(n.vx), abs(n.vy))
+            if n.appear < 1 { allAppeared = false }
             nodes[id] = n
         }
 
         // Camera eases toward the focused node.
         let camEase = reduced ? 0.16 : 0.09
+        var camMove = 0.0
         if let f = nodes[focusID], !f.collapsing {
-            camX += (f.x - camX) * camEase
-            camY += (f.y - camY) * camEase
+            let dcx = (f.x - camX) * camEase
+            let dcy = (f.y - camY) * camEase
+            camX += dcx; camY += dcy
+            camMove = max(abs(dcx), abs(dcy))
         }
+
+        // Settle once nothing is moving: no in-flight collapse, every node fully
+        // sprung in, velocities and camera drift below epsilon. The next tick then
+        // short-circuits until a mutation wakes the sim. Frame-identical to running
+        // the integration, because at this point the integration moves nothing.
+        isSettled = !anyCollapsing && allAppeared
+            && maxVel < Self.settleEps && camMove < Self.settleEps
     }
 }
