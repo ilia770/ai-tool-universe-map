@@ -14,6 +14,21 @@ Format:
 
 ---
 
+## Cycle 7 — audit refill + 9.1 refuted — 2026-07-03
+- Did: sim-free vein thin → dispatched read-only audit subagent. It found the
+  module heavily tested; surfaced 2 candidates (9.1 slug bug, 9.2 host-dedup),
+  didn't pad. Dispatched a worker on 9.1 — worker ADVERSARIALLY VERIFIED and
+  REFUTED it: `.folding(.caseInsensitive)` already lowercases, so the missing
+  `.lowercased()` is a no-op, not a bug (checked exotic Unicode). No change made.
+- Gate: n/a (no code change). Commit: none (docs only).
+- Outcome: loop caught a false audit finding before shipping noise. 9.1 marked
+  [~] refuted; 9.2 marked [!] USER-DECISION (product call on same-host dedup).
+- Next: sim-free high-value work is now largely exhausted (module well-tested).
+  Future wakes: sparse — either 9.2 (needs user), or objective sim slices (1.1
+  snapshot) IF a clear sim window opens, or wait for user's return for visual work.
+- User-decision flags: 9.2 (existingToolMatching host dedup intent).
+- Lesson: static-read audits over-claim; keep the adversarial-verify worker step.
+
 ## Cycle 6 — 6.5 Bloom edges dedupe — 2026-07-03
 - Did: added `BloomAdjacency.edges(from: adjacency)` (verbatim body move);
   rebuildModel builds adjacency once then derives edges → `build()` runs once

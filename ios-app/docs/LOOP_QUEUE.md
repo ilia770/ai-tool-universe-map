@@ -145,6 +145,18 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 ## WS7 — Copy & content
 - [ ] 7.1 Terminology + label-length consistency pass across map + sheets.
 
+## WS9 — Correctness (from audit refill, cycle 7 — sim-free)
+- [~] 9.1 REFUTED (cycle 7 adversarial verify): the "missing `.lowercased()`" is a
+      no-op — `MissingToolSuggestion.slug` uses `.folding([.caseInsensitive,...])`
+      which already lowercases, so it equals `UniverseViewModel.slug` for all
+      inputs (verified empirically incl. exotic Unicode). No bug, no change. Audit
+      static-read false positive — treat audit slugs skeptically.
+- [!] 9.2 USER-DECISION: `UniverseViewModel.existingToolMatching` (~634-643) host
+      match is unconditional → two differently-named tools sharing a host (two
+      `github.com` products) → the 2nd is silently dropped + old focused. Is
+      same-host = same-tool the intended dedup, or should distinct names coexist?
+      Product call, not a blind fix — decide with user before implementing.
+
 ## WS8 — Release QA (runs when WS1–7 mostly closed)
 - [ ] 8.1 Full screenshot gallery of key states (2D/3D/sheets) → `screenshots/loop/`.
 - [ ] 8.2 Written change summary + list of user-decision flags for the joint session.
