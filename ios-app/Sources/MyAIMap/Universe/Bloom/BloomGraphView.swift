@@ -1,4 +1,8 @@
+import OSLog
 import SwiftUI
+
+/// Perf instrumentation only — inert unless an Instruments trace is running.
+private let signposter = OSSignposter(subsystem: "com.iliaturilia.myaimap", category: "bloom")
 
 /// Bloom graph (variant K) — the new 2D map. Starts at Founder OS; tapping a
 /// node blooms its connections outward on a radial fan and dims the rest; tap
@@ -93,6 +97,9 @@ struct BloomGraphView: View {
     }
 
     private func draw(engine: BloomEngine, size: CGSize, ctx: inout GraphicsContext) {
+        let signpostState = signposter.beginInterval("bloom.layout")
+        defer { signposter.endInterval("bloom.layout", signpostState) }
+
         let focusID = engine.focusID
         let revealed = engine.revealed
         let neighboursOfFocus = Set(BloomAdjacency.build(tools: allTools)[focusID] ?? []).intersection(revealed)

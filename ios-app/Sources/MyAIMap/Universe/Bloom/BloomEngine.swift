@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import OSLog
 
 /// Force-directed Bloom graph engine (variant K). Holds node positions + the
 /// progressive-reveal state (a stack of expansion steps). `revealed` is derived
@@ -16,6 +17,9 @@ final class BloomEngine {
     }
 
     static let nodeRadius: Double = 30
+
+    /// Perf instrumentation only — inert unless an Instruments trace is running.
+    private let signposter = OSSignposter(subsystem: "com.iliaturilia.myaimap", category: "bloom")
 
     private let adjacency: [String: [String]]
     let seedID: String
@@ -158,6 +162,9 @@ final class BloomEngine {
     }
 
     func tick(dt: Double, reduced: Bool, allEdges: [(a: String, b: String)]) {
+        let signpostState = signposter.beginInterval("bloom.tick")
+        defer { signposter.endInterval("bloom.tick", signpostState) }
+
         let rest = Self.nodeRadius * 4.6
         var ids = Array(nodes.keys)
 
