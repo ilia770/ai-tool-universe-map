@@ -22,6 +22,19 @@ all compile-green). Updated in place on further idle wakes.
   GiB). No action possible; loop alive. ~18h idle — awaiting user to free the
   machine (shut Mult sims) so full-sim + visual work can start.
 
+## Cycle 29 — 9.2 host-dedup fix (user "след батч") — 2026-07-05
+- Did: landed 9.2 — existingToolMatching host match now name-gated so distinct
+  same-host tools coexist (was silently dropping the new one); same-name dedup
+  preserved; +2 tests. Worker gate GREEN at disk 4.1 GiB. commit f8bba44.
+- **DISK LESSON: one compile gate at ~4 GiB dropped disk 4.1→2.6 GiB (~1.5 GiB
+  build), and pruning ios-app/build only reclaimed ~0.4 GiB (rest is shared
+  DerivedData — off-limits, MultTracker uses it). So each gate nets ~-1.1 GiB
+  unrecoverable while MultTracker runs. Do NOT run another gate until disk
+  recovers well above ~6 GiB (needs MultTracker to free space — out of my
+  control). Disk after this batch: 3.0 GiB → code-gated work now PAUSED.**
+- Next: no-build improvements only until disk recovers; when disk>6 GiB resume
+  code slices; when Mult sims free + disk>8 GiB do full-sim + visual.
+
 ## RESTARTED by user ("продолжи сам") — 2026-07-05
 ## Cycle 28 — VISUALIZATION_SPEC accuracy — 2026-07-05
 - Context: user re-authorised the loop + delegated decisions. Machine STILL

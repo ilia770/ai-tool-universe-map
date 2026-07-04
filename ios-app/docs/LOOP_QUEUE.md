@@ -151,11 +151,9 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       which already lowercases, so it equals `UniverseViewModel.slug` for all
       inputs (verified empirically incl. exotic Unicode). No bug, no change. Audit
       static-read false positive — treat audit slugs skeptically.
-- [!] 9.2 USER-DECISION: `UniverseViewModel.existingToolMatching` (~634-643) host
-      match is unconditional → two differently-named tools sharing a host (two
-      `github.com` products) → the 2nd is silently dropped + old focused. Is
-      same-host = same-tool the intended dedup, or should distinct names coexist?
-      Product call, not a blind fix — decide with user before implementing.
+- [x] 9.2 FIXED (user delegated "distinct names ⇒ two tools"): host match now
+      gated on name-slug agreement so distinct-named same-host tools coexist;
+      same-name dedup unchanged. +2 tests. commit f8bba44.
 
 ## WS8 — Release QA (runs when WS1–7 mostly closed)
 - [ ] 8.1 Full screenshot gallery of key states (2D/3D/sheets) → `screenshots/loop/`.
