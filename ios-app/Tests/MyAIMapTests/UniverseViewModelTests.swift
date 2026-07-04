@@ -360,6 +360,29 @@ struct UniverseViewModelTests {
         #expect(!model.allTools.contains { $0.id == "posthog-2" })
     }
 
+    @Test func distinctToolsSharingOneHostBothCoexist() {
+        let model = makeModel()
+        let initialCount = model.allTools.count
+
+        #expect(model.addCustomTool(name: "First Repo", urlString: "https://github.com/first", category: .analytics))
+        #expect(model.addCustomTool(name: "Second Repo", urlString: "https://github.com/second", category: .analytics))
+
+        #expect(model.allTools.count == initialCount + 2)
+        #expect(model.visibleAllTools.contains { $0.name == "First Repo" })
+        #expect(model.visibleAllTools.contains { $0.name == "Second Repo" })
+    }
+
+    @Test func sameNameSharingOneHostStillDedupsRegardlessOfCase() {
+        let model = makeModel()
+        let initialCount = model.allTools.count
+
+        #expect(model.addCustomTool(name: "Shared Tool", urlString: "https://github.com/first", category: .analytics))
+        #expect(model.addCustomTool(name: "  shared   tool ", urlString: "https://github.com/second", category: .analytics))
+
+        #expect(model.allTools.count == initialCount + 1)
+        #expect(model.selectedTool?.name == "Shared Tool")
+    }
+
     @Test func duplicateAddRestoresHiddenToolInsteadOfCreatingCopy() {
         let model = makeModel(sample: true)
         let initialCount = model.allTools.count

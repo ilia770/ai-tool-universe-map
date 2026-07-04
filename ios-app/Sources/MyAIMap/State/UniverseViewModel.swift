@@ -634,7 +634,7 @@ final class UniverseViewModel {
     private func existingToolMatching(name: String, sourceHost: String?) -> Tool? {
         let nameSlug = slug(name)
         if let sourceHost,
-           let hostMatch = allTools.first(where: { $0.logoDomain == sourceHost }) {
+           let hostMatch = allTools.first(where: { $0.logoDomain == sourceHost && slug($0.name) == nameSlug }) {
             return hostMatch
         }
 
