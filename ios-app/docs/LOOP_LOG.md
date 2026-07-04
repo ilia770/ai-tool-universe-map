@@ -22,6 +22,18 @@ all compile-green). Updated in place on further idle wakes.
   GiB). No action possible; loop alive. ~18h idle — awaiting user to free the
   machine (shut Mult sims) so full-sim + visual work can start.
 
+## RESTARTED by user ("продолжи сам") — 2026-07-05
+## Cycle 28 — VISUALIZATION_SPEC accuracy — 2026-07-05
+- Context: user re-authorised the loop + delegated decisions. Machine STILL
+  blocked (2 Mult sims, disk 4.1 GiB = at the wait line, MultTracker consuming).
+  Compile gate UNSAFE at this disk level → no Swift code committed (unverified).
+- Did: doc-accuracy improvement needing no build — noted in VISUALIZATION_SPEC
+  that graph2D now renders via BloomGraphView (lineage + perf work), flagged
+  1.6 as the open decision. commit ed4ac57.
+- Gate: n/a (docs only). Backpressure: disk at wait line → code-gated slices
+  (e.g. 9.2 host-dedup, now user-delegated) DEFERRED until disk > ~6 GiB.
+- Next: when disk frees, gate + land 9.2; when Mult sims free, full-sim + visual.
+
 ## LOOP CONCLUDED — cycle 27 @ 18:32 (2026-07-04) — ~1 day mandate fulfilled
 - ~23h of loop life reached (the "~1 day" the user set). The machine stayed
   occupied by MultTracker the entire time — never a clear/safe sim window — so
