@@ -14,6 +14,32 @@ unattended. Full-suite validation of the 7 Bloom cycles (real assertions + pass
 count) must wait for the user to free the machine, or for MultTracker's loop to
 end + release its sims.** Compile gate remains the reliable green signal (7 cycles
 all compile-green). Updated in place on further idle wakes.
+- cycles 10-16 @ 01:15–07:21 — still blocked every wake (2 Mult sims booted).
+  Disk trending DOWN (7.9→4.7 GiB) as MultTracker fills it; cycle 16 pruned my
+  build fully (329M, 4.7→5.1 GiB) — my footprint is minimal, MultTracker is the
+  consumer. If disk <4 GiB, follow the wait rule. No AIMap action possible; alive.
+- cycles 17-27 @ 08:22–18:32 — still blocked (2 Mult sims booted, disk 5.1→7.1
+  GiB). No action possible; loop alive. ~18h idle — awaiting user to free the
+  machine (shut Mult sims) so full-sim + visual work can start.
+
+## LOOP CONCLUDED — cycle 27 @ 18:32 (2026-07-04) — ~1 day mandate fulfilled
+- ~23h of loop life reached (the "~1 day" the user set). The machine stayed
+  occupied by MultTracker the entire time — never a clear/safe sim window — so
+  the last ~18h were forced idle. Heartbeat STOPPED to avoid indefinite no-op
+  polling. Re-start anytime by re-invoking the orchestrator prompt in
+  LOOP_QUEUE.md (Operating Model → wakeup prompt).
+- **Shipped this run (7 productive cycles, all compile-gate green, on
+  `polish/day-sprint`):** Bloom 2D renderer wired as default + hardened:
+  b60f8a9 stack-invariant tests · 2fe78c1 perf signposts · 7a3f74b per-frame
+  memoization (killed a real hot-loop rebuild) · 104daed engine guard tests ·
+  9e0ba90 settle-cap (idle the force sim at rest) · 4cb55cd edges dedupe.
+  BloomEngine now 22 tests. Cycle 7 audit correctly REFUTED a false slug bug.
+- **Waiting for the user (all in LOOP_QUEUE.md):** free the Mult sims → then the
+  full-sim gate validates the 7 cycles with real assertions + captures Bloom
+  screenshots (slice 1.1), and the parked VISUAL work unblocks: Bloom look/
+  hierarchy (1.3–1.5), 3D presentable (2.x), sheets (3.2/3.3), runtime a11y,
+  QA gallery (8.x). Two DECISIONS: retire ConstellationView? (1.6) + same-host
+  tool-dedup intent (9.2).
 
 Format:
 ```
