@@ -17,6 +17,21 @@ business logic.
 The render mode is stored on `UniverseViewModel.renderMode`, persists through
 `UniverseStore`, and defaults to `graph2D`.
 
+> **Current implementation note (2026-07-04, `polish/day-sprint`).** The
+> `graph2D` slot is currently filled by `Universe/Bloom/BloomGraphView.swift`
+> (variant K — a force-directed progressive-reveal "Bloom" graph), not the
+> original `UniverseGraphView`. Lineage: `UniverseGraphView` → `ConstellationView`
+> → `BloomGraphView`. Whether Bloom is the permanent 2D renderer (and whether
+> `ConstellationView` is retired) is an **open user decision** — see
+> `LOOP_QUEUE.md` slice 1.6; this note documents the live state, it does not
+> canonise the choice. Bloom engine internals + invariants are covered by
+> `Tests/MyAIMapTests/BloomEngineTests.swift` (22 cases) and
+> `BloomAdjacencyTests.swift`; perf work landed this run (per-frame model
+> memoization, force-sim settle-cap, `os_signpost` intervals `bloom.tick` /
+> `bloom.layout`). The "2D Graph Mode" section below still describes the
+> renderer-agnostic contract (same `PlanetData`/`UniverseMode`, same selection
+> intents), which Bloom honours.
+
 ## 2D Graph Mode
 
 2D Graph renders the same `PlanetData` and `UniverseMode` as the 3D scene:
