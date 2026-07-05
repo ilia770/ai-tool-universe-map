@@ -23,8 +23,20 @@ enum AddToolBranchMode: String, CaseIterable, Identifiable, Equatable {
 }
 
 enum AddToolLogic {
-    static func canAdd(name: String) -> Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    /// Add is allowed once the tool has a non-empty name. When the user is
+    /// creating a NEW branch (manual "+ New branch"), the branch must ALSO be
+    /// named — otherwise the "New branch" the header promises has no name and
+    /// the tool would silently fall back to the picker branch.
+    static func canAdd(
+        name: String,
+        isCreatingBranch: Bool = false,
+        branchName: String = ""
+    ) -> Bool {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        if isCreatingBranch {
+            return !branchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return true
     }
 
     static func resolvedCategory(
@@ -152,7 +164,11 @@ struct AddToolSheet: View {
     }
 
     private var canAdd: Bool {
-        AddToolLogic.canAdd(name: name)
+        AddToolLogic.canAdd(
+            name: name,
+            isCreatingBranch: branchMode == .manual && isCreatingBranch,
+            branchName: newBranchName
+        )
     }
 
     private var resolvedCategory: ToolCategoryId {

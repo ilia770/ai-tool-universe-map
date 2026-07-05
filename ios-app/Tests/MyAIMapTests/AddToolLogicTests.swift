@@ -58,6 +58,42 @@ struct AddToolLogicTests {
         #expect(!AddToolLogic.canAdd(name: "   "))
     }
 
+    // MARK: - Creating a new branch requires naming it (WS5.1a)
+
+    @Test func creatingBranchWithEmptyNameBlocksAdd() {
+        // Was the bug: Add allowed, tool silently filed into the picker branch.
+        #expect(!AddToolLogic.canAdd(
+            name: "Zencove Whisper",
+            isCreatingBranch: true,
+            branchName: ""
+        ))
+    }
+
+    @Test func creatingBranchWithWhitespaceNameBlocksAdd() {
+        #expect(!AddToolLogic.canAdd(
+            name: "Zencove Whisper",
+            isCreatingBranch: true,
+            branchName: "   "
+        ))
+    }
+
+    @Test func creatingBranchWithValidNameAllowsAdd() {
+        #expect(AddToolLogic.canAdd(
+            name: "Zencove Whisper",
+            isCreatingBranch: true,
+            branchName: "Voice Agents"
+        ))
+    }
+
+    @Test func pickerBranchPathUnaffectedByBranchNameGate() {
+        // Not creating a branch → name alone is enough (picker-branch path).
+        #expect(AddToolLogic.canAdd(
+            name: "PostHog",
+            isCreatingBranch: false,
+            branchName: ""
+        ))
+    }
+
     // MARK: - Auto proposes a NEW branch when nothing fits (blueprint §8)
 
     @Test func autoProposesNewBranchFromCoreWhenNoKeywordFits() {
