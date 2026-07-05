@@ -35,6 +35,26 @@ all compile-green). Updated in place on further idle wakes.
 - Next: no-build improvements only until disk recovers; when disk>6 GiB resume
   code slices; when Mult sims free + disk>8 GiB do full-sim + visual.
 
+## Cycle 30 — 3.1 + 7.1 via subagents (user request) — 2026-07-05
+- Disk freed by user-requested cleanup (Chrome/playwright/npm caches → 4.6→6.8
+  GiB), unblocking gates. Ran two sim-free slices SEQUENTIALLY (shared xcodeproj
+  + disk → no parallel gates).
+- 3.1: worker tokenized 39 exact-match paddings across 13 views → BrandSpacing
+  (audit undercounted — missed directional `.padding(.h/.v, N)` forms). Value-
+  preserving. Gate GREEN. commit 98c86b8.
+- 7.1: worker made 1 conservative change (Category→Branch, lone outlier vs 10+
+  canonical), deferred 4 subjective copy calls to user (→ queue 7.2). Gate GREEN.
+  commit 78d6ba9.
+- Disk after both (each gate ~-1.5 GiB, pruned between): 6.6 GiB. Both Mult sims
+  still booted → full-sim + visual still blocked.
+- Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
+  new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
+
+## Idle wakes (post-restart, gates paused) — 2026-07-05
+- cycles 30-31 @ 02:27–03:29 — disk oscillating 4.1–5.1 GiB under MultTracker,
+  never sustainably >6 GiB, both Mult sims booted. No compile gate (ENOSPC risk).
+  No productive no-build work worth manufacturing. Loop holds. Updated in place.
+
 ## RESTARTED by user ("продолжи сам") — 2026-07-05
 ## Cycle 28 — VISUALIZATION_SPEC accuracy — 2026-07-05
 - Context: user re-authorised the loop + delegated decisions. Machine STILL

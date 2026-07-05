@@ -106,8 +106,8 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       in space. Keep the Experimental badge.
 
 ## WS3 — Sheets, spacing & tokens
-- [ ] 3.1 Audit hardcoded `.padding(n)` / magic radii across `ios-app/Sources`;
-      route through `BrandSpacing` (4px grid). Value-preserving, tested.
+- [x] 3.1 Tokenized 39 exact-match paddings across 13 views → BrandSpacing
+      (value-preserving; off-grid values left). commit 98c86b8.
 - [ ] 3.2 Add Tool: re-verify keyboard-avoiding action bar + "New branch" row
       reachable on SE-class width; fix any overlap.
 - [ ] 3.3 Tool detail density + Account/Settings segmented-control polish pass.
@@ -143,7 +143,13 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       byte-identical edge set; equivalence test. commit 4cb55cd.
 
 ## WS7 — Copy & content
-- [ ] 7.1 Terminology + label-length consistency pass across map + sheets.
+- [x] 7.1 Copy consistency (mechanical) — unified tool-detail label
+      Category→Branch (lone outlier vs 10+ canonical). commit 78d6ba9.
+      **4 subjective calls DEFERRED TO USER (7.2):**
+      - "Load sample universe" vs "Load a sample universe" (1v1, no winner)
+      - pricing slash spacing "Paid/cloud" vs "Subscription / usage" (typographic)
+      - "map" vs "universe" for the user's collection (brand voice)
+      - "Add Tool" title-case vs "Add tool" a11y sentence-case (may be intended)
 
 ## WS9 — Correctness (from audit refill, cycle 7 — sim-free)
 - [~] 9.1 REFUTED (cycle 7 adversarial verify): the "missing `.lowercased()`" is a
