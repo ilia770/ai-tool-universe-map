@@ -41,6 +41,30 @@ struct SubscriptionStateTests {
         let decoded = try JSONDecoder().decode(SubscriptionState.self, from: data)
         #expect(decoded == original)
     }
+
+    @Test func decodeClampsNegativeUsedToZero() throws {
+        let json = #"{"plan":"free","aiRequestsUsed":-7,"aiRequestsLimit":20}"#
+        let decoded = try JSONDecoder().decode(SubscriptionState.self, from: Data(json.utf8))
+        #expect(decoded.aiRequestsUsed == 0)
+        #expect(decoded.aiRequestsLimit == 20)
+        #expect(decoded.aiRequestsRemaining == 20)
+    }
+
+    @Test func decodeWithUsedOverLimitMatchesMemberwiseInit() throws {
+        // Memberwise init only clamps with max(0,…) — it does NOT clamp used to
+        // limit — so `used` survives and `remaining` floors at 0.
+        let json = #"{"plan":"free","aiRequestsUsed":30,"aiRequestsLimit":20}"#
+        let decoded = try JSONDecoder().decode(SubscriptionState.self, from: Data(json.utf8))
+        #expect(decoded.aiRequestsUsed == 30)
+        #expect(decoded.aiRequestsLimit == 20)
+        #expect(decoded.aiRequestsRemaining == 0)
+    }
+
+    @Test func decodeNormalPayloadIsUnchanged() throws {
+        let json = #"{"plan":"pro","aiRequestsUsed":5,"aiRequestsLimit":20}"#
+        let decoded = try JSONDecoder().decode(SubscriptionState.self, from: Data(json.utf8))
+        #expect(decoded == SubscriptionState(plan: .pro, aiRequestsUsed: 5, aiRequestsLimit: 20))
+    }
 }
 
 @Suite("AssistantBackend — debug-gated resolution")
