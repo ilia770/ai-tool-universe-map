@@ -50,6 +50,22 @@ all compile-green). Updated in place on further idle wakes.
 - Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
   new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
 
+## Cycle 35 — MACHINE FREED + fix batch + FIRST FULL-SIM — 2026-07-05
+- **User confirmed MultTracker DONE → deleted both Mult sims** (simctl delete 18.3
+  + 26.5) → freed ~1.9G, disk 6-9 GiB, 3-sim wall GONE. (Refused the "delete
+  SpringBoard" ask — system component; the sims were the real disk hog.)
+- Ran Workflow (ultracode): 3 parallel edit-only agents (9.6/9.7/9.4-test) → 1
+  compile gate = SUCCEEDED. Committed 3 fixes: f98a574 (9.6 ColorHex rgba — white
+  glows), d593296 (9.7 classifier word-boundary), 101ce4d (9.4 DeepSeek composer
+  + AssistantResponder seam + failure test).
+- **FIRST FULL-SIM VALIDATION of the session** on fresh dedicated AIMapGate 26.5:
+  run 1 = 432 tests, 1 FAIL (autoDoesNotProposeWhenAKeywordFits — my 9.7 tokenize
+  regressed CamelCase "SomeDesignTool"). Compile gate can't catch assertion fails
+  — this is exactly why full-sim matters. Fixed 9ec2f9b (camelCase split in
+  tokenizer). run 2 = **434/434 GREEN, TEST SUCCEEDED**.
+- All ~18 session fixes now validated with REAL assertions, not just compile.
+- Next: 1.1 Bloom screenshots (sim is up), then visual slices with user.
+
 ## Cycle 33 — correctness-audit batch — 2026-07-05
 - 5.2: no-op — Bloom has no user pan/zoom (camera auto-follows focus). Marked N/A;
   manual pan/zoom = new feature (user decision).

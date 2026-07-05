@@ -142,7 +142,10 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 ## WS9 (cont.) — correctness audit findings (cycle 33, sim-free)
 - [x] 9.3 FIXED — internal pricing branch guarded against open-source strings;
       agent-skills now shows free-core row (+3 tests). commit 9b805f5.
-- [/] 9.4 IN PROGRESS — fix WRITTEN (reviewed-correct) but STASHED, not gated:
+- [x] 9.4 DONE — composer-wipe fixed + AssistantResponder seam + throwing-responder
+      failure test (draft survives). commit 101ce4d. Full-sim green.
+- [x] ~~9.4 (old stash note below, superseded)~~
+- [/] 9.4-hist — fix WRITTEN (reviewed-correct) but STASHED, not gated:
       `git stash` "wip-9.4-deepseek-composer-fix". Adds `AssistantResponder` seam
       (protocol + DeepSeekClient conformance + injectable on VM init), moves the
       `assistantQuery=""` reset out of appendLocalReply into the sync send branch
@@ -193,17 +196,11 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       same-name dedup unchanged. +2 tests. commit f8bba44.
 
 ## WS9 (cont.) — audit cycle 34 findings (sim-free, gate-blocked on disk)
-- [ ] 9.6 **BUG HIGH:** `ColorHex` (`Data/ToolCategory.swift:83,92`) only parses
-      6-digit hex; the seed stores every category `glow` as `rgba(r,g,b,a)` → guard
-      fails → returns `.white`. Result: **every planet glow/accent renders white**
-      instead of its category tint (PlanetEntityFactory/PlanetData accent). Fix: add
-      rgba(…) parse branch (+ ideally 3-/8-digit hex). Pure-testable: ColorHex(
-      "rgba(110,231,255,0.34)").uiColor != white. NO ColorHex parse test exists yet.
-- [ ] 9.7 Auto-classifier keyword match is unbounded substring (`text.contains`),
-      AddToolSheet.swift:59-60 + table 126-135: short keys "dev"/"ui"/"gen"/"api"
-      match inside unrelated words ("Devi AI"→coding, "G Suite"→design). Fix:
-      tokenize + word-boundary membership instead of raw contains. Pure-testable
-      via AddToolLogic.suggestedCategory. MED (heuristic; ties break deterministically).
+- [x] 9.6 FIXED — ColorHex.parse() adds rgba + 3/8-digit hex; planet glows/accents
+      now render their tint not white. +6 tests. commit f98a574.
+- [x] 9.7 FIXED — classifier matches keywords on word boundaries (tokenize), not
+      substrings. commit d593296. Full-sim caught a camelCase regression → 9ec2f9b
+      (tokenizer splits camelCase/acronym before folding; +2 tests).
 
 ## WS8 — Release QA (runs when WS1–7 mostly closed)
 - [ ] 8.1 Full screenshot gallery of key states (2D/3D/sheets) → `screenshots/loop/`.
