@@ -50,6 +50,16 @@ all compile-green). Updated in place on further idle wakes.
 - Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
   new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
 
+## Cycle 31 — 8.2 digest + 1.5 assessed — 2026-07-05
+- Assessed 1.5 (frame-rate-independent motion): REAL bug — BloomGraphView passes
+  fixed `dt: 1/60` (line 108) and BloomEngine.tick ignores dt, so 120Hz ProMotion
+  runs motion ~2× speed. BUT the fix is an integrator refactor (forces×dt,
+  damping pow(0.86,dt/dt0)) whose STABILITY needs visual confirmation on a sim →
+  deferred to sim+user, NOT done blind (would risk destabilising the green core).
+- Closed 8.2 instead: `docs/JOINT_SESSION_DIGEST.md` (no build). commit 443724c.
+- **Sim-free code vein now genuinely exhausted.** 17 slices left = all sim/visual
+  (need Mult sims freed) or user-decision (1.6, 7.2). Nothing safe to close blind.
+
 ## Idle wakes (post-restart, gates paused) — 2026-07-05
 - cycles 30-31 @ 02:27–03:29 — disk oscillating 4.1–5.1 GiB under MultTracker,
   never sustainably >6 GiB, both Mult sims booted. No compile gate (ENOSPC risk).
