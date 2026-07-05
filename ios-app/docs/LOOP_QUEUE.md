@@ -142,11 +142,15 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 ## WS9 (cont.) — correctness audit findings (cycle 33, sim-free)
 - [x] 9.3 FIXED — internal pricing branch guarded against open-source strings;
       agent-skills now shows free-core row (+3 tests). commit 9b805f5.
-- [ ] 9.4 `askAssistant` async DeepSeek FAILURE path calls `appendLocalReply` which
-      re-clears `assistantQuery` after the round-trip → wipes text typed while
-      waiting. Dev-gated (.debugDeepSeek) so low real impact. Fix: move composer
-      reset into the synchronous local branch, not appendLocalReply. Needs a
-      DeepSeekClient injection seam to unit-test.
+- [/] 9.4 IN PROGRESS — fix WRITTEN (reviewed-correct) but STASHED, not gated:
+      `git stash` "wip-9.4-deepseek-composer-fix". Adds `AssistantResponder` seam
+      (protocol + DeepSeekClient conformance + injectable on VM init), moves the
+      `assistantQuery=""` reset out of appendLocalReply into the sync send branch
+      (DeepSeek branch keeps its up-front clear). Worker died mid-test on an API
+      error; disk then dropped to 3.4-3.8 GiB (< wait line) so the gate couldn't
+      run. RESUME when disk > ~6 GiB: `git stash pop`, add the failure-path test
+      (inject throwing responder; note: async fire-and-forget Task + dev-gated
+      backend make it non-trivial — may need an await seam), gate, commit.
 - [x] 9.5 FIXED — custom init(from:) delegates to memberwise init (single clamp
       source); format preserved (+3 tests). commit d9d57ec.
 
