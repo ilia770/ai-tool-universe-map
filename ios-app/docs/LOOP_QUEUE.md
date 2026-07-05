@@ -192,6 +192,19 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
       gated on name-slug agreement so distinct-named same-host tools coexist;
       same-name dedup unchanged. +2 tests. commit f8bba44.
 
+## WS9 (cont.) — audit cycle 34 findings (sim-free, gate-blocked on disk)
+- [ ] 9.6 **BUG HIGH:** `ColorHex` (`Data/ToolCategory.swift:83,92`) only parses
+      6-digit hex; the seed stores every category `glow` as `rgba(r,g,b,a)` → guard
+      fails → returns `.white`. Result: **every planet glow/accent renders white**
+      instead of its category tint (PlanetEntityFactory/PlanetData accent). Fix: add
+      rgba(…) parse branch (+ ideally 3-/8-digit hex). Pure-testable: ColorHex(
+      "rgba(110,231,255,0.34)").uiColor != white. NO ColorHex parse test exists yet.
+- [ ] 9.7 Auto-classifier keyword match is unbounded substring (`text.contains`),
+      AddToolSheet.swift:59-60 + table 126-135: short keys "dev"/"ui"/"gen"/"api"
+      match inside unrelated words ("Devi AI"→coding, "G Suite"→design). Fix:
+      tokenize + word-boundary membership instead of raw contains. Pure-testable
+      via AddToolLogic.suggestedCategory. MED (heuristic; ties break deterministically).
+
 ## WS8 — Release QA (runs when WS1–7 mostly closed)
 - [ ] 8.1 Full screenshot gallery of key states (2D/3D/sheets) → `screenshots/loop/`.
 - [x] 8.2 `docs/JOINT_SESSION_DIGEST.md` — shipped-work table, 3 user decisions
