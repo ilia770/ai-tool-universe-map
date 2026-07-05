@@ -119,8 +119,21 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [ ] 4.3 Reduce-motion + reduce-transparency full matrix across map + sheets.
 
 ## WS5 — Mechanics & state machine
-- [ ] 5.1 Navigation-trap audit: escape layering, category-focus exit, chat
-      open/close, add-tool end-to-end, empty states. Fix dead ends with tests.
+- [x] 5.1 Nav-trap audit done (read-only subagent). No hard unexitable trap;
+      found real bug cluster → new fix slices below. Clean: empty states, cancel-
+      discard, detail/chat mutual-exclusion, chat collapse/resume.
+      **Findings → fix slices:**
+- [x] 5.1a data-misfile fixed — Add blocked when creating a branch with empty
+      name (pure AddToolLogic.canAdd + 4 tests). commit c4c6fe9.
+- [x] 5.1b state-desync fixed — seedID(for:) seeds/focuses Bloom from current
+      selection (guaranteed-valid, core fallback) + 6 tests. commit dd81b80.
+- [~] 5.1c PARTIAL (via 5.1b): syncEngineFocus on mode-change now moves graph
+      focus to revealed nodes (covers rail-select/restore). REMAINING (needs sim):
+      empty-tap should COLLAPSE the bloom (not just refocus) + full overview reset
+      visual — engine.reset() wiring + settle verification. Deferred to sim window.
+- [ ] 5.1d 3D chat/detail hides the only "Back to 2D" exit (spatialExperimental
+      Notice gated off in chatOpen) — not a hard trap (Map pill/xmark exit) but
+      2-step. Keep Back-to-2D mounted in chatOpen. Logic gate; look needs sim.
 - [ ] 5.2 Pan/zoom + gesture-bounds hardening on Bloom; no lost/stuck states.
 
 ## WS6 — Performance

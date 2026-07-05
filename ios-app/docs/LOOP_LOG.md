@@ -50,6 +50,20 @@ all compile-green). Updated in place on further idle wakes.
 - Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
   new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
 
+## Cycle 32 — nav-audit batch (user "батчами субагентами") — 2026-07-05
+- 5.1 read-only nav audit (subagent): no hard trap, but found a real bug cluster
+  → recorded as 5.1a–d.
+- 5.1a FIXED (c4c6fe9): Add Tool "New branch" + empty name silently mis-filed the
+  tool into .analytics — now Add blocked until branch named. Pure AddToolLogic +4.
+- 5.1b FIXED (dd81b80): Bloom seeded/focused from current selection (was always
+  founder-os → 3D→2D lost selection). Pure seedID helper +6 tests; guarded
+  syncEngineFocus on mode-change also partially closes 5.1c (rail-select/restore
+  now move graph focus).
+- 5.1c PARTIAL, 5.1d + empty-tap-collapse → deferred (need sim for visual settle).
+- Disk recovered to 9.9 GiB (MultTracker freed space) but both Mult sims STILL
+  booted → full-sim still 3-sim-wall blocked. Gates ran fine at 9.9 GiB.
+- Nav audit turned "sim-free vein exhausted" into 2 more real green fixes.
+
 ## Cycle 31 — 8.2 digest + 1.5 assessed — 2026-07-05
 - Assessed 1.5 (frame-rate-independent motion): REAL bug — BloomGraphView passes
   fixed `dt: 1/60` (line 108) and BloomEngine.tick ignores dt, so 120Hz ProMotion
