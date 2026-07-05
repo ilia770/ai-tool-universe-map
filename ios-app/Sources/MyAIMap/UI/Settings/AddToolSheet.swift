@@ -130,7 +130,25 @@ enum AddToolLogic {
     /// "gen"/"api" no longer hit inside unrelated words ("Devi", "suite",
     /// "generate", "capital").
     private static func tokenize(_ text: String) -> [String] {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        // Break camelCase / PascalCase boundaries BEFORE folding (folding lowercases,
+        // which would erase the boundaries) so concatenated names like
+        // "SomeDesignTool" → ["some","design","tool"] and "RapidAPI" → ["rapid","api"].
+        // Rules: lowercase/digit → uppercase, and acronym → word (UPPER before Upper+lower).
+        // Whole-token matching then catches these without the old substring false hits.
+        let chars = Array(text)
+        var spaced = ""
+        for i in chars.indices {
+            if i > 0 {
+                let prev = chars[i - 1]
+                let cur = chars[i]
+                let next = i + 1 < chars.count ? chars[i + 1] : nil
+                let lowerOrDigitToUpper = (prev.isLowercase || prev.isNumber) && cur.isUppercase
+                let acronymToWord = prev.isUppercase && cur.isUppercase && (next?.isLowercase ?? false)
+                if lowerOrDigitToUpper || acronymToWord { spaced.append(" ") }
+            }
+            spaced.append(chars[i])
+        }
+        return spaced.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .split { !$0.isLetter && !$0.isNumber }
             .map(String.init)
     }

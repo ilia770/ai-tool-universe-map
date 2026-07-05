@@ -179,4 +179,24 @@ struct AddToolLogicTests {
         )
         #expect(suggested == .design)
     }
+
+    @Test func camelCaseNameSplitsIntoWordTokens() {
+        // Concatenated PascalCase must still match on its inner words, so the
+        // whole-token fix doesn't miss "design" inside "SomeDesignTool".
+        let suggested = AddToolLogic.suggestedCategory(
+            name: "SomeDesignTool",
+            website: "",
+            activeCategory: .core
+        )
+        #expect(suggested == .design)
+        // And proposedBranchName sees the keyword fit → no new-branch proposal.
+        #expect(AddToolLogic.proposedBranchName(name: "SomeDesignTool", website: "", activeCategory: .core) == nil)
+    }
+
+    @Test func acronymCamelCaseSplitsButNoSubstringFalseHit() {
+        // "RapidAPI" → ["rapid","api"] hits api→research (a real API tool);
+        // "Devi" stays one token so "dev" still doesn't false-hit coding.
+        #expect(AddToolLogic.suggestedCategory(name: "RapidAPI", website: "", activeCategory: .core) == .research)
+        #expect(AddToolLogic.suggestedCategory(name: "Devitool", website: "", activeCategory: .research) != .coding)
+    }
 }
