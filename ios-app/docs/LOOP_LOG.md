@@ -50,6 +50,23 @@ all compile-green). Updated in place on further idle wakes.
 - Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
   new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
 
+## Cycle 33 — correctness-audit batch — 2026-07-05
+- 5.2: no-op — Bloom has no user pan/zoom (camera auto-follows focus). Marked N/A;
+  manual pan/zoom = new feature (user decision).
+- Ran read-only correctness audit (subagent) on VM/store/search/pricing → 3 real
+  findings (code otherwise solid + well-tested).
+- 9.3 FIXED (9b805f5): ToolPricingPresenter checked "internal" before "open-source"
+  → agent-skills free-core row hidden. Guarded internal branch. +3 tests. HIGH.
+- 9.5 FIXED (d9d57ec): SubscriptionState decode bypassed clamps → custom init(from:)
+  delegates to memberwise init. +3 tests. Defensive.
+- 9.4 (async DeepSeek composer-wipe) queued — needs a DeepSeekClient injection seam
+  to test; dev-gated, low impact. Left for a focused slice.
+- Two read-only audits (5.1 nav + this) converted "vein exhausted" into 5 real
+  green fixes (5.1a/5.1b/9.3/9.5 + 8.2). Audits are the productive move when the
+  obvious queue is visual/sim-blocked.
+- Disk oscillating 5-10 GiB under MultTracker; Mult sims still booted (full-sim
+  blocked). All gates green.
+
 ## Cycle 32 — nav-audit batch (user "батчами субагентами") — 2026-07-05
 - 5.1 read-only nav audit (subagent): no hard trap, but found a real bug cluster
   → recorded as 5.1a–d.

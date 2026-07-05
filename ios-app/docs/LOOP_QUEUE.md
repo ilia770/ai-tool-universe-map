@@ -134,7 +134,21 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 - [ ] 5.1d 3D chat/detail hides the only "Back to 2D" exit (spatialExperimental
       Notice gated off in chatOpen) — not a hard trap (Map pill/xmark exit) but
       2-step. Keep Back-to-2D mounted in chatOpen. Logic gate; look needs sim.
-- [ ] 5.2 Pan/zoom + gesture-bounds hardening on Bloom; no lost/stuck states.
+- [~] 5.2 N/A for Bloom — no user pan/zoom exists (camera auto-follows focus via
+      force-sim, self-correcting, no zoom factor). Slice was written for the old
+      pan/zoom renderer. Manual pan/zoom would be a NEW FEATURE (user decision),
+      not a hardening slice.
+
+## WS9 (cont.) — correctness audit findings (cycle 33, sim-free)
+- [x] 9.3 FIXED — internal pricing branch guarded against open-source strings;
+      agent-skills now shows free-core row (+3 tests). commit 9b805f5.
+- [ ] 9.4 `askAssistant` async DeepSeek FAILURE path calls `appendLocalReply` which
+      re-clears `assistantQuery` after the round-trip → wipes text typed while
+      waiting. Dev-gated (.debugDeepSeek) so low real impact. Fix: move composer
+      reset into the synchronous local branch, not appendLocalReply. Needs a
+      DeepSeekClient injection seam to unit-test.
+- [x] 9.5 FIXED — custom init(from:) delegates to memberwise init (single clamp
+      source); format preserved (+3 tests). commit d9d57ec.
 
 ## WS6 — Performance
 - [x] 6.1 os_signpost intervals `bloom.tick` + `bloom.layout` — commit 2fe78c1.
