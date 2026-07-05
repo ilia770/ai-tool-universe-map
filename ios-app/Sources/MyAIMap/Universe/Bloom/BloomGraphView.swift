@@ -61,15 +61,52 @@ struct BloomGraphView: View {
             .blur(radius: CGFloat(mode.mapBlurRadius))
             .onAppear { rebuildModel(); ensureEngine() }
             .onChange(of: toolIDs) { _, _ in rebuildModel() }
+            .onChange(of: mode.signature) { _, _ in syncEngineFocus() }
+        }
+    }
+
+    /// Founder OS (`centralCoreToolID`) when present, else the first tool — the
+    /// always-valid fallback seed the pure mapper falls back to for overview /
+    /// branch modes and invalid selections.
+    private var coreSeedID: String {
+        allTools.contains(where: { $0.id == PlanetData.centralCoreToolID })
+            ? PlanetData.centralCoreToolID
+            : (allTools.first?.id ?? "")
+    }
+
+    /// Seed id derived from the *current* selection, so the fresh graph opens on
+    /// whatever the bottom card is showing (see `seedID(for:coreID:validIDs:)`).
+    private var resolvedSeedID: String {
+        Self.seedID(for: mode, coreID: coreSeedID, validIDs: Set(adjacency.keys))
+    }
+
+    /// Pure selection→seed mapping (unit-testable without a sim). Returns a node
+    /// id guaranteed to exist in the adjacency: the current selection when it is
+    /// a valid node, otherwise `coreID`. Branch/overview modes have no tool node
+    /// of their own, so they fall back to `coreID` (Founder OS) too.
+    static func seedID(for mode: UniverseMode, coreID: String, validIDs: Set<String>) -> String {
+        if let toolID = mode.selectedToolID, validIDs.contains(toolID) {
+            return toolID
+        }
+        return coreID
+    }
+
+    /// When the mode changes while the engine is alive, follow the selection —
+    /// but only toward a node already on the graph, and never re-issue a focus we
+    /// already hold. Fresh graphs seed via `ensureEngine`; this keeps a persistent
+    /// graph's focus in step with external selection changes without rebuilding.
+    private func syncEngineFocus() {
+        guard let engine else { return }
+        let seed = resolvedSeedID
+        if seed != engine.focusID, engine.revealed.contains(seed) {
+            engine.focus(seed)
         }
     }
 
     private func ensureEngine() {
         guard engine == nil else { return }
         let adj = adjacency
-        let seed = allTools.contains(where: { $0.id == PlanetData.centralCoreToolID })
-            ? PlanetData.centralCoreToolID
-            : (allTools.first?.id ?? "")
+        let seed = resolvedSeedID
         let e = BloomEngine(adjacency: adj, seedID: seed)
         // Pre-expand a tool for simctl screenshots (the sim is too flaky for
         // XCUITest taps). Reveals the seed → tool path, then blooms the tool.
