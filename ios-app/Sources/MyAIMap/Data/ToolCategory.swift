@@ -81,20 +81,62 @@ struct ColorHex: Codable, Sendable, ExpressibleByStringLiteral {
     }
 
     var swiftUIColor: Color {
-        let hex = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return .white }
-        let r = Double((value >> 16) & 0xff) / 255
-        let g = Double((value >> 8) & 0xff) / 255
-        let b = Double(value & 0xff) / 255
-        return Color(red: r, green: g, blue: b)
+        guard let c = Self.parse(rawValue) else { return .white }
+        return Color(red: c.r, green: c.g, blue: c.b, opacity: c.a)
     }
 
     var uiColor: UIColor {
-        let hex = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return .white }
-        let r = CGFloat((value >> 16) & 0xff) / 255
-        let g = CGFloat((value >> 8) & 0xff) / 255
-        let b = CGFloat(value & 0xff) / 255
-        return UIColor(red: r, green: g, blue: b, alpha: 1)
+        guard let c = Self.parse(rawValue) else { return .white }
+        return UIColor(red: CGFloat(c.r), green: CGFloat(c.g), blue: CGFloat(c.b), alpha: CGFloat(c.a))
+    }
+
+    /// Parses the stored string into normalised RGBA components (each 0...1),
+    /// or `nil` when the string is unrecognisable. Shared by `swiftUIColor`
+    /// and `uiColor` so both stay in lockstep.
+    ///
+    /// Accepts:
+    /// - CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` — the form the seed uses for
+    ///   every category `glow` (e.g. `"rgba(110, 231, 255, 0.34)"`); `r,g,b`
+    ///   are 0...255, `a` is 0...1. Case-insensitive and space-tolerant.
+    /// - Hex `#RGB`, `#RRGGBB`, and `#RRGGBBAA` (leading `#` optional).
+    static func parse(_ raw: String) -> (r: Double, g: Double, b: Double, a: Double)? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.lowercased().hasPrefix("rgb") {
+            guard let open = trimmed.firstIndex(of: "("),
+                  let close = trimmed.firstIndex(of: ")") else { return nil }
+            let parts = trimmed[trimmed.index(after: open)..<close]
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == 3 || parts.count == 4,
+                  let r = Double(parts[0]),
+                  let g = Double(parts[1]),
+                  let b = Double(parts[2]) else { return nil }
+            let a = parts.count == 4 ? (Double(parts[3]) ?? 1) : 1
+            return (r / 255, g / 255, b / 255, a)
+        }
+
+        let hex = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard let value = UInt32(hex, radix: 16) else { return nil }
+        switch hex.count {
+        case 3:
+            let r = Double((value >> 8) & 0xf) / 15
+            let g = Double((value >> 4) & 0xf) / 15
+            let b = Double(value & 0xf) / 15
+            return (r, g, b, 1)
+        case 6:
+            let r = Double((value >> 16) & 0xff) / 255
+            let g = Double((value >> 8) & 0xff) / 255
+            let b = Double(value & 0xff) / 255
+            return (r, g, b, 1)
+        case 8:
+            let r = Double((value >> 24) & 0xff) / 255
+            let g = Double((value >> 16) & 0xff) / 255
+            let b = Double((value >> 8) & 0xff) / 255
+            let a = Double(value & 0xff) / 255
+            return (r, g, b, a)
+        default:
+            return nil
+        }
     }
 }
