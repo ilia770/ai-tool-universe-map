@@ -475,7 +475,7 @@ struct ToolDetailSection: View {
     private var metadataSection: some View {
         DisclosureGroup(isExpanded: $isMetadataExpanded) {
             VStack(spacing: 0) {
-                metadataRow("Category", selectedCategoryModel.name, icon: "folder")
+                metadataRow("Branch", selectedCategoryModel.name, icon: "folder")
                 metadataDivider
                 metadataRow("Workflow stage", stageLabel(selectedTool.stage), icon: "arrow.triangle.branch")
                 metadataDivider
