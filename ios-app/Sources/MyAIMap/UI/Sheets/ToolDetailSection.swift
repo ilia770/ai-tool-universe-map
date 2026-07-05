@@ -25,7 +25,7 @@ enum ToolPricingPresenter {
             return [unknownRow(note: "No pricing stored.")]
         }
 
-        if lower.contains("internal") {
+        if lower.contains("internal"), !lower.contains("open-source"), !lower.contains("open source") {
             return [
                 ToolPricingRow(plan: "Internal", value: "Variable", note: clean, icon: "building.2"),
                 unknownRow(note: "Depends on model, agent, and storage usage."),
