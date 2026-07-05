@@ -82,7 +82,17 @@ New files compile via xcodegen (the script regenerates the project).
 ## WS1 — Bloom 2D map (the new default renderer) — FRONTIER
 The WIP swaps `graph2D` from `ConstellationView` → `BloomGraphView` (variant K:
 force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
-- [ ] 1.1 Snapshot baseline of Bloom in overview + one bloomed branch on the
+- [~] 1.1 PARTIAL — machine freed, app built+installed+launched on AIMapGate 26.5;
+      captured baseline: onboarding overlay + OVERVIEW/Founder OS map chrome +
+      colored category chips (Coding/Design/Research/Media/Social — confirms 9.6
+      colors render, not white). Screenshots in `ios-app/screenshots/loop/`.
+      REMAINING: populated Bloom (branch bloom w/ tools) needs sample-load / tool-add
+      via UI driving — blocked by stale UI smoke test (5.3 below). Do with user.
+- [ ] 5.3 **STALE TEST:** `MyAIMapUITests` smoke harness fails — waits for
+      "RootShell.ShowChat" Button (+ chat-composer-field) that recent UI renamed/
+      removed (63s timeout). It's NOT a required CI check but blocks scripted
+      screenshot capture. Update the harness element ids/flow to the current UI.
+- [ ] 1.1old Snapshot baseline of Bloom in overview + one bloomed branch on the
       26.5 sim; confirm it renders (not blank), no clipping, taps select. Save to
       `ios-app/screenshots/loop/bloom-baseline/`.
 - [x] 1.2 (logic) `BloomEngineTests` +8 expand/collapse stack invariants —
