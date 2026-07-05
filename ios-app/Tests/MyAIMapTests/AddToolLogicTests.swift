@@ -137,4 +137,46 @@ struct AddToolLogicTests {
         #expect(reason.contains("Zencove Whisper"))
         #expect(reason.contains("No existing branch fits"))
     }
+
+    // MARK: - Keywords match whole words, not substrings (WS9.7)
+
+    @Test func deviAiIsNotMisclassifiedAsCodingBySubstring() {
+        // Was the bug: "dev" is a substring of "Devi" → coding via `contains`.
+        let suggested = AddToolLogic.suggestedCategory(
+            name: "Devi AI",
+            website: "https://devi-ai.com",
+            activeCategory: .research
+        )
+        #expect(suggested != .coding)
+    }
+
+    @Test func genuineCodingToolWithDevTokenStillClassifiesAsCoding() {
+        // A real, standalone "dev" token must still hit coding (no regression).
+        let suggested = AddToolLogic.suggestedCategory(
+            name: "Warp",
+            website: "https://warp.dev",
+            activeCategory: .research
+        )
+        #expect(suggested == .coding)
+    }
+
+    @Test func gSuiteIsNotMisclassifiedAsDesignBySubstring() {
+        // Was the bug: "suite" contains "ui" → design via `contains`.
+        let suggested = AddToolLogic.suggestedCategory(
+            name: "G Suite",
+            website: "",
+            activeCategory: .knowledge
+        )
+        #expect(suggested != .design)
+    }
+
+    @Test func figmaStillClassifiesAsDesign() {
+        // A correct existing classification must survive the word-boundary fix.
+        let suggested = AddToolLogic.suggestedCategory(
+            name: "Figma",
+            website: "https://figma.com",
+            activeCategory: .coding
+        )
+        #expect(suggested == .design)
+    }
 }

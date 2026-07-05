@@ -52,11 +52,11 @@ enum AddToolLogic {
         website: String,
         activeCategory: ToolCategoryId
     ) -> ToolCategoryId {
-        let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let tokens = keywordTokens(name: name, website: website)
         let scored = ToolCategoryId.builtins
             .map { category -> (ToolCategoryId, Int) in
                 let keywordHits = autoKeywords(for: category).reduce(0) { score, keyword in
-                    text.contains(keyword) ? score + 1 : score
+                    keywordMatches(keyword, in: tokens) ? score + 1 : score
                 }
                 let contextBoost = activeCategory == category ? 1 : 0
                 return (category, keywordHits * 10 + contextBoost)
@@ -85,8 +85,8 @@ enum AddToolLogic {
             return "No existing branch fits — I'll create a '\(proposed)' branch."
         }
 
-        let text = clean.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        let matchedKeywords = autoKeywords(for: suggestedCategory).contains { text.contains($0) }
+        let tokens = tokenize(clean)
+        let matchedKeywords = autoKeywords(for: suggestedCategory).contains { keywordMatches($0, in: tokens) }
         if matchedKeywords {
             return "Suggested from name, website, and context."
         }
@@ -107,9 +107,9 @@ enum AddToolLogic {
         // Only propose from the centre: when the user is already focused on a
         // branch, that branch is the natural home and we don't override it.
         guard activeCategory == .core else { return nil }
-        let text = "\(name) \(website)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let tokens = keywordTokens(name: name, website: website)
         let anyKeywordHit = ToolCategoryId.builtins.contains { category in
-            autoKeywords(for: category).contains { text.contains($0) }
+            autoKeywords(for: category).contains { keywordMatches($0, in: tokens) }
         }
         // A weak signal (no keyword hit anywhere) from the centre → new branch.
         return anyKeywordHit ? nil : cleanName
@@ -121,6 +121,36 @@ enum AddToolLogic {
         // auto-suggest pass (they are only selected manually or via the
         // "no existing branch fits" proposal).
         autoKeywordsByCategory[category] ?? []
+    }
+
+    /// Splits arbitrary text into lowercase alphanumeric WORD tokens, folding
+    /// case and diacritics so matching stays accent-/case-insensitive.
+    /// Keywords are matched against these whole tokens (see `keywordMatches`)
+    /// rather than as unbounded substrings, so short keys like "dev"/"ui"/
+    /// "gen"/"api" no longer hit inside unrelated words ("Devi", "suite",
+    /// "generate", "capital").
+    private static func tokenize(_ text: String) -> [String] {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+    }
+
+    private static func keywordTokens(name: String, website: String) -> [String] {
+        tokenize("\(name) \(website)")
+    }
+
+    /// A keyword is "present" only when it equals a whole token. Multi-word
+    /// keywords match when their words appear as a contiguous run of tokens.
+    private static func keywordMatches(_ keyword: String, in tokens: [String]) -> Bool {
+        let needle = tokenize(keyword)
+        guard !needle.isEmpty else { return false }
+        if needle.count == 1 { return tokens.contains(needle[0]) }
+        guard tokens.count >= needle.count else { return false }
+        for start in 0...(tokens.count - needle.count)
+        where Array(tokens[start ..< start + needle.count]) == needle {
+            return true
+        }
+        return false
     }
 
     private static let autoKeywordsByCategory: [ToolCategoryId: [String]] = [
