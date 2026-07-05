@@ -2,7 +2,22 @@ import Testing
 import Foundation
 @testable import MyAIMap
 
-@Suite("UniverseViewModel — single source of truth")
+/// A stub `AssistantResponder` that always throws, forcing the `.debugDeepSeek`
+/// failure path so the async fallback (and its composer handling) can be tested
+/// without hitting the network.
+private struct ThrowingResponder: AssistantResponder {
+    struct Boom: Error {}
+    func reply(to userQuery: String, systemPrompt: String?, apiKey: String?) async throws -> String {
+        throw Boom()
+    }
+}
+
+/// `.serialized` because `askAssistantDeepSeekFailureKeepsInFlightDraft` toggles
+/// process-global state (`DeveloperMode` flag in `UserDefaults.standard` + a real
+/// Keychain key) to force `.debugDeepSeek`. Running the suite serially keeps that
+/// window from bleeding into the sibling tests that assert the `.local` default
+/// (`activeBackendIsLocalByDefault`) or the synchronous local reply path.
+@Suite("UniverseViewModel — single source of truth", .serialized)
 @MainActor
 struct UniverseViewModelTests {
 
@@ -13,6 +28,19 @@ struct UniverseViewModelTests {
         let model = UniverseViewModel(store: UniverseStore(defaults: defaults))
         if sample { model.loadSampleUniverse() }
         return model
+    }
+
+    /// Bounded async wait for a MainActor condition. The `.debugDeepSeek` reply is
+    /// dispatched on a fire-and-forget `Task` with no handle, so tests can't await
+    /// it structurally — instead we poll (per the WS9.4 test plan) while short
+    /// sleeps let the awaiting main actor yield to that task. Budget ~1s; returns
+    /// whether the condition held in time.
+    private func waitUntil(_ condition: () -> Bool, attempts: Int = 500) async -> Bool {
+        for _ in 0..<attempts {
+            if condition() { return true }
+            try? await Task.sleep(nanoseconds: 2_000_000) // 2ms
+        }
+        return condition()
     }
 
     // MARK: - Empty-by-default product model
@@ -94,6 +122,61 @@ struct UniverseViewModelTests {
 
         #expect(model.assistantQuery == "")
         #expect(model.assistantMessages.contains { $0.role == .user && $0.text == "what analytics tool should I use" })
+    }
+
+    // WS9.4: on the async `.debugDeepSeek` FAILURE path the local fallback must NOT
+    // re-clear the composer, or it wipes text the user typed while the round-trip
+    // was in flight. Forces `.debugDeepSeek` (developer mode + a stored key), injects
+    // a throwing responder, types a new draft after send, and asserts it survives.
+    @Test func askAssistantDeepSeekFailureKeepsInFlightDraft() async {
+        // Force the debug DeepSeek path via its real gates, snapshotting + restoring
+        // the process-global state so sibling tests still see the `.local` default.
+        let previousDevMode = UserDefaults.standard.object(forKey: DeveloperMode.defaultsKey)
+        let previousKey = KeychainStore.load(account: KeychainStore.deepSeekAPIKeyAccount)
+        UserDefaults.standard.set(true, forKey: DeveloperMode.defaultsKey)
+        KeychainStore.save("sk-test-force-debug", account: KeychainStore.deepSeekAPIKeyAccount)
+        defer {
+            if let previousDevMode {
+                UserDefaults.standard.set(previousDevMode, forKey: DeveloperMode.defaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DeveloperMode.defaultsKey)
+            }
+            if let previousKey {
+                KeychainStore.save(previousKey, account: KeychainStore.deepSeekAPIKeyAccount)
+            } else {
+                KeychainStore.delete(account: KeychainStore.deepSeekAPIKeyAccount)
+            }
+        }
+
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let model = UniverseViewModel(
+            store: UniverseStore(defaults: defaults),
+            assistantResponder: ThrowingResponder()
+        )
+        model.loadSampleUniverse()
+        // Precondition: the gates above actually route to the async DeepSeek branch.
+        #expect(model.activeBackend == .debugDeepSeek)
+
+        // Send query A. The `.debugDeepSeek` branch spawns the fire-and-forget task
+        // and synchronously clears the SENT query before returning — no suspension
+        // happens here, so the task cannot have run yet.
+        model.assistantQuery = "what analytics tool should I use"
+        model.askAssistant()
+        #expect(model.assistantQuery == "")
+
+        // User types a new draft B while the async round-trip is still in flight.
+        model.assistantQuery = "B"
+
+        // Await the async failure fallback (first suspension lets the task run).
+        let appended = await waitUntil { model.assistantMessages.count >= 2 }
+        #expect(appended)
+
+        // The in-flight draft must survive; a local fallback reply must be appended.
+        #expect(model.assistantQuery == "B")
+        #expect(model.assistantMessages.count == 2)
+        #expect(model.assistantMessages.first?.role == .user)
+        #expect(model.assistantMessages.last?.role == .assistant)
+        #expect(model.assistantMessages.last?.text.isEmpty == false)
     }
 
     @Test func attachmentOnlyAskDoesNotConsumeRequest() {

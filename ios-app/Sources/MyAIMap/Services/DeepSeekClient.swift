@@ -130,3 +130,7 @@ struct DeepSeekClient {
         return try Self.firstReply(from: data)
     }
 }
+
+/// The production assistant backend. The existing `reply(to:systemPrompt:apiKey:)`
+/// already matches the requirement, so conformance is declaration-only.
+extension DeepSeekClient: AssistantResponder {}

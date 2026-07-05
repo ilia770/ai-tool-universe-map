@@ -25,3 +25,10 @@ enum AssistantBackend: Equatable, Sendable {
         return .local
     }
 }
+
+/// One-method seam over the network assistant so the `.debugDeepSeek`
+/// success/failure paths are unit-testable without hitting the network.
+/// `DeepSeekClient` is the only production conformer; tests inject a stub.
+protocol AssistantResponder: Sendable {
+    func reply(to userQuery: String, systemPrompt: String?, apiKey: String?) async throws -> String
+}

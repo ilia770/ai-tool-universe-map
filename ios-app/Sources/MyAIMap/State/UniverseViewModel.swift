@@ -53,11 +53,15 @@ final class UniverseViewModel {
     private(set) var hasSeenOnboarding: Bool = false
 
     @ObservationIgnored private let store: UniverseStore
+    /// Network assistant used only on the `.debugDeepSeek` path. Injectable so a
+    /// test can force a failure; the app default is the real `DeepSeekClient`.
+    @ObservationIgnored private let assistantResponder: AssistantResponder
 
     /// Loads any previously-built universe from local storage. A brand-new user
     /// has none, so they start with an empty universe (see `UniverseStore`).
-    init(store: UniverseStore = .standard) {
+    init(store: UniverseStore = .standard, assistantResponder: AssistantResponder = DeepSeekClient()) {
         self.store = store
+        self.assistantResponder = assistantResponder
         let saved = store.load()
         self.customTools = saved.tools
         self.customCategories = saved.customCategories
@@ -351,9 +355,10 @@ final class UniverseViewModel {
         if activeBackend == .debugDeepSeek {
             let tools = visibleAllTools
             let systemPrompt = Self.deepSeekSystemPrompt(for: tools)
+            let responder = assistantResponder
             Task { [weak self] in
                 do {
-                    let text = try await DeepSeekClient().reply(to: query, systemPrompt: systemPrompt)
+                    let text = try await responder.reply(to: query, systemPrompt: systemPrompt, apiKey: nil)
                     await self?.appendAssistantReply(text: text, query: query, fallback: local)
                 } catch {
                     await self?.appendAssistantReply(text: nil, query: query, fallback: local)
@@ -363,6 +368,10 @@ final class UniverseViewModel {
             return
         }
 
+        // Synchronous local path: nothing can be typed between here and the
+        // append, so clearing the composer now is safe (mirrors the up-front
+        // clear on the async DeepSeek branch above).
+        assistantQuery = ""
         appendLocalReply(local, query: query)
     }
 
@@ -401,6 +410,11 @@ final class UniverseViewModel {
         recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: fallback.matchIDs.first)
     }
 
+    /// Appends a local rule-based assistant reply. Deliberately does NOT touch
+    /// `assistantQuery`: the composer reset belongs to the SYNCHRONOUS send site
+    /// (see `askAssistant`). This method is also reached from the ASYNC
+    /// DeepSeek-failure fallback, where clearing here would wipe a query the user
+    /// typed while the round-trip was in flight.
     private func appendLocalReply(_ reply: AssistantReply, query: String) {
         assistantMessages.append(
             AssistantMessage(
@@ -411,7 +425,6 @@ final class UniverseViewModel {
             )
         )
         recordActivity(kind: .asked, title: "Asked AI", detail: query, toolID: reply.matchIDs.first)
-        assistantQuery = ""
     }
 
     /// Grounds the DeepSeek prompt in the user's current catalog so it answers
