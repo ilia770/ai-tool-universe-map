@@ -79,6 +79,25 @@ New files compile via xcodegen (the script regenerates the project).
 
 ---
 
+## ⚠️ CRITICAL FINDING (cycle 36, on-device) — BLOOM RENDERS NO VISIBLE GRAPH
+- [ ] 1.0 **Bloom 2D (the new DEFAULT renderer) draws no visible graph on device.**
+      Reproduced on AIMapGate 26.5 via `simctl launch com.ilyatur.myaimap
+      -uitestSampleUniverse -uitestFocusTool figma` + `simctl io screenshot`
+      (shots in `ios-app/screenshots/loop/bloom-baseline/`). What works: chrome,
+      bottom card ("Figma / Make"), category chips, and 9.6 accent colors (Design
+      chip/card/FAB all pink — 9.6 CONFIRMED live) + 5.1b selection→graph sync
+      (focus figma → Design selected). What's BROKEN: the map body is empty — the
+      Founder OS core + category/tool nodes are NOT laid out across the viewport;
+      a faint vertical column of tiny nodes sits at the RIGHT SCREEN EDGE (in the
+      focus shot one is pink = the figma node). So nodes render but are positioned
+      degenerately (camera not centering on focus / force-sim collapsed to a line /
+      worldToScreen offset). Bloom was only compile+unit-tested all session and
+      NEVER visually verified — this is why it slipped. Needs device-iteration
+      debug of BloomGraphView draw/worldToScreen/camera + the force-sim spread.
+      **BEARS ON 1.6:** if Bloom can't render legibly soon, do NOT retire
+      ConstellationView (the prior renderer that worked) — consider reverting the
+      default to ConstellationView until Bloom is visually fixed. USER DECISION.
+
 ## WS1 — Bloom 2D map (the new default renderer) — FRONTIER
 The WIP swaps `graph2D` from `ConstellationView` → `BloomGraphView` (variant K:
 force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
