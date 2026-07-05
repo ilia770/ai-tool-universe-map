@@ -290,8 +290,8 @@ struct AddToolSheet: View {
                     .font(.system(.footnote, weight: .bold))
             }
             .foregroundStyle(.white.opacity(enabled ? 0.88 : 0.36))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, BrandSpacing.m.value)
+            .padding(.vertical, BrandSpacing.s.value)
             .glassSurface(
                 in: Capsule(),
                 tint: .white.opacity(prominent && enabled ? 0.14 : 0.07),

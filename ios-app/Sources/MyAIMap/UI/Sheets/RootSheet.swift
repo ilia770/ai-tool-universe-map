@@ -22,7 +22,7 @@ struct RootSheet: View {
     var body: some View {
         ScrollView {
             ToolDetailSection(onOpenRelatedTool: onOpenRelatedTool)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, BrandSpacing.xl.value)
                 .padding(.top, 22)
                 .padding(.bottom, 28)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -663,7 +663,7 @@ struct ToolDetailSection: View {
 
 #Preview {
     ToolDetailSection()
-        .padding(16)
+        .padding(BrandSpacing.l.value)
         .frame(maxWidth: .infinity)
         .background(Color.black)
         .environment(UniverseViewModel())

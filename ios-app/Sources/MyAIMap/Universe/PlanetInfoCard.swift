@@ -43,7 +43,7 @@ struct PlanetInfoCard: View {
                         .font(.system(.caption2, design: .rounded, weight: .bold))
                         .foregroundStyle(.black.opacity(0.78))
                         .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, BrandSpacing.xs.value)
                         .background(planet.swiftUIColor, in: Capsule())
 
                     Text(isFocusedOnTool ? selectedTool.name : planet.title)

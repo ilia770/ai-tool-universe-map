@@ -481,7 +481,7 @@ struct SearchDock: View {
                 .accessibilityLabel("Remove attachment")
                 .accessibilityIdentifier("chat-attachment-remove")
             }
-            .padding(8)
+            .padding(BrandSpacing.s.value)
             .frame(maxWidth: .infinity)
             // Floating-panel style (LIQUID_GLASS_VISUAL_SPEC §4): single glass
             // card, no accent backing, one soft shadow.
@@ -515,8 +515,8 @@ struct SearchDock: View {
                             .id(message.id)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
+                .padding(.horizontal, BrandSpacing.sm.value)
+                .padding(.vertical, BrandSpacing.sm.value)
                 // Measure the content so the panel can size to it (C1): an empty
                 // Ask-AI state shows only the short prompt instead of reserving
                 // the full cap of dead space.
@@ -574,7 +574,7 @@ struct SearchDock: View {
                     .font(.system(size: 11, weight: .bold))
             }
             .foregroundStyle(.white.opacity(0.78))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, BrandSpacing.m.value)
             .padding(.vertical, 9)
             .frame(maxWidth: 152)
             // Floating chrome — neutral glass, no accent fill (visual spec §2/§4).
@@ -691,7 +691,7 @@ struct SearchDock: View {
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 13)
-            .padding(.vertical, 10)
+            .padding(.vertical, BrandSpacing.sm.value)
             // Chat bubble is content — neutral solid surface, never accent fill
             // (LIQUID_GLASS_VISUAL_SPEC C2). Speaker conveyed by alignment + tone.
             .background(
@@ -724,7 +724,7 @@ struct SearchDock: View {
             }
         }
         .frame(maxWidth: assistantMessageMaxWidth, alignment: .leading)
-        .padding(.vertical, 2)
+        .padding(.vertical, BrandSpacing.hair.value)
         .shadow(color: .black.opacity(0.58), radius: 8, x: 0, y: 2)
     }
 
@@ -776,7 +776,7 @@ struct SearchDock: View {
         }
         .font(.system(.caption2, weight: .bold))
         .foregroundStyle(.white.opacity(0.58))
-        .padding(.horizontal, 10)
+        .padding(.horizontal, BrandSpacing.sm.value)
         .padding(.vertical, 7)
         .background(.white.opacity(0.045))
     }
@@ -808,8 +808,8 @@ struct SearchDock: View {
                 .lineLimit(2)
                 .frame(width: 82, alignment: .leading)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, BrandSpacing.sm.value)
+        .padding(.vertical, BrandSpacing.s.value)
         .background(.white.opacity(0.045))
     }
 
@@ -926,8 +926,8 @@ struct SearchDock: View {
                     .font(.system(.caption, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.horizontal, BrandSpacing.sm.value)
+            .padding(.vertical, BrandSpacing.sm.value)
             .contentShape(RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
@@ -1203,7 +1203,7 @@ private struct MarkdownMessageText: View {
             SearchDock()
             Spacer()
         }
-        .padding(16)
+        .padding(BrandSpacing.l.value)
     }
     .environment(UniverseViewModel())
     .preferredColorScheme(.dark)

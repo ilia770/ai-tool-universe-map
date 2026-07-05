@@ -233,7 +233,7 @@ struct BloomGraphView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(idx == engine.breadcrumb.count - 1 ? .white : BrandColor.textMuted)
                             .lineLimit(1)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .padding(.horizontal, BrandSpacing.s.value).padding(.vertical, BrandSpacing.xs.value)
                             .background(.white.opacity(0.06), in: Capsule())
                     }
                     .buttonStyle(.plain)

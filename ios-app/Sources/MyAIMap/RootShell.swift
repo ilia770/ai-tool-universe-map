@@ -281,7 +281,7 @@ struct RootShell: View {
                     .lineLimit(1)
             }
             .foregroundStyle(ghost.tint)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, BrandSpacing.m.value)
             .padding(.vertical, 7)
             .background(ghost.tint.opacity(0.16), in: Capsule())
             .overlay { Capsule().stroke(ghost.tint.opacity(0.5), lineWidth: 1) }
@@ -313,7 +313,7 @@ struct RootShell: View {
                     .lineLimit(1)
             }
             .foregroundStyle(flight.tint)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, BrandSpacing.m.value)
             .padding(.vertical, 7)
             .background(flight.tint.opacity(0.16), in: Capsule())
             .overlay { Capsule().stroke(flight.tint.opacity(0.5), lineWidth: 1) }

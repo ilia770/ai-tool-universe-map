@@ -144,7 +144,7 @@ struct OnboardingOverlay: View {
             }
             .frame(maxWidth: .infinity, minHeight: 30)
             .padding(.vertical, 11)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, BrandSpacing.l.value)
             .foregroundStyle(action.isPrimary ? .black : .white)
             .modifier(OnboardingButtonSurface(isPrimary: action.isPrimary))
         }

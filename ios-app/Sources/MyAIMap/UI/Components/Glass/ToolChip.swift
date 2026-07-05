@@ -22,7 +22,7 @@ struct ToolChip: View {
                     .foregroundStyle(ChatTheme.text)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, BrandSpacing.sm.value)
             .padding(.vertical, 6)
             .background(ChatTheme.surfaceRaised, in: Capsule())
             .overlay {

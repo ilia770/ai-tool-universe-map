@@ -108,7 +108,7 @@ struct UniverseOverlayView: View {
             VStack(spacing: 0) {
                 if !mode.isDetailOpen && !mode.isChatOpen {
                     topChrome
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, BrandSpacing.l.value)
                         .padding(.top, 14)
 
                     // F2 (can't get back from 3D to 2D): always surface the exit
@@ -117,7 +117,7 @@ struct UniverseOverlayView: View {
                     // without this the user is trapped in 3D with no way back.
                     if model.renderMode == .spatial3D {
                         spatialExperimentalNotice
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, BrandSpacing.l.value)
                             .padding(.top, 10)
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
@@ -126,7 +126,7 @@ struct UniverseOverlayView: View {
                 Spacer()
 
                 bottomControls
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, BrandSpacing.l.value)
                     .padding(.bottom, 10)
             }
 
@@ -651,7 +651,7 @@ struct UniverseOverlayView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, BrandSpacing.hair.value)
                         .background(.white.opacity(0.08), in: Capsule())
                 }
             }
@@ -806,7 +806,7 @@ struct UniverseOverlayView: View {
                 }
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
                 .padding(.vertical, 11)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, BrandSpacing.l.value)
                 .background(.white.opacity(0.14), in: Capsule())
                 .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
@@ -822,7 +822,7 @@ struct UniverseOverlayView: View {
                 }
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
                 .padding(.vertical, 9)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, BrandSpacing.l.value)
                 .glassSurface(in: Capsule(), interactive: true)
                 .foregroundStyle(.white.opacity(0.9))
 
@@ -840,7 +840,7 @@ struct UniverseOverlayView: View {
             }
         }
         .padding(.vertical, 26)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, BrandSpacing.xxl.value)
         .frame(maxWidth: 320)
         }
     }
@@ -982,7 +982,7 @@ private struct PlanetFloatingLabel: View {
                 .minimumScaleFactor(0.72)
         }
         .frame(width: isSelected ? 128 : 104)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, BrandSpacing.sm.value)
         .padding(.vertical, 7)
         .liquidGlass(in: Capsule(), tint: color.opacity(isSelected ? 0.42 : 0.18), strokeStrength: isSelected ? 0.12 : 0.06)
         .shadow(color: color.opacity(isSelected ? 0.34 : 0.16), radius: isSelected ? 18 : 10)

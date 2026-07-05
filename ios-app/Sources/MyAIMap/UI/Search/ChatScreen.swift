@@ -100,7 +100,7 @@ struct ChatScreen: View {
                 onOpenSettings: onOpenSettings,
                 chromeMorphNamespace: chromeMorphNamespace
             )
-            .padding(.horizontal, 16)
+            .padding(.horizontal, BrandSpacing.l.value)
             .padding(.top, 10)
             .padding(.bottom, 8)
 
@@ -108,7 +108,7 @@ struct ChatScreen: View {
                 .zIndex(0)
 
             composer
-                .padding(.horizontal, 16)
+                .padding(.horizontal, BrandSpacing.l.value)
                 .padding(.bottom, 10)
                 // The starter prompt can extend to the bottom edge of the
                 // transcript's AX frame while the keyboard squeezes the layout.
@@ -544,7 +544,7 @@ private struct ChatDaySeparator: View {
             line
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 2)
+        .padding(.vertical, BrandSpacing.hair.value)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
         .accessibilityIdentifier("ChatScreen.DaySeparator")
@@ -662,7 +662,7 @@ private struct ChatMissingToolChip: View {
                     .lineLimit(1)
             }
             .foregroundStyle(category.color.swiftUIColor)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, BrandSpacing.sm.value)
             .padding(.vertical, 6)
             .background(category.color.swiftUIColor.opacity(0.10), in: Capsule())
             .overlay {

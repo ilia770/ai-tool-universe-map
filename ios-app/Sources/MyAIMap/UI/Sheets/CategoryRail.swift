@@ -49,8 +49,8 @@ struct CategoryRail: View {
                                 .lineLimit(1)
                         }
                         .foregroundStyle(isSelected ? .white : .white.opacity(0.66))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, BrandSpacing.sm.value)
+                        .padding(.vertical, BrandSpacing.s.value)
                         .scaleEffect(isSelected ? 1.035 : 1)
                         .background(.black.opacity(isSelected ? 0.12 : 0.04), in: Capsule())
                         .glassSurface(in: Capsule(), tint: isSelected ? category.color.swiftUIColor : nil, interactive: true)
@@ -69,7 +69,7 @@ struct CategoryRail: View {
                     .id(category.id)
                 }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, BrandSpacing.s.value)
         .scrollTargetLayout()
     }
 }
@@ -89,7 +89,7 @@ private struct CategoryChipContainer: ViewModifier {
 
 #Preview {
     CategoryRail { _ in }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, BrandSpacing.l.value)
         .frame(maxWidth: .infinity)
         .background(Color.black)
         .environment(UniverseViewModel())
