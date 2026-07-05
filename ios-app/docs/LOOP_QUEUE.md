@@ -163,4 +163,6 @@ force-directed progressive reveal). Finish, harden, verify, make it feel Apple.
 
 ## WS8 — Release QA (runs when WS1–7 mostly closed)
 - [ ] 8.1 Full screenshot gallery of key states (2D/3D/sheets) → `screenshots/loop/`.
-- [ ] 8.2 Written change summary + list of user-decision flags for the joint session.
+- [x] 8.2 `docs/JOINT_SESSION_DIGEST.md` — shipped-work table, 3 user decisions
+      (1.6 / 7.2 copy / publish branch), sim-blocked backlog, first-actions. No
+      build needed.
