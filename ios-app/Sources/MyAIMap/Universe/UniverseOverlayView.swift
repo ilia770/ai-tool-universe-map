@@ -109,7 +109,7 @@ struct UniverseOverlayView: View {
                 if !mode.isDetailOpen && !mode.isChatOpen {
                     topChrome
                         .padding(.horizontal, BrandSpacing.l.value)
-                        .padding(.top, 14)
+                        .padding(.top, BrandSpacing.m.value)
 
                     // F2 (can't get back from 3D to 2D): always surface the exit
                     // affordance in 3D — including the empty universe, where the
@@ -637,10 +637,11 @@ struct UniverseOverlayView: View {
                 RenderModeOption(id: 1, title: "3D Spatial", icon: "cube.transparent"),
             ],
             selection: renderModeBinding,
-            base: "universe.renderMode"
+            base: "universe.renderMode",
+            spacing: BrandSpacing.xs.value
         ) { option, isSelected in
-            HStack(spacing: BrandSpacing.xs.value) {
-                Image(systemName: option.icon).font(.system(size: 11, weight: .bold))
+            HStack(spacing: BrandSpacing.s.value) {
+                Image(systemName: option.icon).font(.system(size: 13, weight: .bold))
                 Text(option.title)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)

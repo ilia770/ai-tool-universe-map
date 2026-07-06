@@ -257,8 +257,8 @@ struct RootShell: View {
             }
             Spacer()
         }
-        .padding(.top, 6)
-        .padding(.bottom, 6)
+        .padding(.top, BrandSpacing.s.value)
+        .padding(.bottom, BrandSpacing.s.value)
         .allowsHitTesting(true)
     }
 
