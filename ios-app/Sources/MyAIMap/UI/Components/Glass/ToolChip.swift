@@ -15,10 +15,10 @@ struct ToolChip: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: 6) {
+            HStack(spacing: BrandSpacing.s.value) {
                 ToolLogoView(tool: tool, accent: category.color.swiftUIColor, size: 16)
                 Text(tool.name)
-                    .font(.system(.footnote, weight: .medium))
+                    .font(BrandTypography.chip)
                     .foregroundStyle(ChatTheme.text)
                     .lineLimit(1)
             }

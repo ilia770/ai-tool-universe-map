@@ -79,8 +79,8 @@ struct OnboardingOverlay: View {
     }
 
     private var card: some View {
-        VStack(spacing: 22) {
-            VStack(spacing: 12) {
+        VStack(spacing: BrandSpacing.xl.value) {
+            VStack(spacing: BrandSpacing.m.value) {
                 ZStack {
                     Circle().fill(BrandColor.core.opacity(0.16))
                     Image(systemName: "sparkles")
@@ -91,13 +91,13 @@ struct OnboardingOverlay: View {
                 .accessibilityHidden(true)
 
                 Text("AI Universe")
-                    .font(.title2.weight(.semibold))
+                    .font(BrandTypography.display)
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("Map your tools into branches. Add tools, ask AI, and explore your stack.")
-                    .font(.subheadline)
-                    .lineSpacing(3)
+                    .font(BrandTypography.bodySecondary)
+                    .lineSpacing(BrandSpacing.hair.value)
                     .foregroundStyle(.white.opacity(0.72))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -107,8 +107,8 @@ struct OnboardingOverlay: View {
             // reads as the quiet tertiary option *below* them — a tighter,
             // deliberate gap rather than the 22pt section break that made it
             // look like a detached, free-floating control.
-            VStack(spacing: 14) {
-                VStack(spacing: 10) {
+            VStack(spacing: BrandSpacing.m.value) {
+                VStack(spacing: BrandSpacing.sm.value) {
                     ForEach(OnboardingAction.allCases) { action in
                         actionButton(action)
                     }
@@ -126,9 +126,9 @@ struct OnboardingOverlay: View {
                 .accessibilityIdentifier("Onboarding.Skip")
             }
         }
-        .padding(.vertical, 30)
-        .padding(.horizontal, 26)
-        .glassSurface(in: RoundedRectangle(cornerRadius: 30, style: .continuous), tint: BrandColor.core.opacity(0.10))
+        .padding(.vertical, BrandSpacing.xxl.value)
+        .padding(.horizontal, BrandSpacing.xxl.value)
+        .glassSurface(in: RoundedRectangle(cornerRadius: BrandRadius.floatingCard.value, style: .continuous), tint: BrandColor.core.opacity(0.10))
     }
 
     @ViewBuilder
@@ -136,7 +136,7 @@ struct OnboardingOverlay: View {
         Button {
             onAction(action)
         } label: {
-            HStack(spacing: 9) {
+            HStack(spacing: BrandSpacing.s.value) {
                 Image(systemName: action.systemImage)
                     .font(.system(size: 14, weight: .bold))
                 Text(action.title)
@@ -164,7 +164,7 @@ private struct OnboardingButtonSurface: ViewModifier {
         if isPrimary {
             content.background(BrandColor.core, in: Capsule())
         } else {
-            content.glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.16))
+            content.glassSurface(in: Capsule(), tint: BrandColor.core.opacity(0.12))
         }
     }
 }

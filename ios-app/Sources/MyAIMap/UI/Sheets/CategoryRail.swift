@@ -33,13 +33,13 @@ struct CategoryRail: View {
     }
 
     private var chipRow: some View {
-        LazyHStack(spacing: 6) {
+        LazyHStack(spacing: BrandSpacing.s.value) {
                 ForEach(presentCategories) { category in
                     Button {
                         onSelect(category.id)
                     } label: {
                         let isSelected = category.id == model.selection.activeCategory
-                        HStack(spacing: 6) {
+                        HStack(spacing: BrandSpacing.s.value) {
                             Circle()
                                 .fill(category.color.swiftUIColor)
                                 .frame(width: 7, height: 7)

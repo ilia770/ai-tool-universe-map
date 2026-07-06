@@ -10,13 +10,13 @@ struct BranchChip: View {
     let category: ToolCategory
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: BrandSpacing.s.value) {
             Circle()
                 .fill(category.color.swiftUIColor)
                 .frame(width: 7, height: 7)
                 .shadow(color: category.color.swiftUIColor.opacity(0.25), radius: 2)
             Text(category.shortName)
-                .font(.system(size: 12, weight: .semibold))
+                .font(BrandTypography.chip)
                 .foregroundStyle(.white.opacity(0.66))
                 .lineLimit(1)
         }
