@@ -79,6 +79,24 @@ New files compile via xcodegen (the script regenerates the project).
 
 ---
 
+## WS10 — Design-system audit (user: "перепроверить каждую деталь по дизайн-системе")
+Workflow `ios-design-system-audit` (contract → 10 surface auditors → synth).
+**Session-limit hit mid-run — only 2/10 surfaces completed** (+ contract saved to
+`docs/DESIGN_SYSTEM_RUBRIC.md`). Re-run the rest after limit reset:
+`Workflow({scriptPath: ".../ios-design-system-audit-wf_a9944b3a-a20.js", resumeFromRunId: "wf_a9944b3a-a20"})`
+(cached agents replay free; only the 8 failed auditors + synth re-run).
+- [x] 10.a onboarding-empty (25 findings) + chips-rail (19) audited → CLEAN fixes
+      landed (spacing→BrandSpacing, radius→floatingCard, fonts→BrandTypography,
+      tint cap) commit 97bf9d1. **DEFERRED (visual review — changes selected/glass
+      look):** CategoryRail black backing plate under glass (:55), saturated
+      selected accent border 0.64 (:59), accent shadow (:61); onboarding nested
+      glass on secondary buttons (:167) + accent capsule fill on primary (:165);
+      ToolChip <44pt touch target. These are real violations but appearance-
+      changing → do with user's eye.
+- [ ] 10.b RE-RUN the 8 remaining surface audits (map-chrome ← user's top
+      complaint about toggle-button gaps, bottom-card, composer, add-tool, account,
+      tool-detail, chat, glass-primitives) + synth, then fix in batches.
+
 ## ⚠️ CRITICAL FINDING (cycle 36, on-device) — BLOOM RENDERS NO VISIBLE GRAPH
 - [ ] 1.0 **Bloom 2D (the new DEFAULT renderer) draws no visible graph on device.**
       Reproduced on AIMapGate 26.5 via `simctl launch com.ilyatur.myaimap
