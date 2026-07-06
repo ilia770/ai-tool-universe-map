@@ -27,7 +27,7 @@ struct AccountSettingsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
+                VStack(alignment: .leading, spacing: BrandSpacing.section.value) {
                     accountHeader
 
                     GlassMorphCluster(
@@ -57,7 +57,7 @@ struct AccountSettingsSheet: View {
                     .id(section)
                     .animation(.none, value: section)
                 }
-                .padding(BrandSpacing.l.value)
+                .padding(BrandSpacing.xxl.value)
             }
             .scrollIndicators(.hidden)
             // Translucent dark glass tint over the frosted presentation backdrop
@@ -72,7 +72,7 @@ struct AccountSettingsSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(BrandTypography.controlLabel)
                             .foregroundStyle(.white.opacity(0.86))
                             .frame(width: 34, height: 34)
                             .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
@@ -92,7 +92,7 @@ struct AccountSettingsSheet: View {
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 Text("AI Universe")
-                    .font(.title3.weight(.semibold))
+                    .font(BrandTypography.title)
                     .foregroundStyle(.white)
                 Text(Pluralize.count(model.visibleAllTools.count, "active tool"))
                     .font(.subheadline)
@@ -196,7 +196,7 @@ struct AccountSettingsSheet: View {
                             } label: {
                                 HStack {
                                     Text(tool.name)
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(BrandTypography.controlLabel)
                                     Spacer()
                                     Image(systemName: "arrow.uturn.backward")
                                 }
@@ -227,7 +227,7 @@ struct AccountSettingsSheet: View {
                 } label: {
                     HStack {
                         Label("Upgrade", systemImage: "sparkles")
-                            .font(.subheadline.weight(.bold))
+                            .font(BrandTypography.controlLabel)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
@@ -235,10 +235,10 @@ struct AccountSettingsSheet: View {
                     .foregroundStyle(.white.opacity(0.9))
                     .padding(BrandSpacing.m.value)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
+                    .background(BrandColor.card, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
-                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                            .stroke(BrandColor.stroke, lineWidth: 1)
                     }
                 }
                 .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
@@ -259,7 +259,7 @@ struct AccountSettingsSheet: View {
                 .foregroundStyle(BrandColor.textSecondary)
             Spacer()
             Text(value)
-                .font(.subheadline.weight(.semibold))
+                .font(BrandTypography.controlLabel)
                 .foregroundStyle(.white)
         }
     }
@@ -273,7 +273,7 @@ struct AccountSettingsSheet: View {
                     Image(systemName: deepSeekKeySet ? "checkmark.seal.fill" : "key.slash")
                         .foregroundStyle(deepSeekKeySet ? model.selectedCategoryModel.color.swiftUIColor : BrandColor.textMuted)
                     Text(deepSeekKeySet ? "DeepSeek key set" : "DeepSeek key not set")
-                        .font(.subheadline.weight(.semibold))
+                        .font(BrandTypography.controlLabel)
                         .foregroundStyle(.white)
                     Spacer()
                 }
@@ -334,7 +334,7 @@ struct AccountSettingsSheet: View {
                         } label: {
                             activityRow(activity)
                         }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.98, haptic: nil))
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                         .disabled(activity.toolID == nil)
                     }
                 }
@@ -345,7 +345,7 @@ struct AccountSettingsSheet: View {
     private func universeActionRow(_ title: String, systemImage: String, destructive: Bool) -> some View {
         HStack {
             Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.semibold))
+                .font(BrandTypography.controlLabel)
             Spacer()
         }
         .foregroundStyle(destructive ? Color.red : .white)
@@ -361,9 +361,7 @@ struct AccountSettingsSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
             Label(title, systemImage: systemImage)
-                .font(.caption.weight(.bold))
-                .textCase(.uppercase)
-                .tracking(1.1)
+                .brandEyebrow()
                 .foregroundStyle(BrandColor.textMuted)
 
             content()
@@ -390,9 +388,9 @@ struct AccountSettingsSheet: View {
                 .background(isSelected ? .white.opacity(0.12) : .white.opacity(0.05), in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                HStack(spacing: 6) {
+                HStack(spacing: BrandSpacing.s.value) {
                     Text(renderMode.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(BrandTypography.controlLabel)
                         .foregroundStyle(.white)
 
                     if renderMode.isExperimental {
@@ -421,21 +419,21 @@ struct AccountSettingsSheet: View {
         .background(isSelected ? .white.opacity(0.08) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
-                .stroke(isSelected ? .white.opacity(0.22) : BrandColor.stroke, lineWidth: 1)
+                .stroke(isSelected ? BrandColor.strokeStrong : BrandColor.stroke, lineWidth: 1)
         }
     }
 
     private func activityRow(_ activity: UniverseActivity) -> some View {
         HStack(spacing: BrandSpacing.m.value) {
             Image(systemName: icon(for: activity.kind))
-                .font(.subheadline.weight(.semibold))
+                .font(BrandTypography.controlLabel)
                 .frame(width: 28, height: 28)
                 .foregroundStyle(model.selectedCategoryModel.color.swiftUIColor)
                 .background(BrandColor.muted, in: Circle())
 
             VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 Text(activity.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(BrandTypography.controlLabel)
                     .foregroundStyle(.white)
                 Text(activity.detail)
                     .font(.caption)

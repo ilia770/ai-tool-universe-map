@@ -12,23 +12,22 @@ struct SpatialRevealCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 Text(categoryName.uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .tracking(1.2)
+                    .brandEyebrow()
                     .foregroundStyle(tint.opacity(0.9))
                 Text(toolName)
                     .font(.system(.title3, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(BrandColor.textPrimary)
                     .lineLimit(1)
                 Text(summary)
                     .font(.system(.footnote))
                     .foregroundStyle(.white.opacity(0.66))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 6) {
+                HStack(spacing: BrandSpacing.s.value) {
                     Text("Open")
-                        .font(.system(.subheadline, weight: .semibold))
+                        .font(BrandTypography.controlLabel)
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 12, weight: .bold))
                 }
@@ -36,7 +35,7 @@ struct SpatialRevealCard: View {
                 .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 18)
+            .padding(.vertical, BrandSpacing.xl.value)
             .padding(.horizontal, BrandSpacing.xl.value)
             .liquidGlass(in: RoundedRectangle(cornerRadius: BrandRadius.revealCard.value, style: .continuous), tint: tint.opacity(0.4))
         }

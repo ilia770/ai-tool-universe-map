@@ -23,8 +23,8 @@ struct RootSheet: View {
         ScrollView {
             ToolDetailSection(onOpenRelatedTool: onOpenRelatedTool)
                 .padding(.horizontal, BrandSpacing.xl.value)
-                .padding(.top, 22)
-                .padding(.bottom, 28)
+                .padding(.top, BrandSpacing.xl.value)
+                .padding(.bottom, BrandSpacing.xxl.value)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
@@ -48,7 +48,7 @@ struct RootSheet: View {
             RootSheet()
                 .presentationDetents([.height(238), .fraction(0.48), .large])
                 .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+                .presentationCornerRadius(BrandRadius.sheetPresentation.value)
                 .environment(UniverseViewModel())
         }
         .preferredColorScheme(.dark)

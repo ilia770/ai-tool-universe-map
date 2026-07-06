@@ -34,20 +34,20 @@ struct PlanetInfoCard: View {
     }
 
     private var cardContent: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: BrandSpacing.s.value) {
             statusOrb
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
+                HStack(spacing: BrandSpacing.s.value) {
                     Text(modeLabel)
-                        .font(.system(.caption2, design: .rounded, weight: .bold))
+                        .brandEyebrow()
                         .foregroundStyle(.black.opacity(0.78))
-                        .padding(.horizontal, 7)
+                        .padding(.horizontal, BrandSpacing.s.value)
                         .padding(.vertical, BrandSpacing.xs.value)
                         .background(planet.swiftUIColor, in: Capsule())
 
                     Text(isFocusedOnTool ? selectedTool.name : planet.title)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .font(BrandTypography.controlLabel)
                         .foregroundStyle(BrandColor.textPrimary)
                         .lineLimit(2)
                 }
@@ -66,7 +66,7 @@ struct PlanetInfoCard: View {
                     .foregroundStyle(planet.swiftUIColor)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, BrandSpacing.m.value)
         .padding(.vertical, BrandSpacing.sm.value)
         // Swap the card's labels (mode tag / title / subtitle) instantly when the
         // branch or tool changes. The default content transition crossfades old↔new

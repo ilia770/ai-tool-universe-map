@@ -242,7 +242,7 @@ struct AddToolSheet: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
+                    VStack(alignment: .leading, spacing: BrandSpacing.section.value) {
                         intro
                         fields
                         guardrails
@@ -320,10 +320,10 @@ struct AddToolSheet: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
             Text("Place a service")
-                .font(.title3.weight(.semibold))
+                .font(BrandTypography.title)
                 .foregroundStyle(.white)
             Text("Name is enough. Website and branch can stay automatic.")
-                .font(.subheadline)
+                .font(BrandTypography.bodySecondary)
                 .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -347,11 +347,11 @@ struct AddToolSheet: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: BrandSpacing.s.value) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(BrandTypography.controlLabel)
                 Text(title)
-                    .font(.system(.footnote, weight: .bold))
+                    .font(BrandTypography.controlLabel)
             }
             .foregroundStyle(.white.opacity(enabled ? 0.88 : 0.36))
             .padding(.horizontal, BrandSpacing.m.value)
@@ -362,7 +362,7 @@ struct AddToolSheet: View {
                 interactive: enabled
             )
         }
-        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
         .hitArea()
     }
 
@@ -383,7 +383,7 @@ struct AddToolSheet: View {
                 nameRequirementHint
                     .offset(y: 22)
             }
-            .padding(.bottom, 14)
+            .padding(.bottom, BrandSpacing.l.value)
 
             field(label: "Website optional", systemImage: "link") {
                 TextField("https://example.com", text: $website)
@@ -405,8 +405,7 @@ struct AddToolSheet: View {
             VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 HStack(spacing: BrandSpacing.s.value) {
                     Label("Branch", systemImage: "point.3.connected.trianglepath.dotted")
-                        .font(.caption.weight(.bold))
-                        .tracking(1.1)
+                        .brandEyebrow()
                         .foregroundStyle(BrandColor.textMuted)
 
                     Spacer()
@@ -422,12 +421,12 @@ struct AddToolSheet: View {
                 }
 
                 HStack(spacing: BrandSpacing.m.value) {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: BrandSpacing.hair.value) {
                         Text(branchHeaderTitle)
-                            .font(.headline.weight(.semibold))
+                            .font(BrandTypography.title)
                             .foregroundStyle(.white)
                         Text(branchHeaderReason)
-                            .font(.caption)
+                            .font(BrandTypography.bodySecondary)
                             .foregroundStyle(BrandColor.textMuted)
                             .lineLimit(2)
                     }
@@ -436,7 +435,7 @@ struct AddToolSheet: View {
 
                     if branchMode == .auto {
                         Image(systemName: "wand.and.stars")
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(BrandTypography.title)
                             .foregroundStyle(resolvedCategoryModel.color.swiftUIColor)
                     }
                 }
@@ -462,10 +461,10 @@ struct AddToolSheet: View {
                                 }
                             } label: {
                                 Label("Pick an existing branch instead", systemImage: "arrow.uturn.backward")
-                                    .font(.caption.weight(.semibold))
+                                    .font(BrandTypography.chip)
                                     .foregroundStyle(BrandColor.textMuted)
                             }
-                            .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+                            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                         }
                     } else {
                         Picker("Branch", selection: $category) {
@@ -486,10 +485,10 @@ struct AddToolSheet: View {
                             focusedField = .newBranch
                         } label: {
                             Label("New branch", systemImage: "plus.circle")
-                                .font(.subheadline.weight(.semibold))
+                                .font(BrandTypography.controlLabel)
                                 .foregroundStyle(resolvedCategoryModel.color.swiftUIColor)
                         }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                     }
                 }
             }
@@ -526,11 +525,10 @@ struct AddToolSheet: View {
     private var guardrails: some View {
         VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
             Label("Relation logic", systemImage: "checkmark.seal.fill")
-                .font(.caption.weight(.bold))
-                .tracking(1.1)
+                .brandEyebrow()
                 .foregroundStyle(BrandColor.textMuted)
             Text("Relations stay local to the chosen branch, so broad brands aren't linked to everything.")
-                .font(.footnote)
+                .font(BrandTypography.bodySecondary)
                 .foregroundStyle(BrandColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -553,8 +551,7 @@ struct AddToolSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
             Label(label, systemImage: systemImage)
-                .font(.caption.weight(.bold))
-                .tracking(1.1)
+                .brandEyebrow()
                 .foregroundStyle(BrandColor.textMuted)
             content()
                 .font(.subheadline)
@@ -653,7 +650,7 @@ struct AddToolSheet: View {
                 Spacer()
                 Button(action: handleKeyboardToolbarAction) {
                     Text(keyboardToolbarTitle)
-                        .font(.headline.weight(.semibold))
+                        .font(BrandTypography.controlLabel)
                         .foregroundStyle(.white.opacity(0.95))
                         .padding(.horizontal, BrandSpacing.l.value)
                         .padding(.vertical, BrandSpacing.s.value)
@@ -663,14 +660,14 @@ struct AddToolSheet: View {
                             interactive: true
                         )
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil))
+                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
                 .hitArea()
             }
             .padding(.horizontal, BrandSpacing.l.value)
             .padding(.vertical, BrandSpacing.s.value)
             .background(.ultraThinMaterial)
         } else {
-            Color.clear.frame(height: 28)
+            Color.clear.frame(height: BrandSpacing.section.value)
         }
     }
 
@@ -686,11 +683,11 @@ struct AddToolSheet: View {
     }
 
     private var nameRequirementHint: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: BrandSpacing.xs.value) {
             Image(systemName: canAdd ? "checkmark.circle.fill" : "info.circle")
-                .font(.caption2.weight(.bold))
+                .font(BrandTypography.chip)
             Text(canAdd ? "Name is enough to add." : "Name required; website can stay empty.")
-                .font(.caption2.weight(.semibold))
+                .font(BrandTypography.chip)
         }
         .foregroundStyle(canAdd ? .white.opacity(0.70) : BrandColor.textMuted)
         .accessibilityLabel(canAdd ? "Name is enough to add" : "Name is required; website can stay empty")

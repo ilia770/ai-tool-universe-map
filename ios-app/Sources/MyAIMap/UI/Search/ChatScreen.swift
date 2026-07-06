@@ -101,15 +101,15 @@ struct ChatScreen: View {
                 chromeMorphNamespace: chromeMorphNamespace
             )
             .padding(.horizontal, BrandSpacing.l.value)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+            .padding(.top, BrandSpacing.sm.value)
+            .padding(.bottom, BrandSpacing.s.value)
 
             transcript
                 .zIndex(0)
 
             composer
                 .padding(.horizontal, BrandSpacing.l.value)
-                .padding(.bottom, 10)
+                .padding(.bottom, BrandSpacing.sm.value)
                 // The starter prompt can extend to the bottom edge of the
                 // transcript's AX frame while the keyboard squeezes the layout.
                 // Keep composer controls and their floating attachment menu
@@ -124,7 +124,7 @@ struct ChatScreen: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: BrandSpacing.section.value) {
                     if model.assistantMessages.isEmpty {
                         ChatStarterPanel(onSendPrompt: sendStarterPrompt)
                             .padding(.top, 52)
@@ -165,9 +165,9 @@ struct ChatScreen: View {
                 }
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 28)
+                .padding(.horizontal, BrandSpacing.l.value)
+                .padding(.top, BrandSpacing.l.value)
+                .padding(.bottom, BrandSpacing.section.value)
             }
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(
@@ -182,8 +182,8 @@ struct ChatScreen: View {
                             proxy.scrollTo(Self.transcriptBottomID, anchor: .bottom)
                         }
                     }
-                    .padding(.trailing, 18)
-                    .padding(.bottom, 14)
+                    .padding(.trailing, BrandSpacing.l.value)
+                    .padding(.bottom, BrandSpacing.l.value)
                     .transition(.scale(scale: 0.85).combined(with: .opacity))
                 }
             }
@@ -242,12 +242,12 @@ private struct ChatTopBar: View {
     var chromeMorphNamespace: Namespace.ID? = nil
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandSpacing.m.value) {
             // Always-visible, always-enabled return to the map (§3.3): chat is
             // never a dead-end, regardless of tool count.
             Button(action: onBackToMap) {
                 Image(systemName: "map.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(BrandTypography.controlLabel)
                     .foregroundStyle(ChatTheme.text)
                     .frame(width: 40, height: 40)
                     .glassSurface(in: Circle(), tint: BrandColor.core.opacity(0.16))
@@ -256,7 +256,7 @@ private struct ChatTopBar: View {
             .accessibilityLabel("Back to map")
             .accessibilityIdentifier("ChatScreen.BackToMap")
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: BrandSpacing.hair.value) {
                 Text("AI Universe")
                     .font(.system(.headline, weight: .semibold))
                     .foregroundStyle(ChatTheme.text)
@@ -315,7 +315,7 @@ private struct ChatStarterPanel: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: BrandSpacing.xl.value) {
             VStack(alignment: .leading, spacing: 10) {
                 ZStack {
                     Circle()
@@ -327,33 +327,33 @@ private struct ChatStarterPanel: View {
                 .frame(width: 62, height: 62)
 
                 Text("Ask AI about your stack")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(BrandTypography.display)
                     .foregroundStyle(ChatTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("Ask for a workflow or a tool recommendation. Your answers can become a living map of the stack.")
-                    .font(.system(.body))
+                    .font(BrandTypography.body)
                     .lineSpacing(4)
                     .foregroundStyle(ChatTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: BrandSpacing.sm.value)], spacing: BrandSpacing.sm.value) {
                 ForEach(prompts) { prompt in
                     Button {
                         onSendPrompt(prompt)
                     } label: {
-                        HStack(spacing: 9) {
+                        HStack(spacing: BrandSpacing.s.value) {
                             Image(systemName: "arrow.up.right")
                                 .font(.system(size: 12, weight: .bold))
                             Text(prompt.title)
-                                .font(.system(.subheadline, weight: .semibold))
+                                .font(BrandTypography.controlLabel)
                                 .lineLimit(1)
                             Spacer(minLength: 0)
                         }
                         .foregroundStyle(ChatTheme.text)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 13)
+                        .padding(.horizontal, BrandSpacing.m.value)
+                        .padding(.vertical, BrandSpacing.m.value)
                         .background(ChatTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: BrandRadius.promptCard.value, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: BrandRadius.promptCard.value, style: .continuous)
@@ -433,28 +433,28 @@ private struct ChatMessageTurn: View {
             .foregroundStyle(.white.opacity(0.92))
             .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.leading)
-            .padding(.horizontal, 15)
-            .padding(.vertical, 11)
+            .padding(.horizontal, BrandSpacing.l.value)
+            .padding(.vertical, BrandSpacing.m.value)
             // Neutral content surface (LIQUID_GLASS_VISUAL_SPEC C2): no accent
             // fill on the bubble. Speaker conveyed by right alignment + tone.
-            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous))
+            .background(BrandColor.card, in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous)
-                    .stroke(.white.opacity(0.10), lineWidth: 0.5)
+                    .stroke(BrandColor.stroke, lineWidth: 0.5)
             }
     }
 
     private var assistantTurn: some View {
         // No leading avatar: assistant content spans the column, left-aligned.
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandSpacing.m.value) {
             let prose = assistantProse(from: message.text)
             if !prose.isEmpty {
-                ChatMarkdownText(text: prose, font: .system(.body), color: ChatTheme.text)
+                ChatMarkdownText(text: prose, font: BrandTypography.body, color: ChatTheme.text)
                     .lineSpacing(5)
             }
 
             if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                     if !matches.isEmpty {
                         chipSectionLabel("Already in your universe")
                         ChatChipRow {
@@ -499,15 +499,13 @@ private struct ChatMessageTurn: View {
 
     private func chipSectionLabel(_ title: String) -> some View {
         Text(title)
-            .font(.system(.caption2, weight: .bold))
-            .tracking(0.7)
-            .textCase(.uppercase)
+            .brandEyebrow()
             .foregroundStyle(ChatTheme.secondaryText)
             .padding(.top, 2)
     }
 
     private var assistantActionRow: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: BrandSpacing.l.value) {
             Button {
                 UIPasteboard.general.string = AssistantClipboardFormatter.text(from: message.text)
                 BrandHaptics.fire(.success)
@@ -654,11 +652,11 @@ private struct ChatMissingToolChip: View {
 
     var body: some View {
         Button(action: tapped) {
-            HStack(spacing: 5) {
+            HStack(spacing: BrandSpacing.xs.value) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .bold))
                 Text(suggestion.name)
-                    .font(.system(.footnote, weight: .medium))
+                    .font(BrandTypography.chip)
                     .lineLimit(1)
             }
             .foregroundStyle(category.color.swiftUIColor)
@@ -767,7 +765,7 @@ private struct ChatMarkdownText: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 lineView(line)
             }
@@ -784,9 +782,9 @@ private struct ChatMarkdownText: View {
     private func lineView(_ line: String) -> some View {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            Color.clear.frame(height: 4)
+            Color.clear.frame(height: BrandSpacing.xs.value)
         } else if trimmed.hasPrefix("- ") {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandSpacing.s.value) {
                 Text("•")
                     .font(.system(.body, weight: .bold))
                 markdownText(String(trimmed.dropFirst(2)))

@@ -129,7 +129,7 @@ struct SearchDock: View {
     var body: some View {
         Group {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 12) {
+                GlassEffectContainer(spacing: BrandSpacing.m.value) {
                     dockContent
                 }
             } else {
@@ -157,7 +157,7 @@ struct SearchDock: View {
     }
 
     private var dockContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm.value) {
             if showsConversation {
                 conversationPanel
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -269,7 +269,7 @@ struct SearchDock: View {
                 // the previous `.bottomLeading` guide pushed it *below* the row,
                 // hiding it behind the keyboard.
                 .alignmentGuide(.top) { dimensions in
-                    dimensions[.bottom] + 8
+                    dimensions[.bottom] + BrandSpacing.s.value
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .zIndex(2)
@@ -277,7 +277,7 @@ struct SearchDock: View {
     }
 
     private var composerRow: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: BrandSpacing.s.value) {
             composer
             trailingActionButton
         }
@@ -286,11 +286,11 @@ struct SearchDock: View {
 
     private var composer: some View {
         @Bindable var model = model
-        return HStack(alignment: .bottom, spacing: 8) {
+        return HStack(alignment: .bottom, spacing: BrandSpacing.s.value) {
             attachmentMenu
 
             TextField("Ask AI Universe", text: $model.assistantQuery, axis: .vertical)
-                .font(.system(.body, weight: .medium))
+                .font(BrandTypography.body)
                 .foregroundStyle(.white)
                 .tint(model.selectedCategoryModel.color.swiftUIColor)
                 .focused($fieldFocused)
@@ -311,7 +311,7 @@ struct SearchDock: View {
                 .accessibilityIdentifier("chat-composer-field")
         }
         .frame(maxWidth: .infinity, minHeight: ComposerLogic.composerMinHeight, alignment: .bottom)
-        .padding(5)
+        .padding(BrandSpacing.xs.value)
         // Clean dark-translucent glass capsule (CHAT_INPUT_SPEC §1): no accent
         // tint, no black backing plate, no glowing outline. Accent shows only
         // as the field's caret/selection tint above. One soft float shadow.
@@ -336,7 +336,7 @@ struct SearchDock: View {
         } label: {
             Image(systemName: ComposerLogic.attachmentTriggerIcon(hasAttachment: selectedAttachment != nil))
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(selectedAttachment == nil ? .white.opacity(0.74) : model.selectedCategoryModel.color.swiftUIColor)
+                .foregroundStyle(selectedAttachment == nil ? BrandColor.textSecondary : model.selectedCategoryModel.color.swiftUIColor)
                 .frame(width: 36, height: 36)
                 // Lives inside the composer pill (already glass); a nested glass
                 // here would double-lens. Solid fill keeps the tappable affordance.
@@ -352,7 +352,7 @@ struct SearchDock: View {
 
     private var attachmentMenuPopover: some View {
         HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                 // Two items only (CHAT_INPUT_SPEC §2). The remove path lives on
                 // the floating preview's remove button (§3), not in this menu.
                 ForEach(AssistantAttachmentKind.allCases) { kind in
@@ -386,7 +386,7 @@ struct SearchDock: View {
                 .foregroundStyle(.white.opacity(0.88))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 11)
-                .padding(.vertical, 9)
+                .padding(.vertical, BrandSpacing.sm.value)
                 .background(.white.opacity(selectedAttachment?.kind == kind ? 0.12 : 0.055), in: Capsule())
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: nil, pressedOpacity: 0.9))
@@ -575,7 +575,7 @@ struct SearchDock: View {
             }
             .foregroundStyle(.white.opacity(0.78))
             .padding(.horizontal, BrandSpacing.m.value)
-            .padding(.vertical, 9)
+            .padding(.vertical, BrandSpacing.sm.value)
             .frame(maxWidth: 152)
             // Floating chrome — neutral glass, no accent fill (visual spec §2/§4).
             .glassSurface(in: Capsule(), interactive: true)

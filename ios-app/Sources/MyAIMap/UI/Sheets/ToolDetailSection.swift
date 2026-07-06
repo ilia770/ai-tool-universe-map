@@ -130,8 +130,7 @@ struct ToolDetailSection: View {
     @State private var isMoreExpanded = false
     /// Drives the copy-confirmation toast when the user copies tool info.
     @State private var copyToastKind: CopyToastKind?
-    /// Pricing-row icon glyph + its circular container, scaled with Dynamic Type.
-    @ScaledMetric(relativeTo: .body) private var pricingIconGlyph: CGFloat = 14
+    /// Pricing-row icon circular container, scaled with Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var pricingIconContainer: CGFloat = 28
 
     init(onOpenRelatedTool: ((String) -> Void)? = nil) {
@@ -214,10 +213,10 @@ struct ToolDetailSection: View {
                 VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                     HStack(spacing: BrandSpacing.s.value) {
                         Label(selectedCategoryModel.shortName, systemImage: categoryIcon(selectedTool.category))
-                            .font(.caption.weight(.bold))
+                            .font(BrandTypography.chip)
                             .foregroundStyle(.white.opacity(0.88), selectedCategoryModel.color.swiftUIColor)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
+                            .padding(.horizontal, BrandSpacing.s.value)
+                            .padding(.vertical, BrandSpacing.xs.value)
                             .background(.white.opacity(0.075), in: Capsule())
 
                         stageBadge(selectedTool.stage)
@@ -266,7 +265,7 @@ struct ToolDetailSection: View {
             copyToastKind = .toolInfo
         } label: {
             Label("Copy tool info", systemImage: "doc.on.doc")
-                .font(.subheadline.weight(.semibold))
+                .font(BrandTypography.controlLabel)
                 .foregroundStyle(.white.opacity(0.92))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -324,15 +323,15 @@ struct ToolDetailSection: View {
     private func pricingRow(_ row: ToolPricingRow) -> some View {
         HStack(alignment: .top, spacing: BrandSpacing.m.value) {
             Image(systemName: row.icon)
-                .font(.system(size: pricingIconGlyph, weight: .bold))
+                .font(BrandTypography.controlLabel)
                 .foregroundStyle(.white.opacity(0.82))
                 .frame(width: pricingIconContainer, height: pricingIconContainer)
                 .background(.white.opacity(0.08), in: Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(row.plan)
-                        .font(.subheadline.weight(.semibold))
+                        .font(BrandTypography.controlLabel)
                         .foregroundStyle(.white)
                     Spacer(minLength: BrandSpacing.s.value)
                     Text(row.value)
@@ -343,7 +342,7 @@ struct ToolDetailSection: View {
 
                 Text(row.note)
                     .font(.caption)
-                    .lineSpacing(3)
+                    .lineSpacing(4)
                     .foregroundStyle(BrandColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -355,7 +354,7 @@ struct ToolDetailSection: View {
     private var bestForSection: some View {
         sectionBlock(title: "Best for", icon: "target") {
             Text(knowledge.useCase)
-                .font(.subheadline)
+                .font(BrandTypography.bodySecondary)
                 .lineSpacing(4)
                 .foregroundStyle(BrandColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -402,8 +401,8 @@ struct ToolDetailSection: View {
         VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
             ForEach(items, id: \.self) { item in
                 Label(item, systemImage: symbol)
-                    .font(.subheadline)
-                    .lineSpacing(3)
+                    .font(BrandTypography.bodySecondary)
+                    .lineSpacing(4)
                     .foregroundStyle(BrandColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -453,7 +452,7 @@ struct ToolDetailSection: View {
                 HStack(spacing: BrandSpacing.xs.value) {
                     Circle()
                         .fill(category.color.swiftUIColor)
-                        .frame(width: 7, height: 7)
+                        .frame(width: BrandSpacing.s.value, height: BrandSpacing.s.value)
                     Text(tool.name)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white)
@@ -506,7 +505,7 @@ struct ToolDetailSection: View {
                 isShowingRemoveConfirmation = true
             } label: {
                 Label("Remove from map", systemImage: "trash")
-                    .font(.subheadline.weight(.semibold))
+                    .font(BrandTypography.controlLabel)
                     .foregroundStyle(.red.opacity(0.92))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 46)
@@ -579,12 +578,12 @@ struct ToolDetailSection: View {
     private func metadataRow(_ title: String, _ value: String, icon: String) -> some View {
         HStack(alignment: .top, spacing: BrandSpacing.s.value) {
             Label(title, systemImage: icon)
-                .font(.caption2.weight(.bold))
+                .brandEyebrow()
                 .foregroundStyle(BrandColor.textMuted)
                 .frame(width: 116, alignment: .leading)
             Text(value)
                 .font(.caption.weight(.medium))
-                .lineSpacing(3)
+                .lineSpacing(4)
                 .foregroundStyle(BrandColor.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -594,16 +593,16 @@ struct ToolDetailSection: View {
 
     private func stageBadge(_ stage: WorkflowStageId) -> some View {
         Text(stageLabel(stage))
-            .font(.caption.weight(.bold))
+            .font(BrandTypography.chip)
             .foregroundStyle(.white.opacity(0.84))
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
+            .padding(.horizontal, BrandSpacing.s.value)
+            .padding(.vertical, BrandSpacing.xs.value)
             .background(.white.opacity(0.08), in: Capsule())
     }
 
     private func actionLabel(_ title: String, systemImage: String, foreground: Color) -> some View {
         Label(title, systemImage: systemImage)
-            .font(.headline.weight(.bold))
+            .font(BrandTypography.controlLabel)
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 50)

@@ -12,12 +12,12 @@ struct LiquidGlassToast: View {
 
     var body: some View {
         Label(message, systemImage: systemImage)
-            .font(.subheadline.weight(.semibold))
+            .font(BrandTypography.controlLabel)
             .foregroundStyle(.white)
             .labelStyle(.titleAndIcon)
             .symbolRenderingMode(.hierarchical)
             .padding(.horizontal, BrandSpacing.l.value)
-            .padding(.vertical, BrandSpacing.s.value + 2)
+            .padding(.vertical, BrandSpacing.sm.value)
             .glassSurface(in: Capsule(), tint: tint)
     }
 }
