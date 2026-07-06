@@ -50,6 +50,24 @@ all compile-green). Updated in place on further idle wakes.
 - Remaining open: 16 sim/visual slices (need free sim + user) + 1.6 decision +
   new 7.2 (subjective copy). Sim-free code vein now truly exhausted.
 
+## Cycle 37 — DESIGN-SYSTEM AUDIT + clean fixes (user: "каждую деталь по дизайн-системе") — 2026-07-06
+- Ran `ios-design-system-audit` workflow (contract → 10 surface auditors → synth).
+  Hit session limit mid-run (2/10), RESUMED (cached replay) → full: 231 findings
+  (25 P1/129 P2/77 P3) → 17 ranked batches. Saved DESIGN_SYSTEM_RUBRIC.md +
+  DESIGN_AUDIT_FINDINGS.md.
+- Landed CLEAN token fixes (spacing→BrandSpacing, .system(size:)→BrandTypography,
+  eyebrows→.brandEyebrow, inline→BrandColor where exact token exists, press→0.97):
+  97bf9d1 (onboarding+chips), 040bab6 (map-chrome — user's top complaint: the two
+  toggle rows had OPPOSITE internal gaps 4/8 vs 8/4 + off-grid pads → unified),
+  021858f (7-surface sweep via fix-workflow, 127+/136−).
+- Verified: fix-workflow gate green + FULL-SIM 434/434 green (token sweep didn't
+  regress) + onboarding screenshot clean (screenshots/loop/design-after/).
+- DEFERRED to user (10.c) — 3 systemic P1 themes that CHANGE THE LOOK: glass
+  architecture (hand-rolled→primitive, 9 surfaces), accent>0.12 cap (saturated
+  fills/borders/glows, 9 surfaces), touch-targets/primary-recipe/rail-overflow.
+- LESSON: workflow session-limit is resumable via {scriptPath, resumeFromRunId} —
+  cached agents replay free, only failed ones re-run. Big audits survive limits.
+
 ## Cycle 35 — MACHINE FREED + fix batch + FIRST FULL-SIM — 2026-07-05
 - **User confirmed MultTracker DONE → deleted both Mult sims** (simctl delete 18.3
   + 26.5) → freed ~1.9G, disk 6-9 GiB, 3-sim wall GONE. (Refused the "delete

@@ -93,9 +93,26 @@ Workflow `ios-design-system-audit` (contract → 10 surface auditors → synth).
       glass on secondary buttons (:167) + accent capsule fill on primary (:165);
       ToolChip <44pt touch target. These are real violations but appearance-
       changing → do with user's eye.
-- [ ] 10.b RE-RUN the 8 remaining surface audits (map-chrome ← user's top
-      complaint about toggle-button gaps, bottom-card, composer, add-tool, account,
-      tool-detail, chat, glass-primitives) + synth, then fix in batches.
+- [x] 10.b Full audit done — 231 findings / 17 batches → `docs/DESIGN_AUDIT_
+      FINDINGS.md` + `DESIGN_SYSTEM_RUBRIC.md`. CLEAN token fixes LANDED:
+      - map-chrome (user's top complaint: staggered toggle rows) — commit 040bab6
+      - 7-surface token sweep (spacing/type/color/eyebrow/press) — commit 021858f
+      (fix-workflow, gate green, full-sim 434/434 green — no regression).
+- [ ] 10.c **DEFERRED — appearance-changing, NEED USER'S EYE** (from the audit,
+      workers listed them per surface in the workflow journal). The 3 systemic P1
+      themes to review together:
+      1. **Glass architecture** — 9 surfaces hand-roll glass (raw .ultraThinMaterial
+         + manual stroke, black backing plates, glass-on-glass nesting, deprecated
+         liquidGlass shim) → route through LiquidGlassCard/glassSurface. Biggest
+         systemic defect; changes material/edge/shadow look everywhere.
+      2. **Accent > 0.12 cap** — 9 surfaces use category/accent as saturated fills/
+         tints/strokes/glows (OVERVIEW pill fill, selected-chip 0.64 border, 0.4
+         tints, colored shadows) → confine accent to label/glyph/status-dot. Changes
+         the selected/primary look.
+      3. **Touch targets + primary-action recipe + category-rail 48pt overflow** —
+         sub-44pt controls (floor LiquidGlassButton), Send/FAB/CTA recipe disagree,
+         rail frame can't fit its 44pt chip. Layout/size changes.
+      Screenshots: onboarding clean after fix in `screenshots/loop/design-after/`.
 
 ## ⚠️ CRITICAL FINDING (cycle 36, on-device) — BLOOM RENDERS NO VISIBLE GRAPH
 - [ ] 1.0 **Bloom 2D (the new DEFAULT renderer) draws no visible graph on device.**
