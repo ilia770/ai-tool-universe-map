@@ -160,9 +160,23 @@ switch), `UNIVERSE_ARCHITECTURE.md` (PlanetHandle id→entity registry),
       geometryMatches).
       **Verify risk (visual, needs sim screenshot): nested OpacityComponent
       multiplication assumption (rim toggle under planet-root opacity).**
-- [ ] RK.2.2 Satellite mutation pass — stop rebuilding satellites on tool
-      selection within a category (mutate isSelected visuals like PlanetHandle).
-- [ ] RK.3 Phase 3 — planet entity system (descriptor, mesh/material caches).
+- [x] RK.2.2 DONE 598db17 — SatelliteBranch persists per focused category;
+      tool selection mutates (scale/materials/halo/ring); traces stay
+      transient. 441/441 + toolSelectionPreservesSatelliteIdentity. Verified
+      live: 3D design-branch focus renders satellites+labels+traces
+      (rk-phase2/03 shot).
+- [x] RK.3 DONE 7c4e8fc — shared unit-sphere mesh + torus cache + 4 star
+      material tiers (was ~250+ mesh allocs/scene); PlanetVisual deterministic
+      per-category spin duration/axial tilt (FNV hash fallback for custom
+      branches). 442/442.
+- [x] RK.hygiene DONE c239ba0 — dead code removed: UniverseGraphView (1083L),
+      CameraController+tests, ViewMode/viewMode, hoveredToolID/setHover
+      (-1865 lines). ConstellationView KEPT (1.6 user gate). 403/403.
+- [x] RK.review DONE 13ac6a4 — adversarial codex review of the Phase-2 diff:
+      4/6 targets clean (parity math independently confirmed); fixed Medium
+      (style change kept stale handles → builtStyle invalidation) + Low (2D
+      launch paid lights/stars/IBL before dormancy guard → static layer builds
+      on first activation, camera-only root while dormant). 404/404.
 - [ ] RK.4 Phase 4 — camera modes + InteractionPhase + touch-interrupt decision.
 - [ ] RK.5 Phase 5 — visual polish (materials table, light budget, starfield;
       skybox/dust re-enable device-gated).
