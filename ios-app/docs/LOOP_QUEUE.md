@@ -119,6 +119,37 @@ Workflow `ios-design-system-audit` (contract → 10 surface auditors → synth).
          rail frame can't fit its 44pt chip. Layout/size changes.
       Screenshots: onboarding clean after fix in `screenshots/loop/design-after/`.
 
+## WS-NU — NEURAL UNIVERSE (USER DIRECTIVE 2026-07-10 evening, TOP PRIORITY)
+User rejected BOTH renderers ("плоско/дёшево, метафора планет скучная,
+мёртвое, не как веб-O") and left ~24h with: "автономно допиливай до
+завтрашнего вечера, сам себе ставь задачи". Approved in brainstorm:
+**Neural Universe (web variant O → iOS)** + **one hero renderer** (Bloom 2D
+and PBR planets both retire). Spec:
+`docs/superpowers/specs/2026-07-10-neural-universe-ios-design.md`.
+Deadline: 2026-07-11 evening. Gate each slice: compile + suite + SIM SHOT
+(visual work — screenshots mandatory, compare against the web-O vibe).
+- [ ] NU.0 Land pending VO-bridge + implementation report + spec (in flight).
+- [ ] NU.1 Neuron look: glass shell + emissive core + additive rim on
+      PlanetHandle; same language on SatelliteHandle beads. Sim shot.
+- [ ] NU.2 Synapse pulses: bead entities animating along links (stagger,
+      ≤24 live, pause matrix: RM/detail/chat/hidden). Sim shot.
+- [ ] NU.3 Depth tiers (static per-node dim from layout depth) + neuron core
+      emissive pulse + selection choreography (core brighten, shell clear,
+      faster pulses on focused links). Sim shot.
+- [ ] NU.4 Single renderer (DESTRUCTIVE — only after NU.1-3 verified):
+      delete Bloom/* + toggle UI + UniverseRenderMode; ignore stored pref;
+      tests updated. Sim shot both nav paths.
+- [ ] NU.5 Polish vs web-O + perf sanity (entity budget) + reduce-motion
+      matrix + screenshot set for user review.
+- [ ] NU.6 Docs closeout: implementation report update, LOOP_LOG, memory.
+**Orchestrator wakeup prompt (reuse for ScheduleWakeup, work until 2026-07-11
+evening):** AUTONOMOUS NEURAL-UNIVERSE SPRINT (ai-tool-universe-map, branch
+polish/day-sprint). Read ios-app/docs/LOOP_QUEUE.md WS-NU + the spec + tail
+LOOP_LOG.md; run next open slice per gates (compile → suite via nohup
+test-without-building → sim screenshot); commit green, mark [x], log; then
+ScheduleWakeup to continue. Push after each slice. Session limits pause the
+loop naturally — durable docs resume it.
+
 ## WS-RK — RealityKit Universe redesign (USER DIRECTIVE 2026-07-10, top priority)
 User's full brief: persistent-RealityView 3D universe — planets never recreated
 on selection, one camera system, interruptible A→B travel, premium restrained
