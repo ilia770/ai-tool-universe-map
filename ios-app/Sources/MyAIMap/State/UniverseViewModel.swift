@@ -3,9 +3,9 @@ import Observation
 
 /// Single source of truth for universe UI state, per the Phase 2
 /// decision log: `@Observable` class injected via environment — not
-/// `@EnvironmentObject`. Owns selection, hover, active category,
-/// clarity mode, and search query. Never touches the RealityKit graph;
-/// `CameraController` owns the camera entity.
+/// `@EnvironmentObject`. Owns selection, active category, clarity
+/// mode, and search query. Never touches the RealityKit graph;
+/// `CameraRigController` owns the camera entity.
 @MainActor
 @Observable
 final class UniverseViewModel {
@@ -15,7 +15,6 @@ final class UniverseViewModel {
     var universeMode: UniverseMode = .overview
 
     /// Hover is independent of the navigation mode.
-    private(set) var hoveredToolID: String?
     // Web parity: AIToolUniverseMap.tsx:150 initialises mapClarity to 'focus'.
     var clarityMode: ClarityMode = .focus
     var searchQuery: String = ""
@@ -130,8 +129,7 @@ final class UniverseViewModel {
             ?? PlanetData.centralCoreToolID
         return UniverseSelection(
             activeCategory: category,
-            selectedToolID: toolID,
-            hoveredToolID: hoveredToolID
+            selectedToolID: toolID
         )
     }
 
@@ -294,10 +292,6 @@ final class UniverseViewModel {
         guard focusTool(id) else { return false }
         pendingDetailToolID = id
         return true
-    }
-
-    func setHover(_ id: String?) {
-        hoveredToolID = id
     }
 
     /// Enter-to-focus parity with the web build ([C3], `focusTool` in

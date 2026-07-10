@@ -226,7 +226,6 @@ struct UniverseViewModelTests {
         let model = makeModel(sample: true)
         #expect(model.selection.activeCategory == .core)
         #expect(model.selectedTool?.id == "founder-os")
-        #expect(model.selection.viewMode == .overview)
     }
 
     @Test func defaultClarityMatchesWebInitialState() {
@@ -325,14 +324,6 @@ struct UniverseViewModelTests {
         let model = makeModel(sample: true)
         model.selectTool("does-not-exist")
         #expect(model.selectedTool?.id.isEmpty == false)
-    }
-
-    @Test func hoverIsSettableAndClearable() {
-        let model = makeModel(sample: true)
-        model.setHover("figma")
-        #expect(model.selection.hoveredToolID == "figma")
-        model.setHover(nil)
-        #expect(model.selection.hoveredToolID == nil)
     }
 
     @Test func searchResultsMatchNameCaseInsensitive() {
