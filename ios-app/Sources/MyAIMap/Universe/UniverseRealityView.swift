@@ -109,6 +109,19 @@ struct UniverseRealityView: View {
         )
         .opacity(mode.mapOpacity)
         .blur(radius: CGFloat(mode.mapBlurRadius))
+        // RK.7 VoiceOver bridge: RealityKit entities aren't accessibility
+        // elements, so expose the planets as a predictable, ordered set of
+        // virtual children — VO users can select a planet without gestures
+        // (QA checklist criterion 15). Order = layout order (deterministic).
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Universe map")
+        .accessibilityChildren {
+            ForEach(planets) { planet in
+                Button("\(planet.title), \(planet.toolCount) tools") {
+                    onPlanetTap(planet.id)
+                }
+            }
+        }
         .onAppear { cameraRig.prefersInstant = effectiveReduceMotion }
         .onChange(of: reduceMotion) { _, _ in
             cameraRig.prefersInstant = effectiveReduceMotion
