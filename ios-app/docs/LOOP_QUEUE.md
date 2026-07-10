@@ -66,6 +66,11 @@ bash scripts/ios-verify.sh --run-tests --device-id 94F154FE-290A-4154-9942-EB9C3
 ```
 Green = build + `MyAIMapTests` all pass, `failedTests == 0`, pass count ≥ prior.
 Baseline pass count: _(filled by cycle 0)_. Never background xcodebuild.
+**Harness-detach amendment (2026-07-10):** harness-backgrounded `xcodebuild
+test` dies silently in seconds (build-for-testing survives). Workaround that
+works: `nohup xcodebuild test-without-building … > log 2>&1 & disown`, then a
+separate background until-loop watching the log for TEST EXECUTE
+SUCCEEDED/FAILED.
 New files compile via xcodegen (the script regenerates the project).
 
 ## Guardrails (worker prompt contract)
@@ -125,9 +130,29 @@ switch), `UNIVERSE_ARCHITECTURE.md` (PlanetHandle id→entity registry),
 `UNIVERSE_CAMERA_SYSTEM.md` (keep CameraRigController core),
 `UNIVERSE_VISUAL_SYSTEM.md` (descriptor-driven materials, 3-sun budget),
 `UNIVERSE_QA_CHECKLIST.md` (17 criteria → manual seq + tests + per-phase gates).
-- [ ] RK.2 Phase 2 — persistent foundation (registry, signature shrink, always-
-      mounted RealityView, attach-once camera, satellites pauseMotion fix).
-      GATED on runtime install (in progress) — needs compile+test gate.
+- [~] RK.2 Phase 2 — persistent foundation IMPLEMENTED (2026-07-10), compile
+      gate GREEN, full-suite run in flight. Landed: `PlanetHandle` (persistent
+      per-category entities; selection = scale/material-swap/rim-toggle/spin-
+      restart mutations with exact legacy-geometry parity — selectionScale
+      1.28/0.80, atmosphere 1.20/1.12 pinned by restartMotion, selected rim
+      prebuilt tube 0.012/scale), `UniverseSceneController` rewrite
+      (structureSignature = style+tool-ids ONLY; registry diff w/
+      geometryMatches recreate on radius/position/color change; orbit rings +
+      core links persistent with OpacityComponent mode-fade; satellites keep
+      scoped rebuild per mode.signature — RK2.2 will mutate instead),
+      always-mounted RealityView in UniverseMapView (opacity/hitTesting gate;
+      Bloom stays switch-mounted), `active` dormancy (2D-default users don't
+      pay 3D build until first switch; hidden scene pauses all clips),
+      satellites pauseMotion fix (was raw reduceMotion), makeSunLight →
+      PointLight, makeFounderHalo breathe() split for pause/resume,
+      G1 `sceneSignature=""` hack deleted. Tests: signature suite rewritten
+      (structure-only) + `UniverseSceneRegistryTests` (pointer-equality across
+      all modes, renderer-toggle persistence, scoped diff, dormancy,
+      geometryMatches).
+      **Verify risk (visual, needs sim screenshot): nested OpacityComponent
+      multiplication assumption (rim toggle under planet-root opacity).**
+- [ ] RK.2.2 Satellite mutation pass — stop rebuilding satellites on tool
+      selection within a category (mutate isSelected visuals like PlanetHandle).
 - [ ] RK.3 Phase 3 — planet entity system (descriptor, mesh/material caches).
 - [ ] RK.4 Phase 4 — camera modes + InteractionPhase + touch-interrupt decision.
 - [ ] RK.5 Phase 5 — visual polish (materials table, light budget, starfield;

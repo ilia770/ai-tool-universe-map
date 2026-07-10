@@ -3,6 +3,13 @@ import RealityKit
 import UIKit
 
 /// Owns the RealityKit entity graph for the AI Universe Map.
+///
+/// Persistent-scene contract (docs/UNIVERSE_ARCHITECTURE.md): planet entities
+/// are created once per category id and held in `registry`; selection and mode
+/// changes are applied as component mutations on those same entities via
+/// `applyMode`. Only structural changes (tool set / visualization style) run
+/// the registry diff, and only satellites — transient reveal elements of the
+/// focused branch — are still rebuilt per focus change.
 @MainActor
 final class UniverseSceneController {
     private let root = Entity()
@@ -13,13 +20,28 @@ final class UniverseSceneController {
     private let lightRoot = Entity()
     private let camera = PerspectiveCamera()
 
-    private var sceneSignature = ""
+    /// id → persistent planet handle. Entity identity survives any
+    /// selection/mode change; see `PlanetHandle`.
+    private(set) var registry: [ToolCategoryId: PlanetHandle] = [:]
+    private var founderHalo: ModelEntity?
+    private var haloPaused = false
+    private var orbitRingEntities: [ModelEntity] = []
+    private var coreLinks: [ToolCategoryId: ModelEntity] = [:]
+
+    private var structureSignature = ""
+    private var satelliteSignature = ""
+
+    /// `active` = the 3D renderer is the visible one. While inactive the scene
+    /// stays dormant: structure is not built until first activation (2D-default
+    /// users never pay the IBL/star build), and an already-built scene pauses
+    /// every animation clip so a hidden RealityView costs no ambient GPU work.
     func makeScene(
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
         cameraRig: CameraRigController,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        active: Bool
     ) -> Entity {
         root.name = "ai-universe-root"
         planetRoot.name = "planet-root"
@@ -38,26 +60,27 @@ final class UniverseSceneController {
             addLights()
             addStars()
             addBackdropAndIBL()
+        } else {
+            // The RealityView is always-mounted now (UniverseMapView keeps it
+            // out of the renderer switch), so `make` should run exactly once
+            // per controller lifetime. A second call means the view was torn
+            // down unexpectedly — log it; the persistent graph still re-binds.
+            universeSceneLog.error("makeScene called again on a live scene")
         }
+        universeSceneLog.debug("scene init")
 
-        // G1 (empty 3D scene on return): `sceneController` is `@State` and so
-        // outlives the `RealityView`. Toggling render mode (3D → 2D/chat/detail
-        // → 3D) tears down `UniverseRealityView` and builds a fresh one, whose
-        // `make` closure calls `makeScene` again. The persisted entity graph no
-        // longer participates in the new `RealityView`'s content as built, so
-        // the scene came back empty (only a couple of stray static rings, no
-        // planet/satellites). Re-attach the camera to the new content's render
-        // pass and force a from-scratch rebuild of the dynamic graph every time
-        // the scene mounts, by invalidating the rebuild gate. `update`/`F3` edits
-        // keep using the signature gate so steady-state frames stay cheap.
+        // Attach the camera to this RealityView content's render pass. (The old
+        // G1 `sceneSignature = \"\"` full-rebuild hack is gone: the scene no
+        // longer unmounts on renderer/mode changes, and the entity graph is
+        // persistent by construction.)
         cameraRig.attach(camera)
-        sceneSignature = ""
 
-        rebuildIfNeeded(
+        sync(
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            active: active
         )
         return root
     }
@@ -66,13 +89,36 @@ final class UniverseSceneController {
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        active: Bool
     ) {
-        rebuildIfNeeded(
+        sync(
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            active: active
+        )
+    }
+
+    private func sync(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        reduceMotion: Bool,
+        active: Bool
+    ) {
+        // Dormant until the 3D renderer is first shown; after that, an
+        // inactive scene keeps its entities but pauses all motion (applyMode
+        // below receives active=false and treats it as a global pause).
+        guard active || !structureSignature.isEmpty else { return }
+        syncStructure(planets: planets, visualizationStyle: visualizationStyle)
+        applyMode(
+            planets: planets,
+            mode: mode,
+            visualizationStyle: visualizationStyle,
+            reduceMotion: reduceMotion,
+            active: active
         )
     }
 
@@ -93,122 +139,184 @@ final class UniverseSceneController {
         return nil
     }
 
-    /// Cache key deciding whether the RealityKit scene must be rebuilt. Must
-    /// encode every input that changes what is drawn.
-    ///
-    /// F3 (deleted tool reappears in 3D): the satellites (tool nodes) are built
-    /// from each planet's actual tools, but the key previously used only the
-    /// per-planet `toolCount`. Deleting a tool while adding another in the same
-    /// category (or any edit that preserves per-category counts) left the key
-    /// unchanged, so the scene never rebuilt and the removed tool's satellite
-    /// persisted. Encode the actual tool ids so any change to the visible tool
-    /// set forces a rebuild. `visibleAllTools` already filters hidden/removed
-    /// tools upstream, so a removed tool drops out of this key immediately.
-    static func sceneSignature(
+    // MARK: - Structure (tool set / style) — registry diff
+
+    /// Structure key: everything that changes what entities EXIST — and nothing
+    /// that merely changes how they look. Mode/selection/reduce-motion are
+    /// deliberately absent (they are `applyMode` mutations). Per-planet
+    /// geometry inputs (radius grows with tool count; positions shift when the
+    /// branch count changes) are covered by the tool-id list: any tool add or
+    /// remove changes this key, and `syncStructure` then re-checks each
+    /// surviving planet's geometry.
+    static func structureSignature(
         planets: [PlanetData],
-        mode: UniverseMode,
-        visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
+        visualizationStyle: VisualizationStyle
     ) -> String {
         [
-            mode.signature,
             visualizationStyle.rawValue,
             planets.map { planet in
                 "\(planet.id.rawValue):\(planet.tools.map(\.id).joined(separator: ","))"
             }.joined(separator: "|"),
-            reduceMotion ? "reduce" : "motion",
         ].joined(separator: "#")
     }
 
-    private func rebuildIfNeeded(
+    private func syncStructure(planets: [PlanetData], visualizationStyle: VisualizationStyle) {
+        let signature = Self.structureSignature(planets: planets, visualizationStyle: visualizationStyle)
+        guard signature != structureSignature else { return }
+        structureSignature = signature
+        // Satellites hang off per-planet geometry; force their re-derive.
+        satelliteSignature = ""
+
+        // Planets: diff the registry against the wanted set. A surviving id
+        // whose geometry inputs changed (radius from tool count, position from
+        // branch layout, colors) is recreated — that is a structural change,
+        // not a selection change, so the persistence contract holds.
+        let wanted = Dictionary(uniqueKeysWithValues: planets.map { ($0.id, $0) })
+        for (id, handle) in registry where wanted[id] == nil {
+            universeSceneLog.debug("entity removed planet-root:\(id.rawValue, privacy: .public)")
+            handle.root.removeFromParent()
+            registry[id] = nil
+        }
+        for planet in planets {
+            if let existing = registry[planet.id], Self.geometryMatches(existing.data, planet) {
+                continue
+            }
+            registry[planet.id]?.root.removeFromParent()
+            let handle = PlanetHandle(data: planet, visualizationStyle: visualizationStyle)
+            planetRoot.addChild(handle.root)
+            registry[planet.id] = handle
+        }
+
+        // Founder halo: persistent decoration around the core planet.
+        let hasCore = wanted[.core] != nil
+        if hasCore, founderHalo == nil {
+            let halo = PlanetEntityFactory.makeFounderHalo(reduceMotion: true)
+            planetRoot.addChild(halo)
+            founderHalo = halo
+            haloPaused = true
+        } else if !hasCore, let halo = founderHalo {
+            halo.removeFromParent()
+            founderHalo = nil
+        }
+
+        // Universe orbit rings + core→category links are cheap structural
+        // decorations; rebuild them with BASE material opacity — the per-mode
+        // fade is applied as an OpacityComponent multiplier in applyMode.
+        for ring in orbitRingEntities { ring.removeFromParent() }
+        orbitRingEntities = orbitRings(for: visualizationStyle).map { spec in
+            let ring = PlanetEntityFactory.makeUniverseOrbit(
+                radius: spec.radius,
+                color: UIColor(white: 1, alpha: 1),
+                opacity: spec.opacity,
+                tilt: spec.tilt
+            )
+            orbitRoot.addChild(ring)
+            return ring
+        }
+        for (_, link) in coreLinks { link.removeFromParent() }
+        coreLinks = [:]
+        for planet in planets where planet.id != .core {
+            let link = PlanetEntityFactory.makeLink(
+                from: .zero,
+                to: planet.position3D,
+                color: planet.uiColor,
+                opacity: 0.075,
+                thickness: 0.008,
+                name: "link:core-\(planet.id.rawValue)"
+            )
+            orbitRoot.addChild(link)
+            coreLinks[planet.id] = link
+        }
+    }
+
+    /// True when a planet's build-time geometry inputs are unchanged, so the
+    /// existing handle can be kept and only mutated.
+    static func geometryMatches(_ a: PlanetData, _ b: PlanetData) -> Bool {
+        a.radius == b.radius
+            && a.position3D == b.position3D
+            && a.color.rawValue == b.color.rawValue
+            && a.accent.rawValue == b.accent.rawValue
+    }
+
+    // MARK: - Mode / selection — component mutations only
+
+    private func applyMode(
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        active: Bool
     ) {
-        let signature = Self.sceneSignature(
+        // Pause ambient spin/pulse when the universe is only a dimmed backdrop
+        // (detail/chat), when the 3D renderer is hidden behind the 2D graph,
+        // or under Reduce Motion.
+        let pauseMotion = reduceMotion || mode.pausesAmbientMotion || !active
+
+        for (_, handle) in registry {
+            handle.apply(mode: mode, pauseMotion: pauseMotion)
+        }
+
+        if let halo = founderHalo {
+            halo.components.set(OpacityComponent(opacity: mode.planetOpacity(for: .core)))
+            if pauseMotion != haloPaused {
+                haloPaused = pauseMotion
+                halo.stopAllAnimations()
+                halo.scale = SIMD3<Float>(repeating: 1)
+                if !pauseMotion {
+                    PlanetEntityFactory.breathe(halo)
+                }
+            }
+        }
+
+        // Orbit rings and structural links fade with the mode: material keeps
+        // the base opacity, the component carries the mode multiplier.
+        let ringFade = mode.orbitOpacityMultiplier / UniverseMode.overview.orbitOpacityMultiplier
+        for ring in orbitRingEntities {
+            ring.components.set(OpacityComponent(opacity: mode.orbitOpacityMultiplier))
+        }
+        for (_, link) in coreLinks {
+            link.components.set(OpacityComponent(opacity: ringFade))
+        }
+
+        syncSatellites(
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion
+            pauseMotion: pauseMotion
         )
-        guard signature != sceneSignature else { return }
-        sceneSignature = signature
-        clearDynamicChildren()
+    }
 
-        // Pause ambient spin/pulse when the universe is only a dimmed backdrop
-        // (detail/chat); honor Reduce Motion the same way.
-        let pauseMotion = reduceMotion || mode.pausesAmbientMotion
+    /// Satellites are the focused branch's transient reveal layer; they are
+    /// re-derived when the focus/selection context changes (scoped teardown —
+    /// the persistent planets above are untouched by this).
+    private func syncSatellites(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        visualizationStyle: VisualizationStyle,
+        pauseMotion: Bool
+    ) {
+        let signature = mode.showsSatellites
+            ? "\(mode.signature)#\(pauseMotion)"
+            : "hidden"
+        guard signature != satelliteSignature else { return }
+        satelliteSignature = signature
 
-        for ring in orbitRings(for: visualizationStyle) {
-            let ring = PlanetEntityFactory.makeUniverseOrbit(
-                radius: ring.radius,
-                color: UIColor(white: 1, alpha: 1),
-                opacity: ring.opacity * mode.orbitOpacityMultiplier,
-                tilt: ring.tilt
-            )
-            orbitRoot.addChild(ring)
-        }
-
-        for planet in planets {
-            let isSelected = mode.isPrimaryPlanet(planet.id)
-            let entity = PlanetEntityFactory.makePlanet(
-                data: planet,
-                isSelected: isSelected,
-                visualizationStyle: visualizationStyle,
-                reduceMotion: pauseMotion
-            )
-            entity.components.set(OpacityComponent(opacity: mode.planetOpacity(for: planet.id)))
-            if planet.id != .core {
-                entity.addChild(PlanetEntityFactory.makeSunLight(
-                    data: planet,
-                    intensity: SunLightIntensity.intensity(for: mode, isFocused: isSelected)
-                ))
-            }
-            planetRoot.addChild(entity)
-
-            // Frosted hero halo around the central Founder OS core (only when a
-            // core planet exists). Breathing pauses with the rest of the scene.
-            if planet.id == .core {
-                let halo = PlanetEntityFactory.makeFounderHalo(reduceMotion: pauseMotion)
-                halo.components.set(OpacityComponent(opacity: mode.planetOpacity(for: .core)))
-                planetRoot.addChild(halo)
-            }
-        }
-
-        // Structural graph edges: founder core (origin) → each category planet
-        // (primary tier). Static lines that fade with the orbit opacity, so they
-        // vanish in detail/chat and soften when focused on a single branch.
-        let linkFade = mode.orbitOpacityMultiplier / UniverseMode.overview.orbitOpacityMultiplier
-        if linkFade > 0.001 {
-            for planet in planets where planet.id != .core {
-                orbitRoot.addChild(PlanetEntityFactory.makeLink(
-                    from: .zero,
-                    to: planet.position3D,
-                    color: planet.uiColor,
-                    opacity: 0.075 * linkFade,
-                    thickness: 0.008,
-                    name: "link:core-\(planet.id.rawValue)"
-                ))
-            }
-        }
-
-        if mode.showsSatellites,
-           let selectedPlanet = planets.first(where: { $0.id == mode.focusedCategory }) {
-            addSatellites(
-                around: selectedPlanet,
-                mode: mode,
-                visualizationStyle: visualizationStyle,
-                reduceMotion: reduceMotion
-            )
-        }
+        removeChildren(from: satelliteRoot)
+        guard mode.showsSatellites,
+              let selectedPlanet = planets.first(where: { $0.id == mode.focusedCategory }) else { return }
+        addSatellites(
+            around: selectedPlanet,
+            mode: mode,
+            visualizationStyle: visualizationStyle,
+            pauseMotion: pauseMotion
+        )
     }
 
     private func addSatellites(
         around planet: PlanetData,
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
+        pauseMotion: Bool
     ) {
         let category = UniverseSeed.category(planet.id)
 
@@ -224,7 +332,7 @@ final class UniverseSceneController {
             radius: max(2.4, planet.radius * 4.2),
             category: category,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion
+            reduceMotion: pauseMotion
         )
         orbitShell.position = planet.position3D
         orbitShell.components.set(OpacityComponent(opacity: mode.selectedToolID == nil ? 0.42 : 0.28))
@@ -243,7 +351,7 @@ final class UniverseSceneController {
                 count: planet.tools.count,
                 isSelected: tool.id == mode.selectedToolID,
                 visualizationStyle: visualizationStyle,
-                reduceMotion: reduceMotion
+                reduceMotion: pauseMotion
             )
             satellite.components.set(OpacityComponent(opacity: mode.satelliteOpacity(for: tool.id)))
             pivot.addChild(satellite)
@@ -354,12 +462,6 @@ final class UniverseSceneController {
         case .orbitalGlass:
             return [(3.7, 0.018, 0.0), (5.45, 0.015, 0.04), (7.15, 0.012, -0.04)]
         }
-    }
-
-    private func clearDynamicChildren() {
-        removeChildren(from: planetRoot)
-        removeChildren(from: orbitRoot)
-        removeChildren(from: satelliteRoot)
     }
 
     private func removeChildren(from entity: Entity) {

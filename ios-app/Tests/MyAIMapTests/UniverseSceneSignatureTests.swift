@@ -1,11 +1,16 @@
 import Testing
 @testable import MyAIMap
 
-/// F3 (deleted tool reappears in 3D): the RealityKit scene only rebuilds when
-/// its signature changes. The signature must reflect the actual visible tool
-/// set, not just per-category counts, so a removed (or swapped) tool always
-/// forces a rebuild and its satellite drops out of the scene.
-@Suite("UniverseSceneController — scene signature tracks the tool set")
+/// F3 (deleted tool reappears in 3D): the structural entity diff only runs
+/// when the structure signature changes. The signature must reflect the actual
+/// visible tool set, not just per-category counts, so a removed (or swapped)
+/// tool always forces a re-diff and its satellite drops out of the scene.
+///
+/// Persistent-scene contract (docs/UNIVERSE_ARCHITECTURE.md): the signature
+/// must encode ONLY structure (tool set + style). Mode/selection and Reduce
+/// Motion are component mutations and must NOT appear in the key — that is
+/// what guarantees a selection change never tears entities down.
+@Suite("UniverseSceneController — structure signature")
 @MainActor
 struct UniverseSceneSignatureTests {
 
@@ -27,11 +32,9 @@ struct UniverseSceneSignatureTests {
 
     private func signature(for tools: [Tool]) -> String {
         let planets = PlanetData.makePlanets(categories: UniverseSeed.categories, tools: tools)
-        return UniverseSceneController.sceneSignature(
+        return UniverseSceneController.structureSignature(
             planets: planets,
-            mode: .overview,
-            visualizationStyle: .orbitalGlass,
-            reduceMotion: true
+            visualizationStyle: .orbitalGlass
         )
     }
 
@@ -43,7 +46,7 @@ struct UniverseSceneSignatureTests {
 
     /// The exact F3 bug: deleting one tool and adding another in the SAME
     /// category keeps the per-category count identical. A count-only signature
-    /// stayed unchanged → no rebuild → the deleted tool's satellite persisted.
+    /// stayed unchanged → no re-diff → the deleted tool's satellite persisted.
     @Test func swappingToolsAtSameCountStillChangesTheSignature() {
         let before = signature(for: [tool("github"), tool("beta")])
         let after = signature(for: [tool("gitlab"), tool("beta")])
@@ -56,17 +59,13 @@ struct UniverseSceneSignatureTests {
         #expect(a == b)
     }
 
-    /// G1 (empty 3D scene on return): on a fresh `RealityView` mount the
-    /// controller resets its cached signature to `""` to force a full rebuild
-    /// of the dynamic entity graph, even when the scene inputs are unchanged.
-    /// That only works if a real signature is never itself the empty string —
-    /// otherwise the rebuild gate (`signature != cached`) could short-circuit
-    /// and the scene would come back empty. Guard that invariant here.
-    @Test func realSignatureIsNeverEmptySoMountAlwaysForcesRebuild() {
-        let real = signature(for: [tool("alpha"), tool("beta")])
-        #expect(!real.isEmpty)
-        // The reset sentinel used by `makeScene` must differ from any real
-        // signature so `rebuildIfNeeded` always re-enters after a remount.
-        #expect(real != "")
+    /// The controller uses `structureSignature.isEmpty` as its "never built"
+    /// dormancy sentinel (2D-default users don't pay the 3D build until they
+    /// first switch renderers). A real signature must therefore never be the
+    /// empty string, or a built scene could be mistaken for a dormant one.
+    @Test func realSignatureIsNeverEmpty() {
+        #expect(!signature(for: [tool("alpha")]).isEmpty)
+        // Even an empty universe (no planets) must produce a non-empty key.
+        #expect(!signature(for: []).isEmpty)
     }
 }

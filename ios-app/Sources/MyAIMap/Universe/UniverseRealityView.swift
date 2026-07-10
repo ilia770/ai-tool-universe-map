@@ -6,6 +6,11 @@ struct UniverseRealityView: View {
     let planets: [PlanetData]
     let mode: UniverseMode
     let visualizationStyle: VisualizationStyle
+    /// False while the 2D graph renderer is the visible one. The RealityView
+    /// stays mounted (persistent scene — entities are never torn down by a
+    /// renderer toggle) but the scene is dormant/paused; see
+    /// `UniverseSceneController.makeScene`.
+    let isActive: Bool
     let sceneController: UniverseSceneController
     let cameraRig: CameraRigController
     let gestureController: UniverseGestureController
@@ -32,14 +37,16 @@ struct UniverseRealityView: View {
                 mode: mode,
                 visualizationStyle: visualizationStyle,
                 cameraRig: cameraRig,
-                reduceMotion: effectiveReduceMotion
+                reduceMotion: effectiveReduceMotion,
+                active: isActive
             ))
         } update: { _ in
             sceneController.update(
                 planets: planets,
                 mode: mode,
                 visualizationStyle: visualizationStyle,
-                reduceMotion: effectiveReduceMotion
+                reduceMotion: effectiveReduceMotion,
+                active: isActive
             )
         }
         .gesture(

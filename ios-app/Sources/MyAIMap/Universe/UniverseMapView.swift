@@ -55,28 +55,36 @@ struct UniverseMapView: View {
 
     private var universeStack: some View {
         ZStack {
+            // The RealityKit scene is ALWAYS mounted — the 2D/3D toggle only
+            // hides it. This keeps the entity graph + camera alive across
+            // renderer switches (persistent-scene contract,
+            // docs/UNIVERSE_ARCHITECTURE.md); while hidden the scene is
+            // dormant/paused via `isActive`.
             Group {
-                switch model.renderMode {
-                case .graph2D:
+                let is3D = model.renderMode == .spatial3D
+                UniverseRealityView(
+                    planets: planets,
+                    mode: mode,
+                    visualizationStyle: model.visualizationStyle,
+                    isActive: is3D,
+                    sceneController: sceneController,
+                    cameraRig: cameraRig,
+                    gestureController: gestureController,
+                    onPlanetTap: selectCategory,
+                    onToolTap: focusToolFromMap,
+                    onEmptyTap: handleEmptySpaceTap,
+                    onOrbitSettled: maybeSnapToNeighborSun
+                )
+                .opacity(is3D ? 1 : 0)
+                .allowsHitTesting(is3D)
+
+                if model.renderMode == .graph2D {
                     BloomGraphView(
                         planets: planets,
                         mode: mode,
                         onPlanetTap: selectCategory,
                         onToolTap: focusToolFromMap,
                         onEmptyTap: handleEmptySpaceTap
-                    )
-                case .spatial3D:
-                    UniverseRealityView(
-                        planets: planets,
-                        mode: mode,
-                        visualizationStyle: model.visualizationStyle,
-                        sceneController: sceneController,
-                        cameraRig: cameraRig,
-                        gestureController: gestureController,
-                        onPlanetTap: selectCategory,
-                        onToolTap: focusToolFromMap,
-                        onEmptyTap: handleEmptySpaceTap,
-                        onOrbitSettled: maybeSnapToNeighborSun
                     )
                 }
             }

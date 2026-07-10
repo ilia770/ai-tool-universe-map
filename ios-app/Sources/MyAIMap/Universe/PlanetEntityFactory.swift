@@ -10,56 +10,9 @@ import UIKit
 /// collision setup so taps/camera behavior continue to work.
 @MainActor
 enum PlanetEntityFactory {
-    static func makePlanet(
-        data: PlanetData,
-        isSelected: Bool,
-        visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
-    ) -> Entity {
-        let root = Entity()
-        root.name = "planet-root:\(data.id.rawValue)"
-        root.position = data.position3D
-        let radius: Float
-        if data.id == .core {
-            radius = data.radius * 0.54
-        } else {
-            radius = data.radius * visualizationStyle.categoryScale * (isSelected ? 1.28 : 0.80)
-        }
-
-        let planet = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [planetMaterial(data: data, isSelected: isSelected, visualizationStyle: visualizationStyle)]
-        )
-        planet.name = "planet:\(data.id.rawValue)"
-        configureTap(on: planet, radius: max(radius * 1.45, 0.95))
-        root.addChild(planet)
-
-        let atmosphere = ModelEntity(
-            mesh: .generateSphere(radius: radius * (isSelected ? 1.20 : 1.12)),
-            materials: [atmosphereMaterial(data: data, isSelected: isSelected, visualizationStyle: visualizationStyle)]
-        )
-        atmosphere.name = "atmosphere:\(data.id.rawValue)"
-        root.addChild(atmosphere)
-
-        if data.id != .core || isSelected {
-            let rim = makeOrbitLine(
-                radius: radius * (isSelected ? 1.30 : 1.18),
-                tube: isSelected ? 0.012 : 0.007,
-                color: data.accentUIColor,
-                opacity: (isSelected ? 0.24 : 0.052) * visualizationStyle.glowBoost
-            )
-            rim.orientation = simd_quatf(angle: .pi / 2.7, axis: SIMD3<Float>(1, 0, 0))
-            root.addChild(rim)
-        }
-
-        if !reduceMotion {
-            spin(planet, axis: SIMD3<Float>(0.18, 1, 0.08), duration: isSelected ? 18 : 30)
-            if isSelected {
-                pulse(atmosphere, baseScale: atmosphere.scale, duration: 2.4)
-            }
-        }
-        return root
-    }
+    // NOTE: the one-shot `makePlanet(data:isSelected:...)` builder was replaced
+    // by the persistent `PlanetHandle` (created once per category id, mutated on
+    // selection/mode change) — see PlanetHandle.swift and UNIVERSE_ARCHITECTURE.md.
 
     static func makeSatellite(
         tool: Tool,
@@ -196,26 +149,34 @@ enum PlanetEntityFactory {
         halo.position = .zero
 
         if !reduceMotion {
-            var peak = halo.transform
-            peak.scale = SIMD3<Float>(repeating: 1 + founderHaloBreathScale)
-            let breathe = FromToByAnimation<Transform>(
-                from: halo.transform,
-                to: peak,
-                duration: founderHaloBreathDuration,
-                timing: .easeInOut,
-                bindTarget: .transform,
-                repeatMode: .autoReverse
-            )
-            if let resource = try? AnimationResource.generate(with: breathe) {
-                halo.playAnimation(resource)
-            }
+            breathe(halo)
         }
         return halo
     }
 
+    /// (Re)start the halo's slow breathing clip. Split out so the persistent
+    /// scene can pause/resume the same halo entity instead of rebuilding it.
+    static func breathe(_ halo: ModelEntity) {
+        var base = halo.transform
+        base.scale = SIMD3<Float>(repeating: 1)
+        var peak = base
+        peak.scale = SIMD3<Float>(repeating: 1 + founderHaloBreathScale)
+        let breathe = FromToByAnimation<Transform>(
+            from: base,
+            to: peak,
+            duration: founderHaloBreathDuration,
+            timing: .easeInOut,
+            bindTarget: .transform,
+            repeatMode: .autoReverse
+        )
+        if let resource = try? AnimationResource.generate(with: breathe) {
+            halo.playAnimation(resource)
+        }
+    }
+
     // A soft point light tinted to the category, parented at the sun so its
     // tool-planets are lit from their star.
-    static func makeSunLight(data: PlanetData, intensity: Float) -> Entity {
+    static func makeSunLight(data: PlanetData, intensity: Float) -> PointLight {
         let light = PointLight()
         light.light.color = data.accentUIColor
         light.light.intensity = intensity
@@ -235,7 +196,7 @@ enum PlanetEntityFactory {
         return star
     }
 
-    private static func planetMaterial(
+    static func planetMaterial(
         data: PlanetData,
         isSelected: Bool,
         visualizationStyle: VisualizationStyle
@@ -251,7 +212,7 @@ enum PlanetEntityFactory {
         return material
     }
 
-    private static func atmosphereMaterial(
+    static func atmosphereMaterial(
         data: PlanetData,
         isSelected: Bool,
         visualizationStyle: VisualizationStyle
@@ -266,7 +227,7 @@ enum PlanetEntityFactory {
         return material
     }
 
-    private static func makeOrbitLine(radius: Float, tube: Float, color: UIColor, opacity: Float) -> ModelEntity {
+    static func makeOrbitLine(radius: Float, tube: Float, color: UIColor, opacity: Float) -> ModelEntity {
         let torus = PocketShellGeometry.torus(radius: radius, tube: tube, radialSegments: 6, tubularSegments: 128)
         var descriptor = MeshDescriptor(name: "universe-orbit")
         descriptor.positions = MeshBuffer(torus.positions)
@@ -286,7 +247,7 @@ enum PlanetEntityFactory {
         return ModelEntity(mesh: mesh, materials: [material])
     }
 
-    private static func configureTap(on entity: ModelEntity, radius: Float) {
+    static func configureTap(on entity: ModelEntity, radius: Float) {
         entity.components.set(InputTargetComponent())
         entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: radius)]))
         entity.components.set(HoverEffectComponent())
@@ -324,7 +285,7 @@ enum PlanetEntityFactory {
         )
     }
 
-    private static func spin(_ entity: Entity, axis: SIMD3<Float>, duration: TimeInterval) {
+    static func spin(_ entity: Entity, axis: SIMD3<Float>, duration: TimeInterval) {
         let halfTurn = simd_quatf(angle: .pi, axis: simd_normalize(axis))
         let spin = FromToByAnimation<Transform>(
             by: Transform(rotation: halfTurn),
@@ -338,7 +299,7 @@ enum PlanetEntityFactory {
         }
     }
 
-    private static func pulse(_ entity: Entity, baseScale: SIMD3<Float>, duration: TimeInterval) {
+    static func pulse(_ entity: Entity, baseScale: SIMD3<Float>, duration: TimeInterval) {
         let pulse = FromToByAnimation<Transform>(
             from: Transform(scale: baseScale * 0.96),
             to: Transform(scale: baseScale * 1.08),
