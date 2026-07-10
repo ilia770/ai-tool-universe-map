@@ -30,6 +30,17 @@ struct UniverseRealityView: View {
         reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
     }
 
+    /// Unified interaction phase (RK.4) — one derivation for every gesture
+    /// guard below, replacing the scattered mode/isTransitioning checks.
+    private var interactionPhase: InteractionPhase {
+        InteractionPhase.derive(
+            mode: mode,
+            isTransitioning: cameraRig.isTransitioning,
+            isDragging: gestureController.dragInteracting,
+            isPinching: gestureController.pinchInteracting
+        )
+    }
+
     var body: some View {
         RealityView { content in
             content.add(sceneController.makeScene(
@@ -53,7 +64,7 @@ struct UniverseRealityView: View {
             SpatialTapGesture()
                 .targetedToAnyEntity()
                 .onEnded { value in
-                    guard mode.allowsMapGestures, !cameraRig.isTransitioning else { return }
+                    guard interactionPhase.allowsMapGestures else { return }
                     gestureController.markEntityTap()
                     guard let target = sceneController.target(from: value.entity) else { return }
                     switch target {
@@ -67,14 +78,14 @@ struct UniverseRealityView: View {
         .simultaneousGesture(
             TapGesture()
                 .onEnded {
-                    guard (mode.allowsMapGestures || mode.isChatOpen), !cameraRig.isTransitioning else { return }
+                    guard interactionPhase.allowsMapGestures || (mode.isChatOpen && !cameraRig.isTransitioning) else { return }
                     gestureController.handlePotentialEmptyTap(onEmptyTap)
                 }
         )
         .highPriorityGesture(
             DragGesture(minimumDistance: 4)
                 .onChanged { value in
-                    guard mode.allowsMapGestures, !cameraRig.isTransitioning else { return }
+                    guard interactionPhase.allowsMapGestures else { return }
                     gestureController.dragChanged(value, camera: cameraRig)
                 }
                 .onEnded { value in
@@ -89,7 +100,7 @@ struct UniverseRealityView: View {
         .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { value in
-                    guard mode.allowsMapGestures, !cameraRig.isTransitioning else { return }
+                    guard interactionPhase.allowsMapGestures else { return }
                     gestureController.pinchChanged(value, camera: cameraRig)
                 }
                 .onEnded { _ in

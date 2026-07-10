@@ -7,8 +7,8 @@ final class UniverseGestureController {
     private var previousDragTranslation: CGSize = .zero
     private var entityTapGeneration = 0
     private var lastEntityTapAt: Date?
-    private var dragInteracting = false
-    private var pinchInteracting = false
+    private(set) var dragInteracting = false
+    private(set) var pinchInteracting = false
 
     nonisolated init() {}
 
