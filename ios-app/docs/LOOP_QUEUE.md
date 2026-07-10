@@ -114,8 +114,49 @@ Workflow `ios-design-system-audit` (contract → 10 surface auditors → synth).
          rail frame can't fit its 44pt chip. Layout/size changes.
       Screenshots: onboarding clean after fix in `screenshots/loop/design-after/`.
 
+## WS-RK — RealityKit Universe redesign (USER DIRECTIVE 2026-07-10, top priority)
+User's full brief: persistent-RealityView 3D universe — planets never recreated
+on selection, one camera system, interruptible A→B travel, premium restrained
+visuals. 7 phases, audit-first. **Phase 1 DONE** — 6 design docs landed:
+`UNIVERSE_REALITYKIT_AUDIT.md` (verdict: refactor not rewrite; 2 structural
+changes: drop mode from sceneSignature + lift RealityView out of renderer
+switch), `UNIVERSE_ARCHITECTURE.md` (PlanetHandle id→entity registry),
+`UNIVERSE_STATE_MACHINE.md` (InteractionPhase unification),
+`UNIVERSE_CAMERA_SYSTEM.md` (keep CameraRigController core),
+`UNIVERSE_VISUAL_SYSTEM.md` (descriptor-driven materials, 3-sun budget),
+`UNIVERSE_QA_CHECKLIST.md` (17 criteria → manual seq + tests + per-phase gates).
+- [ ] RK.2 Phase 2 — persistent foundation (registry, signature shrink, always-
+      mounted RealityView, attach-once camera, satellites pauseMotion fix).
+      GATED on runtime install (in progress) — needs compile+test gate.
+- [ ] RK.3 Phase 3 — planet entity system (descriptor, mesh/material caches).
+- [ ] RK.4 Phase 4 — camera modes + InteractionPhase + touch-interrupt decision.
+- [ ] RK.5 Phase 5 — visual polish (materials table, light budget, starfield;
+      skybox/dust re-enable device-gated).
+- [ ] RK.6 Phase 6 — SwiftUI overlays/labels integration.
+- [ ] RK.7 Phase 7 — perf + a11y (VoiceOver bridge, RM matrix) +
+      `UNIVERSE_IMPLEMENTATION_REPORT.md`.
+User decision recorded: install iOS runtime locally (downloading this session).
+Renderer default stays `.graph2D` until user flips post-acceptance.
+
 ## ⚠️ CRITICAL FINDING (cycle 36, on-device) — BLOOM RENDERS NO VISIBLE GRAPH
-- [ ] 1.0 **Bloom 2D (the new DEFAULT renderer) draws no visible graph on device.**
+### ROOT CAUSE FOUND + FIXED (2026-07-10, gate pending runtime)
+The force sim **numerically explodes on the first ticks**. `syncNodes` seeds every
+fresh neighbour coincident at the same point (`(1,1)` for direct neighbours), and
+`BloomEngine.tick` repulsion is `18000 / d2` with `d2` only special-cased when
+`< 0.01` — the `0.01…~0.2` range produces forces up to ~1.8M, flinging the whole
+graph to **±100k+ units on tick 1** and dragging the camera off-screen. A `simctl`
+one-shot screenshot right after launch catches this mid-blowup → the "degenerate
+column at the right edge." It self-recovers by ~t=120 (≈2 s), which is why it
+looked like a layout bug, not a divergence. Verified by a faithful Python port of
+`tick()` fed the REAL seed adjacency (founder-os→…→figma bloom): unclamped hits
+±124,000 at t=1; flooring `d2` keeps it on-screen and settled by ~t=60.
+**Fix (surgical, in working tree, NOT yet committed — no iOS runtime installed to
+run the gate):** `BloomEngine.minRepelD2 = (nodeRadius*0.6)²`; `d2 = max(d2,
+minRepelD2)` in the repulsion loop. + regression test `simStaysBoundedFromCoincidentSeed`
+(11-neighbour hub, asserts maxAbs<5000 after 6 ticks — red 132k→green). Commit
+once a sim runtime is available on this machine (or on CI). Optional follow-up:
+seed neighbours non-coincident (golden-angle micro-ring) to smooth the intro.
+- [x] 1.0 **Bloom 2D (the new DEFAULT renderer) draws no visible graph on device.**
       Reproduced on AIMapGate 26.5 via `simctl launch com.ilyatur.myaimap
       -uitestSampleUniverse -uitestFocusTool figma` + `simctl io screenshot`
       (shots in `ios-app/screenshots/loop/bloom-baseline/`). What works: chrome,
