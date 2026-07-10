@@ -130,8 +130,17 @@ switch), `UNIVERSE_ARCHITECTURE.md` (PlanetHandle id→entity registry),
 `UNIVERSE_CAMERA_SYSTEM.md` (keep CameraRigController core),
 `UNIVERSE_VISUAL_SYSTEM.md` (descriptor-driven materials, 3-sun budget),
 `UNIVERSE_QA_CHECKLIST.md` (17 criteria → manual seq + tests + per-phase gates).
-- [~] RK.2 Phase 2 — persistent foundation IMPLEMENTED (2026-07-10), compile
-      gate GREEN, full-suite run in flight. Landed: `PlanetHandle` (persistent
+- [x] RK.2 Phase 2 — persistent foundation DONE (2026-07-10): 440/440 suite,
+      committed 2dadbc8. Visually verified on AIMapGate: 3D overview renders
+      (core+halo, PBR planets, rings, links, labels) with renderMode forced
+      via container plist — shots in `screenshots/loop/rk-phase2/`.
+      **OpacityComponent nesting risk CLEARED.** Interactive checks (A→B
+      travel, toggle-persistence on device) = QA phase (needs XCUITest/touch).
+      **Sim trick: renderMode flips via
+      `PlistBuddy -c "Set :universe.renderMode.v1 spatial3D"
+      <app-container>/Library/Preferences/com.ilyatur.myaimap.plist`** —
+      `simctl spawn defaults write` hits the WRONG domain (sim-user, not app
+      sandbox). Landed: `PlanetHandle` (persistent
       per-category entities; selection = scale/material-swap/rim-toggle/spin-
       restart mutations with exact legacy-geometry parity — selectionScale
       1.28/0.80, atmosphere 1.20/1.12 pinned by restartMotion, selected rim
