@@ -182,8 +182,11 @@ enum PlanetEntityFactory {
     ) -> PhysicallyBasedMaterial {
         var material = PhysicallyBasedMaterial()
         material.baseColor = .init(tint: mix(data.uiColor, with: .black, amount: data.id == .core ? 0.06 : isSelected ? 0.16 : 0.32))
-        material.roughness = .init(floatLiteral: data.id == .core ? 0.26 : isSelected ? 0.36 : 0.52)
-        material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : 0.06)
+        // RK.5: per-category surface (one rendering language, parameter-level
+        // variation — VISUAL_SYSTEM §2). Core keeps its emissive-ceramic look.
+        let visual = PlanetVisual.descriptor(for: data.id)
+        material.roughness = .init(floatLiteral: data.id == .core ? 0.26 : visual.roughness * (isSelected ? 0.75 : 1))
+        material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : visual.metallic)
         material.emissiveColor = .init(color: data.accentUIColor)
         material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 1.05 : 0.58) * visualizationStyle.glowBoost
         material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.45)

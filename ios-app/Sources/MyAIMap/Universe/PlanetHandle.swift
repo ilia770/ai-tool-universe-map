@@ -189,6 +189,11 @@ enum PlanetVisual {
         let spinDuration: TimeInterval
         /// Axial tilt: the spin axis leans away from +Y deterministically.
         let spinAxis: SIMD3<Float>
+        /// PBR surface style (RK.5, docs/UNIVERSE_VISUAL_SYSTEM.md §2) —
+        /// restrained per-category variation within ONE rendering language.
+        /// Selection sharpens roughness ×0.75 (focused planet reads glossier).
+        let roughness: Float
+        let metallic: Float
     }
 
     /// Authored speeds for the seed categories — slow, slightly different per
@@ -205,6 +210,21 @@ enum PlanetVisual {
         ToolCategoryId(rawValue: "analytics"): 26,
     ]
 
+    /// Material styles (VISUAL_SYSTEM §2 table): (roughness, metallic) per
+    /// category — soft metallic / satin / frosted / mineral / glass / ceramic.
+    /// Core keeps the legacy emissive-ceramic values (its material path is
+    /// special-cased in `planetMaterial`).
+    private static let surfaces: [ToolCategoryId: (roughness: Float, metallic: Float)] = [
+        ToolCategoryId(rawValue: "coding"): (0.38, 0.55),         // soft metallic
+        ToolCategoryId(rawValue: "design"): (0.52, 0.25),         // satin
+        ToolCategoryId(rawValue: "research"): (0.60, 0.12),       // frosted
+        ToolCategoryId(rawValue: "media"): (0.48, 0.35),          // mineral
+        ToolCategoryId(rawValue: "distribution"): (0.30, 0.20),   // glass-like
+        ToolCategoryId(rawValue: "infrastructure"): (0.42, 0.60), // dark metallic
+        ToolCategoryId(rawValue: "knowledge"): (0.55, 0.15),      // ceramic
+        ToolCategoryId(rawValue: "analytics"): (0.50, 0.30),      // cool satin
+    ]
+
     static func descriptor(for id: ToolCategoryId) -> Descriptor {
         // Stable per-id pseudo-random in [0,1) — NOT Hasher (seeded per-launch).
         let h = id.rawValue.unicodeScalars.reduce(UInt64(1469598103934665603)) { acc, scalar in
@@ -216,9 +236,15 @@ enum PlanetVisual {
         // each horizontal component, normalized by `spin` itself.
         let tiltX = Float(0.18 + (unit - 0.5) * 0.28)
         let tiltZ = Float(0.08 + (Double((h >> 10) % 1000) / 1000 - 0.5) * 0.28)
+        let surface = surfaces[id] ?? (
+            roughness: Float(0.40 + unit * 0.20),   // 0.40…0.60 fallback
+            metallic: Float(0.10 + Double((h >> 20) % 1000) / 1000 * 0.30)
+        )
         return Descriptor(
             spinDuration: duration,
-            spinAxis: SIMD3<Float>(tiltX, 1, tiltZ)
+            spinAxis: SIMD3<Float>(tiltX, 1, tiltZ),
+            roughness: surface.roughness,
+            metallic: surface.metallic
         )
     }
 }
