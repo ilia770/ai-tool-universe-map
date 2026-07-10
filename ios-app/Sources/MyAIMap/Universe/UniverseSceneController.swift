@@ -29,6 +29,9 @@ final class UniverseSceneController {
     private var coreLinks: [ToolCategoryId: ModelEntity] = [:]
 
     private var structureSignature = ""
+    /// Style used to build the current handles; a style change invalidates them
+    /// (their materials/scales bake style constants — codex review finding).
+    private var builtStyle: VisualizationStyle?
     /// Persistent satellite layer for the focused category (see syncSatellites).
     private(set) var satelliteBranch: SatelliteBranch?
 
@@ -52,15 +55,11 @@ final class UniverseSceneController {
         lightRoot.name = "light-root"
 
         if root.children.isEmpty {
-            root.addChild(starRoot)
-            root.addChild(orbitRoot)
-            root.addChild(planetRoot)
-            root.addChild(satelliteRoot)
-            root.addChild(lightRoot)
+            // Only the camera mounts eagerly (the rig needs it in the render
+            // pass). Stars/lights/IBL — the expensive static layer — build
+            // lazily on first ACTIVATION (codex finding: a 2D-default launch
+            // must not pay the IBL/star cost for a hidden scene).
             root.addChild(camera)
-            addLights()
-            addStars()
-            addBackdropAndIBL()
         } else {
             // The RealityView is always-mounted now (UniverseMapView keeps it
             // out of the renderer switch), so `make` should run exactly once
@@ -113,6 +112,7 @@ final class UniverseSceneController {
         // inactive scene keeps its entities but pauses all motion (applyMode
         // below receives active=false and treats it as a global pause).
         guard active || !structureSignature.isEmpty else { return }
+        buildStaticSceneIfNeeded()
         syncStructure(planets: planets, visualizationStyle: visualizationStyle)
         applyMode(
             planets: planets,
@@ -138,6 +138,20 @@ final class UniverseSceneController {
             current = candidate.parent
         }
         return nil
+    }
+
+    /// Static layer (container roots + lights + stars + IBL), built once on
+    /// first activation. Idempotent.
+    private func buildStaticSceneIfNeeded() {
+        guard starRoot.parent == nil else { return }
+        root.addChild(starRoot)
+        root.addChild(orbitRoot)
+        root.addChild(planetRoot)
+        root.addChild(satelliteRoot)
+        root.addChild(lightRoot)
+        addLights()
+        addStars()
+        addBackdropAndIBL()
     }
 
     // MARK: - Structure (tool set / style) — registry diff
@@ -180,8 +194,11 @@ final class UniverseSceneController {
             handle.root.removeFromParent()
             registry[id] = nil
         }
+        let styleChanged = builtStyle != visualizationStyle
+        builtStyle = visualizationStyle
         for planet in planets {
-            if let existing = registry[planet.id], Self.geometryMatches(existing.data, planet) {
+            if !styleChanged, let existing = registry[planet.id],
+               Self.geometryMatches(existing.data, planet) {
                 continue
             }
             registry[planet.id]?.root.removeFromParent()

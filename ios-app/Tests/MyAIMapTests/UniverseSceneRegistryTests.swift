@@ -130,7 +130,7 @@ struct UniverseSceneRegistryTests {
             tools: [tool("founder-os", category: .core)]
         )
         let controller = UniverseSceneController()
-        _ = controller.makeScene(
+        let root = controller.makeScene(
             planets: planets,
             mode: .overview,
             visualizationStyle: .orbitalGlass,
@@ -138,8 +138,11 @@ struct UniverseSceneRegistryTests {
             reduceMotion: true,
             active: false
         )
-        // 2D-default launch: no planet entities built yet.
+        // 2D-default launch: no planet entities built yet, and the static
+        // layer (stars/lights/IBL) hasn't been paid either — only the camera
+        // mounts eagerly (codex review finding).
         #expect(controller.registry.isEmpty)
+        #expect(root.children.count == 1)
 
         controller.update(
             planets: planets,
@@ -149,6 +152,29 @@ struct UniverseSceneRegistryTests {
             active: true
         )
         #expect(!controller.registry.isEmpty)
+        #expect(root.children.count > 1) // static layer built on activation
+    }
+
+    // Codex review (Medium): visualizationStyle bakes into handle materials/
+    // scales, so a style change must recreate handles even when PlanetData
+    // geometry is unchanged.
+    @Test func styleChangeRecreatesHandles() {
+        let tools = [tool("founder-os", category: .core), tool("figma", category: .design)]
+        let (controller, planets) = makeController(tools: tools)
+        let before = rootIdentities(controller)
+
+        controller.update(
+            planets: planets,
+            mode: .overview,
+            visualizationStyle: .force3D,
+            reduceMotion: true,
+            active: true
+        )
+        let after = rootIdentities(controller)
+        #expect(after.keys == before.keys)
+        for (id, identity) in after {
+            #expect(identity != before[id], "handle for \(id.rawValue) kept across style change")
+        }
     }
 
     // RK.2.2: tool selection within a focused category must MUTATE the same
