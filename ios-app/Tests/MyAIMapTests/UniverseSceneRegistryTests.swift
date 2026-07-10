@@ -151,6 +151,48 @@ struct UniverseSceneRegistryTests {
         #expect(!controller.registry.isEmpty)
     }
 
+    // RK.2.2: tool selection within a focused category must MUTATE the same
+    // satellite entities, not recreate them. Only leaving the category drops
+    // the branch.
+    @Test func toolSelectionPreservesSatelliteIdentity() {
+        let tools = [
+            tool("founder-os", category: .core),
+            tool("figma", category: .design),
+            tool("framer", category: .design),
+            tool("sketch", category: .design),
+        ]
+        let (controller, planets) = makeController(tools: tools)
+
+        controller.update(
+            planets: planets, mode: .branchFocus(.design),
+            visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+        )
+        guard let branch = controller.satelliteBranch else {
+            Issue.record("no satellite branch after branchFocus")
+            return
+        }
+        let before = branch.toolRootIdentities
+        #expect(before.count == 3)
+
+        for mode in [UniverseMode.toolSelected(.design, "figma"),
+                     .toolSelected(.design, "framer"),
+                     .branchFocus(.design)] {
+            controller.update(
+                planets: planets, mode: mode,
+                visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+            )
+            #expect(controller.satelliteBranch === branch, "branch recreated in \(mode.signature)")
+            #expect(controller.satelliteBranch?.toolRootIdentities == before)
+        }
+
+        // Leaving the category drops the branch (transient reveal layer).
+        controller.update(
+            planets: planets, mode: .overview,
+            visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+        )
+        #expect(controller.satelliteBranch == nil)
+    }
+
     @Test func geometryMatchesDetectsRadiusChange() {
         let a = PlanetData.makePlanets(
             categories: UniverseSeed.categories,

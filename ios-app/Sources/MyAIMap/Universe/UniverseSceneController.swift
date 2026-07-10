@@ -29,7 +29,8 @@ final class UniverseSceneController {
     private var coreLinks: [ToolCategoryId: ModelEntity] = [:]
 
     private var structureSignature = ""
-    private var satelliteSignature = ""
+    /// Persistent satellite layer for the focused category (see syncSatellites).
+    private(set) var satelliteBranch: SatelliteBranch?
 
     /// `active` = the 3D renderer is the visible one. While inactive the scene
     /// stays dormant: structure is not built until first activation (2D-default
@@ -164,8 +165,10 @@ final class UniverseSceneController {
         let signature = Self.structureSignature(planets: planets, visualizationStyle: visualizationStyle)
         guard signature != structureSignature else { return }
         structureSignature = signature
-        // Satellites hang off per-planet geometry; force their re-derive.
-        satelliteSignature = ""
+        // Satellites hang off per-planet geometry (positions/count); drop the
+        // branch so syncSatellites rebuilds it from the new structure.
+        satelliteBranch?.root.removeFromParent()
+        satelliteBranch = nil
 
         // Planets: diff the registry against the wanted set. A surviving id
         // whose geometry inputs changed (radius from tool count, position from
@@ -286,124 +289,33 @@ final class UniverseSceneController {
         )
     }
 
-    /// Satellites are the focused branch's transient reveal layer; they are
-    /// re-derived when the focus/selection context changes (scoped teardown —
-    /// the persistent planets above are untouched by this).
+    /// Satellites (RK.2.2): one persistent `SatelliteBranch` per focused
+    /// category. Tool selection / detail / chat / pause changes MUTATE the
+    /// branch's entities; only changing category (or a structural tool-set
+    /// change, which drops the branch in `syncStructure`) rebuilds it.
     private func syncSatellites(
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
         pauseMotion: Bool
     ) {
-        let signature = mode.showsSatellites
-            ? "\(mode.signature)#\(pauseMotion)"
-            : "hidden"
-        guard signature != satelliteSignature else { return }
-        satelliteSignature = signature
-
-        removeChildren(from: satelliteRoot)
-        guard mode.showsSatellites,
-              let selectedPlanet = planets.first(where: { $0.id == mode.focusedCategory }) else { return }
-        addSatellites(
-            around: selectedPlanet,
-            mode: mode,
-            visualizationStyle: visualizationStyle,
-            pauseMotion: pauseMotion
-        )
-    }
-
-    private func addSatellites(
-        around planet: PlanetData,
-        mode: UniverseMode,
-        visualizationStyle: VisualizationStyle,
-        pauseMotion: Bool
-    ) {
-        let category = UniverseSeed.category(planet.id)
-
-        // For core, founder-os is the central planet itself, so only its other
-        // tools become satellites. Indices/count stay aligned with the full
-        // tool list so screen-space labels match the 3D nodes.
-        let satelliteTools = planet.tools.enumerated().filter { _, tool in
-            !(planet.id == .core && tool.id == PlanetData.centralCoreToolID)
+        let wanted: ToolCategoryId? = mode.showsSatellites ? mode.focusedCategory : nil
+        if let branch = satelliteBranch, branch.categoryID != wanted {
+            branch.root.removeFromParent()
+            satelliteBranch = nil
         }
-        guard !satelliteTools.isEmpty else { return }
-
-        let orbitShell = PlanetEntityFactory.makeSatelliteOrbitShell(
-            radius: max(2.4, planet.radius * 4.2),
-            category: category,
-            visualizationStyle: visualizationStyle,
-            reduceMotion: pauseMotion
-        )
-        orbitShell.position = planet.position3D
-        orbitShell.components.set(OpacityComponent(opacity: mode.selectedToolID == nil ? 0.42 : 0.28))
-        satelliteRoot.addChild(orbitShell)
-
-        let pivot = Entity()
-        pivot.name = "satellite-pivot:\(planet.id.rawValue)"
-        pivot.position = planet.position3D
-        satelliteRoot.addChild(pivot)
-
-        for (index, tool) in satelliteTools {
-            let satellite = PlanetEntityFactory.makeSatellite(
-                tool: tool,
-                category: category,
-                index: index,
-                count: planet.tools.count,
-                isSelected: tool.id == mode.selectedToolID,
+        guard let wanted else { return }
+        if satelliteBranch == nil {
+            guard let planet = planets.first(where: { $0.id == wanted }) else { return }
+            let branch = SatelliteBranch(
+                planet: planet,
                 visualizationStyle: visualizationStyle,
-                reduceMotion: pauseMotion
+                pauseMotion: pauseMotion
             )
-            satellite.components.set(OpacityComponent(opacity: mode.satelliteOpacity(for: tool.id)))
-            pivot.addChild(satellite)
-
-            // Structural graph edge: category anchor → tool satellite (secondary
-            // tier — dimmer/thinner than core→category). Static, in world space.
-            let toolWorld = UniverseSpatialLayout.satelliteWorldPosition(
-                for: tool, in: planet, index: index, count: planet.tools.count
-            )
-            satelliteRoot.addChild(PlanetEntityFactory.makeLink(
-                from: planet.position3D,
-                to: toolWorld,
-                color: category.color.uiColor,
-                opacity: 0.045,
-                thickness: 0.006,
-                name: "link:\(planet.id.rawValue)-\(tool.id)"
-            ))
+            satelliteRoot.addChild(branch.root)
+            satelliteBranch = branch
         }
-
-        addConnectionTraces(in: planet, category: category, mode: mode)
-    }
-
-    /// 3D connection traces (constellation Phase 3): when a tool is focused,
-    /// draw brighter lines from it to the tools it connects to (via the shared
-    /// `ConnectionResolver`). Scoped to the focused category's tools, which are
-    /// the satellites actually rendered, so every line lands on a visible node.
-    private func addConnectionTraces(in planet: PlanetData, category: ToolCategory, mode: UniverseMode) {
-        guard let selectedID = mode.selectedToolID,
-              let selectedTool = planet.tools.first(where: { $0.id == selectedID }),
-              let selectedIndex = planet.tools.firstIndex(where: { $0.id == selectedID }) else { return }
-
-        let count = planet.tools.count
-        let fromWorld = UniverseSpatialLayout.satelliteWorldPosition(
-            for: selectedTool, in: planet, index: selectedIndex, count: count
-        )
-        let connections = ConnectionResolver.connections(for: selectedTool, in: planet.tools)
-        for connection in connections {
-            guard let targetIndex = planet.tools.firstIndex(where: { $0.id == connection.targetID }) else { continue }
-            let targetTool = planet.tools[targetIndex]
-            let toWorld = UniverseSpatialLayout.satelliteWorldPosition(
-                for: targetTool, in: planet, index: targetIndex, count: count
-            )
-            let strong = connection.kind == .curated || connection.kind == .ai || connection.kind == .alternative
-            satelliteRoot.addChild(PlanetEntityFactory.makeLink(
-                from: fromWorld,
-                to: toWorld,
-                color: category.color.uiColor,
-                opacity: strong ? 0.5 : 0.22,
-                thickness: strong ? 0.014 : 0.008,
-                name: "trace:\(selectedID)-\(connection.targetID)"
-            ))
-        }
+        satelliteBranch?.apply(mode: mode, pauseMotion: pauseMotion)
     }
 
     private func addLights() {

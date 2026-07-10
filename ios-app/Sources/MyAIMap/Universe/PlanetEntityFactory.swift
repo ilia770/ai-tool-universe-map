@@ -14,55 +14,8 @@ enum PlanetEntityFactory {
     // by the persistent `PlanetHandle` (created once per category id, mutated on
     // selection/mode change) — see PlanetHandle.swift and UNIVERSE_ARCHITECTURE.md.
 
-    static func makeSatellite(
-        tool: Tool,
-        category: ToolCategory,
-        index: Int,
-        count: Int,
-        isSelected: Bool,
-        visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool
-    ) -> Entity {
-        let root = Entity()
-        root.name = "satellite-root:\(tool.id)"
-        root.position = UniverseSpatialLayout.satelliteOffset(index: index, count: count, orbit: tool.orbit)
-
-        let radius: Float = (isSelected ? 0.29 : 0.20) * visualizationStyle.nodeScale
-        var material = PhysicallyBasedMaterial()
-        material.baseColor = .init(tint: mix(category.color.uiColor, with: .white, amount: isSelected ? 0.34 : 0.18))
-        material.roughness = .init(floatLiteral: 0.42)
-        material.metallic = .init(floatLiteral: 0.08)
-        material.emissiveColor = .init(color: category.glow.uiColor)
-        material.emissiveIntensity = (isSelected ? 1.6 : 0.30) * visualizationStyle.glowBoost
-
-        let body = ModelEntity(mesh: .generateSphere(radius: radius), materials: [material])
-        body.name = "tool:\(tool.id)"
-        configureTap(on: body, radius: max(radius * 2.2, 0.44))
-        root.addChild(body)
-
-        let halo = ModelEntity(
-            mesh: .generateSphere(radius: radius * (isSelected ? 1.34 : 1.22)),
-            materials: [unlitGlow(color: category.glow.uiColor, opacity: isSelected ? 0.22 : 0.04)]
-        )
-        root.addChild(halo)
-
-        if isSelected {
-            let ring = makeOrbitLine(
-                radius: radius * 1.78,
-                tube: 0.006,
-                color: category.glow.uiColor,
-                opacity: 0.42 * visualizationStyle.glowBoost
-            )
-            ring.orientation = simd_quatf(angle: .pi / 2.35, axis: SIMD3<Float>(1, 0, 0))
-                * simd_quatf(angle: .pi / 8, axis: SIMD3<Float>(0, 1, 0))
-            root.addChild(ring)
-        }
-
-        if !reduceMotion {
-            spin(body, axis: SIMD3<Float>(0, 1, 0), duration: 12 + Double(index % 4) * 2)
-        }
-        return root
-    }
+    // NOTE: the one-shot `makeSatellite(tool:isSelected:...)` builder was
+    // replaced by the persistent `SatelliteHandle` (SatelliteBranch.swift).
 
     static func makeSatelliteOrbitShell(
         radius: Float,
@@ -221,7 +174,7 @@ enum PlanetEntityFactory {
         return unlitGlow(color: data.accentUIColor, opacity: baseOpacity * visualizationStyle.glowBoost)
     }
 
-    private static func unlitGlow(color: UIColor, opacity: Float) -> UnlitMaterial {
+    static func unlitGlow(color: UIColor, opacity: Float) -> UnlitMaterial {
         var material = UnlitMaterial(color: color)
         material.blending = .transparent(opacity: .init(floatLiteral: opacity))
         return material
@@ -265,7 +218,7 @@ enum PlanetEntityFactory {
         )
     }
 
-    private static func mix(_ first: UIColor, with second: UIColor, amount: CGFloat) -> UIColor {
+    static func mix(_ first: UIColor, with second: UIColor, amount: CGFloat) -> UIColor {
         var r1: CGFloat = 0
         var g1: CGFloat = 0
         var b1: CGFloat = 0
