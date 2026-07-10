@@ -37,6 +37,8 @@ final class PlanetHandle {
     /// (legacy: radius × 1.28 selected vs × 0.80 unselected).
     static let selectionScale: Float = 1.28 / 0.80
 
+    private let atmosphereBaseScale: Float
+
     private(set) var isSelected = false
     private(set) var isPaused = false
 
@@ -66,18 +68,18 @@ final class PlanetHandle {
         atmosphereMaterialUnselected = PlanetEntityFactory.atmosphereMaterial(
             data: data, isSelected: false, visualizationStyle: visualizationStyle)
 
-        body = ModelEntity(
-            mesh: .generateSphere(radius: baseRadius),
-            materials: [bodyMaterialUnselected]
-        )
+        // Shared unit-sphere mesh, scaled per node (RK.3 cache). Collision
+        // shapes live in entity-local space, so the tap radius is expressed
+        // relative to the body scale to keep the legacy world-space size.
+        body = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [bodyMaterialUnselected])
+        body.scale = SIMD3<Float>(repeating: baseRadius)
         body.name = "planet:\(data.id.rawValue)"
-        PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 1.45, 0.95))
+        PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 1.45, 0.95) / baseRadius)
         root.addChild(body)
 
-        atmosphere = ModelEntity(
-            mesh: .generateSphere(radius: baseRadius * 1.12),
-            materials: [atmosphereMaterialUnselected]
-        )
+        atmosphereBaseScale = baseRadius * 1.12
+        atmosphere = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [atmosphereMaterialUnselected])
+        atmosphere.scale = SIMD3<Float>(repeating: atmosphereBaseScale)
         atmosphere.name = "atmosphere:\(data.id.rawValue)"
         root.addChild(atmosphere)
 
@@ -159,15 +161,64 @@ final class PlanetHandle {
         atmosphere.stopAllAnimations()
         // A stopped pulse can strand the atmosphere at a mid-animation scale;
         // pin it back to the selection-state base before (re)starting clips.
-        atmosphere.scale = SIMD3<Float>(repeating: isSelected ? 1.20 / 1.12 : 1)
+        // (Unit-mesh world: base scale carries the radius; legacy factor
+        // 1.20 selected vs 1.12 unselected rides on top.)
+        atmosphere.scale = SIMD3<Float>(
+            repeating: atmosphereBaseScale * (isSelected ? 1.20 / 1.12 : 1))
         guard !isPaused else { return }
+        let visual = PlanetVisual.descriptor(for: data.id)
         PlanetEntityFactory.spin(
             body,
-            axis: SIMD3<Float>(0.18, 1, 0.08),
-            duration: isSelected ? 18 : 30
+            axis: visual.spinAxis,
+            duration: isSelected ? visual.spinDuration * 0.6 : visual.spinDuration
         )
         if isSelected {
             PlanetEntityFactory.pulse(atmosphere, baseScale: atmosphere.scale, duration: 2.4)
         }
+    }
+}
+
+/// RK.3 visual descriptor — deterministic per-category motion parameters
+/// (docs/UNIVERSE_VISUAL_SYSTEM.md §1/§7). Same id → same values on every
+/// launch; unknown/custom categories derive stable values from the id hash.
+enum PlanetVisual {
+    struct Descriptor: Equatable, Sendable {
+        /// Full-rotation duration (seconds) while unselected; selection
+        /// multiplies by 0.6 (legacy 18/30 ratio — selected planets slow
+        /// relative to their size bump for readability).
+        let spinDuration: TimeInterval
+        /// Axial tilt: the spin axis leans away from +Y deterministically.
+        let spinAxis: SIMD3<Float>
+    }
+
+    /// Authored speeds for the seed categories — slow, slightly different per
+    /// planet (brief: "each planet has a slightly different speed").
+    private static let spinDurations: [ToolCategoryId: TimeInterval] = [
+        .core: 38,
+        ToolCategoryId(rawValue: "coding"): 27,
+        ToolCategoryId(rawValue: "design"): 31,
+        ToolCategoryId(rawValue: "research"): 24,
+        ToolCategoryId(rawValue: "media"): 22,
+        ToolCategoryId(rawValue: "distribution"): 20,
+        ToolCategoryId(rawValue: "infrastructure"): 34,
+        ToolCategoryId(rawValue: "knowledge"): 29,
+        ToolCategoryId(rawValue: "analytics"): 26,
+    ]
+
+    static func descriptor(for id: ToolCategoryId) -> Descriptor {
+        // Stable per-id pseudo-random in [0,1) — NOT Hasher (seeded per-launch).
+        let h = id.rawValue.unicodeScalars.reduce(UInt64(1469598103934665603)) { acc, scalar in
+            (acc ^ UInt64(scalar.value)) &* 1099511628211
+        }
+        let unit = Double(h % 1000) / 1000
+        let duration = spinDurations[id] ?? (24 + unit * 12) // 24…36s fallback
+        // Lean the legacy axis (0.18, 1, 0.08) by a per-id tilt: ±0.14 around
+        // each horizontal component, normalized by `spin` itself.
+        let tiltX = Float(0.18 + (unit - 0.5) * 0.28)
+        let tiltZ = Float(0.08 + (Double((h >> 10) % 1000) / 1000 - 0.5) * 0.28)
+        return Descriptor(
+            spinDuration: duration,
+            spinAxis: SIMD3<Float>(tiltX, 1, tiltZ)
+        )
     }
 }

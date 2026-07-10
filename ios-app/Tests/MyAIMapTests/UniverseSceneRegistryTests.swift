@@ -193,6 +193,20 @@ struct UniverseSceneRegistryTests {
         #expect(controller.satelliteBranch == nil)
     }
 
+    // RK.3: motion descriptor is deterministic per id and varies across the
+    // seed categories (brief: each planet spins at a slightly different speed).
+    @Test func planetVisualDescriptorIsDeterministicAndVaried() {
+        let design = PlanetVisual.descriptor(for: .design)
+        #expect(design == PlanetVisual.descriptor(for: .design))
+        let ids: [ToolCategoryId] = [.core, .design, .analytics]
+        let durations = Set(ids.map { PlanetVisual.descriptor(for: $0).spinDuration })
+        #expect(durations.count == ids.count)
+        // Custom category: stable hash fallback, sane range.
+        let custom = PlanetVisual.descriptor(for: ToolCategoryId(rawValue: "my-branch"))
+        #expect(custom == PlanetVisual.descriptor(for: ToolCategoryId(rawValue: "my-branch")))
+        #expect(custom.spinDuration >= 20 && custom.spinDuration <= 40)
+    }
+
     @Test func geometryMatchesDetectsRadiusChange() {
         let a = PlanetData.makePlanets(
             categories: UniverseSeed.categories,

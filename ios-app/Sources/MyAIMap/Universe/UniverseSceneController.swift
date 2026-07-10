@@ -264,7 +264,7 @@ final class UniverseSceneController {
             if pauseMotion != haloPaused {
                 haloPaused = pauseMotion
                 halo.stopAllAnimations()
-                halo.scale = SIMD3<Float>(repeating: 1)
+                halo.scale = SIMD3<Float>(repeating: PlanetEntityFactory.founderHaloRadius)
                 if !pauseMotion {
                     PlanetEntityFactory.breathe(halo)
                 }

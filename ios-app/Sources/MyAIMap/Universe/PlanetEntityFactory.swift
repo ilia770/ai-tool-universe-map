@@ -51,6 +51,28 @@ enum PlanetEntityFactory {
         return ring
     }
 
+    /// RK.3 mesh caches — geometry is shared and entities scale it, instead of
+    /// regenerating a sphere/torus per node (audit: ~250+ mesh allocations per
+    /// scene before this).
+    static let unitSphere = MeshResource.generateSphere(radius: 1)
+
+    /// Torus meshes keyed by quantized (radius, tube). Orbit shells and rims
+    /// with identical parameters share one MeshResource.
+    private static var torusCache: [String: MeshResource] = [:]
+
+    static func torusMesh(radius: Float, tube: Float) -> MeshResource {
+        let key = "\(Int((radius * 10_000).rounded()))x\(Int((tube * 10_000).rounded()))"
+        if let cached = torusCache[key] { return cached }
+        let torus = PocketShellGeometry.torus(radius: radius, tube: tube, radialSegments: 6, tubularSegments: 128)
+        var descriptor = MeshDescriptor(name: "universe-orbit")
+        descriptor.positions = MeshBuffer(torus.positions)
+        descriptor.normals = MeshBuffer(torus.normals)
+        descriptor.primitives = .triangles(torus.indices)
+        let mesh = (try? MeshResource.generate(from: [descriptor])) ?? .generateSphere(radius: tube)
+        torusCache[key] = mesh
+        return mesh
+    }
+
     /// Shared unit-box mesh for every structural link, reused across the one
     /// transform + material so links keep allocations down.
     private static let linkMesh = MeshResource.generateBox(size: 1)
@@ -97,7 +119,8 @@ enum PlanetEntityFactory {
         material.emissiveColor = .init(color: coreColor)
         material.emissiveIntensity = 0.4
 
-        let halo = ModelEntity(mesh: .generateSphere(radius: founderHaloRadius), materials: [material])
+        let halo = ModelEntity(mesh: unitSphere, materials: [material])
+        halo.scale = SIMD3<Float>(repeating: founderHaloRadius)
         halo.name = "founder-halo"
         halo.position = .zero
 
@@ -111,9 +134,9 @@ enum PlanetEntityFactory {
     /// scene can pause/resume the same halo entity instead of rebuilding it.
     static func breathe(_ halo: ModelEntity) {
         var base = halo.transform
-        base.scale = SIMD3<Float>(repeating: 1)
+        base.scale = SIMD3<Float>(repeating: founderHaloRadius)
         var peak = base
-        peak.scale = SIMD3<Float>(repeating: 1 + founderHaloBreathScale)
+        peak.scale = SIMD3<Float>(repeating: founderHaloRadius * (1 + founderHaloBreathScale))
         let breathe = FromToByAnimation<Transform>(
             from: base,
             to: peak,
@@ -138,13 +161,16 @@ enum PlanetEntityFactory {
         return light
     }
 
+    /// Four opacity tiers → four shared materials; every star shares the unit
+    /// sphere mesh and scales it (was: 120 individual mesh+material allocations).
+    private static let starMaterials: [UnlitMaterial] = (0..<4).map { tier in
+        unlitGlow(color: UIColor(white: 1, alpha: 1), opacity: Float(0.08 + Double(tier) * 0.025))
+    }
+
     static func makeStar(index: Int) -> ModelEntity {
         let radius = Float(0.004 + Double(index % 3) * 0.002)
-        let color = UIColor(white: 1, alpha: 1)
-        let star = ModelEntity(
-            mesh: .generateSphere(radius: radius),
-            materials: [unlitGlow(color: color, opacity: Float(0.08 + Double(index % 4) * 0.025))]
-        )
+        let star = ModelEntity(mesh: unitSphere, materials: [starMaterials[index % 4]])
+        star.scale = SIMD3<Float>(repeating: radius)
         star.position = starPosition(index: index)
         return star
     }
@@ -181,12 +207,7 @@ enum PlanetEntityFactory {
     }
 
     static func makeOrbitLine(radius: Float, tube: Float, color: UIColor, opacity: Float) -> ModelEntity {
-        let torus = PocketShellGeometry.torus(radius: radius, tube: tube, radialSegments: 6, tubularSegments: 128)
-        var descriptor = MeshDescriptor(name: "universe-orbit")
-        descriptor.positions = MeshBuffer(torus.positions)
-        descriptor.normals = MeshBuffer(torus.normals)
-        descriptor.primitives = .triangles(torus.indices)
-        let mesh = (try? MeshResource.generate(from: [descriptor])) ?? .generateSphere(radius: tube)
+        let mesh = torusMesh(radius: radius, tube: tube)
 
         // G2: thin transparent orbit rings z-fought / poked through the opaque
         // planet body at its silhouette edges, where the ring crosses in front

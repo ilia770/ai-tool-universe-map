@@ -164,6 +164,7 @@ final class SatelliteHandle {
     private let haloMaterialSelected: UnlitMaterial
     private let haloMaterialUnselected: UnlitMaterial
     private let spinDuration: TimeInterval
+    private let haloBaseScale: Float
     private var isSelected = false
     private var isPaused: Bool
 
@@ -199,15 +200,17 @@ final class SatelliteHandle {
         haloMaterialSelected = PlanetEntityFactory.unlitGlow(color: category.glow.uiColor, opacity: 0.22)
         haloMaterialUnselected = PlanetEntityFactory.unlitGlow(color: category.glow.uiColor, opacity: 0.04)
 
-        body = ModelEntity(mesh: .generateSphere(radius: baseRadius), materials: [bodyMaterialUnselected])
+        // Shared unit-sphere mesh (RK.3); collision radius expressed in the
+        // body's local (scaled) space to keep the legacy world-space size.
+        body = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [bodyMaterialUnselected])
+        body.scale = SIMD3<Float>(repeating: baseRadius)
         body.name = "tool:\(tool.id)"
-        PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 2.2, 0.44))
+        PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 2.2, 0.44) / baseRadius)
         root.addChild(body)
 
-        halo = ModelEntity(
-            mesh: .generateSphere(radius: baseRadius * SatelliteBranch.haloFactorUnselected),
-            materials: [haloMaterialUnselected]
-        )
+        haloBaseScale = baseRadius * SatelliteBranch.haloFactorUnselected
+        halo = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [haloMaterialUnselected])
+        halo.scale = SIMD3<Float>(repeating: haloBaseScale)
         root.addChild(halo)
 
         // Selection ring prebuilt hidden. Legacy: radius = selectedRadius×1.78,
@@ -243,8 +246,8 @@ final class SatelliteHandle {
             halo.model?.materials = [selected ? haloMaterialSelected : haloMaterialUnselected]
             // Legacy halo factor 1.34 selected vs 1.22 unselected (the root
             // scale supplies the body-radius growth; this tops up the ratio).
-            halo.scale = SIMD3<Float>(repeating:
-                selected ? SatelliteBranch.haloFactorSelected / SatelliteBranch.haloFactorUnselected : 1)
+            halo.scale = SIMD3<Float>(repeating: haloBaseScale
+                * (selected ? SatelliteBranch.haloFactorSelected / SatelliteBranch.haloFactorUnselected : 1))
             selectionRing.components.set(OpacityComponent(opacity: selected ? 1 : 0))
         }
         if pauseChanged {
