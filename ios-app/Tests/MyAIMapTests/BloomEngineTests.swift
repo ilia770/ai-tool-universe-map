@@ -274,6 +274,20 @@ struct BloomEngineTests {
         #expect(!e.isSettled) // d/e still fading out
     }
 
+    // Regression: a hub with many neighbours seeds every neighbour coincident at
+    // the same point, so unbounded repulsion (18000/d2, d2→0) once flung the graph
+    // to ±100k on the very first ticks — the off-screen "degenerate column" bug.
+    // The distance floor must keep positions in plausible space from tick 1.
+    @Test func simStaysBoundedFromCoincidentSeed() {
+        var adj: [String: [String]] = ["hub": (0..<11).map { "n\($0)" }]
+        for i in 0..<11 { adj["n\(i)"] = ["hub"] }
+        let e = BloomEngine(adjacency: adj, seedID: "hub")
+        let edges = BloomAdjacency.edges(from: adj)
+        for _ in 0..<6 { e.tick(dt: 1.0 / 60, reduced: false, allEdges: edges) }
+        let maxAbs = e.nodes.values.map { max(abs($0.x), abs($0.y)) }.max() ?? 0
+        #expect(maxAbs < 5000, "sim blew up to \(maxAbs)")
+    }
+
     @Test func visibleEdgesExcludeCollapsingEndpoints() {
         let e = chain()
         let edges = [(a: "a", b: "b"), (a: "b", b: "c")]

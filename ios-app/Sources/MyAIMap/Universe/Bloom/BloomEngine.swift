@@ -18,6 +18,13 @@ final class BloomEngine {
 
     static let nodeRadius: Double = 30
 
+    /// Lower bound on squared node separation used by the repulsion term. Fresh
+    /// neighbours all seed at the same point (see `syncNodes`), so without a floor
+    /// `18000 / d2` explodes as `d2 → 0` and flings the whole graph tens of
+    /// thousands of units off-screen on the first ticks — the "degenerate column
+    /// at the screen edge" bug. Flooring `d2` caps the per-tick repulsion force.
+    private static let minRepelD2 = (nodeRadius * 0.6) * (nodeRadius * 0.6)
+
     /// Perf instrumentation only — inert unless an Instruments trace is running.
     private let signposter = OSSignposter(subsystem: "com.iliaturilia.myaimap", category: "bloom")
 
@@ -190,6 +197,7 @@ final class BloomEngine {
                 var dx = a.x - b0.x, dy = a.y - b0.y
                 var d2 = dx * dx + dy * dy
                 if d2 < 0.01 { dx = Double(i - j) * 0.5 + 0.1; dy = 0.1; d2 = dx * dx + dy * dy }
+                d2 = max(d2, Self.minRepelD2) // bound the force so coincident seeds can't explode
                 let d = d2.squareRoot()
                 let f = 18000 / d2
                 let fx = (dx / d) * f, fy = (dy / d) * f
