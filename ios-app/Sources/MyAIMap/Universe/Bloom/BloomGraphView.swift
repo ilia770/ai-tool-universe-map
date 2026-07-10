@@ -60,7 +60,17 @@ struct BloomGraphView: View {
             .opacity(mode.mapOpacity)
             .blur(radius: CGFloat(mode.mapBlurRadius))
             .onAppear { rebuildModel(); ensureEngine() }
-            .onChange(of: toolIDs) { _, _ in rebuildModel() }
+            .onChange(of: toolIDs) { _, _ in
+                // Tool set changed → the engine's adjacency/seed are stale.
+                // This also covers the launch race where this view appears
+                // BEFORE the model seeds its tools (e.g. -uitestSampleUniverse
+                // loads in the app's onAppear, which runs after this child's):
+                // without the rebuild the engine was permanently stuck on an
+                // empty graph and the map drew nothing.
+                rebuildModel()
+                engine = nil
+                ensureEngine()
+            }
             .onChange(of: mode.signature) { _, _ in syncEngineFocus() }
         }
     }
@@ -104,7 +114,9 @@ struct BloomGraphView: View {
     }
 
     private func ensureEngine() {
-        guard engine == nil else { return }
+        // No engine until the tool set exists — an engine seeded from an empty
+        // model (seed id "") can never render and used to shadow the real one.
+        guard engine == nil, !allTools.isEmpty else { return }
         let adj = adjacency
         let seed = resolvedSeedID
         let e = BloomEngine(adjacency: adj, seedID: seed)

@@ -164,7 +164,22 @@ User decision recorded: install iOS runtime locally (downloading this session).
 Renderer default stays `.graph2D` until user flips post-acceptance.
 
 ## ⚠️ CRITICAL FINDING (cycle 36, on-device) — BLOOM RENDERS NO VISIBLE GRAPH
-### ROOT CAUSE FOUND + FIXED (2026-07-10, gate pending runtime)
+### CLOSED 2026-07-10 — TWO stacked root causes, graph now VERIFIED rendering on sim
+**RC1 (the actual "no graph"):** launch lifecycle race — `BloomGraphView.onAppear`
+(child) runs before the app's `onAppear` seeds tools (`-uitestSampleUniverse`
+and any lazy model load), so `ensureEngine` built an engine from an EMPTY
+adjacency with seed `""`; the later `toolIDs` onChange rebuilt the model but
+NOT the engine (`guard engine == nil`) → stale empty engine forever → draw
+loop's `toolByID[id]` never matched → zero nodes drawn. Chrome/card read the
+model directly, which is why they worked. Fix: rebuild the engine on tool-set
+change + never build an engine while `allTools.isEmpty`.
+**Cycle-36 shot misread:** the "faint vertical column of tiny nodes at the
+RIGHT SCREEN EDGE" is the category RAIL (RightUniverseRail dots, pink =
+selected Design), not graph nodes. The map body was simply empty.
+**RC2 (real, but secondary):** force-sim repulsion blowup (below) — clamp
+landed in 4b6969c. Verified after both fixes: figma bloom renders labeled
+focus node + relation fan on AIMapGate (shots 10/11 in bloom-baseline/).
+### RC2 detail (numerical blowup, commit 4b6969c)
 The force sim **numerically explodes on the first ticks**. `syncNodes` seeds every
 fresh neighbour coincident at the same point (`(1,1)` for direct neighbours), and
 `BloomEngine.tick` repulsion is `18000 / d2` with `d2` only special-cased when
