@@ -27,6 +27,9 @@ final class UniverseSceneController {
     private var haloPaused = false
     private var orbitRingEntities: [ModelEntity] = []
     private var coreLinks: [ToolCategoryId: ModelEntity] = [:]
+    /// Light impulses along core→category synapses (NU.2).
+    private var corePulses: SynapsePulses?
+    private var pulsesPaused = true
 
     private var structureSignature = ""
     /// Style used to build the current handles; a style change invalidates them
@@ -235,6 +238,8 @@ final class UniverseSceneController {
         }
         for (_, link) in coreLinks { link.removeFromParent() }
         coreLinks = [:]
+        corePulses?.removeAll()
+        var pulseSpecs: [SynapsePulses.Spec] = []
         for planet in planets where planet.id != .core {
             let link = PlanetEntityFactory.makeLink(
                 from: .zero,
@@ -246,7 +251,14 @@ final class UniverseSceneController {
             )
             orbitRoot.addChild(link)
             coreLinks[planet.id] = link
+            pulseSpecs.append(SynapsePulses.Spec(
+                from: .zero,
+                to: planet.position3D,
+                color: planet.accentUIColor,
+                duration: 3.4
+            ))
         }
+        corePulses = SynapsePulses(host: orbitRoot, specs: pulseSpecs, paused: pulsesPaused)
     }
 
     /// True when a planet's build-time geometry inputs are unchanged, so the
@@ -286,6 +298,11 @@ final class UniverseSceneController {
                     PlanetEntityFactory.breathe(halo)
                 }
             }
+        }
+
+        if pauseMotion != pulsesPaused {
+            pulsesPaused = pauseMotion
+            corePulses?.setPaused(pauseMotion)
         }
 
         // Orbit rings and structural links fade with the mode: material keeps

@@ -19,6 +19,9 @@ final class SatelliteBranch {
     private var handles: [String: SatelliteHandle] = [:]
     private var traceHost = Entity()
     private var tracedToolID: String?
+    /// Impulses along category→tool links (persistent) + focused traces.
+    private var linkPulses: SynapsePulses?
+    private var tracePulses: SynapsePulses?
     private var isPaused: Bool
     private let planet: PlanetData
     private let category: ToolCategory
@@ -90,6 +93,20 @@ final class SatelliteBranch {
                 name: "link:\(planet.id.rawValue)-\(tool.id)"
             ))
         }
+        var linkSpecs: [SynapsePulses.Spec] = []
+        for (index, tool) in satelliteTools.prefix(12) {
+            let toolWorld = UniverseSpatialLayout.satelliteWorldPosition(
+                for: tool, in: planet, index: index, count: planet.tools.count
+            )
+            linkSpecs.append(SynapsePulses.Spec(
+                from: planet.position3D,
+                to: toolWorld,
+                color: category.glow.uiColor,
+                duration: 2.2
+            ))
+        }
+        linkPulses = SynapsePulses(host: root, specs: linkSpecs, paused: pauseMotion)
+
         universeSceneLog.debug("satellite branch created \(planet.id.rawValue, privacy: .public)")
     }
 
@@ -107,6 +124,8 @@ final class SatelliteBranch {
             if !pauseMotion {
                 PlanetEntityFactory.spin(orbitShell, axis: SIMD3<Float>(0, 1, 0), duration: 32)
             }
+            linkPulses?.setPaused(pauseMotion)
+            tracePulses?.setPaused(pauseMotion)
         }
         for (_, handle) in handles {
             handle.apply(mode: mode, pauseMotion: pauseMotion)
@@ -122,6 +141,8 @@ final class SatelliteBranch {
         let selectedID = mode.selectedToolID
         guard selectedID != tracedToolID else { return }
         tracedToolID = selectedID
+        tracePulses?.removeAll()
+        tracePulses = nil
         for child in Array(traceHost.children) { child.removeFromParent() }
         guard let selectedID,
               let selectedTool = planet.tools.first(where: { $0.id == selectedID }),
@@ -131,6 +152,7 @@ final class SatelliteBranch {
         let fromWorld = UniverseSpatialLayout.satelliteWorldPosition(
             for: selectedTool, in: planet, index: selectedIndex, count: count
         )
+        var traceSpecs: [SynapsePulses.Spec] = []
         for connection in ConnectionResolver.connections(for: selectedTool, in: planet.tools) {
             guard let targetIndex = planet.tools.firstIndex(where: { $0.id == connection.targetID }) else { continue }
             let targetTool = planet.tools[targetIndex]
@@ -146,7 +168,14 @@ final class SatelliteBranch {
                 thickness: strong ? 0.014 : 0.008,
                 name: "trace:\(selectedID)-\(connection.targetID)"
             ))
+            if strong, traceSpecs.count < 4 {
+                traceSpecs.append(SynapsePulses.Spec(
+                    from: fromWorld, to: toWorld,
+                    color: category.glow.uiColor, duration: 1.4
+                ))
+            }
         }
+        tracePulses = SynapsePulses(host: traceHost, specs: traceSpecs, paused: isPaused)
     }
 }
 
