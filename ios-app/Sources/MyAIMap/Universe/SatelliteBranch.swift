@@ -161,6 +161,9 @@ final class SatelliteHandle {
     private let selectionRing: ModelEntity
     private let bodyMaterialSelected: PhysicallyBasedMaterial
     private let bodyMaterialUnselected: PhysicallyBasedMaterial
+    private let nucleus: ModelEntity
+    private let nucleusSelected: PhysicallyBasedMaterial
+    private let nucleusUnselected: PhysicallyBasedMaterial
     private let haloMaterialSelected: UnlitMaterial
     private let haloMaterialUnselected: UnlitMaterial
     private let spinDuration: TimeInterval
@@ -185,28 +188,33 @@ final class SatelliteHandle {
 
         let baseRadius: Float = 0.20 * visualizationStyle.nodeScale
 
-        func bodyMaterial(_ selected: Bool) -> PhysicallyBasedMaterial {
-            var material = PhysicallyBasedMaterial()
-            material.baseColor = .init(tint: PlanetEntityFactory.mix(
-                category.color.uiColor, with: .white, amount: selected ? 0.34 : 0.18))
-            material.roughness = .init(floatLiteral: 0.42)
-            material.metallic = .init(floatLiteral: 0.08)
-            material.emissiveColor = .init(color: category.glow.uiColor)
-            material.emissiveIntensity = (selected ? 1.6 : 0.30) * visualizationStyle.glowBoost
-            return material
-        }
-        bodyMaterialSelected = bodyMaterial(true)
-        bodyMaterialUnselected = bodyMaterial(false)
+        // Neural Universe: satellites are mini glass beads with emissive
+        // nuclei — same language as the category neurons (spec §Visual system).
+        bodyMaterialSelected = PlanetEntityFactory.neuronShellMaterial(
+            color: category.color.uiColor, accent: category.glow.uiColor,
+            isSelected: true, glowBoost: visualizationStyle.glowBoost)
+        bodyMaterialUnselected = PlanetEntityFactory.neuronShellMaterial(
+            color: category.color.uiColor, accent: category.glow.uiColor,
+            isSelected: false, glowBoost: visualizationStyle.glowBoost)
         haloMaterialSelected = PlanetEntityFactory.unlitGlow(color: category.glow.uiColor, opacity: 0.22)
         haloMaterialUnselected = PlanetEntityFactory.unlitGlow(color: category.glow.uiColor, opacity: 0.04)
 
         // Shared unit-sphere mesh (RK.3); collision radius expressed in the
         // body's local (scaled) space to keep the legacy world-space size.
+        nucleusSelected = PlanetEntityFactory.neuronCoreMaterial(
+            accent: category.glow.uiColor, isSelected: true, glowBoost: visualizationStyle.glowBoost)
+        nucleusUnselected = PlanetEntityFactory.neuronCoreMaterial(
+            accent: category.glow.uiColor, isSelected: false, glowBoost: visualizationStyle.glowBoost)
+
         body = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [bodyMaterialUnselected])
         body.scale = SIMD3<Float>(repeating: baseRadius)
         body.name = "tool:\(tool.id)"
         PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 2.2, 0.44) / baseRadius)
         root.addChild(body)
+
+        nucleus = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [nucleusUnselected])
+        nucleus.scale = SIMD3<Float>(repeating: 0.45)
+        body.addChild(nucleus)
 
         haloBaseScale = baseRadius * SatelliteBranch.haloFactorUnselected
         halo = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [haloMaterialUnselected])
@@ -243,6 +251,7 @@ final class SatelliteHandle {
         if selectionChanged {
             root.scale = SIMD3<Float>(repeating: selected ? SatelliteBranch.selectionScale : 1)
             body.model?.materials = [selected ? bodyMaterialSelected : bodyMaterialUnselected]
+            nucleus.model?.materials = [selected ? nucleusSelected : nucleusUnselected]
             halo.model?.materials = [selected ? haloMaterialSelected : haloMaterialUnselected]
             // Legacy halo factor 1.34 selected vs 1.22 unselected (the root
             // scale supplies the body-radius growth; this tops up the ratio).

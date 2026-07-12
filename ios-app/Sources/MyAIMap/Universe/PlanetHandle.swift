@@ -17,21 +17,21 @@ let universeSceneLog = Logger(subsystem: "com.iliaturilia.myaimap", category: "u
 final class PlanetHandle {
     let data: PlanetData
     let root: Entity
+    /// Glass shell (tap target — keeps the "planet:<id>" hit-test name).
     let body: ModelEntity
+    /// Additive rim glow just outside the glass (fresnel fake).
     let atmosphere: ModelEntity
-    /// Rim ring built with unselected params; hidden while selected.
-    let rimUnselected: ModelEntity
-    /// Rim ring built with selected params (pre-divided by the selection scale
-    /// so the scaled result matches the legacy selected geometry exactly).
-    let rimSelected: ModelEntity
+    /// Bright emissive nucleus inside the shell.
+    let core: ModelEntity
     let sun: PointLight?
 
-    /// Material variants swapped on selection change (visual parity with the
-    /// legacy per-rebuild materials).
-    private let bodyMaterialSelected: PhysicallyBasedMaterial
-    private let bodyMaterialUnselected: PhysicallyBasedMaterial
-    private let atmosphereMaterialSelected: UnlitMaterial
-    private let atmosphereMaterialUnselected: UnlitMaterial
+    /// Material variants swapped on selection change.
+    private let shellSelected: PhysicallyBasedMaterial
+    private let shellUnselected: PhysicallyBasedMaterial
+    private let coreSelected: PhysicallyBasedMaterial
+    private let coreUnselected: PhysicallyBasedMaterial
+    private let rimSelectedMaterial: UnlitMaterial
+    private let rimUnselectedMaterial: UnlitMaterial
 
     /// Non-core planets grow by this factor when selected
     /// (legacy: radius × 1.28 selected vs × 0.80 unselected).
@@ -59,56 +59,41 @@ final class PlanetHandle {
         root.name = "planet-root:\(data.id.rawValue)"
         root.position = data.position3D
 
-        bodyMaterialSelected = PlanetEntityFactory.planetMaterial(
-            data: data, isSelected: true, visualizationStyle: visualizationStyle)
-        bodyMaterialUnselected = PlanetEntityFactory.planetMaterial(
-            data: data, isSelected: false, visualizationStyle: visualizationStyle)
-        atmosphereMaterialSelected = PlanetEntityFactory.atmosphereMaterial(
-            data: data, isSelected: true, visualizationStyle: visualizationStyle)
-        atmosphereMaterialUnselected = PlanetEntityFactory.atmosphereMaterial(
-            data: data, isSelected: false, visualizationStyle: visualizationStyle)
+        let boost = visualizationStyle.glowBoost
+        shellSelected = PlanetEntityFactory.neuronShellMaterial(
+            color: data.uiColor, accent: data.accentUIColor, isSelected: true, glowBoost: boost)
+        shellUnselected = PlanetEntityFactory.neuronShellMaterial(
+            color: data.uiColor, accent: data.accentUIColor, isSelected: false, glowBoost: boost)
+        coreSelected = PlanetEntityFactory.neuronCoreMaterial(
+            accent: data.accentUIColor, isSelected: true, glowBoost: boost)
+        coreUnselected = PlanetEntityFactory.neuronCoreMaterial(
+            accent: data.accentUIColor, isSelected: false, glowBoost: boost)
+        rimSelectedMaterial = PlanetEntityFactory.neuronRimMaterial(
+            accent: data.accentUIColor, isSelected: true, glowBoost: boost)
+        rimUnselectedMaterial = PlanetEntityFactory.neuronRimMaterial(
+            accent: data.accentUIColor, isSelected: false, glowBoost: boost)
 
         // Shared unit-sphere mesh, scaled per node (RK.3 cache). Collision
         // shapes live in entity-local space, so the tap radius is expressed
         // relative to the body scale to keep the legacy world-space size.
-        body = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [bodyMaterialUnselected])
+        body = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [shellUnselected])
         body.scale = SIMD3<Float>(repeating: baseRadius)
         body.name = "planet:\(data.id.rawValue)"
         PlanetEntityFactory.configureTap(on: body, radius: max(baseRadius * 1.45, 0.95) / baseRadius)
         root.addChild(body)
 
         atmosphereBaseScale = baseRadius * 1.12
-        atmosphere = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [atmosphereMaterialUnselected])
+        atmosphere = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [rimUnselectedMaterial])
         atmosphere.scale = SIMD3<Float>(repeating: atmosphereBaseScale)
         atmosphere.name = "atmosphere:\(data.id.rawValue)"
         root.addChild(atmosphere)
 
-        // Both rim states prebuilt; selection toggles which one is visible.
-        // Legacy geometry: unselected ring at radius×1.18 tube 0.007 (hidden on
-        // core), selected at (selected radius)×1.30 tube 0.012. The selected
-        // ring lives under the scaled root, so its build-time radius/tube are
-        // pre-divided by `selectionScale` for non-core planets.
-        let rimTilt = simd_quatf(angle: .pi / 2.7, axis: SIMD3<Float>(1, 0, 0))
-        let selectedRimScale: Float = data.id == .core ? 1 : Self.selectionScale
-        rimUnselected = PlanetEntityFactory.makeOrbitLine(
-            radius: baseRadius * 1.18,
-            tube: 0.007,
-            color: data.accentUIColor,
-            opacity: 0.052 * visualizationStyle.glowBoost
-        )
-        rimUnselected.orientation = rimTilt
-        rimUnselected.components.set(OpacityComponent(opacity: data.id == .core ? 0 : 1))
-        root.addChild(rimUnselected)
-
-        rimSelected = PlanetEntityFactory.makeOrbitLine(
-            radius: baseRadius * 1.30,
-            tube: 0.012 / selectedRimScale,
-            color: data.accentUIColor,
-            opacity: 0.24 * visualizationStyle.glowBoost
-        )
-        rimSelected.orientation = rimTilt
-        rimSelected.components.set(OpacityComponent(opacity: 0))
-        root.addChild(rimSelected)
+        // Nucleus: child of the scaled shell so it inherits radius + selection
+        // scale automatically (0.45× shell radius, spec §Visual system).
+        core = ModelEntity(mesh: PlanetEntityFactory.unitSphere, materials: [coreUnselected])
+        core.scale = SIMD3<Float>(repeating: 0.45)
+        core.name = "neuron-core:\(data.id.rawValue)"
+        body.addChild(core)
 
         if data.id != .core {
             let light = PlanetEntityFactory.makeSunLight(data: data, intensity: 0)
@@ -136,18 +121,14 @@ final class PlanetHandle {
         sun?.light.intensity = SunLightIntensity.intensity(for: mode, isFocused: selected)
 
         if selectionChanged {
-            body.model?.materials = [selected ? bodyMaterialSelected : bodyMaterialUnselected]
-            atmosphere.model?.materials = [selected ? atmosphereMaterialSelected : atmosphereMaterialUnselected]
-            // (atmosphere scale — legacy 1.20 vs 1.12 factor — is pinned by
+            body.model?.materials = [selected ? shellSelected : shellUnselected]
+            core.model?.materials = [selected ? coreSelected : coreUnselected]
+            atmosphere.model?.materials = [selected ? rimSelectedMaterial : rimUnselectedMaterial]
+            // (rim-glow scale — 1.20 vs 1.12 factor — is pinned by
             // restartMotion below, which always runs on a selection change.)
             if data.id != .core {
                 root.scale = SIMD3<Float>(repeating: selected ? Self.selectionScale : 1)
-                rimUnselected.components.set(OpacityComponent(opacity: selected ? 0 : 1))
-            } else {
-                // Core shows its rim only while selected (legacy behavior).
-                rimUnselected.components.set(OpacityComponent(opacity: 0))
             }
-            rimSelected.components.set(OpacityComponent(opacity: selected ? 1 : 0))
         }
         if selectionChanged || pauseChanged {
             restartMotion()

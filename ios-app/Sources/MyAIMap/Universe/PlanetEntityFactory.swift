@@ -175,32 +175,50 @@ enum PlanetEntityFactory {
         return star
     }
 
-    static func planetMaterial(
-        data: PlanetData,
+    // MARK: Neural Universe materials (spec: 2026-07-10-neural-universe-ios)
+
+    /// Translucent glass shell of a neuron — Vision-Pro-glass read: clearcoat
+    /// highlight over a faintly tinted, mostly-transparent sphere.
+    static func neuronShellMaterial(
+        color: UIColor,
+        accent: UIColor,
         isSelected: Bool,
-        visualizationStyle: VisualizationStyle
+        glowBoost: Float
     ) -> PhysicallyBasedMaterial {
         var material = PhysicallyBasedMaterial()
-        material.baseColor = .init(tint: mix(data.uiColor, with: .black, amount: data.id == .core ? 0.06 : isSelected ? 0.16 : 0.32))
-        // RK.5: per-category surface (one rendering language, parameter-level
-        // variation — VISUAL_SYSTEM §2). Core keeps its emissive-ceramic look.
-        let visual = PlanetVisual.descriptor(for: data.id)
-        material.roughness = .init(floatLiteral: data.id == .core ? 0.26 : visual.roughness * (isSelected ? 0.75 : 1))
-        material.metallic = .init(floatLiteral: data.id == .core ? 0.18 : visual.metallic)
-        material.emissiveColor = .init(color: data.accentUIColor)
-        material.emissiveIntensity = (data.id == .core ? 1.15 : isSelected ? 1.05 : 0.58) * visualizationStyle.glowBoost
-        material.clearcoat = .init(floatLiteral: isSelected ? 0.52 : 0.45)
-        material.clearcoatRoughness = .init(floatLiteral: 0.14)
+        material.baseColor = .init(tint: mix(color, with: .white, amount: 0.12))
+        material.blending = .transparent(opacity: .init(floatLiteral: isSelected ? 0.26 : 0.16))
+        material.roughness = .init(floatLiteral: isSelected ? 0.07 : 0.12)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.clearcoat = .init(floatLiteral: 1.0)
+        material.clearcoatRoughness = .init(floatLiteral: 0.05)
+        material.emissiveColor = .init(color: accent)
+        material.emissiveIntensity = 0.15 * glowBoost
         return material
     }
 
-    static func atmosphereMaterial(
-        data: PlanetData,
+    /// Bright emissive nucleus inside the glass shell.
+    static func neuronCoreMaterial(
+        accent: UIColor,
         isSelected: Bool,
-        visualizationStyle: VisualizationStyle
+        glowBoost: Float
+    ) -> PhysicallyBasedMaterial {
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: mix(accent, with: .black, amount: 0.7))
+        material.roughness = .init(floatLiteral: 0.6)
+        material.metallic = .init(floatLiteral: 0.0)
+        material.emissiveColor = .init(color: accent)
+        material.emissiveIntensity = (isSelected ? 3.4 : 2.2) * glowBoost
+        return material
+    }
+
+    /// Additive rim glow shell (fresnel fake) just outside the glass.
+    static func neuronRimMaterial(
+        accent: UIColor,
+        isSelected: Bool,
+        glowBoost: Float
     ) -> UnlitMaterial {
-        let baseOpacity: Float = data.id == .core ? 0.12 : isSelected ? 0.16 : 0.035
-        return unlitGlow(color: data.accentUIColor, opacity: baseOpacity * visualizationStyle.glowBoost)
+        unlitGlow(color: accent, opacity: (isSelected ? 0.20 : 0.10) * glowBoost)
     }
 
     static func unlitGlow(color: UIColor, opacity: Float) -> UnlitMaterial {
