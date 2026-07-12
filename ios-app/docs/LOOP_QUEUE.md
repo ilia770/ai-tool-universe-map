@@ -128,15 +128,26 @@ and PBR planets both retire). Spec:
 `docs/superpowers/specs/2026-07-10-neural-universe-ios-design.md`.
 Deadline: 2026-07-11 evening. Gate each slice: compile + suite + SIM SHOT
 (visual work — screenshots mandatory, compare against the web-O vibe).
-- [ ] NU.0 Land pending VO-bridge + implementation report + spec (in flight).
-- [ ] NU.1 Neuron look: glass shell + emissive core + additive rim on
-      PlanetHandle; same language on SatelliteHandle beads. Sim shot.
-- [ ] NU.2 Synapse pulses: bead entities animating along links (stagger,
-      ≤24 live, pause matrix: RM/detail/chat/hidden). Sim shot.
-- [ ] NU.3 Depth tiers (static per-node dim from layout depth) + neuron core
-      emissive pulse + selection choreography (core brighten, shell clear,
-      faster pulses on focused links). Sim shot.
-- [ ] NU.4 Single renderer (DESTRUCTIVE — only after NU.1-3 verified):
+- [x] NU.0 DONE 4a89b30+65f00b6 (VO bridge, report, spec, queue) — pushed.
+- [x] NU.1 DONE 6fe2ae4 — neuron look (glass shell + emissive nucleus 0.45× +
+      rim glow; satellites same language; rings removed). Shot rk-phase2/05.
+- [x] NU.2 DONE 80a9bb1 — SynapsePulses beads (core 3.4s / links 2.2s ≤12 /
+      strong traces 1.4s ≤4; stagger; pause matrix). Shot rk-phase2/06.
+- [x] NU.3 DONE 84d0a0a — depth tiers (0.78 far dim), nucleus breathing +
+      PERF (user "не плавная"): applyMode early-exit (per-frame ECS writes
+      gone), sun budget ≤3 via litSuns(). Sim jank ≠ device; TestFlight
+      profile pending.
+- [ ] NU.4 Single renderer (DESTRUCTIVE; NU.1-3 verified — GO). Inventory
+      (21 files): delete Universe/Bloom/* + Bloom*Tests + BloomGraphSeedTests;
+      remove UniverseRenderMode (UniverseSelection) + renderMode
+      (UniverseViewModel/UniverseStore — ignore stored key) + Settings row
+      (AccountSettingsSheet:110) + visualizationControl toggle + experimental
+      banner (UniverseOverlayView:633/667) + UniverseMapView switch (3D only;
+      drop isActive/dormancy + its test) + refs in SpatialChrome/SpatialReveal
+      (+their tests), SubscriptionState?, PolishCaptureTests,
+      UniverseSelectionTests/UniverseViewModelTests renderMode cases,
+      UniverseSceneRegistryTests renderModeToggle/dormant tests. Sim shot
+      overview+detail after.
       delete Bloom/* + toggle UI + UniverseRenderMode; ignore stored pref;
       tests updated. Sim shot both nav paths.
 - [ ] NU.5 Polish vs web-O + perf sanity (entity budget) + reduce-motion
