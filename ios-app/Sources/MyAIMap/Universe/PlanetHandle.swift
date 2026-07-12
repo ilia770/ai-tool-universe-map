@@ -38,6 +38,10 @@ final class PlanetHandle {
     static let selectionScale: Float = 1.28 / 0.80
 
     private let atmosphereBaseScale: Float
+    /// Static depth cue (NU.3): nodes farther from the overview camera sit a
+    /// touch dimmer — cheap parallax-fog from the authored layout, no
+    /// per-frame work. 1.0 nearest → 0.78 farthest.
+    private let depthFactor: Float
 
     private(set) var isSelected = false
     private(set) var isPaused = false
@@ -58,6 +62,7 @@ final class PlanetHandle {
         root = Entity()
         root.name = "planet-root:\(data.id.rawValue)"
         root.position = data.position3D
+        depthFactor = 0.78 + 0.22 * max(0, min(1, (data.position3D.z + 7) / 14))
 
         let boost = visualizationStyle.glowBoost
         shellSelected = PlanetEntityFactory.neuronShellMaterial(
@@ -110,15 +115,18 @@ final class PlanetHandle {
     /// Apply selection + mode-derived state as component mutations. The entity
     /// objects are never recreated (`root`/`body`/`atmosphere` identities are
     /// stable for the handle's lifetime).
-    func apply(mode: UniverseMode, pauseMotion: Bool) {
+    func apply(mode: UniverseMode, pauseMotion: Bool, sunActive: Bool = true) {
         let selected = mode.isPrimaryPlanet(data.id)
         let selectionChanged = selected != isSelected
         let pauseChanged = pauseMotion != isPaused
         isSelected = selected
         isPaused = pauseMotion
 
-        root.components.set(OpacityComponent(opacity: mode.planetOpacity(for: data.id)))
-        sun?.light.intensity = SunLightIntensity.intensity(for: mode, isFocused: selected)
+        root.components.set(OpacityComponent(
+            opacity: mode.planetOpacity(for: data.id) * depthFactor))
+        sun?.light.intensity = sunActive
+            ? SunLightIntensity.intensity(for: mode, isFocused: selected)
+            : 0
 
         if selectionChanged {
             body.model?.materials = [selected ? shellSelected : shellUnselected]
@@ -153,6 +161,10 @@ final class PlanetHandle {
             axis: visual.spinAxis,
             duration: isSelected ? visual.spinDuration * 0.6 : visual.spinDuration
         )
+        // NU.3: the nucleus breathes — the neuron reads alive even at rest.
+        core.stopAllAnimations()
+        core.scale = SIMD3<Float>(repeating: 0.45)
+        PlanetEntityFactory.pulse(core, baseScale: core.scale, duration: isSelected ? 2.2 : 3.4)
         if isSelected {
             PlanetEntityFactory.pulse(atmosphere, baseScale: atmosphere.scale, duration: 2.4)
         }

@@ -32,6 +32,11 @@ final class UniverseSceneController {
     private var pulsesPaused = true
 
     private var structureSignature = ""
+    /// Last applied mode/pause — applyMode is invoked from every RealityView
+    /// update (each gesture frame while the Observable rig mutates); skipping
+    /// unchanged applications avoids per-frame ECS writes (NU.perf).
+    private var appliedMode: UniverseMode?
+    private var appliedPause: Bool?
     /// Style used to build the current handles; a style change invalidates them
     /// (their materials/scales bake style constants — codex review finding).
     private var builtStyle: VisualizationStyle?
@@ -182,6 +187,7 @@ final class UniverseSceneController {
         let signature = Self.structureSignature(planets: planets, visualizationStyle: visualizationStyle)
         guard signature != structureSignature else { return }
         structureSignature = signature
+        appliedMode = nil // fresh handles need a full apply pass
         // Satellites hang off per-planet geometry (positions/count); drop the
         // branch so syncSatellites rebuilds it from the new structure.
         satelliteBranch?.root.removeFromParent()
@@ -270,6 +276,24 @@ final class UniverseSceneController {
             && a.accent.rawValue == b.accent.rawValue
     }
 
+    /// The ≤3 category ids whose point lights are live for this mode.
+    static func litSuns(planets: [PlanetData], focused: ToolCategoryId) -> Set<ToolCategoryId> {
+        let candidates = planets.filter { $0.id != .core }
+        guard !candidates.isEmpty else { return [] }
+        if let anchor = candidates.first(where: { $0.id == focused }) {
+            let nearest = candidates
+                .filter { $0.id != focused }
+                .sorted { simd_distance($0.position3D, anchor.position3D)
+                    < simd_distance($1.position3D, anchor.position3D) }
+                .prefix(2)
+                .map(\.id)
+            return Set([focused] + nearest)
+        }
+        // Overview (focused == .core, which has no sun): light the 3 nodes
+        // nearest the default camera (largest z in the authored layout).
+        return Set(candidates.sorted { $0.position3D.z > $1.position3D.z }.prefix(3).map(\.id))
+    }
+
     // MARK: - Mode / selection — component mutations only
 
     private func applyMode(
@@ -283,9 +307,16 @@ final class UniverseSceneController {
         // (detail/chat), when the 3D renderer is hidden behind the 2D graph,
         // or under Reduce Motion.
         let pauseMotion = reduceMotion || mode.pausesAmbientMotion || !active
+        guard mode != appliedMode || pauseMotion != appliedPause else { return }
+        appliedMode = mode
+        appliedPause = pauseMotion
 
-        for (_, handle) in registry {
-            handle.apply(mode: mode, pauseMotion: pauseMotion)
+        // Sun budget (NU.perf / VISUAL_SYSTEM §5): at most 3 live point lights —
+        // the focused category plus its 2 nearest peers (overview: the 3 nodes
+        // nearest the camera). All others idle at 0.
+        let litIDs = Self.litSuns(planets: planets, focused: mode.focusedCategory)
+        for (id, handle) in registry {
+            handle.apply(mode: mode, pauseMotion: pauseMotion, sunActive: litIDs.contains(id))
         }
 
         if let halo = founderHalo {
