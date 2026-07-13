@@ -90,3 +90,27 @@ legacy `makePlanet`/`makeSatellite` builders. Net −2000+ lines of dead code.
 Run `UNIVERSE_QA_CHECKLIST.md` §Manual steps 1–17. Sim-able today: 1–3, 7–8,
 11–12, 15 (via container-plist renderMode flip + `-uitestSampleUniverse`).
 Device-only: 4–6, 9–10, 13–14, 16–17.
+
+
+## Addendum — Neural Universe (2026-07-12/13, WS-NU)
+
+User rejected both renderers ("плоско, скучно, мёртво, не как веб-O") and
+approved the Neural Universe direction (web variant O → iOS) with ONE hero
+renderer. Landed on the RK foundation without touching layout/camera/gestures:
+
+- NU.1 `6fe2ae4` neuron look: translucent clearcoat glass shells, emissive
+  nuclei (0.45×), additive rim glow; satellites = mini glass beads. Legacy
+  planet PBR + rim rings deleted.
+- NU.2 `80a9bb1` SynapsePulses: additive beads run along core links (3.4s),
+  category→tool links (2.2s, ≤12) and strong traces (1.4s, ≤4), staggered,
+  pause-aware. ≤24 beads.
+- NU.3 `84d0a0a` depth tiers (far dim 0.78), nucleus breathing; PERF for the
+  user's smoothness complaint: applyMode early-exit (killed per-gesture-frame
+  ECS writes), sun budget ≤3 (litSuns).
+- NU.4 `3245dfd` single renderer: Bloom 2D + toggle + UniverseRenderMode +
+  experimental banner + 2D-only chrome removed (−45 tests). 358/358.
+
+Shots: `screenshots/loop/rk-phase2/05…07b`. Open: device (TestFlight)
+smoothness profile; skybox/dust re-enable still device-gated; VISUAL_SYSTEM
+material table partially superseded by the glass language (descriptor
+roughness/metallic now unused by planet shells — satellites/future use).

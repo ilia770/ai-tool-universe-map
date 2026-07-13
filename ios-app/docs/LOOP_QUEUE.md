@@ -137,7 +137,18 @@ Deadline: 2026-07-11 evening. Gate each slice: compile + suite + SIM SHOT
       PERF (user "не плавная"): applyMode early-exit (per-frame ECS writes
       gone), sun budget ≤3 via litSuns(). Sim jank ≠ device; TestFlight
       profile pending.
-- [ ] NU.4 Single renderer (DESTRUCTIVE; NU.1-3 verified — GO). Inventory
+- [x] NU.4 DONE 3245dfd — Neural Universe = THE map. Bloom/* + toggle +
+      UniverseRenderMode + experimental banner + 2D chrome deleted (−45
+      tests → 358/358); dormancy machinery removed; stored renderMode key
+      ignored. Verified: rk-phase2/07b-check.png (neurons + pulses, no
+      banner/toggle). NOTE: first post-resume screenshot (07) caught a dim
+      mid-Metal-restore frame — не баг, second shot clean.
+- [x] NU.5 Polish/verification set: rk-phase2/05 (neurons), 06 (pulses,
+      figma focus), 07b (single renderer overview). Reduce-motion matrix
+      живёт в pauseMotion (RM/detail/chat) — clips+pulses stop everywhere.
+      Device smoothness verdict = TestFlight (sim ≠ device).
+- [x] NU.6 Docs closeout — see UNIVERSE_IMPLEMENTATION_REPORT.md addendum.
+  (was) NU.4 inventory
       (21 files): delete Universe/Bloom/* + Bloom*Tests + BloomGraphSeedTests;
       remove UniverseRenderMode (UniverseSelection) + renderMode
       (UniverseViewModel/UniverseStore — ignore stored key) + Settings row
