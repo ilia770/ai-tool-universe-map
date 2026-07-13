@@ -15,11 +15,6 @@ struct UniverseSelectionTests {
         #expect(ClarityMode.allCases == [.focus, .context, .atlas])
     }
 
-    @Test func graph2DStaysStableDefaultAnd3DIsExperimental() {
-        #expect(UniverseRenderMode.allCases.first == .graph2D)
-        #expect(UniverseRenderMode.spatial3D.isExperimental)
-    }
-
     @Test func default3DTuningStaysSubtleWhileExperimental() {
         #expect(VisualizationStyle.orbitalGlass.nodeScale <= 0.9)
         #expect(VisualizationStyle.orbitalGlass.categoryScale <= 0.85)

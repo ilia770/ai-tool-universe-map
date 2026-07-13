@@ -34,8 +34,7 @@ struct UniverseSceneRegistryTests {
             mode: .overview,
             visualizationStyle: .orbitalGlass,
             cameraRig: CameraRigController(),
-            reduceMotion: true,
-            active: true
+            reduceMotion: true
         )
         return (controller, planets)
     }
@@ -71,28 +70,9 @@ struct UniverseSceneRegistryTests {
                 planets: planets,
                 mode: mode,
                 visualizationStyle: .orbitalGlass,
-                reduceMotion: true,
-                active: true
+                reduceMotion: true
             )
             #expect(rootIdentities(controller) == before, "entity recreated in \(mode.signature)")
-        }
-    }
-
-    @Test func renderModeToggleKeepsScene() {
-        let tools = [tool("founder-os", category: .core), tool("figma", category: .design)]
-        let (controller, planets) = makeController(tools: tools)
-        let before = rootIdentities(controller)
-
-        // Hide (2D shown) then re-show — entities stay alive throughout.
-        for active in [false, true, false, true] {
-            controller.update(
-                planets: planets,
-                mode: .overview,
-                visualizationStyle: .orbitalGlass,
-                reduceMotion: true,
-                active: active
-            )
-            #expect(rootIdentities(controller) == before)
         }
     }
 
@@ -115,44 +95,12 @@ struct UniverseSceneRegistryTests {
             planets: grownPlanets,
             mode: .overview,
             visualizationStyle: .orbitalGlass,
-            reduceMotion: true,
-            active: true
+            reduceMotion: true
         )
         let after = rootIdentities(controller)
         #expect(after[.core] == before[.core])
         #expect(after[.design] == before[.design])
         #expect(after.count == before.count)
-    }
-
-    @Test func dormantUntilFirstActivation() {
-        let planets = PlanetData.makePlanets(
-            categories: UniverseSeed.categories,
-            tools: [tool("founder-os", category: .core)]
-        )
-        let controller = UniverseSceneController()
-        let root = controller.makeScene(
-            planets: planets,
-            mode: .overview,
-            visualizationStyle: .orbitalGlass,
-            cameraRig: CameraRigController(),
-            reduceMotion: true,
-            active: false
-        )
-        // 2D-default launch: no planet entities built yet, and the static
-        // layer (stars/lights/IBL) hasn't been paid either — only the camera
-        // mounts eagerly (codex review finding).
-        #expect(controller.registry.isEmpty)
-        #expect(root.children.count == 1)
-
-        controller.update(
-            planets: planets,
-            mode: .overview,
-            visualizationStyle: .orbitalGlass,
-            reduceMotion: true,
-            active: true
-        )
-        #expect(!controller.registry.isEmpty)
-        #expect(root.children.count > 1) // static layer built on activation
     }
 
     // Codex review (Medium): visualizationStyle bakes into handle materials/
@@ -167,8 +115,7 @@ struct UniverseSceneRegistryTests {
             planets: planets,
             mode: .overview,
             visualizationStyle: .force3D,
-            reduceMotion: true,
-            active: true
+            reduceMotion: true
         )
         let after = rootIdentities(controller)
         #expect(after.keys == before.keys)
@@ -191,7 +138,7 @@ struct UniverseSceneRegistryTests {
 
         controller.update(
             planets: planets, mode: .branchFocus(.design),
-            visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+            visualizationStyle: .orbitalGlass, reduceMotion: true
         )
         guard let branch = controller.satelliteBranch else {
             Issue.record("no satellite branch after branchFocus")
@@ -205,7 +152,7 @@ struct UniverseSceneRegistryTests {
                      .branchFocus(.design)] {
             controller.update(
                 planets: planets, mode: mode,
-                visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+                visualizationStyle: .orbitalGlass, reduceMotion: true
             )
             #expect(controller.satelliteBranch === branch, "branch recreated in \(mode.signature)")
             #expect(controller.satelliteBranch?.toolRootIdentities == before)
@@ -214,7 +161,7 @@ struct UniverseSceneRegistryTests {
         // Leaving the category drops the branch (transient reveal layer).
         controller.update(
             planets: planets, mode: .overview,
-            visualizationStyle: .orbitalGlass, reduceMotion: true, active: true
+            visualizationStyle: .orbitalGlass, reduceMotion: true
         )
         #expect(controller.satelliteBranch == nil)
     }

@@ -234,22 +234,6 @@ struct UniverseViewModelTests {
         #expect(model.clarityMode == .focus)
     }
 
-    @Test func renderModeDefaultsToReadableGraph2D() {
-        let model = makeModel()
-        #expect(model.renderMode == .graph2D)
-    }
-
-    @Test func renderModePersistsAcrossModelReloads() {
-        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
-        let store = UniverseStore(defaults: defaults)
-
-        let first = UniverseViewModel(store: store)
-        first.renderMode = .spatial3D
-
-        let reloaded = UniverseViewModel(store: store)
-        #expect(reloaded.renderMode == .spatial3D)
-    }
-
     @Test func hapticsSettingPersistsAcrossModelReloads() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = UniverseStore(defaults: defaults)
@@ -528,7 +512,6 @@ struct UniverseViewModelTests {
             tools: [],
             customCategories: [],
             hidden: [PlanetData.centralCoreToolID, "some-tool"],
-            renderMode: .graph2D,
             hapticsEnabled: true,
             hasSeenOnboarding: true,
             subscription: .free

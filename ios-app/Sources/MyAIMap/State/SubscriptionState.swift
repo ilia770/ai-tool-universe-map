@@ -17,7 +17,7 @@ enum SubscriptionPlan: String, Codable, Equatable, Sendable {
     }
 }
 
-/// Local placeholder usage + plan snapshot. Persisted like `renderMode` /
+/// Local placeholder usage + plan snapshot. Persisted like
 /// `hapticsEnabled`. `aiRequestsUsed` increments on each Ask-AI send so the
 /// "remaining" number decrements perceptibly; clamping keeps it sane.
 struct SubscriptionState: Codable, Equatable, Sendable {

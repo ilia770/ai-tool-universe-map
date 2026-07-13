@@ -53,17 +53,17 @@ struct UniverseOverlayView: View {
                 topChromeScrim
             }
 
-            if model.renderMode == .spatial3D && mode.showsPlanetLabels && labelsQuiescent {
+            if mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
             }
 
-            if model.renderMode == .spatial3D && mode.showsToolAnchor && labelsQuiescent {
+            if mode.showsToolAnchor && labelsQuiescent {
                 toolAnchorLayer
                     .allowsHitTesting(false)
             }
 
-            if model.renderMode == .spatial3D && mode.showsToolLabels && labelsQuiescent {
+            if mode.showsToolLabels && labelsQuiescent {
                 toolLabelLayer
                     .allowsHitTesting(false)
             }
@@ -110,17 +110,6 @@ struct UniverseOverlayView: View {
                     topChrome
                         .padding(.horizontal, BrandSpacing.l.value)
                         .padding(.top, BrandSpacing.m.value)
-
-                    // F2 (can't get back from 3D to 2D): always surface the exit
-                    // affordance in 3D — including the empty universe, where the
-                    // map chrome (which hosts the other 2D/3D switch) is hidden, so
-                    // without this the user is trapped in 3D with no way back.
-                    if model.renderMode == .spatial3D {
-                        spatialExperimentalNotice
-                            .padding(.horizontal, BrandSpacing.l.value)
-                            .padding(.top, 10)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
                 }
 
                 Spacer()
@@ -130,9 +119,6 @@ struct UniverseOverlayView: View {
                     .padding(.bottom, 10)
             }
 
-            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) && !cameraRig.isTransitioning {
-                rightUniverseRail
-            }
         }
     }
 
@@ -336,7 +322,7 @@ struct UniverseOverlayView: View {
     private func toolLabelSafeInsets() -> LabelPacker.SafeInsets {
         // In 3D mode the experimental notice sits below top chrome; reserve
         // that band so projected labels do not fight the escape hatch.
-        LabelPacker.SafeInsets(top: model.renderMode == .spatial3D ? 176 : 112, leading: 70, bottom: 244, trailing: 108)
+        LabelPacker.SafeInsets(top: 176, leading: 70, bottom: 244, trailing: 108)
     }
 
     private func toolLabelPosition(from point: CGPoint, around planetPosition: SIMD3<Float>, in size: CGSize) -> CGPoint {
@@ -453,7 +439,7 @@ struct UniverseOverlayView: View {
         )
         return CGPoint(
             x: min(max(raw.x, 68), size.width - 98),
-            y: min(max(raw.y, model.renderMode == .spatial3D ? 162 : 98), size.height - 238)
+            y: min(max(raw.y, 162), size.height - 238)
         )
     }
 
@@ -574,25 +560,11 @@ struct UniverseOverlayView: View {
         // top chrome on 2D nav too. In 2D pin the value to a constant → no
         // implicit animation (keeps the 2D path untouched, Track A). Mirrors
         // the `bottomControls` reveal gate below.
-        .brandAnimation(BrandMotion.morph, value: model.renderMode == .spatial3D ? mode : .overview)
+        .brandAnimation(BrandMotion.morph, value: mode)
     }
 
     private var topChromeContent: some View {
         HStack(alignment: .top, spacing: 12) {
-            // In 3D the experimental notice below already owns the "Back to 2D"
-            // exit, so showing the 2D/3D toggle here too just crowds and collides
-            // with that row. Hide it in 3D via opacity + hit-testing rather than a
-            // conditional `if`: removing the view would drop its glassEffectID /
-            // matchedGeometry source from the namespace mid-morph and make the
-            // control pop instead of animate out.
-            visualizationControl
-                .navigationGlassMorphID("UniverseChrome.mode", in: chromeNamespace)
-                .allowsHitTesting(model.renderMode == .graph2D)
-                .opacity(
-                    model.renderMode == .graph2D
-                        ? (mode.isChatOpen || mode.isDetailOpen ? 0.54 : 1)
-                        : 0
-                )
             Spacer()
             Button(action: onAccount) {
                 UserAvatarImage(size: 46, tint: .white.opacity(0.88))
@@ -606,131 +578,9 @@ struct UniverseOverlayView: View {
         .transition(.scale(scale: 0.94).combined(with: .opacity))
     }
 
-    private struct RenderModeOption: Identifiable {
-        let id: Int
-        let title: String
-        let icon: String
-    }
-
-    /// Selection derives from `model.renderMode`; tapping a slot switches the
-    /// mode directly (previously this control mislabelled itself as a viz toggle
-    /// but actually opened the Account sheet). 2D stays the cold-start default
-    /// (Track A) — this only lets the user opt into 3D and back.
-    private var renderModeBinding: Binding<Int> {
-        Binding(
-            get: { model.renderMode == .graph2D ? 0 : 1 },
-            set: { index in
-                let target: UniverseRenderMode = index == 0 ? .graph2D : .spatial3D
-                guard model.renderMode != target else { return }
-                BrandHaptics.fire(.light)
-                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
-                    model.renderMode = target
-                }
-            }
-        )
-    }
-
-    private var visualizationControl: some View {
-        GlassMorphCluster(
-            options: [
-                RenderModeOption(id: 0, title: "2D Graph", icon: "point.3.connected.trianglepath.dotted"),
-                RenderModeOption(id: 1, title: "3D Spatial", icon: "cube.transparent"),
-            ],
-            selection: renderModeBinding,
-            base: "universe.renderMode",
-            spacing: BrandSpacing.xs.value
-        ) { option, isSelected in
-            HStack(spacing: BrandSpacing.s.value) {
-                Image(systemName: option.icon).font(.system(size: 13, weight: .bold))
-                Text(option.title)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                if option.id == 1, isSelected {
-                    Text("Experimental")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.70))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, BrandSpacing.hair.value)
-                        .background(.white.opacity(0.08), in: Capsule())
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-        }
-        .accessibilityLabel("Visualization mode")
-    }
-
-    private var spatialExperimentalNotice: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "cube.transparent")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
-                .frame(width: 26, height: 26)
-                .background(.white.opacity(0.06), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("3D Spatial is experimental")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.88))
-                Text("Use 2D Graph for daily navigation.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(BrandColor.textMuted)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            Button {
-                BrandHaptics.fire(.light)
-                withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
-                    model.renderMode = .graph2D
-                }
-            } label: {
-                // F2: a clear, sized exit control so the user is never unsure how
-                // to leave 3D. Label + icon, ~44pt tap height, accent fill.
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("Back to 2D")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(.white.opacity(0.16), in: Capsule())
-                .overlay {
-                    Capsule().stroke(.white.opacity(0.24), lineWidth: 1)
-                }
-            }
-            .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-            .accessibilityLabel("Back to 2D Graph")
-            .accessibilityIdentifier("spatial-exit-to-2d")
-        }
-        .padding(.horizontal, BrandSpacing.m.value)
-        .padding(.vertical, BrandSpacing.sm.value)
-        .frame(maxWidth: 360)
-        .glassSurface(in: RoundedRectangle(cornerRadius: BrandRadius.bubble.value, style: .continuous), tint: .white.opacity(0.045), interactive: false)
-        .accessibilityElement(children: .contain)
-    }
-
     private var bottomControls: some View {
         VStack(spacing: 10) {
-            // Tool card + category rail only make sense once the universe has
-            // planets/tools. An empty universe shows the onboarding card instead.
-            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
-                PlanetInfoCard(
-                    planet: selectedPlanet,
-                    selectedTool: selectedTool,
-                    isFocusedOnTool: isFocusedOnTool,
-                    mode: mode,
-                    onOpenDetails: onDetails
-                )
-            }
-
-            if SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) {
+            if SpatialReveal.showsToolCard(mode: mode) {
                 SpatialRevealCard(
                     toolName: selectedTool.name,
                     categoryName: UniverseSeed.category(selectedTool.category).shortName,
@@ -755,14 +605,6 @@ struct UniverseOverlayView: View {
                     addToolMorphNamespace: model.isUniverseEmpty ? nil : chromeMorphNamespace
                 )
             }
-
-            if SpatialChrome.showsMapChrome(renderMode: model.renderMode, mode: mode, isUniverseEmpty: model.isUniverseEmpty) {
-                HStack(alignment: .center, spacing: 6) {
-                    CategoryRail { id in
-                        onCategorySelect(id)
-                    }
-                }
-            }
         }
         // Gate the reveal spring to 3D: `bottomControls` is shared with the 2D
         // graph (PlanetInfoCard/SearchDock), so an unconditional value would
@@ -770,7 +612,7 @@ struct UniverseOverlayView: View {
         // nil → constant → no implicit animation (keeps the 2D path untouched).
         .brandAnimation(
             BrandMotion.reveal,
-            value: SpatialReveal.showsToolCard(renderMode: model.renderMode, mode: mode) ? mode.selectedToolID : nil
+            value: SpatialReveal.showsToolCard(mode: mode) ? mode.selectedToolID : nil
         )
     }
 

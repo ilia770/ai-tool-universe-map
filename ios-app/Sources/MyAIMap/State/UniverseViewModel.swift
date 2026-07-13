@@ -20,12 +20,6 @@ final class UniverseViewModel {
     var searchQuery: String = ""
     var assistantQuery: String = ""
     var assistantMessages: [AssistantMessage] = []
-    var renderMode: UniverseRenderMode = .graph2D {
-        didSet {
-            guard oldValue != renderMode else { return }
-            persist()
-        }
-    }
     var visualizationStyle: VisualizationStyle = .orbitalGlass
     var appLanguage: AppLanguage = .system
     var hapticsEnabled: Bool = true {
@@ -73,7 +67,6 @@ final class UniverseViewModel {
         // Mirror the deleteTool `.core` guard at load time and re-persist clean.
         let sanitizedHidden = saved.hidden.subtracting([PlanetData.centralCoreToolID])
         self.hiddenToolIDs = sanitizedHidden
-        self.renderMode = saved.renderMode
         self.hapticsEnabled = saved.hapticsEnabled
         self.hasSeenOnboarding = saved.hasSeenOnboarding
         self.subscription = saved.subscription
@@ -90,7 +83,6 @@ final class UniverseViewModel {
             tools: customTools,
             customCategories: customCategories,
             hidden: hiddenToolIDs,
-            renderMode: renderMode,
             hapticsEnabled: hapticsEnabled,
             hasSeenOnboarding: hasSeenOnboarding,
             subscription: subscription

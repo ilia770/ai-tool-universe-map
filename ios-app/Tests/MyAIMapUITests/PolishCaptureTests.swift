@@ -19,20 +19,8 @@ final class PolishCaptureTests: XCTestCase {
         app.launch()
         wait(2.5)
 
-        // 3D Spatial scene.
-        let toggle3D = app.buttons["universe.renderMode.1"]
-        if toggle3D.waitForExistence(timeout: 5) {
-            tap(toggle3D)
-            wait(2.5)
-            snap("10-3d-spatial")
-        }
-        // Back to 2D for the remaining captures (the on-map toggle is hidden in
-        // 3D now; the experimental notice owns the exit).
-        let exit2D = app.buttons["spatial-exit-to-2d"]
-        if exit2D.waitForExistence(timeout: 3) {
-            tap(exit2D)
-            wait(1.2)
-        }
+        // Neural Universe: single 3D renderer — capture directly.
+        snap("10-3d-spatial")
 
         // Add Tool sheet (idle, then name focused).
         let addTool = app.buttons["chat-add-tool-button"]

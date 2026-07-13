@@ -55,39 +55,20 @@ struct UniverseMapView: View {
 
     private var universeStack: some View {
         ZStack {
-            // The RealityKit scene is ALWAYS mounted — the 2D/3D toggle only
-            // hides it. This keeps the entity graph + camera alive across
-            // renderer switches (persistent-scene contract,
-            // docs/UNIVERSE_ARCHITECTURE.md); while hidden the scene is
-            // dormant/paused via `isActive`.
-            Group {
-                let is3D = model.renderMode == .spatial3D
-                UniverseRealityView(
-                    planets: planets,
-                    mode: mode,
-                    visualizationStyle: model.visualizationStyle,
-                    isActive: is3D,
-                    sceneController: sceneController,
-                    cameraRig: cameraRig,
-                    gestureController: gestureController,
-                    onPlanetTap: selectCategory,
-                    onToolTap: focusToolFromMap,
-                    onEmptyTap: handleEmptySpaceTap,
-                    onOrbitSettled: maybeSnapToNeighborSun
-                )
-                .opacity(is3D ? 1 : 0)
-                .allowsHitTesting(is3D)
-
-                if model.renderMode == .graph2D {
-                    BloomGraphView(
-                        planets: planets,
-                        mode: mode,
-                        onPlanetTap: selectCategory,
-                        onToolTap: focusToolFromMap,
-                        onEmptyTap: handleEmptySpaceTap
-                    )
-                }
-            }
+            // Neural Universe (NU.4): the RealityKit scene is THE map — the
+            // 2D renderer and the 2D/3D toggle retired with the redesign.
+            UniverseRealityView(
+                planets: planets,
+                mode: mode,
+                visualizationStyle: model.visualizationStyle,
+                sceneController: sceneController,
+                cameraRig: cameraRig,
+                gestureController: gestureController,
+                onPlanetTap: selectCategory,
+                onToolTap: focusToolFromMap,
+                onEmptyTap: handleEmptySpaceTap,
+                onOrbitSettled: maybeSnapToNeighborSun
+            )
             .ignoresSafeArea()
 
             Color.black
@@ -174,11 +155,6 @@ struct UniverseMapView: View {
             // cannot outlive the navigation state.
             if !newMode.isDetailOpen, detailPresented {
                 detailPresented = false
-            }
-        }
-        .onChange(of: model.renderMode) { _, renderMode in
-            if renderMode == .spatial3D {
-                focusCamera(for: mode, animated: false)
             }
         }
         .onChange(of: detailPresented) { _, isPresented in
@@ -297,7 +273,7 @@ struct UniverseMapView: View {
             restoreNavigationMode(animated: true)
         } else if mode.isDetailOpen {
             return
-        } else if model.renderMode == .spatial3D, mode != .overview {
+        } else if mode != .overview {
             BrandHaptics.fire(.light)
             withAnimation(BrandMotion.flow) { model.universeMode = mode.steppedBack }
         } else {
@@ -417,7 +393,7 @@ struct UniverseMapView: View {
     }
 
     private func maybeSnapToNeighborSun() {
-        guard model.renderMode == .spatial3D, case .branchFocus(let current) = mode else { return }
+        guard case .branchFocus(let current) = mode else { return }
         let suns = planets.filter { $0.id != .core }.map {
             NeighborSnap.Sun(id: $0.id, position: $0.position3D)
         }

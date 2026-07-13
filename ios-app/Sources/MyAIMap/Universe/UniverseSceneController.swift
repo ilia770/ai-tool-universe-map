@@ -43,17 +43,12 @@ final class UniverseSceneController {
     /// Persistent satellite layer for the focused category (see syncSatellites).
     private(set) var satelliteBranch: SatelliteBranch?
 
-    /// `active` = the 3D renderer is the visible one. While inactive the scene
-    /// stays dormant: structure is not built until first activation (2D-default
-    /// users never pay the IBL/star build), and an already-built scene pauses
-    /// every animation clip so a hidden RealityView costs no ambient GPU work.
     func makeScene(
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
         cameraRig: CameraRigController,
-        reduceMotion: Bool,
-        active: Bool
+        reduceMotion: Bool
     ) -> Entity {
         root.name = "ai-universe-root"
         planetRoot.name = "planet-root"
@@ -87,8 +82,7 @@ final class UniverseSceneController {
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion,
-            active: active
+            reduceMotion: reduceMotion
         )
         return root
     }
@@ -97,15 +91,13 @@ final class UniverseSceneController {
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool,
-        active: Bool
+        reduceMotion: Bool
     ) {
         sync(
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion,
-            active: active
+            reduceMotion: reduceMotion
         )
     }
 
@@ -113,21 +105,15 @@ final class UniverseSceneController {
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool,
-        active: Bool
+        reduceMotion: Bool
     ) {
-        // Dormant until the 3D renderer is first shown; after that, an
-        // inactive scene keeps its entities but pauses all motion (applyMode
-        // below receives active=false and treats it as a global pause).
-        guard active || !structureSignature.isEmpty else { return }
         buildStaticSceneIfNeeded()
         syncStructure(planets: planets, visualizationStyle: visualizationStyle)
         applyMode(
             planets: planets,
             mode: mode,
             visualizationStyle: visualizationStyle,
-            reduceMotion: reduceMotion,
-            active: active
+            reduceMotion: reduceMotion
         )
     }
 
@@ -300,13 +286,11 @@ final class UniverseSceneController {
         planets: [PlanetData],
         mode: UniverseMode,
         visualizationStyle: VisualizationStyle,
-        reduceMotion: Bool,
-        active: Bool
+        reduceMotion: Bool
     ) {
         // Pause ambient spin/pulse when the universe is only a dimmed backdrop
-        // (detail/chat), when the 3D renderer is hidden behind the 2D graph,
-        // or under Reduce Motion.
-        let pauseMotion = reduceMotion || mode.pausesAmbientMotion || !active
+        // (detail/chat) or under Reduce Motion.
+        let pauseMotion = reduceMotion || mode.pausesAmbientMotion
         guard mode != appliedMode || pauseMotion != appliedPause else { return }
         appliedMode = mode
         appliedPause = pauseMotion

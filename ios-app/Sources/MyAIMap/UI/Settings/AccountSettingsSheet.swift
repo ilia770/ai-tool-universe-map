@@ -105,21 +105,6 @@ struct AccountSettingsSheet: View {
     private var settingsContent: some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: BrandSpacing.l.value) {
-            settingsGroup(title: "Visualization", systemImage: "circle.hexagongrid.fill") {
-                VStack(spacing: BrandSpacing.s.value) {
-                    ForEach(UniverseRenderMode.allCases) { renderMode in
-                        Button {
-                            withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
-                                model.renderMode = renderMode
-                            }
-                        } label: {
-                            renderModeRow(renderMode)
-                        }
-                        .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
-                    }
-                }
-            }
-
             settingsGroup(title: "Language", systemImage: "globe") {
                 VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
                     Picker("Language", selection: $model.appLanguage) {
@@ -375,51 +360,6 @@ struct AccountSettingsSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
                 .stroke(BrandColor.stroke, lineWidth: 0.5)
-        }
-    }
-
-    private func renderModeRow(_ renderMode: UniverseRenderMode) -> some View {
-        let isSelected = renderMode == model.renderMode
-        return HStack(spacing: BrandSpacing.m.value) {
-            Text(renderMode.shortLabel)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white.opacity(isSelected ? 0.94 : 0.78))
-                .frame(width: 42, height: 34)
-                .background(isSelected ? .white.opacity(0.12) : .white.opacity(0.05), in: Circle())
-
-            VStack(alignment: .leading, spacing: BrandSpacing.xs.value) {
-                HStack(spacing: BrandSpacing.s.value) {
-                    Text(renderMode.title)
-                        .font(BrandTypography.controlLabel)
-                        .foregroundStyle(.white)
-
-                    if renderMode.isExperimental {
-                        Text("Experimental")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.72))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(.white.opacity(0.08), in: Capsule())
-                    }
-                }
-                Text(renderMode.detail)
-                    .font(.caption)
-                    .foregroundStyle(BrandColor.textMuted)
-                    .lineLimit(2)
-            }
-
-            Spacer()
-
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.white.opacity(0.82))
-            }
-        }
-        .padding(BrandSpacing.m.value)
-        .background(isSelected ? .white.opacity(0.08) : BrandColor.muted, in: RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: BrandRadius.nested.value, style: .continuous)
-                .stroke(isSelected ? BrandColor.strokeStrong : BrandColor.stroke, lineWidth: 1)
         }
     }
 
