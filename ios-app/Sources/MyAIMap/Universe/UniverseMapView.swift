@@ -296,18 +296,7 @@ struct UniverseMapView: View {
     private var compactDetailSheet: some View {
         RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
             .overlay(alignment: .topTrailing) {
-                Button(action: model.dismissDetail) {
-                    Image(systemName: "xmark")
-                        .font(BrandTypography.controlLabel)
-                        .foregroundStyle(.white.opacity(0.86))
-                        .frame(width: 34, height: 34)
-                        .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close detail")
-                .accessibilityIdentifier("UniverseDetail.Close")
-                .padding(.top, BrandSpacing.xl.value)
-                .padding(.trailing, BrandSpacing.xl.value)
+                DetailCloseControl(model: model)
             }
             .presentationDetents([.fraction(0.72), .large])
             .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.72)))
@@ -348,6 +337,31 @@ struct UniverseMapView: View {
             }
         } else {
             addToolPresented = true
+        }
+    }
+
+    /// A sheet-local dismissal closes the currently presented system sheet
+    /// immediately, while the model remains the authority for route cleanup.
+    private struct DetailCloseControl: View {
+        let model: UniverseViewModel
+        @Environment(\.dismiss) private var dismiss
+
+        var body: some View {
+            Button {
+                model.dismissDetail()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(BrandTypography.controlLabel)
+                    .foregroundStyle(.white.opacity(0.86))
+                    .frame(width: 34, height: 34)
+                    .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close detail")
+            .accessibilityIdentifier("UniverseDetail.Close")
+            .padding(.top, BrandSpacing.xl.value)
+            .padding(.trailing, BrandSpacing.xl.value)
         }
     }
 }
