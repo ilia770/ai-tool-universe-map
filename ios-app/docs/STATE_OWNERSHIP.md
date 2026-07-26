@@ -27,9 +27,10 @@ observe that typed route rather than local timing mirrors.
 **QA done:** Automated evidence is the focused Task 3 xcresult at
 `/tmp/aimap-foundation-route.xcresult`, generated after `xcodegen generate`
 for `UniverseViewModelTests`, `UniverseModeTests`, and the compact UI smoke.
-The attempted run timed out before a readable summary and its incomplete bundle
-has no `Info.plist`; the Task 3 report records that storage/runner blocker. No
-visual pilot or physical-device evidence is claimed here.
+The MCP call timed out at 300 seconds, but the finalized bundle subsequently
+reported 69 passed and 1 failed test: the compact UI smoke stopped at its
+existing branch-card assertion. The Task 3 report records the exact failure;
+no visual pilot or physical-device evidence is claimed here.
 
 **Remaining issues:** Account/Add still use their existing local flags and
 delayed handoff after detail dismissal. Do not replace that timing in this task:

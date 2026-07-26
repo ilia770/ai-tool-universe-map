@@ -35,10 +35,11 @@ then binds the compact host to the optional route.
 
 **QA done:** The automated evidence source is the focused xcresult at
 `/tmp/aimap-foundation-route.xcresult` for the route unit tests and
-`UniverseUISmokeTests/testCaptureKeyStates`. The attempted run timed out before
-a readable summary and its incomplete bundle has no `Info.plist`; the Task 3
-report records that blocker. This document does not claim a visual pilot or
-physical-device run.
+`UniverseUISmokeTests/testCaptureKeyStates`. The MCP call timed out at 300
+seconds, but the finalized bundle subsequently reported 69 passed and 1 failed
+test: the compact UI smoke stopped at its branch-card assertion. The Task 3
+report records the exact failure. This document does not claim a visual pilot
+or physical-device run.
 
 **Remaining issues:** Account/Add sheet handoff remains on its existing
 `DispatchQueue.main.asyncAfter` timings. A future state/service split needs a

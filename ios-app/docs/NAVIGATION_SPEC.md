@@ -34,9 +34,10 @@ changing root Map / Ask AI routing.
 
 **QA done:** The focused automated evidence source is
 `/tmp/aimap-foundation-route.xcresult`, covering `UniverseViewModelTests`,
-`UniverseModeTests`, and the compact UI smoke. The attempted run timed out
-before a readable summary and its incomplete bundle has no `Info.plist`; the
-Task 3 report records that blocker. No visual pilot or physical-device evidence
+`UniverseModeTests`, and the compact UI smoke. The MCP call timed out at 300
+seconds, but the finalized bundle subsequently reported 69 passed and 1 failed
+test: the compact UI smoke stopped at its branch-card assertion. The Task 3
+report records the exact failure. No visual pilot or physical-device evidence
 is claimed.
 
 **Remaining issues:** App-wide presentation ownership remains unresolved until

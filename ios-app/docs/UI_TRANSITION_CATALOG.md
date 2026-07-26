@@ -21,9 +21,10 @@ detail through the model-owned `DetailRoute`.
 
 **QA done:** The focused automated evidence source is
 `/tmp/aimap-foundation-route.xcresult` for the route unit tests and compact UI
-smoke. The attempted run timed out before a readable summary and its incomplete
-bundle has no `Info.plist`; the Task 3 report records that blocker. No visual
-pilot or physical-device evidence is claimed.
+smoke. The MCP call timed out at 300 seconds, but the finalized bundle
+subsequently reported 69 passed and 1 failed test: the compact UI smoke stopped
+at its branch-card assertion. The Task 3 report records the exact failure. No
+visual pilot or physical-device evidence is claimed.
 
 **Remaining issues:** T-05 remains explicitly blocked pending a supplied and
 reviewed visual reference. Account/Add timing remains deferred to the
