@@ -340,10 +340,13 @@ sheet dismissal callback and the visible close action. Preserve the current
 system-sheet presentation detents, drag indicator, corner radius, and visual
 appearance; do not add `matchedTransitionSource`, a hero host, or custom drag
 progress in this task. Keep the regular-width inspector derived from explicit
-selected-tool state. Remove
-`DispatchQueue.main.asyncAfter` detail-to-Account/Add sequencing; dismiss the
-detail route first, then schedule the next typed app-sheet intent through the
-single presentation owner introduced by the next plan.
+selected-tool state. The current source has no typed app-sheet owner outside
+`UniverseMapView`; therefore this task must not alter the existing
+`DispatchQueue.main.asyncAfter` Account/Add handoff. Removing that timing
+without the next plan's single presentation owner risks overlapping SwiftUI
+sheets. Defer that specific handoff to the state/service split plan and record
+it as an intentional remaining issue rather than introducing a view-local
+replacement owner here.
 
 - [ ] **Step 4: Exercise interruption paths in UI smoke**
 
