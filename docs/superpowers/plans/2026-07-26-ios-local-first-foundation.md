@@ -289,7 +289,11 @@ git commit -m "refactor(ios): isolate 2d map renderer"
 - Modify: `ios-app/Tests/MyAIMapTests/UniverseModeTests.swift`
 - Modify: `ios-app/Tests/MyAIMapUITests/UniverseUISmokeTests.swift`
 - Modify: `ios-app/docs/STATE_OWNERSHIP.md`
-- Modify: `ios-app/docs/UI_TRANSITION_CATALOG.md`
+- Create: `ios-app/docs/UI_TRANSITION_CATALOG.md` (the current snapshot has
+  no file at this required path)
+- Create: `ios-app/docs/INTERACTION_SPEC.md` and
+  `ios-app/docs/NAVIGATION_SPEC.md` (both are mandatory detail pre-reads in
+  `ios-app/AGENTS.md` but absent from the current snapshot)
 
 **Interfaces:**
 - Consumes: valid visible `Tool.id` and `UniverseMode.toolSelected(category, id)`.
@@ -350,6 +354,20 @@ open a related tool. Assert the return node identifier
 
 - [ ] **Step 5: Run focused test evidence and commit**
 
+Create the three missing source-grounded route documents while recording the
+change: `INTERACTION_SPEC.md` must define compact-detail open, visible-close,
+system-dismiss, and related-tool replacement as requests to the model;
+`NAVIGATION_SPEC.md` must distinguish `RootShell.surface` from
+`UniverseViewModel.universeMode` and prohibit encoding root Ask AI as
+`.chatOpen`; and `UI_TRANSITION_CATALOG.md` must record that this task retains
+the system-sheet appearance and that T-05 shared-element work stays blocked
+until its visual reference is supplied and reviewed. Each document must end
+with `## Changed files / QA done / Remaining issues`, cite the focused xcresult
+as the automated evidence source, and avoid claiming a visual pilot or
+physical-device evidence that was not run.
+
+Run focused test evidence and commit:
+
 Run:
 
 ```bash
@@ -370,7 +388,8 @@ git add ios-app/Sources/MyAIMap/State/UniverseViewModel.swift \
   ios-app/Tests/MyAIMapTests/UniverseViewModelTests.swift \
   ios-app/Tests/MyAIMapTests/UniverseModeTests.swift \
   ios-app/Tests/MyAIMapUITests/UniverseUISmokeTests.swift \
-  ios-app/docs/STATE_OWNERSHIP.md ios-app/docs/UI_TRANSITION_CATALOG.md
+  ios-app/docs/STATE_OWNERSHIP.md ios-app/docs/UI_TRANSITION_CATALOG.md \
+  ios-app/docs/INTERACTION_SPEC.md ios-app/docs/NAVIGATION_SPEC.md
 git commit -m "refactor(ios): make compact detail route typed"
 ```
 
