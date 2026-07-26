@@ -179,3 +179,55 @@ count, not "Executed 0 tests".
 - [ ] Real-device QA: physical iPhone, SE-class, and iPad behavior remains a
       release gate because simulator screenshots do not prove touch feel,
       system picker behavior, or RealityKit/device performance.
+
+## Local-first foundation evidence — 2026-07-27
+
+### Automated clean-worktree gate
+
+This is fresh, run-specific evidence for the local-first renderer and typed
+compact-detail route. It is **not** a substitute for the manual matrix below.
+
+| Field | Evidence |
+| --- | --- |
+| Source | Detached, clean worktree at `6896759dfe1ba33aa3733f070242bc500a7befa8` (`fix(ios): add constellation typography tokens`). The generated `MyAIMap.xcodeproj` is ignored and was not a source change. |
+| Run window | 2026-07-27 02:05:48–02:08:38 MSK |
+| Xcode | Xcode 26.5 (Build version 17F42) |
+| Simulator | AIMapGate — iPhone 16 Pro, iOS Simulator 26.5, OS build 23F77 (`0645CAEE-891B-41C3-A240-AFD30E43C260`) |
+| Result bundle | `/tmp/aimap-foundation-route-fix9-clean-token.xcresult` |
+| xcresult summary | `passedTests: 71`, `failedTests: 0`, `skippedTests: 0`, `result: Passed` |
+
+The result bundle covers the focused `UniverseMode` and `UniverseViewModel`
+tests plus `UniverseUISmokeTests/testCaptureKeyStates`. The UI test is an
+automated simulator smoke gate only; it does not constitute a manual visual,
+accessibility, or physical-device sign-off.
+
+### Manual device and accessibility matrix
+
+All items below are **not run** in this task. No manual simulator pass,
+physical device, or performance trace was supplied for this evidence update;
+therefore no launch, interaction, accessibility, or performance claim is
+inferred from the automated result bundle.
+
+| Check | Status | Reason |
+| --- | --- | --- |
+| Compact iPhone / SE-class: cold and warm launch; map category/tool/empty taps; Map ↔ Ask AI; keyboard and attachment cancel; detail cancel/finish/reopen | Not run | No compact-device manual pass in this task. |
+| Current iPhone: same journey | Not run | AIMapGate supplied automated iPhone 16 Pro simulator coverage only; no manual or physical-device pass was performed. |
+| iPad regular width: same journey and inspector behavior | Not run | No iPad simulator or physical-device pass in this task. |
+| Dynamic Type | Not run | No manual larger-text-size pass in this task. |
+| VoiceOver | Not run | No VoiceOver traversal or announcement pass in this task. |
+| Reduce Motion | Not run | No setting-specific behavior pass in this task. |
+| Instruments on supported low-end and current physical iPhones | Not run | No physical devices or SwiftUI/Time Profiler traces were available in this task. |
+
+### Remaining release gates
+
+- Run and record the manual matrix above before release approval.
+- Measure cold/warm launch-to-interactive, first map interaction, branch
+  selection, chat opening, typing, CPU, memory, and frame pacing with matching
+  before/after Instruments traces on physical supported low-end and current
+  iPhones.
+- Complete a clean release archive, signing validation, TestFlight pass,
+  privacy manifest/labels/policy review, and security release review before
+  submission.
+- Deliver the separately planned catalog durability, root sheet-router, and
+  release-only assistant hardening before treating this foundation as an App
+  Store-ready architecture.
