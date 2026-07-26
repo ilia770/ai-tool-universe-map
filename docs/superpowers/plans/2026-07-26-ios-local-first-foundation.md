@@ -10,7 +10,9 @@ without modifying or losing the original dirty worktree.
 `RootShell` remains the owner of root Map/Ask AI routing, while the map keeps
 one `UniverseMode` selection owner. This foundation removes dormant RealityKit
 runtime allocation and replaces timing-dependent compact-detail presentation
-with a typed map route before broader root-sheet unification.
+with a typed map route before broader root-sheet unification. It preserves the
+existing system-sheet appearance; the separately specified T-05 shared-element
+visual pilot remains blocked until its supplied reference asset is available.
 
 **Tech Stack:** Swift 6, SwiftUI, Observation, iOS 18, XcodeGen, Swift
 Testing, XCTest/XCUITest.
@@ -25,6 +27,9 @@ Testing, XCTest/XCUITest.
   `ios-app/AGENTS.md` are mandatory for every task.
 - `UniverseViewModel.universeMode` remains the only stored map-selection value.
 - `RootShell.surface` remains separate from map navigation.
+- This plan does not implement the T-05 shared-element visual pilot from
+  `UI_TRANSITION_CATALOG.md`; it changes route ownership only and retains the
+  existing system-sheet visual behavior.
 - One task changes one functional domain. Do not combine persistence, hosted
   AI, renderer, and visual-system changes.
 - Do not claim a test pass without a fresh `xcresult` summary with
@@ -314,8 +319,11 @@ No view computes a fallback route from projected selection.
 
 Replace `detailPresented` and `modeBeforeDetail` with `.sheet(item:)` driven
 by `Binding<DetailRoute?>` that calls `model.dismissDetail()` from both the
-sheet dismissal callback and the visible close action. Keep the regular-width
-inspector derived from explicit selected-tool state. Remove
+sheet dismissal callback and the visible close action. Preserve the current
+system-sheet presentation detents, drag indicator, corner radius, and visual
+appearance; do not add `matchedTransitionSource`, a hero host, or custom drag
+progress in this task. Keep the regular-width inspector derived from explicit
+selected-tool state. Remove
 `DispatchQueue.main.asyncAfter` detail-to-Account/Add sequencing; dismiss the
 detail route first, then schedule the next typed app-sheet intent through the
 single presentation owner introduced by the next plan.
@@ -352,6 +360,10 @@ git add ios-app/Sources/MyAIMap/State/UniverseViewModel.swift \
   ios-app/docs/STATE_OWNERSHIP.md ios-app/docs/UI_TRANSITION_CATALOG.md
 git commit -m "refactor(ios): make compact detail route typed"
 ```
+
+In `UI_TRANSITION_CATALOG.md`, record this as a route-ownership improvement
+only. Keep the T-05 shared-element pilot explicitly blocked until its required
+visual reference is supplied and reviewed.
 
 ## Task 4: Record release-quality foundation evidence
 
