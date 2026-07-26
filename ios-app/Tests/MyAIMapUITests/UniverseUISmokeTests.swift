@@ -45,13 +45,11 @@ final class UniverseUISmokeTests: XCTestCase {
         snap("02-overview")
         attachText("tree-overview", app.debugDescription)
 
-        // Branch focus via a hittable 2D graph node accessibility label.
-        let categoryNode = firstHittableButton(app, identifierPrefix: "ConstellationCategory.", timeout: 8)
-        if categoryNode == nil {
-            attachText("tree-no-hittable-category-node", app.debugDescription)
-        }
-        XCTAssertNotNil(categoryNode, "2D graph should expose at least one hittable category node")
-        guard let categoryNode else { return }
+        // Use the known Coding → Codex → Claude Code relation so this smoke can
+        // exercise the compact detail replacement route deterministically.
+        let categoryNode = app.buttons["ConstellationCategory.coding"]
+        XCTAssertTrue(categoryNode.waitForExistence(timeout: 8), "2D graph should expose the Coding category node")
+        XCTAssertTrue(waitForHittable(categoryNode, timeout: 5), "Coding category should be hittable")
         let categoryName = categoryName(from: categoryNode.label)
         let categoryID = identifierSuffix(from: categoryNode.identifier, prefix: "ConstellationCategory.")
         tapNode(categoryNode, name: "\(categoryName) category node")
@@ -67,7 +65,9 @@ final class UniverseUISmokeTests: XCTestCase {
         )
 
         // Tool selection: tap a graph tool from the focused branch, then open its detail card.
-        let branchToolIdentifiers = seedToolIDsByCategory[categoryID, default: []].map { "ConstellationStar.\($0)" }
+        let branchToolIdentifiers = categoryID == "coding"
+            ? ["ConstellationStar.codex"]
+            : seedToolIDsByCategory[categoryID, default: []].map { "ConstellationStar.\($0)" }
         let toolNode = firstInteractableGraphButton(app, identifiers: branchToolIdentifiers, timeout: 8)
         if toolNode == nil {
             attachText("tree-no-hittable-focused-tool-node", app.debugDescription)
@@ -75,6 +75,7 @@ final class UniverseUISmokeTests: XCTestCase {
         XCTAssertNotNil(toolNode, "\(categoryName) branch should expose at least one interactable focused tool node")
         guard let toolNode else { return }
         let toolName = toolName(from: toolNode.label)
+        let toolID = identifierSuffix(from: toolNode.identifier, prefix: "ConstellationStar.")
         tapGraphNode(toolNode, name: "tool node", app: app)
         wait(1.8); snap("03a-tool-selected")
         let selectedDetails = app.buttons["PlanetInfoCard.SelectedDetails"].firstMatch
@@ -98,6 +99,54 @@ final class UniverseUISmokeTests: XCTestCase {
             attachText("tree-detail-open-missing", app.debugDescription)
         }
         XCTAssertTrue(didOpenDetail, "Tapping selected details should open the tool detail sheet")
+        guard didOpenDetail else { return }
+
+        let detailRoot = app.descendants(matching: .any)["RootSheet.ToolDetail"].firstMatch
+        let partialDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
+        let partialDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
+        partialDragStart.press(forDuration: 0.1, thenDragTo: partialDragEnd)
+        wait(0.7)
+        XCTAssertTrue(
+            waitForToolDetailVisible(app, toolName: toolName, timeout: 3),
+            "A cancelled partial sheet drag must preserve the detail route"
+        )
+
+        let detailClose = app.buttons["UniverseDetail.Close"]
+        XCTAssertTrue(detailClose.waitForExistence(timeout: 3), "Detail sheet should expose a visible close action")
+        tapElement(detailClose, name: "detail close", app: app)
+        XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "Visible close should fully dismiss detail")
+
+        let returnNode = app.buttons["ConstellationStar.\(toolID)"]
+        XCTAssertTrue(returnNode.waitForExistence(timeout: 5), "Dismissal should restore the original map node")
+        XCTAssertTrue(waitForHittable(returnNode, timeout: 5), "Restored map node should remain hittable")
+
+        // Reopen immediately, then select a known related tool in the same
+        // sheet. The route replacement must update content without a second
+        // presentation flag or a new sheet.
+        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
+        for _ in 0..<3 where !app.buttons["More"].exists {
+            detailRoot.swipeUp()
+            wait(0.3)
+        }
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 3), "Detail should expose the related-tools disclosure")
+        tapElement(more, name: "detail more", app: app)
+        wait(0.5)
+
+        let relatedTool = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Claude Code")).firstMatch
+        XCTAssertTrue(relatedTool.waitForExistence(timeout: 3), "Codex detail should expose Claude Code as a related tool")
+        tapElement(relatedTool, name: "related Claude Code", app: app)
+        XCTAssertTrue(
+            waitForToolDetailVisible(app, toolName: "Claude Code", timeout: 5),
+            "Related-tool selection should replace the visible detail tool"
+        )
+
+        let relatedClose = app.buttons["UniverseDetail.Close"]
+        tapElement(relatedClose, name: "related detail close", app: app)
+        XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "Related detail should dismiss cleanly")
+        let relatedReturnNode = app.buttons["ConstellationStar.claude-code"]
+        XCTAssertTrue(relatedReturnNode.waitForExistence(timeout: 5), "Dismissal should restore the related tool node")
+        XCTAssertTrue(waitForHittable(relatedReturnNode, timeout: 5), "Related return node should be hittable")
         relaunchSampleMap(app)
 
         // Rail — press-drag the right edge while the map is active (best-effort).

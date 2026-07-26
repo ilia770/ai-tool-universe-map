@@ -68,6 +68,13 @@ struct UniverseModeTests {
         #expect(chat.orbitOpacityMultiplier == 0)
     }
 
+    @Test func detailModeProvidesTheMatchingToolSelectionReturnMode() {
+        let detail = UniverseMode.detail(.analytics, "posthog")
+
+        #expect(detail.detailReturnMode == .toolSelected(.analytics, "posthog"))
+        #expect(UniverseMode.branchFocus(.analytics).detailReturnMode == .branchFocus(.analytics))
+    }
+
     @Test func ambientMotionPausesOnlyWhenUniverseIsBackdrop() {
         // Detail/chat dim the universe to a backdrop → pause ambient motion.
         #expect(UniverseMode.detail(.analytics, "posthog").pausesAmbientMotion)

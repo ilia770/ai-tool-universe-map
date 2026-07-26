@@ -6,8 +6,6 @@ struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var hSizeClass
-    @State private var modeBeforeDetail: UniverseMode?
-    @State private var detailPresented = false
     @State private var accountPresented = false
     @State private var addToolPresented = false
     /// §2 morph: zoom-transition source namespace shared between the chrome
@@ -26,6 +24,19 @@ struct UniverseMapView: View {
     /// iPhone (or iPad slide-over) uses the bottom-sheet detail; regular width
     /// (iPad) uses an always-visible trailing inspector panel instead.
     private var isCompact: Bool { AdaptiveLayout.isCompact(hSizeClass) }
+
+    /// The sole compact-detail sheet binding. SwiftUI writes `nil` when a
+    /// system dismissal completes; both that write and `onDismiss` delegate to
+    /// the model so the captured route decides the restoration state.
+    private var detailRouteBinding: Binding<DetailRoute?> {
+        Binding(
+            get: { isCompact ? model.detailRoute : nil },
+            set: { route in
+                guard route == nil else { return }
+                model.dismissDetail()
+            }
+        )
+    }
 
     private func rebuildPlanets() {
         // Feed seed branches AND user/AI-created custom branches; makePlanets
@@ -133,39 +144,14 @@ struct UniverseMapView: View {
             }
             BrandHaptics.isEnabled = model.hapticsEnabled
             BrandHaptics.prepare(.light, .medium, .heavy, .success)
-            // A chat "open detail" chip sets the request before this surface
-            // mounts, so consume it here (onChange alone would miss it).
-            consumePendingDetailRequest()
-        }
-        .onChange(of: model.pendingDetailToolID) { _, _ in
-            consumePendingDetailRequest()
+            reconcileDetailRouteForLayout()
         }
         .onChange(of: model.hapticsEnabled) { _, isEnabled in
             BrandHaptics.isEnabled = isEnabled
         }
-        .onChange(of: model.universeMode) { _, newMode in
-            // Single source of truth: the model owns whether detail is open.
-            // If the model leaves `.detail` for any reason (e.g. deleting the
-            // selected tool from the sheet), dismiss the local sheet so it
-            // cannot outlive the navigation state.
-            if !newMode.isDetailOpen, detailPresented {
-                detailPresented = false
-            }
-        }
-        .onChange(of: detailPresented) { _, isPresented in
-            if isPresented {
-                model.universeMode = .detail(selectedTool.category, selectedTool.id)
-            } else if mode.isDetailOpen {
-                model.universeMode = modeBeforeDetail ?? navigationModeForSelection()
-                modeBeforeDetail = nil
-            }
-        }
-        .sheet(isPresented: $detailPresented) {
-            RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
-                .presentationDetents([.fraction(0.72), .large])
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.72)))
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(42)
+        .onChange(of: isCompact) { _, _ in reconcileDetailRouteForLayout() }
+        .sheet(item: detailRouteBinding, onDismiss: { model.dismissDetail() }) { _ in
+            compactDetailSheet
         }
         .sheet(isPresented: $accountPresented) {
             AccountSettingsSheet()
@@ -226,23 +212,18 @@ struct UniverseMapView: View {
     }
 
     private func openToolDetailFromChat(_ id: String) {
-        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         if isCompact {
-            modeBeforeDetail = .toolSelected(tool.category, tool.id)
-            model.universeMode = .detail(tool.category, tool.id)
-            detailPresented = true
+            model.requestDetail(for: id)
         } else {
-            model.universeMode = .toolSelected(tool.category, tool.id)
+            _ = model.focusTool(id)
         }
     }
 
     private func openRelatedToolFromDetail(_ id: String) {
-        guard let tool = model.visibleAllTools.first(where: { $0.id == id }) else { return }
         if isCompact {
-            modeBeforeDetail = .toolSelected(tool.category, tool.id)
-            model.universeMode = .detail(tool.category, tool.id)
+            model.replaceDetailTool(with: id)
         } else {
-            model.universeMode = .toolSelected(tool.category, tool.id)
+            _ = model.focusTool(id)
         }
     }
 
@@ -269,35 +250,18 @@ struct UniverseMapView: View {
         }
     }
 
-    /// Presents the detail for a tool requested from the chat surface (§6.3).
-    /// Selection was already set by `requestToolDetail`; this just opens the
-    /// sheet (or, on iPad, the inspector already shows it via the selection).
-    private func consumePendingDetailRequest() {
-        guard let id = model.pendingDetailToolID else { return }
-        model.pendingDetailToolID = nil
-        guard model.visibleAllTools.contains(where: { $0.id == id }) else { return }
-        if mode.selectedToolID != id {
-            _ = model.focusTool(id)
-        }
-        presentDetail()
-    }
-
     private func presentDetail() {
         BrandHaptics.fire(.medium)
         // iPad: the trailing inspector panel already shows the selected tool's
         // detail, and entering .detail mode would dim the map behind it. Keep
         // the current (toolSelected) mode; the panel is the detail surface.
         guard isCompact else { return }
-        if !mode.isDetailOpen {
-            modeBeforeDetail = mode
-        }
-        model.universeMode = .detail(selectedTool.category, selectedTool.id)
-        detailPresented = true
+        model.requestDetail(for: selectedTool.id)
     }
 
     private func setChatOpen(_ isOpen: Bool) {
         if isOpen {
-            guard !detailPresented else { return }
+            guard model.detailRoute == nil else { return }
             model.universeMode = .chatContext(
                 activeCategory: model.selection.activeCategory,
                 projectedSelectedToolID: model.selection.selectedToolID,
@@ -329,10 +293,39 @@ struct UniverseMapView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
+    private var compactDetailSheet: some View {
+        RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
+            .overlay(alignment: .topTrailing) {
+                Button(action: model.dismissDetail) {
+                    Image(systemName: "xmark")
+                        .font(BrandTypography.controlLabel)
+                        .foregroundStyle(.white.opacity(0.86))
+                        .frame(width: 34, height: 34)
+                        .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close detail")
+                .accessibilityIdentifier("UniverseDetail.Close")
+                .padding(.top, BrandSpacing.xl.value)
+                .padding(.trailing, BrandSpacing.xl.value)
+            }
+            .presentationDetents([.fraction(0.72), .large])
+            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.72)))
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(42)
+    }
+
+    /// A regular-width inspector is selection-derived rather than a compact
+    /// sheet. Restoring a route there keeps its existing map presentation.
+    private func reconcileDetailRouteForLayout() {
+        guard !isCompact, model.detailRoute != nil else { return }
+        model.dismissDetail()
+    }
+
     private func presentAccount() {
         BrandHaptics.fire(.medium)
-        if detailPresented {
-            detailPresented = false
+        if model.detailRoute != nil {
+            model.dismissDetail()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
                 accountPresented = true
             }
@@ -348,8 +341,8 @@ struct UniverseMapView: View {
     private func presentAddTool(draft: MissingToolSuggestion?) {
         BrandHaptics.fire(.medium)
         addToolDraft = draft
-        if detailPresented {
-            detailPresented = false
+        if model.detailRoute != nil {
+            model.dismissDetail()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                 addToolPresented = true
             }

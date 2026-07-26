@@ -347,6 +347,66 @@ struct UniverseViewModelTests {
         #expect(model.focusFirstSearchMatch() == false)
     }
 
+    @Test func requestingVisibleToolDetailCreatesTypedRoute() {
+        let model = makeModel(sample: true)
+
+        model.requestDetail(for: "posthog")
+
+        #expect(model.detailRoute == DetailRoute(
+            toolID: "posthog",
+            returnMode: .toolSelected(.analytics, "posthog")
+        ))
+        #expect(model.universeMode == .detail(.analytics, "posthog"))
+    }
+
+    @Test func requestingMissingOrHiddenToolDetailCreatesNoRoute() {
+        let model = makeModel(sample: true)
+
+        model.requestDetail(for: "missing-tool")
+        #expect(model.detailRoute == nil)
+
+        #expect(model.deleteTool("posthog"))
+        model.requestDetail(for: "posthog")
+        #expect(model.detailRoute == nil)
+    }
+
+    @Test func retainingPresentedRouteDoesNotChangeItsRestorationState() {
+        let model = makeModel(sample: true)
+        model.requestDetail(for: "posthog")
+        let routeBeforeCancelledDrag = model.detailRoute
+
+        // A partial system-sheet drag that is cancelled does not send a
+        // dismissal intent, so the typed route must remain intact.
+        #expect(model.detailRoute == routeBeforeCancelledDrag)
+        #expect(model.universeMode == .detail(.analytics, "posthog"))
+    }
+
+    @Test func dismissingDetailRestoresExactRouteMode() {
+        let model = makeModel(sample: true)
+        model.universeMode = .branchFocus(.analytics)
+        model.requestDetail(for: "posthog")
+
+        model.dismissDetail()
+
+        #expect(model.detailRoute == nil)
+        #expect(model.universeMode == .toolSelected(.analytics, "posthog"))
+    }
+
+    @Test func replacingDetailToolUpdatesOneTypedRoute() {
+        let model = makeModel(sample: true)
+        model.requestDetail(for: "posthog")
+
+        model.replaceDetailTool(with: "figma")
+
+        #expect(model.detailRoute == DetailRoute(
+            toolID: "figma",
+            returnMode: .toolSelected(.design, "figma")
+        ))
+        #expect(model.universeMode == .detail(.design, "figma"))
+        model.dismissDetail()
+        #expect(model.universeMode == .toolSelected(.design, "figma"))
+    }
+
     @Test func deleteToolHidesItFromSearchAndRecordsHistory() {
         let model = makeModel(sample: true)
         #expect(model.focusTool("posthog"))

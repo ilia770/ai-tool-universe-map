@@ -14,6 +14,11 @@ final class UniverseViewModel {
     /// else stores them, so map / chips / rail / card can never desync.
     var universeMode: UniverseMode = .overview
 
+    /// The compact detail presentation route. Its optional value is the sole
+    /// source for the compact sheet; `universeMode` remains the sole stored map
+    /// selection value.
+    private(set) var detailRoute: DetailRoute?
+
     /// Hover is independent of the navigation mode.
     // Web parity: AIToolUniverseMap.tsx:150 initialises mapClarity to 'focus'.
     var clarityMode: ClarityMode = .focus
@@ -232,6 +237,7 @@ final class UniverseViewModel {
         customTools.removeAll()
         customCategories.removeAll()
         hiddenToolIDs.removeAll()
+        detailRoute = nil
         universeMode = .overview
         persist()
         recordActivity(
@@ -255,6 +261,47 @@ final class UniverseViewModel {
         universeMode = .toolSelected(tool.category, tool.id)
     }
 
+    /// Opens the compact detail route for a visible tool. A detail route always
+    /// restores to the concrete selected-tool mode so the map returns to the
+    /// exact node the user was reading.
+    func requestDetail(for toolID: String) {
+        guard let tool = visibleAllTools.first(where: { $0.id == toolID }) else { return }
+        let returnMode: UniverseMode
+        if case .toolSelected(_, let selectedToolID) = universeMode, selectedToolID == toolID {
+            returnMode = universeMode
+        } else {
+            returnMode = .toolSelected(tool.category, tool.id)
+        }
+
+        detailRoute = DetailRoute(toolID: tool.id, returnMode: returnMode)
+        universeMode = .detail(tool.category, tool.id)
+    }
+
+    /// Restores the exact navigation state captured when the compact detail
+    /// route opened. It is deliberately idempotent because SwiftUI calls this
+    /// path for both a binding-driven system dismissal and `onDismiss`.
+    func dismissDetail() {
+        guard let route = detailRoute else { return }
+        universeMode = route.returnMode
+        detailRoute = nil
+    }
+
+    /// Changes the visible detail content without adding a second presentation
+    /// flag. Related-tool navigation becomes a replacement typed route.
+    func replaceDetailTool(with toolID: String) {
+        guard detailRoute != nil else {
+            requestDetail(for: toolID)
+            return
+        }
+        guard let tool = visibleAllTools.first(where: { $0.id == toolID }) else { return }
+
+        detailRoute = DetailRoute(
+            toolID: tool.id,
+            returnMode: .toolSelected(tool.category, tool.id)
+        )
+        universeMode = .detail(tool.category, tool.id)
+    }
+
     /// Selects a tool from any surface that can name a tool id: node tap,
     /// search result, or relation row. Returns false when the id is not
     /// in the seed so callers can skip haptics for stale references.
@@ -272,18 +319,13 @@ final class UniverseViewModel {
         return true
     }
 
-    /// Set by the chat surface to request a tool's full detail sheet. The chat
-    /// and map are mutually-exclusive surfaces, so the chat can't present the
-    /// sheet itself — `UniverseMapView` consumes this on appear/change and clears
-    /// it. §6.3: existing-tool chips open detail, not just a map focus.
-    var pendingDetailToolID: String?
-
-    /// Focus a tool and request its detail sheet (chat "open detail" chips).
+    /// Requests a tool's detail route before `RootShell` returns to the map.
+    /// The compact map host binds that route to its one system sheet.
     @discardableResult
     func requestToolDetail(_ id: String) -> Bool {
-        guard focusTool(id) else { return false }
-        pendingDetailToolID = id
-        return true
+        guard visibleAllTools.contains(where: { $0.id == id }) else { return false }
+        requestDetail(for: id)
+        return detailRoute?.toolID == id
     }
 
     /// Enter-to-focus parity with the web build ([C3], `focusTool` in
@@ -437,6 +479,9 @@ final class UniverseViewModel {
     func deleteTool(_ id: String) -> Bool {
         guard let tool = visibleAllTools.first(where: { $0.id == id }), tool.category != .core else { return false }
         hiddenToolIDs.insert(id)
+        if detailRoute?.toolID == id {
+            detailRoute = nil
+        }
         persist()
         recordActivity(
             kind: .removed,

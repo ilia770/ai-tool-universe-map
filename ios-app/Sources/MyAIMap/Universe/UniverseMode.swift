@@ -210,6 +210,18 @@ enum UniverseMode: Equatable, Sendable {
 }
 
 extension UniverseMode {
+    /// The selection mode that corresponds to a detail backdrop. A typed
+    /// `DetailRoute` captures the actual restoration value; this helper keeps
+    /// mode-only callers from retaining `.detail` as a navigation destination.
+    var detailReturnMode: UniverseMode {
+        switch self {
+        case .detail(let category, let toolID):
+            return .toolSelected(category, toolID)
+        default:
+            return self
+        }
+    }
+
     /// Parent navigation state for tap-on-empty in 3D: tool → its sun →
     /// overview. Detail/chat dismissal is handled by their own paths; this
     /// covers the spatial step-up walk.
