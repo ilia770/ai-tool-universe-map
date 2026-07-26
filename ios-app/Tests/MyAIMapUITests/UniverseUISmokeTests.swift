@@ -64,22 +64,16 @@ final class UniverseUISmokeTests: XCTestCase {
         let toolID = identifierSuffix(from: toolNode.identifier, prefix: "ConstellationStar.")
         tapGraphNode(toolNode, name: "tool node", app: app)
         wait(1.8); snap("03a-tool-selected")
-        let selectedDetails = app.buttons["PlanetInfoCard.SelectedDetails"].firstMatch
-        var didExposeSelectedDetails = selectedDetails.waitForExistence(timeout: 6)
-        if !didExposeSelectedDetails {
-            attachText("tree-tool-selected-missing-details", app.debugDescription)
-            tapGraphNode(toolNode, name: "tool node retry", app: app)
-            wait(1.2); snap("03a-tool-selected-retry")
-            didExposeSelectedDetails = selectedDetails.waitForExistence(timeout: 4)
-        }
-        XCTAssertTrue(didExposeSelectedDetails, "Selected tool card should expose a stable details button")
-        guard didExposeSelectedDetails else { return }
+        let detailTrigger = app.buttons["Open \(toolName) detail"].firstMatch
+        let didExposeDetailTrigger = detailTrigger.waitForExistence(timeout: 6)
+        XCTAssertTrue(didExposeDetailTrigger, "Selected tool should expose the committed detail action")
+        guard didExposeDetailTrigger else { return }
         XCTAssertTrue(
-            selectedDetails.label.contains(toolName),
-            "Coordinate tap should select \(toolName), got selected card label: \(selectedDetails.label)"
+            detailTrigger.label.contains(toolName),
+            "Committed detail action should name \(toolName), got: \(detailTrigger.label)"
         )
-        XCTAssertTrue(selectedDetails.isHittable, "Selected tool details button should be hittable")
-        let didOpenDetail = openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName)
+        XCTAssertTrue(detailTrigger.isHittable, "Committed detail action should be hittable")
+        let didOpenDetail = openSelectedToolDetail(app, detailTrigger: detailTrigger, toolName: toolName)
         snap("03b-detail")
         if !didOpenDetail {
             attachText("tree-detail-open-missing", app.debugDescription)
@@ -101,7 +95,7 @@ final class UniverseUISmokeTests: XCTestCase {
         // Reopen at the initial detent, then fully drag the system sheet down.
         // This exercises the optional-route binding nil write and onDismiss
         // reconciliation rather than the explicit close button path.
-        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
+        XCTAssertTrue(openSelectedToolDetail(app, detailTrigger: detailTrigger, toolName: toolName))
         let dismissalDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
         let dismissalDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.84))
         dismissalDragStart.press(forDuration: 0.1, thenDragTo: dismissalDragEnd)
@@ -111,7 +105,7 @@ final class UniverseUISmokeTests: XCTestCase {
 
         // Reopen fresh, then verify that a cancelled partial drag keeps the
         // sheet visible before continuing to related-tool replacement.
-        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
+        XCTAssertTrue(openSelectedToolDetail(app, detailTrigger: detailTrigger, toolName: toolName))
         let partialDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
         let partialDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
         partialDragStart.press(forDuration: 0.1, thenDragTo: partialDragEnd)
@@ -402,10 +396,10 @@ final class UniverseUISmokeTests: XCTestCase {
     @MainActor
     private func openSelectedToolDetail(
         _ app: XCUIApplication,
-        selectedDetails: XCUIElement,
+        detailTrigger: XCUIElement,
         toolName: String
     ) -> Bool {
-        tapElement(selectedDetails, name: "selected details", app: app)
+        tapElement(detailTrigger, name: "detail trigger", app: app)
         if waitForToolDetailVisible(app, toolName: toolName, timeout: 8) {
             return true
         }
@@ -415,7 +409,7 @@ final class UniverseUISmokeTests: XCTestCase {
             return false
         }
 
-        tapElementCenter(selectedDetails, name: "selected details retry", app: app)
+        tapElementCenter(detailTrigger, name: "detail trigger retry", app: app)
         return waitForToolDetailVisible(app, toolName: toolName, timeout: 6)
     }
 

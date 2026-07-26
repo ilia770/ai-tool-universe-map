@@ -34,13 +34,10 @@ view-local replacement owner.
 **Changed files:** Task 3 records the compact-detail route boundary without
 changing root Map / Ask AI routing.
 
-**QA done:** The focused automated evidence source is
-`/tmp/aimap-foundation-route.xcresult`, covering `UniverseViewModelTests`,
-`UniverseModeTests`, and the compact UI smoke. The MCP call timed out at 300
-seconds, but the finalized bundle subsequently reported 69 passed and 1 failed
-test: the compact UI smoke stopped at its branch-card assertion. The Task 3
-report records the exact failure. No visual pilot or physical-device evidence
-is claimed.
+**QA done:** Finalized automated evidence is recorded in the Task 3 report.
+The clean-checkout gate covers `UniverseViewModelTests`, `UniverseModeTests`,
+and the compact UI smoke against committed source; this document intentionally
+does not depend on a transient `/tmp` result bundle.
 
 **Remaining issues:** App-wide presentation ownership remains unresolved until
 the planned state/service split. The existing Account/Add delayed handoff is

@@ -19,12 +19,10 @@ route-ownership improvement only, not a visual-transition pilot.
 **Changed files:** Task 3 adds this source-grounded catalog and routes compact
 detail through the model-owned `DetailRoute`.
 
-**QA done:** The focused automated evidence source is
-`/tmp/aimap-foundation-route.xcresult` for the route unit tests and compact UI
-smoke. The MCP call timed out at 300 seconds, but the finalized bundle
-subsequently reported 69 passed and 1 failed test: the compact UI smoke stopped
-at its branch-card assertion. The Task 3 report records the exact failure. No
-visual pilot or physical-device evidence is claimed.
+**QA done:** Finalized automated evidence is recorded in the Task 3 report.
+The clean-checkout gate covers the route unit suites and compact UI smoke
+against committed source; this document intentionally does not depend on a
+transient `/tmp` result bundle.
 
 **Remaining issues:** T-05 remains explicitly blocked pending a supplied and
 reviewed visual reference. Account/Add timing remains deferred to the

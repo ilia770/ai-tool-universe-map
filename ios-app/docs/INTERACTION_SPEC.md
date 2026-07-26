@@ -34,13 +34,10 @@ tool without a dimmed compact-detail backdrop.
 **Changed files:** Task 3 introduces `DetailRoute` and model detail intents,
 then binds the compact host to the optional route.
 
-**QA done:** The automated evidence source is the focused xcresult at
-`/tmp/aimap-foundation-route.xcresult` for the route unit tests and
-`UniverseUISmokeTests/testCaptureKeyStates`. The MCP call timed out at 300
-seconds, but the finalized bundle subsequently reported 69 passed and 1 failed
-test: the compact UI smoke stopped at its branch-card assertion. The Task 3
-report records the exact failure. This document does not claim a visual pilot
-or physical-device run.
+**QA done:** The Task 3 report records finalized automated evidence. The
+clean-checkout gate covers the route unit suites and
+`UniverseUISmokeTests/testCaptureKeyStates` against committed source; this
+document intentionally does not depend on a transient `/tmp` result bundle.
 
 **Remaining issues:** Account/Add sheet handoff remains on its existing
 `DispatchQueue.main.asyncAfter` timings. A future state/service split needs a

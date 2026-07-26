@@ -194,6 +194,21 @@ further test run was started. Free capacity after the run was about 621 MiB.
 **Baseline preservation:** the pre-task visual snapshot still reverse-applies
 without mutation and user visual changes remain unstaged.
 
+## Clean validation gate — committed SpatialReveal detail trigger
+
+**Root-cause evidence:** the former UI smoke opened detail through
+`PlanetInfoCard.SelectedDetails`, but `PlanetInfoCard.swift` and its overlay
+mount were user-owned dirty work. Clean committed `UniverseOverlayView` mounts
+`SpatialRevealCard` for `.toolSelected`; its normal Button exposes the stable
+accessibility label `Open \(toolName) detail` and routes through the map's
+`presentDetail()` intent.
+
+**Exact test change:** the smoke now queries `Open Codex detail` from the
+committed SpatialReveal CTA, retaining every detail-route, button-close, full
+system swipe-down, cancelled-drag, related replacement, and related-close
+assertion. Clean execution evidence is appended below after the isolated
+checkout run.
+
 ## Fix round 5 — stable related-detail presentation identity
 
 **Root-cause evidence:** `DetailRoute.id` was derived from `toolID`, while

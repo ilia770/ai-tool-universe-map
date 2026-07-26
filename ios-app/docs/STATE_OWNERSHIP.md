@@ -26,13 +26,10 @@ AI remains a `RootShell.surface` concern and must not be represented as
 route ownership into `UniverseViewModel`, and changes the compact map sheet to
 observe that typed route rather than local timing mirrors.
 
-**QA done:** Automated evidence is the focused Task 3 xcresult at
-`/tmp/aimap-foundation-route.xcresult`, generated after `xcodegen generate`
-for `UniverseViewModelTests`, `UniverseModeTests`, and the compact UI smoke.
-The MCP call timed out at 300 seconds, but the finalized bundle subsequently
-reported 69 passed and 1 failed test: the compact UI smoke stopped at its
-existing branch-card assertion. The Task 3 report records the exact failure;
-no visual pilot or physical-device evidence is claimed here.
+**QA done:** The Task 3 report is the canonical record of finalized automated
+evidence. Clean-checkout validation covers `UniverseViewModelTests`,
+`UniverseModeTests`, and the compact UI smoke against committed source; this
+document intentionally does not depend on a transient `/tmp` result bundle.
 
 **Remaining issues:** Account/Add still use their existing local flags and
 delayed handoff after detail dismissal. Do not replace that timing in this task:
