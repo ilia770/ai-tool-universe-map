@@ -34,5 +34,26 @@ generate`:
 passed tests and 0 failed tests.
 
 **Remaining issues:** RealityKit sources are intentionally retained. The
-compact-detail route still uses the existing local presentation mirror pending
-Task 3; this is not a completed detail-route migration.
+compact-detail route is now a typed `DetailRoute` owned by
+`UniverseViewModel`; AppShell-level ownership for account/add-tool sheets is a
+separate state/service-split plan and remains a release gate.
+
+## Local-first foundation evidence — 2026-07-27
+
+The renderer and typed compact-detail route were validated in a detached clean
+worktree at commit `6896759dfe1ba33aa3733f070242bc500a7befa8`. The only
+generated project artifact was the ignored `MyAIMap.xcodeproj`; it was not
+treated as a source change.
+
+| Gate | Result |
+| --- | --- |
+| Toolchain | Xcode 26.5 (Build version 17F42) |
+| Target | AIMapGate, iPhone 16 Pro, iOS Simulator 26.5 (OS build 23F77) |
+| Fresh result | `/tmp/aimap-foundation-route-fix9-clean-token.xcresult` — 71 passed, 0 failed, 0 skipped; result `Passed` |
+| Automated scope | Focused `UniverseMode` and `UniverseViewModel` tests plus `UniverseUISmokeTests/testCaptureKeyStates` |
+
+This confirms the automated simulator gate for this exact clean source
+revision. It does not prove the manual device matrix, VoiceOver, Dynamic Type,
+Reduce Motion, physical-device performance, archive/signing, TestFlight,
+privacy, or release security gates. Those remain required before an App Store
+release claim.
