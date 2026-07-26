@@ -20,6 +20,10 @@ struct UniverseConstellationView: View {
         reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
     }
 
+    private var ambientMotionEnabled: Bool {
+        !staticMotion && !mode.pausesAmbientMotion
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let layout = UniverseConstellationLayout.make(
@@ -38,7 +42,7 @@ struct UniverseConstellationView: View {
                         onEmptyTap()
                     }
 
-                ConstellationBackdrop(layout: layout, planetsByID: planetsByID, breath: breath)
+                ConstellationBackdrop(layout: layout, planetsByID: planetsByID, breath: breath && ambientMotionEnabled)
                     .allowsHitTesting(false)
 
                 constellationNodes(layout: layout, planetsByID: planetsByID, toolsByID: toolsByID)
@@ -48,9 +52,13 @@ struct UniverseConstellationView: View {
             .blur(radius: mode.mapBlurRadius)
             .brandAnimation(BrandMotion.morph, value: mode.signature)
             .onAppear {
-                guard !staticMotion else { return }
-                withAnimation(BrandMotion.breath) {
-                    breath = true
+                startBreathingIfAllowed()
+            }
+            .onChange(of: mode.pausesAmbientMotion) { _, pausesAmbientMotion in
+                if pausesAmbientMotion {
+                    breath = false
+                } else {
+                    startBreathingIfAllowed()
                 }
             }
         }
@@ -74,7 +82,7 @@ struct UniverseConstellationView: View {
             if let corePoint = layout.corePoint,
                let core = planetsByID[.core],
                mode == .overview || mode.isChatOpen {
-                ConstellationCoreNode(planet: core, breath: breath && !staticMotion)
+                ConstellationCoreNode(planet: core, breath: breath && ambientMotionEnabled)
                     .position(corePoint)
                     .transition(.scale(scale: 0.82).combined(with: .opacity))
             }
@@ -113,7 +121,7 @@ struct UniverseConstellationView: View {
                 diameter: node.diameter,
                 isFocused: node.isFocused,
                 isContext: node.isContext,
-                breath: breath && !staticMotion
+                breath: breath && ambientMotionEnabled
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.96))
@@ -138,7 +146,7 @@ struct UniverseConstellationView: View {
                 color: planet.swiftUIColor,
                 diameter: node.diameter,
                 isSelected: node.isSelected,
-                breath: breath && !staticMotion
+                breath: breath && ambientMotionEnabled
             )
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.96))
@@ -167,6 +175,16 @@ struct UniverseConstellationView: View {
         case .execution: return "Build"
         case .approval: return "Ship"
         case .review: return "Review"
+        }
+    }
+
+    private func startBreathingIfAllowed() {
+        guard ambientMotionEnabled else {
+            breath = false
+            return
+        }
+        withAnimation(BrandMotion.breath) {
+            breath = true
         }
     }
 }

@@ -79,6 +79,14 @@ struct UniverseModeTests {
         #expect(!UniverseMode.toolSelected(.analytics, "posthog").pausesAmbientMotion)
     }
 
+    @Test func backdropStateCoversEveryMapMode() {
+        #expect(!UniverseMode.overview.pausesAmbientMotion)
+        #expect(!UniverseMode.branchFocus(.analytics).pausesAmbientMotion)
+        #expect(!UniverseMode.toolSelected(.analytics, "posthog").pausesAmbientMotion)
+        #expect(UniverseMode.detail(.analytics, "posthog").pausesAmbientMotion)
+        #expect(UniverseMode.chatOpen(.analytics, "posthog").pausesAmbientMotion)
+    }
+
     @Test func freshOverviewOpensGeneralChatDespiteFounderProjection() {
         let context = UniverseMode.chatContext(
             activeCategory: .core,
