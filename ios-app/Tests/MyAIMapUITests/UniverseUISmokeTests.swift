@@ -112,18 +112,23 @@ final class UniverseUISmokeTests: XCTestCase {
 
         // Select a known related tool in the same sheet. The route replacement
         // must update content without a second presentation flag or new sheet.
-        for _ in 0..<3 where !app.buttons["More"].exists {
+        let more = detailRoot.descendants(matching: .button)["More"].firstMatch
+        for _ in 0..<3 {
+            guard !(more.exists && more.isHittable) else { break }
             detailRoot.swipeUp()
             wait(0.3)
         }
-        let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 3), "Detail should expose the related-tools disclosure")
-        tapElement(more, name: "detail more", app: app)
+        XCTAssertTrue(waitForHittable(more, timeout: 3), "Related-tools disclosure should be hittable before tap")
+        more.tap()
         wait(0.5)
 
-        let relatedTool = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Claude Code")).firstMatch
+        let relatedTool = detailRoot.descendants(matching: .button)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Claude Code"))
+            .firstMatch
         XCTAssertTrue(relatedTool.waitForExistence(timeout: 3), "Codex detail should expose Claude Code as a related tool")
-        tapElement(relatedTool, name: "related Claude Code", app: app)
+        XCTAssertTrue(waitForHittable(relatedTool, timeout: 3), "Related Claude Code control should be hittable before tap")
+        relatedTool.tap()
         XCTAssertTrue(
             waitForToolDetailVisible(app, toolName: "Claude Code", timeout: 5),
             "Related-tool selection should replace the visible detail tool"
