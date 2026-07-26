@@ -94,14 +94,13 @@ user-owned worktree:
 
 ```bash
 candidate_root=/Users/ilia882/Code/ai-tool-universe-map
-snapshot_root=/Users/ilia882/.config/superpowers/worktrees/ai-tool-universe-map/codex-ios-localfirst-candidate
+snapshot_root=/Users/ilia882/.config/superpowers/worktrees/ai-tool-universe-map/codex-ios-localfirst-architecture
 archive_root=$(mktemp -d /private/tmp/aimap-2d-candidate.XXXXXX)
 git -C "$candidate_root" diff --binary HEAD -- ios-app > "$archive_root/tracked.patch"
 tar -C "$candidate_root" -cf "$archive_root/untracked.tar" \
   ios-app/Sources/MyAIMap/Universe/UniverseConstellationView.swift \
   ios-app/Sources/MyAIMap/Universe/UniverseConstellationLayout.swift \
   ios-app/Tests/MyAIMapTests/UniverseConstellationLayoutTests.swift
-git -C "$candidate_root" worktree add "$snapshot_root" -b codex/ios-localfirst-candidate HEAD
 git -C "$snapshot_root" apply "$archive_root/tracked.patch"
 tar -C "$snapshot_root" -xf "$archive_root/untracked.tar"
 git -C "$candidate_root" status --short
