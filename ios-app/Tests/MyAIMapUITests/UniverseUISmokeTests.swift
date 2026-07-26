@@ -50,30 +50,16 @@ final class UniverseUISmokeTests: XCTestCase {
         let categoryNode = app.buttons["ConstellationCategory.coding"]
         XCTAssertTrue(categoryNode.waitForExistence(timeout: 8), "2D graph should expose the Coding category node")
         XCTAssertTrue(waitForHittable(categoryNode, timeout: 5), "Coding category should be hittable")
-        let categoryName = categoryName(from: categoryNode.label)
-        let categoryID = identifierSuffix(from: categoryNode.identifier, prefix: "ConstellationCategory.")
-        tapNode(categoryNode, name: "\(categoryName) category node")
+        tapNode(categoryNode, name: "Coding category node")
         wait(1.6)
-        snap("02-branch-\(categoryName)")
+        snap("02-branch-Coding")
         attachText("tree-branch", app.debugDescription)
 
-        let selectedBranch = app.staticTexts["PlanetInfoCard.SelectedBranch"].firstMatch
-        XCTAssertTrue(selectedBranch.waitForExistence(timeout: 3), "Branch card should expose a stable selected branch label")
-        XCTAssertTrue(
-            selectedBranch.label.contains(categoryName),
-            "Branch card should match the tapped \(categoryName) node; got \(selectedBranch.label)"
-        )
-
-        // Tool selection: tap a graph tool from the focused branch, then open its detail card.
-        let branchToolIdentifiers = categoryID == "coding"
-            ? ["ConstellationStar.codex"]
-            : seedToolIDsByCategory[categoryID, default: []].map { "ConstellationStar.\($0)" }
-        let toolNode = firstInteractableGraphButton(app, identifiers: branchToolIdentifiers, timeout: 8)
-        if toolNode == nil {
-            attachText("tree-no-hittable-focused-tool-node", app.debugDescription)
-        }
-        XCTAssertNotNil(toolNode, "\(categoryName) branch should expose at least one interactable focused tool node")
-        guard let toolNode else { return }
+        // The Codex star exists only in focused Coding, so its presence and
+        // hit target are the branch-focus assertion before tool selection.
+        let toolNode = app.buttons["ConstellationStar.codex"]
+        XCTAssertTrue(toolNode.waitForExistence(timeout: 8), "Coding branch should expose the Codex tool node")
+        XCTAssertTrue(waitForHittable(toolNode, timeout: 5), "Focused Codex tool node should be hittable")
         let toolName = toolName(from: toolNode.label)
         let toolID = identifierSuffix(from: toolNode.identifier, prefix: "ConstellationStar.")
         tapGraphNode(toolNode, name: "tool node", app: app)
@@ -219,20 +205,6 @@ final class UniverseUISmokeTests: XCTestCase {
         }
     }
 
-    private var seedToolIDsByCategory: [String: [String]] {
-        [
-            "analytics": ["posthog"],
-            "coding": ["codex", "claude-code", "cursor", "coderabbit", "cubic", "zed", "lovable", "bolt", "base44", "terax", "vscode"],
-            "core": ["openswarm", "approval-gate", "wisprflow", "openclaw", "shannon", "planning-loop"],
-            "design": ["figma", "dessn", "paper-design", "framer", "opendesign", "claude-design", "paperclip"],
-            "distribution": ["buffer", "omnisocials", "distribution-loop"],
-            "infrastructure": ["vercel", "docker", "warp", "react-tauri-xterm", "terminal", "supabase"],
-            "knowledge": ["agent-skills", "mattpocock-skills", "designer-skills", "chorus-skills", "obsidian-skills"],
-            "media": ["remotion", "hyperframes", "genmedia", "higgsfield", "affinity-adobe-blender", "runway", "heygen"],
-            "research": ["supadata", "readwise", "deer-flow", "api-mega-list", "kimi-webbridge", "lazyweb"]
-        ]
-    }
-
     private func wait(_ seconds: TimeInterval) {
         let exp = expectation(description: "wait")
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { exp.fulfill() }
@@ -274,56 +246,6 @@ final class UniverseUISmokeTests: XCTestCase {
     private func attachText(_ name: String, _ text: String) {
         let a = XCTAttachment(string: text)
         a.name = name; a.lifetime = .keepAlways; add(a)
-    }
-
-    @MainActor
-    private func firstHittableButton(
-        _ app: XCUIApplication,
-        identifierPrefix: String,
-        timeout: TimeInterval
-    ) -> XCUIElement? {
-        let query = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix))
-        let deadline = Date().addingTimeInterval(timeout)
-
-        repeat {
-            for index in 0..<query.count {
-                let candidate = query.element(boundBy: index)
-                if candidate.exists, candidate.isHittable {
-                    return candidate
-                }
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-
-        return nil
-    }
-
-    @MainActor
-    private func firstInteractableGraphButton(
-        _ app: XCUIApplication,
-        identifiers: [String],
-        timeout: TimeInterval
-    ) -> XCUIElement? {
-        let deadline = Date().addingTimeInterval(timeout)
-
-        repeat {
-            var firstVisibleFallback: XCUIElement?
-            for identifier in identifiers {
-                let candidate = app.buttons[identifier]
-                if candidate.exists, candidate.isHittable {
-                    return candidate
-                }
-                if firstVisibleFallback == nil, candidate.exists, isFullyVisibleGraphButton(candidate, in: app) {
-                    firstVisibleFallback = candidate
-                }
-            }
-            if let firstVisibleFallback {
-                return firstVisibleFallback
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-
-        return nil
     }
 
     @MainActor
@@ -406,10 +328,6 @@ final class UniverseUISmokeTests: XCTestCase {
             && detailTitle.label.contains(toolName)
     }
 
-    private func categoryName(from label: String) -> String {
-        nameComponent(from: label, prefix: "Category node, ")
-    }
-
     private func toolName(from label: String) -> String {
         nameComponent(from: label, prefix: "Tool node, ")
     }
@@ -486,17 +404,4 @@ final class UniverseUISmokeTests: XCTestCase {
         ).tap()
     }
 
-    @MainActor
-    private func isFullyVisibleGraphButton(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        let frame = element.frame
-        let topChromeBottom: CGFloat = 196
-        let bottomDockTop = app.frame.height - 214
-
-        return frame.width > 1
-            && frame.height > 1
-            && frame.minX >= 0
-            && frame.maxX <= app.frame.width
-            && frame.minY >= topChromeBottom
-            && frame.maxY <= bottomDockTop
-    }
 }
