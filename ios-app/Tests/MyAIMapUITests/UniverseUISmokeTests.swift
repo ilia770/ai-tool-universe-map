@@ -88,6 +88,19 @@ final class UniverseUISmokeTests: XCTestCase {
         guard didOpenDetail else { return }
 
         let detailRoot = app.descendants(matching: .any)["RootSheet.ToolDetail"].firstMatch
+        let detailClose = app.buttons["UniverseDetail.Close"]
+        XCTAssertTrue(detailClose.waitForExistence(timeout: 3), "Detail sheet should expose a visible close action")
+        XCTAssertTrue(waitForHittable(detailClose, timeout: 3), "Detail close should be hittable before tap")
+        detailClose.tap()
+        XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "Visible close should fully dismiss detail")
+
+        let returnNode = app.buttons["ConstellationStar.\(toolID)"]
+        XCTAssertTrue(returnNode.waitForExistence(timeout: 5), "Dismissal should restore the original map node")
+        XCTAssertTrue(waitForHittable(returnNode, timeout: 5), "Restored map node should remain hittable")
+
+        // Reopen immediately, then verify that a cancelled partial drag keeps
+        // the sheet visible before continuing to related-tool replacement.
+        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
         let partialDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
         let partialDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
         partialDragStart.press(forDuration: 0.1, thenDragTo: partialDragEnd)
@@ -97,19 +110,8 @@ final class UniverseUISmokeTests: XCTestCase {
             "A cancelled partial sheet drag must preserve the detail route"
         )
 
-        let detailClose = app.buttons["UniverseDetail.Close"]
-        XCTAssertTrue(detailClose.waitForExistence(timeout: 3), "Detail sheet should expose a visible close action")
-        tapElement(detailClose, name: "detail close", app: app)
-        XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "Visible close should fully dismiss detail")
-
-        let returnNode = app.buttons["ConstellationStar.\(toolID)"]
-        XCTAssertTrue(returnNode.waitForExistence(timeout: 5), "Dismissal should restore the original map node")
-        XCTAssertTrue(waitForHittable(returnNode, timeout: 5), "Restored map node should remain hittable")
-
-        // Reopen immediately, then select a known related tool in the same
-        // sheet. The route replacement must update content without a second
-        // presentation flag or a new sheet.
-        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
+        // Select a known related tool in the same sheet. The route replacement
+        // must update content without a second presentation flag or new sheet.
         for _ in 0..<3 where !app.buttons["More"].exists {
             detailRoot.swipeUp()
             wait(0.3)

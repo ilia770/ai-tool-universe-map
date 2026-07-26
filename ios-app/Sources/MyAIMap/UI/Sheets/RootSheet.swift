@@ -13,19 +13,50 @@ import SwiftUI
 /// native drag indicator and keeps the canvas legible behind it.
 struct RootSheet: View {
     @Environment(UniverseViewModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let onOpenRelatedTool: ((String) -> Void)?
+    let onClose: (() -> Void)?
 
-    init(onOpenRelatedTool: ((String) -> Void)? = nil) {
+    init(
+        onOpenRelatedTool: ((String) -> Void)? = nil,
+        onClose: (() -> Void)? = nil
+    ) {
         self.onOpenRelatedTool = onOpenRelatedTool
+        self.onClose = onClose
     }
 
     var body: some View {
         ScrollView {
-            ToolDetailSection(onOpenRelatedTool: onOpenRelatedTool)
-                .padding(.horizontal, BrandSpacing.xl.value)
-                .padding(.top, BrandSpacing.xl.value)
-                .padding(.bottom, BrandSpacing.xxl.value)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                if let onClose {
+                    HStack {
+                        Spacer()
+                        Button {
+                            onClose()
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(BrandTypography.controlLabel)
+                                .foregroundStyle(.white.opacity(0.86))
+                                .frame(width: 34, height: 34)
+                                .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                        .accessibilityLabel("Close detail")
+                        .accessibilityIdentifier("UniverseDetail.Close")
+                    }
+                    .padding(.top, BrandSpacing.xl.value)
+                    .padding(.trailing, BrandSpacing.xl.value)
+                }
+
+                ToolDetailSection(onOpenRelatedTool: onOpenRelatedTool)
+                    .padding(.horizontal, BrandSpacing.xl.value)
+                    .padding(.top, BrandSpacing.xl.value)
+                    .padding(.bottom, BrandSpacing.xxl.value)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
