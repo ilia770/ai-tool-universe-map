@@ -27,6 +27,13 @@ enum BrandTypography {
     /// stay `.default`).
     static let controlLabel: Font = .system(.subheadline, design: .rounded, weight: .semibold)
 
+    /// Compact labels anchored to 2D constellation nodes.
+    static let graphLabel: Font = .system(.caption, design: .default, weight: .medium)
+    static let graphLabelFocused: Font = .system(.footnote, design: .default, weight: .semibold)
+    static let graphToolLabel: Font = .system(.caption2, design: .default, weight: .medium)
+    static let graphMetadata: Font = .system(.caption2, design: .default, weight: .regular)
+    static let graphCoreLabel: Font = .system(.subheadline, design: .default, weight: .semibold)
+
     /// Caption semibold uppercase — eyebrow kicker over a section.
     /// Pair with `.kerning(1.8)` and `.textCase(.uppercase)`.
     static let eyebrow: Font = .system(.caption2, design: .default, weight: .semibold)
