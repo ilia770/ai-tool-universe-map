@@ -164,9 +164,11 @@ baseline, use the following evidence order:
   source, not the mounted renderer.
 - **Baseline evidence:** layout coverage includes deterministic 100-, 500-,
   and 1,000-tool fixtures at compact phone, standard phone, and iPad canvas
-  sizes. Fresh simulator/runtime evidence is still required: this snapshot was
-  not run through XcodeGen or xcodebuild because available disk space was only
-  2.4 GiB, below the safe verification threshold.
+  sizes. The Build-iOS plugin ran
+  `MyAIMapTests/UniverseConstellationLayoutTests` on AIMapGate (iPhone 16 Pro,
+  iOS Simulator 26.5); xcresult:
+  `/Users/ilia882/Library/Developer/XcodeBuildMCP/workspaces/ilia882-f01b6870e2fe/result-bundles/test_sim_2026-07-26T20-48-56-152Z_pid57762_3a206cec.xcresult`;
+  summary: `passedTests: 8`, `failedTests: 0`, `result: Passed`.
 
 ## Changed files / QA done / Remaining issues
 
@@ -181,13 +183,15 @@ baseline, use the following evidence order:
 
 - Static Swift parsing and focused type-checking cover the common `(id, point)`
   node representation used by the large-catalog assertions.
-- Runtime Xcode verification is **BLOCKED**: only 2.4 GiB of free disk space
-  was available, so XcodeGen, xcodebuild, and xcresult inspection were not run.
+- The Build-iOS plugin ran `MyAIMapTests/UniverseConstellationLayoutTests` on
+  AIMapGate (iPhone 16 Pro, iOS Simulator 26.5). The xcresult at
+  `/Users/ilia882/Library/Developer/XcodeBuildMCP/workspaces/ilia882-f01b6870e2fe/result-bundles/test_sim_2026-07-26T20-48-56-152Z_pid57762_3a206cec.xcresult`
+  reports `passedTests: 8`, `failedTests: 0`, `result: Passed`.
 
 **Remaining issues**
 
-- Run the focused layout and UI-smoke tests on a simulator and record a nonzero
-  xcresult once sufficient disk capacity is available.
+- UI smoke remains unrun.
+- Physical-device performance and accessibility evidence remains unrun.
 
 ### Terminology
 
