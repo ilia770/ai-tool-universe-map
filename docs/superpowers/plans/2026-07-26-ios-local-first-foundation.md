@@ -171,8 +171,10 @@ git commit -m "feat(ios): snapshot 2d constellation baseline"
 - Modify: `ios-app/Sources/MyAIMap/Universe/UniverseMapView.swift`
 - Modify: `ios-app/Sources/MyAIMap/Universe/UniverseOverlayView.swift`
 - Modify: `ios-app/Tests/MyAIMapTests/UniverseModeTests.swift`
-- Modify: `ios-app/docs/ARCHITECTURE.md`
-- Modify: `ios-app/docs/STATE_OWNERSHIP.md`
+- Create: `ios-app/docs/ARCHITECTURE.md` (the current snapshot has no file at
+  this required path)
+- Create: `ios-app/docs/STATE_OWNERSHIP.md` (the current snapshot has no file
+  at this required path)
 
 **Interfaces:**
 - Consumes: `UniverseMode`, `UniverseConstellationView`, and semantic
@@ -250,8 +252,20 @@ xcrun xcresulttool get test-results summary --path /tmp/aimap-foundation-rendere
 
 - [ ] **Step 5: Document and commit the isolation**
 
-Update `ARCHITECTURE.md` and `STATE_OWNERSHIP.md` to state that RealityKit is
-not constructed by the release map. Commit:
+Create `ARCHITECTURE.md` with a current render-path section that names
+`UniverseMapView` → `UniverseConstellationView` as the release map and states
+that `MapRendererKind.release == .constellation2D`; list retained RealityKit
+files as legacy and explicitly state that the release map constructs none of
+`UniverseSceneController`, `CameraRigController`, or
+`UniverseGestureController`. Create `STATE_OWNERSHIP.md` with a concise
+ownership matrix: `RootShell.surface` owns the root Map/Ask AI route,
+`UniverseViewModel.universeMode` owns the only stored map-navigation value,
+and `UniverseMapView` still temporarily owns compact-detail/account/add-tool
+presentation state until Task 3 replaces the compact detail mirror. Neither
+document may claim a 3D release path or a completed detail-route migration.
+End each document with `## Changed files / QA done / Remaining issues` and
+identify the focused xcresult command as the automated evidence source.
+Commit:
 
 ```bash
 git add ios-app/Sources/MyAIMap/Universe/UniverseMapView.swift \
