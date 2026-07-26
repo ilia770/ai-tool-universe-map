@@ -166,9 +166,9 @@ baseline, use the following evidence order:
   and 1,000-tool fixtures at compact phone, standard phone, and iPad canvas
   sizes. The Build-iOS plugin ran
   `MyAIMapTests/UniverseConstellationLayoutTests` on AIMapGate (iPhone 16 Pro,
-  iOS Simulator 26.5); xcresult:
-  `/Users/ilia882/Library/Developer/XcodeBuildMCP/workspaces/ilia882-f01b6870e2fe/result-bundles/test_sim_2026-07-26T20-48-56-152Z_pid57762_3a206cec.xcresult`;
-  summary: `passedTests: 8`, `failedTests: 0`, `result: Passed`.
+  iOS Simulator 26.5). Its xcresult summary was inspected before cleanup:
+  `passedTests: 8`, `failedTests: 0`, `result: Passed`. The transient result
+  bundle was deleted after inspection and is not a reusable artifact.
 
 ## Changed files / QA done / Remaining issues
 
@@ -184,9 +184,10 @@ baseline, use the following evidence order:
 - Static Swift parsing and focused type-checking cover the common `(id, point)`
   node representation used by the large-catalog assertions.
 - The Build-iOS plugin ran `MyAIMapTests/UniverseConstellationLayoutTests` on
-  AIMapGate (iPhone 16 Pro, iOS Simulator 26.5). The xcresult at
-  `/Users/ilia882/Library/Developer/XcodeBuildMCP/workspaces/ilia882-f01b6870e2fe/result-bundles/test_sim_2026-07-26T20-48-56-152Z_pid57762_3a206cec.xcresult`
-  reports `passedTests: 8`, `failedTests: 0`, `result: Passed`.
+  AIMapGate (iPhone 16 Pro, iOS Simulator 26.5). Its xcresult summary was
+  inspected before cleanup: `passedTests: 8`, `failedTests: 0`,
+  `result: Passed`. The transient result bundle was deleted after inspection
+  and is not a reusable artifact.
 
 **Remaining issues**
 
