@@ -209,6 +209,17 @@ system swipe-down, cancelled-drag, related replacement, and related-close
 assertion. Clean execution evidence is appended below after the isolated
 checkout run.
 
+**Clean checkout execution:** detached worktree
+`/private/tmp/aimap-task3-clean-head` at `c034cdf` generated its ignored
+`ios-app/MyAIMap.xcodeproj` and ran the full required scope on AIMapGate with
+isolated DerivedData `/private/tmp/aimap-foundation-clean-dd`. The build failed
+before tests or a result bundle could be created: committed
+`UniverseConstellationView.swift` references missing
+`BrandTypography.graphCoreLabel` (line 245), followed by two type-check errors
+at its overlay closures (lines 288 and 340). `fix8-clean.xcresult/Info.plist`
+is absent, so no pass/fail test summary can be claimed. Clean git status shows
+only the allowed ignored generated Xcode project and no test-source changes.
+
 ## Fix round 5 — stable related-detail presentation identity
 
 **Root-cause evidence:** `DetailRoute.id` was derived from `toolID`, while
