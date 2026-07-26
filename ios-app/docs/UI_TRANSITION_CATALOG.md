@@ -6,7 +6,7 @@ reconstruct absent visual-reference documentation.
 | ID | Transition | Current implementation | Status |
 | --- | --- | --- | --- |
 | T-03 | Compact map tool → detail | `DetailRoute` drives one native `.sheet(item:)` binding at `UniverseMapView`; dismissal restores the captured `UniverseMode`. | Implemented in Task 3. |
-| T-04 | Detail → related tool | `replaceDetailTool(with:)` replaces the route and visible detail content without a second presentation flag. | Implemented in Task 3. |
+| T-04 | Detail → related tool | `replaceDetailTool(with:)` replaces tool content and return mode while retaining the route's sheet-presentation identity; no second flag or new system sheet. | Implemented in Task 3. |
 | T-05 | Shared-element map/detail hero | No `matchedTransitionSource`, shared-element host, custom drag progress, or hero transition is introduced. | **Blocked** until the required visual reference is supplied and reviewed. |
 
 T-03 retains the current system-sheet presentation: fraction-0.72 and large

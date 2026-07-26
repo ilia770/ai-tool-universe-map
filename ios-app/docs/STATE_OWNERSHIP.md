@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Root Map / Ask AI route | `RootShell.surface` | Root routing only; it is separate from map navigation. |
 | Map selection and navigation | `UniverseViewModel.universeMode` | The sole stored map-navigation value; selection is projected from it. |
-| Compact detail route | `UniverseViewModel.detailRoute` | Optional typed route carrying `toolID` and the exact `UniverseMode` to restore. The compact map host owns the single binding only. |
+| Compact detail route | `UniverseViewModel.detailRoute` | Optional typed route carrying `toolID`, the exact `UniverseMode` to restore, and a stable sheet-presentation identity. The compact map host owns the single binding only. |
 | Account and add-tool presentations | `UniverseMapView` | Local system-sheet flags remain until the state/service split establishes one app-sheet owner. |
 
 `UniverseMapView` reads and writes the model-owned `universeMode`; it does not
@@ -12,6 +12,8 @@ store a second map-selection value. `requestDetail(for:)`, `dismissDetail()`,
 and `replaceDetailTool(with:)` are the only compact-detail intents. The release
 renderer consumes `universeMode` to lay out the 2D constellation, while the
 compact sheet observes `detailRoute` through one `Binding<DetailRoute?>`.
+Related-tool replacement retains the route's presentation identity, so it
+updates sheet content without dismissing or presenting a second system sheet.
 
 `DetailRoute.returnMode` is not persisted. It captures only the live map state
 needed to restore the selected tool after a compact detail dismissal. Root Ask

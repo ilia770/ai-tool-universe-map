@@ -12,8 +12,10 @@ only the in-map assistant context.
 
 Compact detail is a model-owned `DetailRoute`. Its `returnMode` restores the
 selected map tool after dismissal, while the optional route drives the compact
-system sheet through one map-host binding. It does not replace `RootShell` or
-persist a new map-selection value.
+system sheet through one map-host binding. Related-tool replacement retains the
+route's presentation identity so the reading content changes without a sheet
+dismissal/re-presentation. It does not replace `RootShell` or persist a new
+map-selection value.
 
 On regular width, the detail reading surface is the trailing inspector derived
 from explicit selected-tool state. The compact route is restored rather than

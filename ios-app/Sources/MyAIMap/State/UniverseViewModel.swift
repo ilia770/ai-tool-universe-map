@@ -287,15 +287,17 @@ final class UniverseViewModel {
     }
 
     /// Changes the visible detail content without adding a second presentation
-    /// flag. Related-tool navigation becomes a replacement typed route.
+    /// flag. Related-tool navigation preserves the sheet presentation identity
+    /// while replacing its typed content route.
     func replaceDetailTool(with toolID: String) {
-        guard detailRoute != nil else {
+        guard let existingRoute = detailRoute else {
             requestDetail(for: toolID)
             return
         }
         guard let tool = visibleAllTools.first(where: { $0.id == toolID }) else { return }
 
         detailRoute = DetailRoute(
+            id: existingRoute.id,
             toolID: tool.id,
             returnMode: .toolSelected(tool.category, tool.id)
         )

@@ -352,10 +352,8 @@ struct UniverseViewModelTests {
 
         model.requestDetail(for: "posthog")
 
-        #expect(model.detailRoute == DetailRoute(
-            toolID: "posthog",
-            returnMode: .toolSelected(.analytics, "posthog")
-        ))
+        #expect(model.detailRoute?.toolID == "posthog")
+        #expect(model.detailRoute?.returnMode == .toolSelected(.analytics, "posthog"))
         #expect(model.universeMode == .detail(.analytics, "posthog"))
     }
 
@@ -398,13 +396,24 @@ struct UniverseViewModelTests {
 
         model.replaceDetailTool(with: "figma")
 
-        #expect(model.detailRoute == DetailRoute(
-            toolID: "figma",
-            returnMode: .toolSelected(.design, "figma")
-        ))
+        #expect(model.detailRoute?.toolID == "figma")
+        #expect(model.detailRoute?.returnMode == .toolSelected(.design, "figma"))
         #expect(model.universeMode == .detail(.design, "figma"))
         model.dismissDetail()
         #expect(model.universeMode == .toolSelected(.design, "figma"))
+    }
+
+    @Test func replacingDetailToolPreservesPresentationIdentity() {
+        let model = makeModel(sample: true)
+        model.requestDetail(for: "posthog")
+        let presentationID = model.detailRoute?.id
+
+        #expect(presentationID != nil)
+        model.replaceDetailTool(with: "figma")
+
+        #expect(model.detailRoute?.id == presentationID)
+        #expect(model.detailRoute?.toolID == "figma")
+        #expect(model.detailRoute?.returnMode == .toolSelected(.design, "figma"))
     }
 
     @Test func deleteToolHidesItFromSearchAndRecordsHistory() {

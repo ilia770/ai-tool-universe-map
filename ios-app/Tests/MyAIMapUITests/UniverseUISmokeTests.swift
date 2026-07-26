@@ -98,8 +98,19 @@ final class UniverseUISmokeTests: XCTestCase {
         XCTAssertTrue(returnNode.waitForExistence(timeout: 5), "Dismissal should restore the original map node")
         XCTAssertTrue(waitForHittable(returnNode, timeout: 5), "Restored map node should remain hittable")
 
-        // Reopen immediately, then verify that a cancelled partial drag keeps
-        // the sheet visible before continuing to related-tool replacement.
+        // Reopen at the initial detent, then fully drag the system sheet down.
+        // This exercises the optional-route binding nil write and onDismiss
+        // reconciliation rather than the explicit close button path.
+        XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
+        let dismissalDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
+        let dismissalDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.84))
+        dismissalDragStart.press(forDuration: 0.1, thenDragTo: dismissalDragEnd)
+        XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "A full sheet swipe-down should dismiss detail")
+        XCTAssertTrue(returnNode.waitForExistence(timeout: 5), "Swipe dismissal should restore the original map node")
+        XCTAssertTrue(waitForHittable(returnNode, timeout: 5), "Swipe-restored map node should remain hittable")
+
+        // Reopen fresh, then verify that a cancelled partial drag keeps the
+        // sheet visible before continuing to related-tool replacement.
         XCTAssertTrue(openSelectedToolDetail(app, selectedDetails: selectedDetails, toolName: toolName))
         let partialDragStart = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04))
         let partialDragEnd = detailRoot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
@@ -134,8 +145,17 @@ final class UniverseUISmokeTests: XCTestCase {
             "Related-tool selection should replace the visible detail tool"
         )
 
-        let relatedClose = app.buttons["UniverseDetail.Close"]
-        tapElement(relatedClose, name: "related detail close", app: app)
+        let relatedClose = detailRoot.descendants(matching: .button)["UniverseDetail.Close"]
+        // The two content swipes that reveal More also move the header out of
+        // view. Return the detail scroll view to its initial top position
+        // before asking XCTest to evaluate the close control's hit point.
+        for _ in 0..<2 {
+            detailRoot.swipeDown()
+            wait(0.3)
+        }
+        XCTAssertTrue(relatedClose.waitForExistence(timeout: 3), "Related detail should expose its close action")
+        XCTAssertTrue(waitForHittable(relatedClose, timeout: 3), "Related detail close should be hittable before tap")
+        relatedClose.tap()
         XCTAssertTrue(waitForNonExistence(detailRoot, timeout: 5), "Related detail should dismiss cleanly")
         let relatedReturnNode = app.buttons["ConstellationStar.claude-code"]
         XCTAssertTrue(relatedReturnNode.waitForExistence(timeout: 5), "Dismissal should restore the related tool node")

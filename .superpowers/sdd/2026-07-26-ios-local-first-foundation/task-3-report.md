@@ -194,6 +194,36 @@ further test run was started. Free capacity after the run was about 621 MiB.
 **Baseline preservation:** the pre-task visual snapshot still reverse-applies
 without mutation and user visual changes remain unstaged.
 
+## Fix round 5 — stable related-detail presentation identity
+
+**Root-cause evidence:** `DetailRoute.id` was derived from `toolID`, while
+`replaceDetailTool(with:)` creates the new related-tool route. The compact host
+uses `.sheet(item:)`, so a Codex → Claude Code replacement changed SwiftUI's
+presented item identity. Fix-6 activity confirmed the new title briefly
+appeared before `RootSheet.ToolDetail` disappeared, leaving the map on Claude
+Code instead of a stable related detail sheet.
+
+**Exact change:** `DetailRoute` now stores a UUID presentation identity. Each
+`requestDetail(for:)` creates a new UUID; `replaceDetailTool(with:)` carries
+forward the currently presented route's UUID while changing only the tool and
+return mode. Dismissal remains unchanged. The model test explicitly proves
+identity preservation alongside the new tool and return mode. The UI smoke now
+also performs a real in-sheet full swipe-down (valid RootSheet coordinates
+`0.04 → 0.84`), asserts dismissal/restoration, then reopens for the existing
+cancelled-drag, related replacement, and normal close coverage.
+
+**Command:** XcodeBuildMCP ran the complete required scope on AIMapGate
+(`0645CAEE-891B-41C3-A240-AFD30E43C260`) with existing derived data:
+`UniverseViewModelTests`, `UniverseModeTests`, and
+`UniverseUISmokeTests/testCaptureKeyStates`, writing
+`/tmp/aimap-foundation-route-fix7.xcresult`.
+
+**Fresh xcresult summary:** 71 passed, 0 failed, 0 skipped (`result: Passed`).
+The finalized bundle contains `Info.plist`.
+
+**Baseline preservation:** the pre-task visual snapshot still reverse-applies
+without mutation and user visual changes remain unstaged.
+
 ## Fix round 4 — sheet-scoped related-tool smoke
 
 **Root-cause evidence:** the finalized fix-4 activity log showed the global

@@ -18,8 +18,9 @@ not reconstruct missing historical interaction material.
 - A cancelled partial system drag sends no dismissal intent, leaving the route
   and `.detail` map state intact.
 - Choosing a related visible tool requests
-  `UniverseViewModel.replaceDetailTool(with:)`. The optional route is replaced
-  in place; there is no second compact-detail Boolean.
+  `UniverseViewModel.replaceDetailTool(with:)`. The optional route's tool and
+  return mode are replaced in place while its sheet-presentation identity is
+  retained; there is no second compact-detail Boolean or new system sheet.
 
 ## Regular width
 
