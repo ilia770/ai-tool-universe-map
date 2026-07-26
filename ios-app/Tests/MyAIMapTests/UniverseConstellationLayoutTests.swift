@@ -167,8 +167,10 @@ struct UniverseConstellationLayoutTests {
         size: CGSize
     ) {
         let safeContent = UniverseConstellationLayout.contentRect(in: size)
+        let nodes = layout.categoryNodes.map { (id: $0.id, point: $0.point) }
+            + layout.toolNodes.map { (id: $0.id, point: $0.point) }
 
-        for node in layout.categoryNodes + layout.toolNodes {
+        for node in nodes {
             #expect(node.point.x >= 0 && node.point.x <= size.width, "Out-of-bounds x point \(node.point) for \(node.id)")
             #expect(node.point.y >= 0 && node.point.y <= size.height, "Out-of-bounds y point \(node.point) for \(node.id)")
             #expect(safeContent.contains(node.point), "Point \(node.point) for \(node.id) escapes safe inset \(safeContent)")

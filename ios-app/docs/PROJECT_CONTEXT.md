@@ -168,6 +168,27 @@ baseline, use the following evidence order:
   not run through XcodeGen or xcodebuild because available disk space was only
   2.4 GiB, below the safe verification threshold.
 
+## Changed files / QA done / Remaining issues
+
+**Changed files**
+
+- `UniverseConstellationView.swift` and `UniverseConstellationLayout.swift`
+  preserve the current 2D candidate.
+- `UniverseConstellationLayoutTests.swift` includes deterministic large-catalog
+  ID and safe-inset point assertions.
+
+**QA done**
+
+- Static Swift parsing and focused type-checking cover the common `(id, point)`
+  node representation used by the large-catalog assertions.
+- Runtime Xcode verification is **BLOCKED**: only 2.4 GiB of free disk space
+  was available, so XcodeGen, xcodebuild, and xcresult inspection were not run.
+
+**Remaining issues**
+
+- Run the focused layout and UI-smoke tests on a simulator and record a nonzero
+  xcresult once sufficient disk capacity is available.
+
 ### Terminology
 
 | Term | Meaning in this app | Avoid calling it |
