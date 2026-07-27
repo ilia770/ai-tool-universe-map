@@ -19,9 +19,11 @@ enum AssistantBackend: Equatable, Sendable {
     /// Resolves the active backend from current configuration. Release builds
     /// (and any build without developer mode + a stored key) get `.local`.
     static func resolve(developerModeEnabled: Bool, hasDeepSeekKey: Bool) -> AssistantBackend {
+        #if DEBUG
         if developerModeEnabled && hasDeepSeekKey {
             return .debugDeepSeek
         }
+        #endif
         return .local
     }
 }
@@ -31,4 +33,23 @@ enum AssistantBackend: Equatable, Sendable {
 /// `DeepSeekClient` is the only production conformer; tests inject a stub.
 protocol AssistantResponder: Sendable {
     func reply(to userQuery: String, systemPrompt: String?, apiKey: String?) async throws -> String
+}
+
+/// Release builds have no provider client or API-key store. This responder
+/// exists solely to preserve the view-model's injectable seam; it is never
+/// selected by the release backend resolver.
+struct UnavailableAssistantResponder: AssistantResponder {
+    func reply(to userQuery: String, systemPrompt: String?, apiKey: String?) async throws -> String {
+        throw CancellationError()
+    }
+}
+
+enum AssistantResponderFactory {
+    static let defaultResponder: any AssistantResponder = {
+        #if DEBUG
+        return DeepSeekClient()
+        #else
+        return UnavailableAssistantResponder()
+        #endif
+    }()
 }

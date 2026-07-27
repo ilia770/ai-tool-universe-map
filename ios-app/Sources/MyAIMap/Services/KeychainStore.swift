@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import Security
 
@@ -77,3 +78,4 @@ enum KeychainStore {
         load(account: account) != nil
     }
 }
+#endif

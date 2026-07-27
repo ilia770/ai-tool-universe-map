@@ -60,15 +60,16 @@ final class UniverseViewModel {
     /// Test-only compatibility path while production callers migrate from the
     /// former combined store. `MyAIMapApp` never constructs this initializer.
     @ObservationIgnored private let legacyStore: UniverseStore?
-    /// Network assistant used only on the `.debugDeepSeek` path. Injectable so a
-    /// test can force a failure; the app default is the real `DeepSeekClient`.
-    @ObservationIgnored private let assistantResponder: AssistantResponder
+    /// Network assistant seam used only by DEBUG developer builds. Release
+    /// construction receives an unavailable responder and always selects the
+    /// local backend.
+    @ObservationIgnored private let assistantResponder: any AssistantResponder
 
     /// Production initializer. Composition happens in `MyAIMapApp`; this model
     /// receives already-separated catalog, migration, and preferences owners.
     init(
         dependencies: CatalogRuntimeDependencies,
-        assistantResponder: AssistantResponder = DeepSeekClient()
+        assistantResponder: any AssistantResponder = AssistantResponderFactory.defaultResponder
     ) {
         self.catalogRepository = dependencies.repository
         self.preferences = dependencies.preferences
@@ -93,7 +94,7 @@ final class UniverseViewModel {
         self.subscription = savedPreferences.subscription
     }
 
-    convenience init(assistantResponder: AssistantResponder = DeepSeekClient()) {
+    convenience init(assistantResponder: any AssistantResponder = AssistantResponderFactory.defaultResponder) {
         self.init(
             dependencies: CatalogRuntimeDependencies.production(),
             assistantResponder: assistantResponder
@@ -103,7 +104,7 @@ final class UniverseViewModel {
     /// Compatibility initializer for existing unit tests during the staged
     /// migration. It retains the old behavior but is never used by production
     /// composition; Batch 4 removes it after executed migration evidence.
-    init(store: UniverseStore, assistantResponder: AssistantResponder = DeepSeekClient()) {
+    init(store: UniverseStore, assistantResponder: any AssistantResponder = AssistantResponderFactory.defaultResponder) {
         self.catalogRepository = nil
         self.preferences = nil
         self.migrationCoordinator = nil
@@ -614,10 +615,14 @@ final class UniverseViewModel {
     /// builds/users get `.local`; `.debugDeepSeek` only when developer mode is
     /// on AND a key is stored (see `AssistantBackend`).
     var activeBackend: AssistantBackend {
+        #if DEBUG
         AssistantBackend.resolve(
             developerModeEnabled: DeveloperMode.isEnabled,
             hasDeepSeekKey: KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
         )
+        #else
+        .local
+        #endif
     }
 
     /// Increments the local placeholder usage counter and persists it.

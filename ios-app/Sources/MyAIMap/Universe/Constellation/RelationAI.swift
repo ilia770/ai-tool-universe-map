@@ -67,6 +67,7 @@ enum RelationAI {
     }
 
     /// Async fetch via the DeepSeek backend. Returns `[]` on any failure.
+    #if DEBUG
     static func relatedIDs(for tool: Tool, in tools: [Tool],
                           client: DeepSeekClient = DeepSeekClient()) async -> [String] {
         let catalog = Set(tools.map(\.id))
@@ -80,4 +81,11 @@ enum RelationAI {
             return []
         }
     }
+    #else
+    /// Provider-backed relation inference is deliberately absent from release
+    /// until it can call an app-owned hosted service with server-side policy.
+    static func relatedIDs(for tool: Tool, in tools: [Tool]) async -> [String] {
+        []
+    }
+    #endif
 }

@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 /// Thin OpenAI-compatible client for the DeepSeek chat completions API.
@@ -134,3 +135,4 @@ struct DeepSeekClient {
 /// The production assistant backend. The existing `reply(to:systemPrompt:apiKey:)`
 /// already matches the requirement, so conformance is declaration-only.
 extension DeepSeekClient: AssistantResponder {}
+#endif

@@ -149,3 +149,25 @@ relation mentions, cautious pricing, history caveats. Codex follow-ups added
 missing-chip prefill into Add Tool and the no-match general-vs-lookup split
 (small talk, RU + transliterated RU, single unknown token still asks for a
 website). Tests: `Tests/MyAIMapTests/UniverseAssistantCoreTests.swift`.
+
+## Changed files / QA done / Remaining issues
+
+### Release boundary (2026-07-27)
+
+- `Services/DeepSeekClient.swift` and `Services/KeychainStore.swift` compile
+  only in `DEBUG`. An App Store build cannot contain the direct provider client
+  or an API-key persistence path.
+- `State/AssistantBackend.swift` resolves to `.local` outside `DEBUG`; its
+  responder factory supplies an unavailable placeholder only to preserve the
+  view-model's dependency-injection seam.
+- `State/UniverseViewModel.swift` uses the local assistant unconditionally in
+  Release. `Universe/Constellation/RelationAI.swift` returns no provider-backed
+  relation suggestions in Release.
+- QA done: 64 focused DeepSeek/view-model Debug tests passed on iPhone 16 Pro
+  simulator; `MyAIMap` Release build for `iphonesimulator` passed with code
+  signing disabled. The only warnings are pre-existing redundant `await`s in
+  `UniverseViewModel`.
+- Remaining: a future hosted assistant must call an app-owned backend, with
+  authenticated sessions, request IDs/cancellation, bounded prompts/responses,
+  server-enforced quota and provider-key custody. Direct client code must not
+  be re-enabled for Release.
