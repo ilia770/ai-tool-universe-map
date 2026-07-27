@@ -6,11 +6,11 @@
   existing commit `b238c47` inspected; Release-evidence plan created; two
   independent manifest reviews completed without source findings; plist parsing
   and generated-resource inclusion passed; a clean unsigned archive retry was
-  attempted.
-- Active slice: record the release evidence precisely and write the next
-  catalog-durability plan without changing persistence.
-- Next: review the catalog contract/file map, complete its implementation plan,
-  then commit scoped evidence and planning documentation.
+  attempted; precise release evidence and the catalog-durability plan were
+  committed as `195d021`.
+- Active slice: none — this release-evidence planning slice is complete.
+- Next: start the catalog-durability implementation in a new clean worktree
+  from `195d021`; do not modify existing user data while planning.
 - Blocked-on: archive evidence is blocked. During the fresh archive retry,
   CoreSimulatorService disconnected and `ibtool`/`actool` reported no runtime /
   `iOS 26.5 Platform Not Installed` (exit 65). No service restart is authorized
@@ -32,5 +32,6 @@ are uncommitted at this checkpoint.
 - Retirement: the old deferred archive evidence remains until fresh proof.
 - Evidence: source/configuration evidence is fresh; full archive evidence is
   `needs-verification` because of reproducible host infrastructure failure.
-- Decision: continue with catalog planning; do not retry the same archive until
-  the host service has been deliberately recovered.
+- Decision: `needs-verification` for archive only; the documentation/planning
+  slice is complete. Do not retry the same archive until the host service has
+  been deliberately recovered.
