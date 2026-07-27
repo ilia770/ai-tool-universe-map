@@ -21,3 +21,13 @@
 | Bounded import regression coverage | Focused tests cover an over-budget payload and a file read at `maximumBytes + 1`; catalog validation rejects 513 tools before map construction | Tests typecheck; their runtime execution is still host-blocked. |
 | Codex Security diff scan | Nine changed/untracked rows were independently reviewed. Two self-only availability candidates (unbounded provider read and oversized interactive catalog) were fixed and suppressed before finalization; zero reportable findings remain | Finalized bundle is ephemeral local evidence under `/private/tmp`; it does not replace XCTest/UI/runtime evidence. |
 | Batch 4 focused XCTest attempt | `xcodegen generate` succeeded in the isolated worktree; the focused `xcodebuild test` command for CatalogRepository, CatalogMigration, and CatalogViewModelIntegration started against booted AIMapGate | CoreSimulatorService disconnected before test execution, no usable xcresult remained at the requested path, and no passed/failed/executed test count is claimed. No simulator restart was performed. |
+
+## Runtime evidence update — 2026-07-27
+
+| Check | Result | Scope / limitation |
+| --- | --- | --- |
+| Full unit suite | `/private/tmp/aimap-catalog-unit-final-2.xcresult`: `passedTests: 433`, `failedTests: 0`, `skippedTests: 0`, `result: Passed` | AIMapGate, iPhone 16 Pro, iOS Simulator 26.5 (23F77). This includes catalog schema, repository, migration, ViewModel, import size/validation, backup, quarantine, and recovery tests. |
+| Recovery UI smoke | `/private/tmp/aimap-catalog-recovery-ui-2.xcresult`: `passedTests: 1`, `failedTests: 0`, `result: Passed` | Cold launch from an isolated corrupt v2 fixture; proves the non-dismissible recovery gate, recovery-copy availability, two-step Start Empty, and return only after confirmation. |
+| Current production build | `xcodebuild build -scheme MyAIMap -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO` exited `0` with `BUILD SUCCEEDED` | Compiles the current Debug app after the isolated recovery-fixture refinement; it is not a runtime test. |
+| Current UI-test source compilation | `xcodebuild build-for-testing` reached compilation of `CatalogRecoveryUITests.swift` for both arm64 and x86_64 before the host reported `ENOSPC` while saving Xcode logs | Confirms the test source entered the real UI-test target compilation path, but is not a passing build-for-testing result. |
+| Follow-up UI runtime attempt | Two attempts to run the current recovery/settings UI suite ended before test execution with CoreSimulatorService `Connection invalid` / destination unavailable | No additional runtime count is claimed. The simulator was never restarted or erased by this task. |

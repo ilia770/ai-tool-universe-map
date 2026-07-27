@@ -9,9 +9,20 @@ struct MyAIMapApp: App {
     @State private var model: UniverseViewModel
 
     init() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let dependencies: CatalogRuntimeDependencies
+        #if DEBUG
+        if arguments.contains("-uitestCorruptCatalog") {
+            dependencies = CatalogRuntimeDependencies.uiTestUnreadableCatalogFixture()
+        } else {
+            dependencies = CatalogRuntimeDependencies.production()
+        }
+        #else
+        dependencies = CatalogRuntimeDependencies.production()
+        #endif
         _model = State(
             initialValue: UniverseViewModel(
-                dependencies: CatalogRuntimeDependencies.production()
+                dependencies: dependencies
             )
         )
     }

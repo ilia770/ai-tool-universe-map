@@ -32,4 +32,38 @@ struct CatalogRuntimeDependencies {
             )
         )
     }
+
+    #if DEBUG
+    /// Creates an isolated corrupt-v2 fixture for the recovery UI test. This
+    /// never uses Application Support or the person's defaults, and is
+    /// compiled out of release builds.
+    static func uiTestUnreadableCatalogFixture(
+        fileManager: FileManager = .default
+    ) -> CatalogRuntimeDependencies {
+        let fixtureID = UUID().uuidString
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("myaimap-uitest-catalog-recovery-\(fixtureID)", isDirectory: true)
+        let repository = LocalCatalogRepository(directory: directory)
+
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? Data("{not-valid-json".utf8).write(to: repository.primaryURL, options: .atomic)
+
+        guard let defaults = UserDefaults(
+            suiteName: "com.ilyatur.myaimap.uitest.catalog-recovery.\(fixtureID)"
+        ) else {
+            fatalError("Unable to create the isolated catalog-recovery UI-test defaults suite")
+        }
+        let legacy = LegacyCatalogV1(defaults: defaults)
+        let markerStore = UserDefaultsCatalogMigrationMarkerStore(defaults: defaults)
+        return CatalogRuntimeDependencies(
+            repository: repository,
+            preferences: UserDefaultsPreferences(defaults: defaults),
+            migrationCoordinator: CatalogMigrationCoordinator(
+                repository: repository,
+                legacy: legacy,
+                markerStore: markerStore
+            )
+        )
+    }
+    #endif
 }

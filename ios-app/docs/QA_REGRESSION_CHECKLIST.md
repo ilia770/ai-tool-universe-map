@@ -243,3 +243,18 @@ inferred from the automated result bundle.
 - Deliver the separately planned catalog durability, root sheet-router, and
   release-only assistant hardening before treating this foundation as an App
   Store-ready architecture.
+
+## Catalog durability automated evidence — 2026-07-27
+
+- [x] Full `MyAIMapTests` simulator run: inspected xcresult reports 433 passed,
+      0 failed, 0 skipped on AIMapGate (iPhone 16 Pro, iOS Simulator 26.5).
+- [x] Cold-launch recovery UI smoke: inspected xcresult reports 1 passed,
+      0 failed. It verifies recovery is app-level, exposes a recovery copy,
+      and requires the second destructive action before returning to the app.
+- [x] Current Debug app compiles with
+      `xcodebuild build -scheme MyAIMap -sdk iphonesimulator
+      CODE_SIGNING_ALLOWED=NO`.
+- [ ] Rerun the current two-test `CatalogRecoveryUITests` suite when
+      CoreSimulatorService is stable; the added test verifies Settings exposes
+      native Export universe / Import universe entry points. The task did not
+      restart or erase simulator state to force this gate.

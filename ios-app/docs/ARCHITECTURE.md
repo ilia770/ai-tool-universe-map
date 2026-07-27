@@ -53,20 +53,24 @@ generate`:
 /tmp/aimap-foundation-renderer.xcresult`. Its xcresult summary reports 13
 passed tests and 0 failed tests.
 
-For the durability slice, all production sources emitted an iOS simulator
-module and the focused catalog Swift Testing sources typechecked with Xcode's
-macro plugin. An independent security diff scan finalized with zero reportable
-findings after two availability fixes. These are not executed XCTest/UI
-results.
+For the durability slice, the full `MyAIMapTests` run produced an inspected
+xcresult with 433 passed tests, 0 failed, and 0 skipped on AIMapGate (iPhone
+16 Pro, iOS Simulator 26.5). A focused cold-launch recovery UI smoke also
+passed 1/1, covering the recovery gate and destructive-confirmation boundary.
+An independent security diff scan found two availability risks, both fixed,
+with no reportable finding remaining.
 
 **Remaining issues:** RealityKit sources are intentionally retained. The
 compact-detail route is now a typed `DetailRoute` owned by
 `UniverseViewModel`; AppShell-level ownership for account/add-tool sheets is a
 separate state/service-split plan and remains a release gate.
 
-Catalog durability code and focused tests have static compiler evidence only
-in this worktree. Focused/full XCTest, recovery/import-export UI smoke, and
-fresh xcresult inspection remain required before release closure.
+The current app Debug build succeeds. A follow-up UI smoke adds verification
+that Settings exposes the native export/import entry points, but its runtime
+rerun is blocked by intermittent CoreSimulatorService disconnects before test
+execution. A healthy-simulator rerun, native picker/exporter cancellation
+exercise, physical-device accessibility/performance work, archive/signing,
+and TestFlight remain release gates.
 
 ## Local-first foundation evidence — 2026-07-27
 

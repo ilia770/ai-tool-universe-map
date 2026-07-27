@@ -350,3 +350,24 @@ without a person choosing reset.
   archive risks.
 - Advisory Boundary: method-pack execution guidance only; not release or data
   deletion authority.
+
+## Execution record — 2026-07-27
+
+**Changed files:** Added the v2 catalog document/repository, v1 migration,
+recovery composition, native transfer boundary, resource limits, focused
+repository/migration/ViewModel tests, and a Debug-only isolated corrupt-catalog
+fixture for `CatalogRecoveryUITests`. The fixture uses neither Application
+Support nor a person's defaults and is compiled out of release builds.
+
+**QA done:** The full `MyAIMapTests` xcresult reports 433 passed, 0 failed, and
+0 skipped on AIMapGate (iPhone 16 Pro, iOS Simulator 26.5). The cold-launch
+recovery UI smoke reports 1 passed, 0 failed and proves the recovery gate plus
+explicit Start Empty confirmation. The current app source builds successfully
+for the iOS Simulator with code signing disabled.
+
+**Remaining:** The follow-up UI test for Settings export/import entry points
+compiled in the real UI-test target but could not be rerun because
+CoreSimulatorService repeatedly disconnected before test execution. Native
+Files/exporter cancellation, physical-device, archive/signing, TestFlight,
+and release privacy review remain outside this local-durability implementation
+scope and are not claimed complete.
