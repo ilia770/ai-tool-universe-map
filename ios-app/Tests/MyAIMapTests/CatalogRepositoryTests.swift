@@ -390,6 +390,64 @@ struct CatalogRepositoryTests {
         #expect(fileSystem.data(at: repository.primaryURL) == Data("not JSON".utf8))
     }
 
+    @Test func explicitRecoveryReplacementMakesAnEmptyCatalogLiveOnlyAfterConfirmation() throws {
+        let fileSystem = MemoryCatalogFileSystem()
+        let repository = makeRepository(fileSystem: fileSystem)
+        fileSystem.seed(Data("not JSON".utf8), at: repository.primaryURL)
+
+        guard case .recovery = repository.load() else {
+            Issue.record("A corrupt primary must be in recovery before replacement is allowed.")
+            return
+        }
+        try repository.replaceRecoveredCatalog(with: CatalogDocument())
+
+        guard case .catalog(let document) = repository.load() else {
+            Issue.record("An explicit recovery replacement must publish a valid primary.")
+            return
+        }
+        #expect(document == CatalogDocument())
+    }
+
+    @Test func recoveryReplacementRotatesBackupWhenThePrimaryIsStillValid() throws {
+        let fileSystem = MemoryCatalogFileSystem()
+        let repository = makeRepository(fileSystem: fileSystem)
+        let original = CatalogDocument(tools: [tool(id: "original", category: .design)])
+        try repository.save(original)
+
+        try repository.replaceRecoveredCatalog(with: CatalogDocument())
+
+        guard case .catalog(let loaded) = repository.load() else {
+            Issue.record("An explicit replacement must publish its requested catalog.")
+            return
+        }
+        #expect(loaded == CatalogDocument())
+        let backup = try #require(fileSystem.data(at: repository.backupURL))
+        #expect(try JSONDecoder().decode(CatalogDocument.self, from: backup) == original)
+    }
+
+    @Test func verifiedBackupCanBeRestoredWithoutTreatingCorruptPrimaryAsBackup() throws {
+        let fileSystem = MemoryCatalogFileSystem()
+        let repository = makeRepository(fileSystem: fileSystem)
+        let first = CatalogDocument(tools: [tool(id: "first", category: .design)])
+        let second = CatalogDocument(tools: [tool(id: "second", category: .analytics)])
+        try repository.save(first)
+        try repository.save(second)
+        fileSystem.seed(Data("not JSON".utf8), at: repository.primaryURL)
+
+        guard case .recovery(let recovery) = repository.load(), recovery.backupAvailable else {
+            Issue.record("A valid previous primary must be available as recovery backup.")
+            return
+        }
+        let restored = try repository.restoreVerifiedBackup()
+
+        #expect(restored == first)
+        guard case .catalog(let loaded) = repository.load() else {
+            Issue.record("Restoring a verified backup must replace the corrupt primary.")
+            return
+        }
+        #expect(loaded == first)
+    }
+
     @Test func foundationFileSystemRoundTripsInAnOwnedTemporaryDirectory() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("catalog-repository-test-\(UUID().uuidString)", isDirectory: true)

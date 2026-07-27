@@ -6,16 +6,39 @@ import SwiftUI
 /// the Phase 2 decision log.
 @main
 struct MyAIMapApp: App {
-    @State private var model = UniverseViewModel()
+    @State private var model: UniverseViewModel
+
+    init() {
+        _model = State(
+            initialValue: UniverseViewModel(
+                dependencies: CatalogRuntimeDependencies.production()
+            )
+        )
+    }
 
     var body: some Scene {
         WindowGroup {
             if ProcessInfo.processInfo.arguments.contains("-uitestGlassDemo") {
                 GlassDemoScreen()
             } else {
-            RootShell()
+                RootShell()
                 .environment(model)
                 .preferredColorScheme(.dark)
+                .fullScreenCover(
+                    isPresented: Binding(
+                        get: { model.catalogRecovery != nil },
+                        set: { _ in }
+                    )
+                ) {
+                    if let recovery = model.catalogRecovery {
+                        CatalogRecoverySheet(
+                            recovery: recovery,
+                            onRestoreBackup: { _ = model.restoreVerifiedCatalogBackup() },
+                            onStartEmpty: { _ = model.startNewUniverseAfterCatalogRecovery() },
+                            onContinueWithLastSavedCatalog: { _ = model.continueWithLastSavedCatalogAfterWriteFailure() }
+                        )
+                    }
+                }
                 .onAppear {
                     let arguments = ProcessInfo.processInfo.arguments
                     if arguments.contains("-uitestSampleUniverse"), model.isUniverseEmpty {

@@ -131,4 +131,11 @@ final class CatalogMigrationCoordinator {
             }
         }
     }
+
+    /// Called only after a person explicitly replaces recovery data with a new
+    /// catalog. It never deletes v1 bytes; it merely prevents an old pending
+    /// cleanup marker from re-entering recovery on the next cold launch.
+    func clearPendingMigrationAfterExplicitRecoveryReplacement() {
+        markerStore.clearPendingV1Cleanup()
+    }
 }

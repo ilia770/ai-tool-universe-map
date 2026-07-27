@@ -11,6 +11,8 @@ enum CatalogRecoveryReason: Equatable, Sendable {
     case migrationCouldNotBeSaved
     case migrationInterrupted
     case legacyChangedAfterMigration
+    case storageUnavailable
+    case catalogCouldNotBeSaved
 }
 
 /// Minimal, non-sensitive context the UI needs to offer recovery without ever
@@ -36,6 +38,8 @@ enum CatalogFileOperation: Equatable, Sendable {
     case writeBackupStaging
     case publishBackup
     case publishPrimary
+    case readBackup
+    case publishRecoveredPrimary
 }
 
 /// Public persistence failures deliberately carry no raw path or underlying
@@ -59,6 +63,8 @@ protocol CatalogRepository: AnyObject {
     func hasPrimaryDocument() -> Bool
     func load() -> CatalogLoadResult
     func save(_ document: CatalogDocument) throws
+    func restoreVerifiedBackup() throws -> CatalogDocument
+    func replaceRecoveredCatalog(with document: CatalogDocument) throws
 }
 
 /// Small file seam for deterministic failure tests. A candidate and backup are
@@ -248,6 +254,57 @@ final class LocalCatalogRepository: CatalogRepository {
         }
     }
 
+    /// Explicit recovery-only operation. It never accepts the corrupt primary
+    /// as a backup; an earlier load attempts a non-destructive quarantine copy.
+    /// If the primary has become valid again (for example, a v1 version-skew
+    /// conflict), use the ordinary backup-rotating save path instead.
+    func replaceRecoveredCatalog(with document: CatalogDocument) throws {
+        if (try? decodeValidatedDocument(at: primaryURL)) != nil {
+            try save(document)
+            return
+        }
+        do {
+            try document.validate()
+        } catch let error as CatalogValidationError {
+            throw CatalogPersistenceError.validation(error)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.validatePrimary)
+        }
+        do {
+            try fileSystem.createDirectory(at: directory)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.createDirectory)
+        }
+        let data: Data
+        do {
+            data = try encoder.encode(document)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.encodeCandidate)
+        }
+        let stagingURL = stagingURL(label: "recovery")
+        do {
+            try fileSystem.writeAtomically(data, to: stagingURL)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.writePrimaryStaging)
+        }
+        do {
+            try fileSystem.publishStagedItem(at: stagingURL, to: primaryURL)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.publishRecoveredPrimary)
+        }
+    }
+
+    func restoreVerifiedBackup() throws -> CatalogDocument {
+        let document: CatalogDocument
+        do {
+            document = try decodeValidatedDocument(at: backupURL)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.readBackup)
+        }
+        try replaceRecoveredCatalog(with: document)
+        return document
+    }
+
     var primaryURL: URL {
         directory.appendingPathComponent("catalog-v2.json", isDirectory: false)
     }
@@ -286,5 +343,36 @@ final class LocalCatalogRepository: CatalogRepository {
         let document = try decoder.decode(CatalogDocument.self, from: data)
         try document.validate()
         return document
+    }
+}
+
+/// Deliberately non-writing sentinel used only when Application Support cannot
+/// be resolved during app composition. Reporting recovery is safer than
+/// silently falling back to UserDefaults or a temporary directory.
+@MainActor
+final class UnavailableCatalogRepository: CatalogRepository {
+    func hasPrimaryDocument() -> Bool { true }
+
+    func load() -> CatalogLoadResult {
+        .recovery(
+            CatalogRecovery(
+                source: .primaryDocument,
+                reason: .storageUnavailable,
+                backupAvailable: false,
+                recoveryCopyAvailable: false
+            )
+        )
+    }
+
+    func save(_ document: CatalogDocument) throws {
+        throw CatalogPersistenceError.fileOperation(.createDirectory)
+    }
+
+    func restoreVerifiedBackup() throws -> CatalogDocument {
+        throw CatalogPersistenceError.fileOperation(.readBackup)
+    }
+
+    func replaceRecoveredCatalog(with document: CatalogDocument) throws {
+        throw CatalogPersistenceError.fileOperation(.createDirectory)
     }
 }

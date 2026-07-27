@@ -30,7 +30,7 @@ final class UniverseViewModel {
     var hapticsEnabled: Bool = true {
         didSet {
             guard oldValue != hapticsEnabled else { return }
-            persist()
+            persistPreferences()
         }
     }
     /// PLACEHOLDER plan / usage state (no billing). Persisted; usage increments
@@ -50,47 +50,196 @@ final class UniverseViewModel {
     /// must not see the overlay again (they see the empty-universe state).
     private(set) var hasSeenOnboarding: Bool = false
 
-    @ObservationIgnored private let store: UniverseStore
+    /// Non-nil means persisted catalog data needs an explicit recovery decision.
+    /// The app must not silently turn this state into a fresh empty universe.
+    private(set) var catalogRecovery: CatalogRecovery?
+
+    @ObservationIgnored private let catalogRepository: (any CatalogRepository)?
+    @ObservationIgnored private let preferences: UserDefaultsPreferences?
+    @ObservationIgnored private let migrationCoordinator: CatalogMigrationCoordinator?
+    /// Test-only compatibility path while production callers migrate from the
+    /// former combined store. `MyAIMapApp` never constructs this initializer.
+    @ObservationIgnored private let legacyStore: UniverseStore?
     /// Network assistant used only on the `.debugDeepSeek` path. Injectable so a
     /// test can force a failure; the app default is the real `DeepSeekClient`.
     @ObservationIgnored private let assistantResponder: AssistantResponder
 
-    /// Loads any previously-built universe from local storage. A brand-new user
-    /// has none, so they start with an empty universe (see `UniverseStore`).
-    init(store: UniverseStore = .standard, assistantResponder: AssistantResponder = DeepSeekClient()) {
-        self.store = store
+    /// Production initializer. Composition happens in `MyAIMapApp`; this model
+    /// receives already-separated catalog, migration, and preferences owners.
+    init(
+        dependencies: CatalogRuntimeDependencies,
+        assistantResponder: AssistantResponder = DeepSeekClient()
+    ) {
+        self.catalogRepository = dependencies.repository
+        self.preferences = dependencies.preferences
+        self.migrationCoordinator = dependencies.migrationCoordinator
+        self.legacyStore = nil
+        self.assistantResponder = assistantResponder
+        let savedPreferences = dependencies.preferences.load()
+        let startup = dependencies.migrationCoordinator.prepareCatalog()
+        switch startup {
+        case .catalog(let document):
+            self.customTools = document.tools
+            self.customCategories = document.customCategories
+            self.hiddenToolIDs = document.hiddenToolIDs
+        case .recovery(let recovery):
+            self.catalogRecovery = recovery
+        }
+        // Make persisted custom branches resolvable before any view reads the
+        // seed's `category(_:)` (rail labels, logos, assistant grounding).
+        UniverseSeed.registerCustomCategories(customCategories)
+        self.hapticsEnabled = savedPreferences.hapticsEnabled
+        self.hasSeenOnboarding = savedPreferences.hasSeenOnboarding
+        self.subscription = savedPreferences.subscription
+    }
+
+    convenience init(assistantResponder: AssistantResponder = DeepSeekClient()) {
+        self.init(
+            dependencies: CatalogRuntimeDependencies.production(),
+            assistantResponder: assistantResponder
+        )
+    }
+
+    /// Compatibility initializer for existing unit tests during the staged
+    /// migration. It retains the old behavior but is never used by production
+    /// composition; Batch 4 removes it after executed migration evidence.
+    init(store: UniverseStore, assistantResponder: AssistantResponder = DeepSeekClient()) {
+        self.catalogRepository = nil
+        self.preferences = nil
+        self.migrationCoordinator = nil
+        self.legacyStore = store
         self.assistantResponder = assistantResponder
         let saved = store.load()
         self.customTools = saved.tools
         self.customCategories = saved.customCategories
-        // Make persisted custom branches resolvable before any view reads the
-        // seed's `category(_:)` (rail labels, logos, assistant grounding).
         UniverseSeed.registerCustomCategories(saved.customCategories)
-        // Defensive: the core tool (founder-os) must never be hidden. The
-        // selection projection falls back to it, so a stale/corrupt persisted
-        // hidden set containing it would strand selection (selectedTool == nil).
-        // Mirror the deleteTool `.core` guard at load time and re-persist clean.
         let sanitizedHidden = saved.hidden.subtracting([PlanetData.centralCoreToolID])
         self.hiddenToolIDs = sanitizedHidden
         self.hapticsEnabled = saved.hapticsEnabled
         self.hasSeenOnboarding = saved.hasSeenOnboarding
         self.subscription = saved.subscription
         if sanitizedHidden != saved.hidden {
-            persist()
+            _ = commitCatalog(
+                tools: customTools,
+                customCategories: customCategories,
+                hiddenToolIDs: hiddenToolIDs
+            )
         }
     }
 
-    private func persist() {
-        // Keep the seed registry in lockstep with the persisted set so any
-        // mutation (createBranch, reset) immediately reflects in resolution.
-        UniverseSeed.registerCustomCategories(customCategories)
-        store.save(
-            tools: customTools,
-            customCategories: customCategories,
-            hidden: hiddenToolIDs,
-            hapticsEnabled: hapticsEnabled,
-            hasSeenOnboarding: hasSeenOnboarding,
-            subscription: subscription
+    /// Applies a verified backup only after an explicit action on the blocking
+    /// recovery screen. It keeps navigation deterministic and never attempts to
+    /// parse the corrupt primary in the view model.
+    @discardableResult
+    func restoreVerifiedCatalogBackup() -> Bool {
+        guard catalogRecovery?.backupAvailable == true, let catalogRepository else { return false }
+        do {
+            let document = try catalogRepository.restoreVerifiedBackup()
+            applyRecoveredCatalog(document)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Replaces a recovery state with an explicitly confirmed empty catalog.
+    /// A corrupt primary is never treated as a backup; its existing quarantine
+    /// copy, when available, is left untouched for later export/support.
+    @discardableResult
+    func startNewUniverseAfterCatalogRecovery() -> Bool {
+        guard catalogRecovery != nil, let catalogRepository else { return false }
+        do {
+            let document = CatalogDocument()
+            try catalogRepository.replaceRecoveredCatalog(with: document)
+            migrationCoordinator?.clearPendingMigrationAfterExplicitRecoveryReplacement()
+            applyRecoveredCatalog(document)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// A failed normal save leaves in-memory state unchanged. When the existing
+    /// primary is still valid, this lets a person continue with that last saved
+    /// catalog instead of being trapped on recovery for a transient write error.
+    @discardableResult
+    func continueWithLastSavedCatalogAfterWriteFailure() -> Bool {
+        guard catalogRecovery?.reason == .catalogCouldNotBeSaved,
+              let catalogRepository,
+              case .catalog(let document) = catalogRepository.load() else { return false }
+        applyRecoveredCatalog(document)
+        return true
+    }
+
+    private func applyRecoveredCatalog(_ document: CatalogDocument) {
+        customTools = document.tools
+        customCategories = document.customCategories
+        hiddenToolIDs = document.hiddenToolIDs
+        UniverseSeed.registerCustomCategories(document.customCategories)
+        detailRoute = nil
+        universeMode = .overview
+        catalogRecovery = nil
+    }
+
+    /// Commits the complete next catalog before callers update observable map
+    /// state. A persistence failure therefore cannot leave the UI showing a
+    /// catalog that was never made durable.
+    private func commitCatalog(
+        tools: [Tool],
+        customCategories: [ToolCategory],
+        hiddenToolIDs: Set<String>
+    ) -> Bool {
+        if let legacyStore {
+            legacyStore.save(
+                tools: tools,
+                customCategories: customCategories,
+                hidden: hiddenToolIDs,
+                hapticsEnabled: hapticsEnabled,
+                hasSeenOnboarding: hasSeenOnboarding,
+                subscription: subscription
+            )
+            return true
+        }
+
+        guard catalogRecovery == nil, let catalogRepository else { return false }
+        do {
+            try catalogRepository.save(
+                CatalogDocument(
+                    tools: tools,
+                    customCategories: customCategories,
+                    hiddenToolIDs: hiddenToolIDs
+                )
+            )
+            return true
+        } catch {
+            catalogRecovery = CatalogRecovery(
+                source: .primaryDocument,
+                reason: .catalogCouldNotBeSaved,
+                backupAvailable: false,
+                recoveryCopyAvailable: false
+            )
+            return false
+        }
+    }
+
+    private func persistPreferences() {
+        if let legacyStore {
+            legacyStore.save(
+                tools: customTools,
+                customCategories: customCategories,
+                hidden: hiddenToolIDs,
+                hapticsEnabled: hapticsEnabled,
+                hasSeenOnboarding: hasSeenOnboarding,
+                subscription: subscription
+            )
+            return
+        }
+        preferences?.save(
+            UserDefaultsPreferences.Snapshot(
+                hapticsEnabled: hapticsEnabled,
+                hasSeenOnboarding: hasSeenOnboarding,
+                subscription: subscription
+            )
         )
     }
 
@@ -99,7 +248,7 @@ final class UniverseViewModel {
     func markOnboardingSeen() {
         guard !hasSeenOnboarding else { return }
         hasSeenOnboarding = true
-        persist()
+        persistPreferences()
     }
 
     /// UI-test harness reset for the first-run overlay. Kept explicit so the
@@ -108,7 +257,7 @@ final class UniverseViewModel {
     func resetOnboardingForUITests() {
         guard hasSeenOnboarding else { return }
         hasSeenOnboarding = false
-        persist()
+        persistPreferences()
     }
 
     // MARK: - Derived state
@@ -213,9 +362,16 @@ final class UniverseViewModel {
         // deleted (otherwise a re-load silently leaves it hidden — F1).
         let willUnhide = !hiddenToolIDs.isDisjoint(with: sampleIDs)
         guard !newTools.isEmpty || willUnhide else { return false }
-        customTools.append(contentsOf: newTools)
-        hiddenToolIDs.subtract(sampleIDs)
-        persist()
+        let nextTools = customTools + newTools
+        let nextHiddenToolIDs = hiddenToolIDs.subtracting(sampleIDs)
+        guard commitCatalog(
+            tools: nextTools,
+            customCategories: customCategories,
+            hiddenToolIDs: nextHiddenToolIDs
+        ) else { return false }
+        customTools = nextTools
+        hiddenToolIDs = nextHiddenToolIDs
+        UniverseSeed.registerCustomCategories(customCategories)
         recordActivity(
             kind: .added,
             title: "Loaded sample universe",
@@ -234,12 +390,13 @@ final class UniverseViewModel {
 
     /// Wipes the user's universe back to empty (custom tools + hidden ids).
     func resetUniverse() {
+        guard commitCatalog(tools: [], customCategories: [], hiddenToolIDs: []) else { return }
         customTools.removeAll()
         customCategories.removeAll()
         hiddenToolIDs.removeAll()
+        UniverseSeed.registerCustomCategories([])
         detailRoute = nil
         universeMode = .overview
-        persist()
         recordActivity(
             kind: .removed,
             title: "Reset universe",
@@ -418,7 +575,7 @@ final class UniverseViewModel {
     /// Increments the local placeholder usage counter and persists it.
     private func consumeAIRequest() {
         subscription.consumeRequest()
-        persist()
+        persistPreferences()
     }
 
     private func appendAssistantReply(text: String?, query: String, fallback: AssistantReply) {
@@ -480,11 +637,16 @@ final class UniverseViewModel {
     @discardableResult
     func deleteTool(_ id: String) -> Bool {
         guard let tool = visibleAllTools.first(where: { $0.id == id }), tool.category != .core else { return false }
-        hiddenToolIDs.insert(id)
+        let nextHiddenToolIDs = hiddenToolIDs.union([id])
+        guard commitCatalog(
+            tools: customTools,
+            customCategories: customCategories,
+            hiddenToolIDs: nextHiddenToolIDs
+        ) else { return false }
+        hiddenToolIDs = nextHiddenToolIDs
         if detailRoute?.toolID == id {
             detailRoute = nil
         }
-        persist()
         recordActivity(
             kind: .removed,
             title: "Removed \(tool.name)",
@@ -503,8 +665,14 @@ final class UniverseViewModel {
 
     @discardableResult
     func restoreTool(_ id: String) -> Bool {
-        guard let tool = allTools.first(where: { $0.id == id }), hiddenToolIDs.remove(id) != nil else { return false }
-        persist()
+        guard let tool = allTools.first(where: { $0.id == id }), hiddenToolIDs.contains(id) else { return false }
+        let nextHiddenToolIDs = hiddenToolIDs.subtracting([id])
+        guard commitCatalog(
+            tools: customTools,
+            customCategories: customCategories,
+            hiddenToolIDs: nextHiddenToolIDs
+        ) else { return false }
+        hiddenToolIDs = nextHiddenToolIDs
         recordActivity(
             kind: .restored,
             title: "Restored \(tool.name)",
@@ -553,8 +721,14 @@ final class UniverseViewModel {
             glow: palette.glow,
             angle: angle
         )
-        customCategories.append(category)
-        persist()
+        let nextCategories = customCategories + [category]
+        guard commitCatalog(
+            tools: customTools,
+            customCategories: nextCategories,
+            hiddenToolIDs: hiddenToolIDs
+        ) else { return id }
+        customCategories = nextCategories
+        UniverseSeed.registerCustomCategories(nextCategories)
         recordActivity(
             kind: .added,
             title: "Created \(display) branch",
@@ -583,9 +757,15 @@ final class UniverseViewModel {
         let url = normalizedURL(from: urlString)
         let sourceHost = url.flatMap { normalizedSourceHost(from: $0) }
         if let existingTool = existingToolMatching(name: cleanName, sourceHost: sourceHost) {
-            let wasHidden = hiddenToolIDs.remove(existingTool.id) != nil
+            let wasHidden = hiddenToolIDs.contains(existingTool.id)
             if wasHidden {
-                persist()
+                let nextHiddenToolIDs = hiddenToolIDs.subtracting([existingTool.id])
+                guard commitCatalog(
+                    tools: customTools,
+                    customCategories: customCategories,
+                    hiddenToolIDs: nextHiddenToolIDs
+                ) else { return false }
+                hiddenToolIDs = nextHiddenToolIDs
                 recordActivity(
                     kind: .restored,
                     title: "Restored \(existingTool.name)",
@@ -629,8 +809,13 @@ final class UniverseViewModel {
                 reason: classificationReason
             )
         )
-        customTools.append(tool)
-        persist()
+        let nextTools = customTools + [tool]
+        guard commitCatalog(
+            tools: nextTools,
+            customCategories: customCategories,
+            hiddenToolIDs: hiddenToolIDs
+        ) else { return false }
+        customTools = nextTools
         recordActivity(
             kind: .added,
             title: "Added \(tool.name)",

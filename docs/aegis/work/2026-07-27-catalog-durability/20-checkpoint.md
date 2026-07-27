@@ -53,25 +53,41 @@
 - Completed: static iOS production typecheck and full static Swift Testing
   macro/typecheck of the Batch 1/2 catalog suites exit cleanly; `git diff
   --check` is clean.
-- Active slice: commit Batch 2 in the isolated branch.
-- Next: wire it into production startup and replace the combined store only
-  with executed migration tests available.
+- Completed: Batch 2 committed as `730d24b` in the isolated catalog branch.
+- Completed pending runtime verification: production startup now composes a
+  single `LocalCatalogRepository`, v1 migration coordinator, and
+  `UserDefaultsPreferences` in `MyAIMapApp`; `UniverseViewModel` receives those
+  owners rather than the combined store. Existing `UniverseStore` is retained
+  only behind an explicit test-compatibility initializer.
+- Completed pending runtime verification: catalog intents use commit-before-
+  apply; failed writes leave visible arrays/activity/seed registry unchanged.
+  A top-level non-dismissible native recovery sheet blocks map/chat actions,
+  supports verified-backup restore, explicit start-empty confirmation, and
+  continuation with the last verified primary after a transient save failure.
+- Completed pending runtime verification: explicit start-empty clears only the
+  technical pending marker after publication, never v1 bytes; it rotates a
+  valid existing v2 primary through the regular backup protocol.
+- Active slice: Batch 3 export/import/recovery-copy operations and their UI.
+- Next: add replace-only native import/export and recovery-copy export without
+  weakening the current recovery/backup boundaries.
 - Blocked-on: simulator test/archive gate. `simctl list devices available`
   presently reports CoreSimulatorService connection invalid / runtime discovery
   failure. No restart is authorized because it can disrupt user simulators.
 
 ## DriftCheckDraft
 
-- Intent / scope: aligned to local catalog durability; the v1 read/transition
-  contract is added but not composed into live startup yet.
-- Compatibility: `UniverseViewModel` user behavior and all legacy writes remain
-  unchanged; no old key is deleted by current production code.
+- Intent / scope: aligned to local catalog durability; the v2 owner is now the
+  only production catalog writer, while UI remains local-first and native.
+- Compatibility: legacy combined-store behavior remains only for legacy unit
+  tests; production startup uses the new composition root. No old key is
+  deleted outside the two-launch migration or an explicit recovery policy.
 - New owner/fallback: `LocalCatalogRepository`, migration coordinator, and
-  preferences owner are available but inactive; invalid v1/v2 is typed
-  recovery, never an implicit empty fallback.
+  preferences owner are active; invalid v1/v2 is a blocking typed recovery,
+  never an implicit empty fallback.
 - Retirement: `UniverseStore` remains live until two-launch migration evidence.
-- Evidence: Batch 1 production-source typecheck and test parser checks pass;
-  Batch 2 static evidence is being collected. Runtime XCTest remains
+- Evidence: all production sources typecheck with Xcode Observation/Preview
+  macro plugins; catalog/migration/ViewModel test suites typecheck with the
+  Xcode Swift Testing macro plugin. Runtime XCTest remains
   `needs-verification` due host infrastructure.
-- Decision: finish review/commit of Batch 2, then move to injection/composition
-  only after retaining the current runtime gate as open.
+- Decision: commit the reviewed integration/recovery slice, then implement
+  import/export before declaring Batch 3 complete.
