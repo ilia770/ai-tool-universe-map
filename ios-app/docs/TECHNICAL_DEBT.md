@@ -19,10 +19,10 @@ route smoke test. It is not an App Store release certification.
 | Priority | Debt / gate | Why it matters | Required evidence before closure |
 | --- | --- | --- | --- |
 | Stop-ship | Catalog durability | The current catalog has not completed the planned versioned Application Support document, atomic migration, recovery backup, export/import, reset, and relaunch contract. | Migration, recovery, export/import, reset, and relaunch tests plus a user-visible recovery decision. |
-| Stop-ship | Release assistant and privacy boundary | The release must not contain a developer-provider path that sends catalog or prompt content to a third party. Privacy manifest, labels, policy, provenance, and support details are not yet release evidence. | Release-target review, threat model, PrivacyInfo.xcprivacy, App Store declarations, policy/support URLs, and release security validation. |
+| Stop-ship | Release assistant and privacy boundary | The release must not contain a developer-provider path that sends catalog or prompt content to a third party. Commit `b238c47` adds the `UserDefaults` required-reason manifest; its plist and generated-resource inclusion were checked, but a fresh Release archive cannot yet prove the bundled resource because the local CoreSimulator service disconnects during archive tooling. Labels, policy, provenance, and support details remain open. | A successful fresh archive containing `PrivacyInfo.xcprivacy`, release-target review, threat model, App Store declarations, policy/support URLs, and release security validation. |
 | Stop-ship | Device, accessibility, and performance evidence | No manual compact/current iPhone or iPad matrix, Dynamic Type, VoiceOver, Reduce Motion, or physical-device performance trace was run in this task. | Recorded manual matrix and Instruments SwiftUI/Time Profiler traces on supported low-end and current physical iPhones. |
 | High | Root sheet ownership | Compact tool detail has a typed map route, but Account and Add Tool are not yet unified under the planned AppShell `AppSheetRoute`. | State/service-split plan with behavior-preserving tests and a fresh route smoke run. |
-| High | Release delivery | A clean archive, signing validation, staged TestFlight pass, rollback rehearsal, and production submission evidence have not been recorded. | Archive and signing logs, TestFlight checklist, and rollback/incident owner record. |
+| High | Release delivery | A clean archive, signing validation, staged TestFlight pass, rollback rehearsal, and production submission evidence have not been recorded. A 2026-07-27 unsigned archive retry reached `ibtool`/`actool`, then CoreSimulatorService disconnected and reported no simulator runtimes / `iOS 26.5 Platform Not Installed`; this is a host gate, not application evidence. | Archive and signing logs, TestFlight checklist, and rollback/incident owner record. |
 | Deferred | Cloud scale | Accounts, sync, tenancy, deletion, conflict policy, SLOs, cost controls, and AI gateway are intentionally out of scope for local-first v1. | A separate ADR and threat/load/cost design only after a stable local release. |
 
 ## Non-claims
@@ -43,3 +43,16 @@ documentation task.
 
 **Remaining issues:** every item in the Open items table remains unresolved
 until its named release evidence exists.
+
+## Privacy/archive validation attempt — 2026-07-27
+
+The checked-in `PrivacyInfo.xcprivacy` at `b238c47` passed `plutil -lint`, and
+a freshly generated Xcode project placed it in the application Resources build
+phase. Independent spec and code-quality reviews found no source defect or
+runtime compatibility change. A fresh unsigned Release archive was then
+attempted with `CODE_SIGNING_ALLOWED=NO`; it failed with exit 65 when
+CoreSimulatorService disconnected during `ibtool` / `actool`, after which those
+tools reported no available simulator runtime and `iOS 26.5 Platform Not
+Installed`. The temporary archive and derived data were removed after the
+failure. This is `needs-verification`, not proof that the manifest is bundled,
+not a signing result, and not an App Store readiness claim.

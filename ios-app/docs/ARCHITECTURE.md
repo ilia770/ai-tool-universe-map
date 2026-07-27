@@ -57,3 +57,20 @@ revision. It does not prove the manual device matrix, VoiceOver, Dynamic Type,
 Reduce Motion, physical-device performance, archive/signing, TestFlight,
 privacy, or release security gates. Those remain required before an App Store
 release claim.
+
+## Release privacy/archive evidence — 2026-07-27
+
+The application now has one checked-in declarative privacy resource at
+`Sources/MyAIMap/Resources/PrivacyInfo.xcprivacy`. It declares only the local
+`UserDefaults` required-reason API (`CA92.1`), with no tracking and no collected
+data declaration. `plutil -lint` passed and a fresh XcodeGen project placed the
+file in the app Resources build phase; it is the source-of-truth resource,
+whereas `MyAIMap.xcodeproj` remains generated and ignored.
+
+An unsigned Release archive retry failed before completion (exit 65): the host
+CoreSimulatorService disconnected while `ibtool` / `actool` processed iOS
+assets, then Xcode reported no available simulator runtimes and `iOS 26.5
+Platform Not Installed`. Consequently, this record does not claim that an
+archive contains the manifest, that signing works, or that TestFlight/App Store
+gates are complete. It keeps the archive verification gate in
+`TECHNICAL_DEBT.md` open.
