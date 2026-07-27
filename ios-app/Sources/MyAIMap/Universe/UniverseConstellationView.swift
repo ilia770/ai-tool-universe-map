@@ -15,6 +15,7 @@ struct UniverseConstellationView: View {
     let onEmptyTap: () -> Void
 
     @State private var breath = false
+    @State private var requestedToolPageIndex = 0
 
     private var staticMotion: Bool {
         reduceMotion || ProcessInfo.processInfo.arguments.contains("-uitestStatic")
@@ -29,10 +30,10 @@ struct UniverseConstellationView: View {
             let layout = UniverseConstellationLayout.make(
                 planets: planets,
                 mode: mode,
-                size: proxy.size
+                size: proxy.size,
+                requestedToolPageIndex: requestedToolPageIndex
             )
             let planetsByID = Dictionary(uniqueKeysWithValues: planets.map { ($0.id, $0) })
-            let toolsByID = Dictionary(uniqueKeysWithValues: planets.flatMap(\.tools).map { ($0.id, $0) })
 
             ZStack {
                 Color.clear
@@ -45,7 +46,18 @@ struct UniverseConstellationView: View {
                 ConstellationBackdrop(layout: layout, planetsByID: planetsByID, breath: breath && ambientMotionEnabled)
                     .allowsHitTesting(false)
 
-                constellationNodes(layout: layout, planetsByID: planetsByID, toolsByID: toolsByID)
+                constellationNodes(layout: layout, planetsByID: planetsByID)
+
+                if let toolPage = layout.toolPage,
+                   toolPage.isPaginated,
+                   mode.selectedToolID == nil,
+                   mode.allowsMapGestures {
+                    constellationPager(toolPage)
+                        .position(
+                            x: proxy.size.width / 2,
+                            y: UniverseConstellationLayout.contentRect(in: proxy.size).maxY - 16
+                        )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .opacity(mode.mapOpacity)
@@ -53,6 +65,7 @@ struct UniverseConstellationView: View {
             .brandAnimation(BrandMotion.morph, value: mode.signature)
             .onAppear {
                 startBreathingIfAllowed()
+                preserveSelectedToolPage(layout.toolPage)
             }
             .onChange(of: mode.pausesAmbientMotion) { _, pausesAmbientMotion in
                 if pausesAmbientMotion {
@@ -61,22 +74,68 @@ struct UniverseConstellationView: View {
                     startBreathingIfAllowed()
                 }
             }
+            .onChange(of: mode.focusedCategory) { _, _ in
+                requestedToolPageIndex = 0
+            }
+            .onChange(of: mode.selectedToolID) { _, _ in
+                preserveSelectedToolPage(layout.toolPage)
+            }
         }
+    }
+
+    private func constellationPager(_ toolPage: UniverseConstellationLayout.ToolPage) -> some View {
+        HStack(spacing: BrandSpacing.m.value) {
+            Button {
+                requestedToolPageIndex -= 1
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(!toolPage.hasPreviousPage)
+            .accessibilityLabel("Previous tools page")
+            .accessibilityIdentifier("ConstellationPager.Previous")
+
+            Text("Tools \(toolPage.index + 1) of \(toolPage.count)")
+                .font(BrandTypography.graphMetadata.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(BrandColor.textPrimary)
+                .accessibilityLabel("Tools page \(toolPage.index + 1) of \(toolPage.count), \(toolPage.totalToolCount) tools")
+
+            Button {
+                requestedToolPageIndex += 1
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(!toolPage.hasNextPage)
+            .accessibilityLabel("Next tools page")
+            .accessibilityIdentifier("ConstellationPager.Next")
+        }
+        .buttonStyle(PressableButtonStyle(pressedScale: 0.94, haptic: .light, pressedOpacity: 0.92))
+        .padding(.horizontal, BrandSpacing.m.value)
+        .padding(.vertical, BrandSpacing.s.value)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 0.75))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ConstellationPager")
+    }
+
+    private func preserveSelectedToolPage(_ toolPage: UniverseConstellationLayout.ToolPage?) {
+        guard mode.selectedToolID != nil, let toolPage else { return }
+        requestedToolPageIndex = toolPage.index
     }
 
     @ViewBuilder
     private func constellationNodes(
         layout: UniverseConstellationLayout.Layout,
-        planetsByID: [ToolCategoryId: PlanetData],
-        toolsByID: [String: Tool]
+        planetsByID: [ToolCategoryId: PlanetData]
     ) -> some View {
-        nodeStack(layout: layout, planetsByID: planetsByID, toolsByID: toolsByID)
+        nodeStack(layout: layout, planetsByID: planetsByID)
     }
 
     private func nodeStack(
         layout: UniverseConstellationLayout.Layout,
-        planetsByID: [ToolCategoryId: PlanetData],
-        toolsByID: [String: Tool]
+        planetsByID: [ToolCategoryId: PlanetData]
     ) -> some View {
         ZStack {
             if let corePoint = layout.corePoint,
@@ -96,9 +155,8 @@ struct UniverseConstellationView: View {
             }
 
             ForEach(layout.toolNodes) { node in
-                if let tool = toolsByID[node.toolID],
-                   let planet = planetsByID[node.categoryID] {
-                    toolNodeButton(node: node, tool: tool, planet: planet)
+                if let planet = planetsByID[node.categoryID] {
+                    toolNodeButton(node: node, planet: planet)
                         .position(node.point)
                         .zIndex(node.isSelected ? 30 : Double(10 - min(node.priority, 8)))
                 }
@@ -133,7 +191,6 @@ struct UniverseConstellationView: View {
 
     private func toolNodeButton(
         node: UniverseConstellationLayout.ToolNode,
-        tool: Tool,
         planet: PlanetData
     ) -> some View {
         Button {
@@ -141,8 +198,8 @@ struct UniverseConstellationView: View {
             onToolTap(node.toolID)
         } label: {
             ConstellationToolNode(
-                title: tool.name,
-                subtitle: stageShortLabel(tool.stage),
+                title: node.title,
+                subtitle: stageShortLabel(node.stage),
                 color: planet.swiftUIColor,
                 diameter: node.diameter,
                 isSelected: node.isSelected,
@@ -151,7 +208,7 @@ struct UniverseConstellationView: View {
         }
         .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.96))
         .disabled(!mode.allowsMapGestures)
-        .accessibilityLabel("Tool node, \(tool.name), \(stageShortLabel(tool.stage))")
+        .accessibilityLabel("Tool node, \(node.title), \(stageShortLabel(node.stage))")
         .accessibilityIdentifier("ConstellationStar.\(node.toolID)")
         .background {
             if node.isSelected {

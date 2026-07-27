@@ -195,3 +195,31 @@ not mutate selection in two places.
 - No 2.5D redesign proposed: the existing RealityKit map is legible with these
   fixes, and a redesign is explicitly out of scope (requires human visual
   review). Not recommending it at this time.
+
+## Changed files / QA done / Remaining issues
+
+### Constellation render budget — 2026-07-27
+
+**Changed files**
+
+- `Universe/UniverseConstellationLayout.swift` now paginates a dense branch.
+  It retains the 512-tool durable catalog limit, but produces at most eight
+  interactive tool nodes and edges at once (four on a constrained small
+  canvas). A selected tool always resolves to its own page.
+- `Universe/UniverseConstellationView.swift` adds an accessible previous/next
+  pager outside the node field, so every tool remains reachable from the map
+  without recreating the entire dense branch.
+- `Tests/MyAIMapTests/UniverseConstellationLayoutTests.swift` covers page
+  coverage, render bounds, unique IDs, safe insets, and off-page selection for
+  100-, 500-, and 1,000-tool fixtures.
+
+**QA done**
+
+- Focused simulator test run on AIMapGate: `UniverseConstellationLayoutTests`,
+  9 passed, 0 failed (`aimap-map-pagination-final.xcresult`).
+
+**Remaining issues**
+
+- The structural render budget closes the unbounded renderer path. Physical
+  device profiling remains the release gate for launch, frame pacing, memory,
+  Dynamic Type, VoiceOver, and pager usability on actual supported devices.

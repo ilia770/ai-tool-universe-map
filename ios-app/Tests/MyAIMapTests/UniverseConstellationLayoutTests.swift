@@ -53,7 +53,10 @@ struct UniverseConstellationLayoutTests {
         let expectedToolIDs = Set(UniverseSeed.tools(in: .coding).map(\.id))
         let actualToolIDs = Set(layout.toolNodes.map(\.toolID))
 
-        #expect(actualToolIDs == expectedToolIDs)
+        #expect(!actualToolIDs.isEmpty)
+        #expect(actualToolIDs.isSubset(of: expectedToolIDs))
+        #expect(layout.toolNodes.allSatisfy { $0.categoryID == .coding })
+        #expect(layout.toolNodes.count <= UniverseConstellationLayout.maximumVisibleToolCount)
         #expect(layout.categoryNodes.contains { $0.categoryID == .coding && $0.isFocused })
         #expect(!layout.categoryNodes.contains { $0.categoryID == .core && !$0.isContext })
     }
@@ -108,7 +111,7 @@ struct UniverseConstellationLayoutTests {
         #expect(hitFrame.maxY <= phone.height - 214)
     }
 
-    @Test func largeCatalogsKeepUniqueNodeIDsInsideDocumentedSafeInsets() {
+    @Test func largeCatalogsPageRenderedNodesWithoutDroppingAnyTool() throws {
         let sizes = [
             CGSize(width: 320, height: 667),
             CGSize(width: 393, height: 852),
@@ -122,15 +125,63 @@ struct UniverseConstellationLayoutTests {
             )
 
             for size in sizes {
-                let layout = UniverseConstellationLayout.make(
+                let firstPage = UniverseConstellationLayout.make(
                     planets: planets,
                     mode: .branchFocus(.coding),
                     size: size
                 )
+                let pageCount = try #require(firstPage.toolPage?.count)
+                var renderedToolIDs = Set<String>()
 
-                assertUniqueIDs(layout.categoryNodes.map(\.id), nodeType: "category")
-                assertUniqueIDs(layout.toolNodes.map(\.id), nodeType: "tool")
-                assertAllPointsAreInside(layout, size: size)
+                for pageIndex in 0..<pageCount {
+                    let layout = UniverseConstellationLayout.make(
+                        planets: planets,
+                        mode: .branchFocus(.coding),
+                        size: size,
+                        requestedToolPageIndex: pageIndex
+                    )
+
+                    #expect(layout.toolNodes.count <= UniverseConstellationLayout.maximumVisibleToolCount)
+                    #expect(layout.edges.count == layout.toolNodes.count)
+                    #expect(layout.toolPage?.index == pageIndex)
+                    assertUniqueIDs(layout.categoryNodes.map(\.id), nodeType: "category")
+                    assertUniqueIDs(layout.toolNodes.map(\.id), nodeType: "tool")
+                    assertAllPointsAreInside(layout, size: size)
+                    assertToolFramesDoNotOverlap(layout.toolNodes)
+                    renderedToolIDs.formUnion(layout.toolNodes.map(\.toolID))
+                }
+
+                #expect(renderedToolIDs == Set(generatedTools(count: toolCount).map(\.id)))
+            }
+        }
+    }
+
+    @Test func selectingAnOffPageToolRendersItsOwningPage() throws {
+        let tools = generatedTools(count: CatalogDocument.maximumToolCount)
+        let planets = PlanetData.makePlanets(categories: [UniverseSeed.category(.coding)], tools: tools)
+        let selectedToolIDs = [
+            try #require(tools.first?.id),
+            tools[tools.count / 2].id,
+            try #require(tools.last?.id),
+        ]
+        let sizes = [
+            CGSize(width: 320, height: 667),
+            phone,
+            CGSize(width: 393, height: 760),
+        ]
+
+        for size in sizes {
+            for selectedToolID in selectedToolIDs {
+                let layout = UniverseConstellationLayout.make(
+                    planets: planets,
+                    mode: .toolSelected(.coding, selectedToolID),
+                    size: size,
+                    requestedToolPageIndex: 0
+                )
+
+                #expect(layout.toolNodes.count <= UniverseConstellationLayout.maximumVisibleToolCount)
+                #expect(layout.toolNodes.contains { $0.toolID == selectedToolID && $0.isSelected })
+                assertToolFramesDoNotOverlap(layout.toolNodes)
             }
         }
     }
@@ -174,6 +225,15 @@ struct UniverseConstellationLayoutTests {
             #expect(node.point.x >= 0 && node.point.x <= size.width, "Out-of-bounds x point \(node.point) for \(node.id)")
             #expect(node.point.y >= 0 && node.point.y <= size.height, "Out-of-bounds y point \(node.point) for \(node.id)")
             #expect(safeContent.contains(node.point), "Point \(node.point) for \(node.id) escapes safe inset \(safeContent)")
+        }
+    }
+
+    private func assertToolFramesDoNotOverlap(_ nodes: [UniverseConstellationLayout.ToolNode]) {
+        let frames = nodes.map(UniverseConstellationLayout.toolVisualFrame)
+        for leftIndex in frames.indices {
+            for rightIndex in frames.indices where rightIndex > leftIndex {
+                #expect(!frames[leftIndex].intersects(frames[rightIndex]))
+            }
         }
     }
 }

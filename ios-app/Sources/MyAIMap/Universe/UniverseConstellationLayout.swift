@@ -6,6 +6,11 @@ import Foundation
 /// The renderer owns visual taste; this type owns deterministic placement so
 /// tests can guard the "readable 2D first" contract without hosting SwiftUI.
 enum UniverseConstellationLayout {
+    /// Branches can hold the full durable catalog budget, but rendering all of
+    /// it as simultaneously interactive SwiftUI nodes is not a viable frame
+    /// budget. The view exposes deterministic pages instead.
+    static let maximumVisibleToolCount = 8
+    private static let minimumToolRowSpacing: CGFloat = 96
     static let overviewCategoryDiameter: CGFloat = 46
     static let categoryLabelWidth: CGFloat = 88
     static let categoryLabelHeight: CGFloat = 32
@@ -27,6 +32,8 @@ enum UniverseConstellationLayout {
         let id: String
         let toolID: String
         let categoryID: ToolCategoryId
+        let title: String
+        let stage: WorkflowStageId
         let point: CGPoint
         let diameter: CGFloat
         let isSelected: Bool
@@ -41,11 +48,22 @@ enum UniverseConstellationLayout {
         let isStrong: Bool
     }
 
+    struct ToolPage: Equatable {
+        let index: Int
+        let count: Int
+        let totalToolCount: Int
+
+        var isPaginated: Bool { count > 1 }
+        var hasPreviousPage: Bool { index > 0 }
+        var hasNextPage: Bool { index + 1 < count }
+    }
+
     struct Layout {
         let corePoint: CGPoint?
         let categoryNodes: [CategoryNode]
         let toolNodes: [ToolNode]
         let edges: [Edge]
+        let toolPage: ToolPage?
     }
 
     static func categoryVisualFrames(for node: CategoryNode) -> [CGRect] {
@@ -92,9 +110,14 @@ enum UniverseConstellationLayout {
         return ringFrame.union(labelFrame)
     }
 
-    static func make(planets: [PlanetData], mode: UniverseMode, size: CGSize) -> Layout {
+    static func make(
+        planets: [PlanetData],
+        mode: UniverseMode,
+        size: CGSize,
+        requestedToolPageIndex: Int = 0
+    ) -> Layout {
         guard size.width > 1, size.height > 1, !planets.isEmpty else {
-            return Layout(corePoint: nil, categoryNodes: [], toolNodes: [], edges: [])
+            return Layout(corePoint: nil, categoryNodes: [], toolNodes: [], edges: [], toolPage: nil)
         }
 
         let content = contentRect(in: size)
@@ -109,6 +132,7 @@ enum UniverseConstellationLayout {
                 planets: planets,
                 focusedCategory: category,
                 selectedToolID: selectedToolID,
+                requestedToolPageIndex: requestedToolPageIndex,
                 center: center,
                 content: content,
                 corePoint: corePoint
@@ -189,13 +213,14 @@ enum UniverseConstellationLayout {
             }
         }
 
-        return Layout(corePoint: corePoint, categoryNodes: nodes, toolNodes: [], edges: edges)
+        return Layout(corePoint: corePoint, categoryNodes: nodes, toolNodes: [], edges: edges, toolPage: nil)
     }
 
     private static func branchLayout(
         planets: [PlanetData],
         focusedCategory: ToolCategoryId,
         selectedToolID: String?,
+        requestedToolPageIndex: Int,
         center: CGPoint,
         content: CGRect,
         corePoint: CGPoint?
@@ -213,17 +238,30 @@ enum UniverseConstellationLayout {
             isContext: false
         )
 
-        let tools = focused.tools.filter { !(focused.id == .core && $0.id == PlanetData.centralCoreToolID) }
-        var toolNodes: [ToolNode] = []
-        var edges: [Edge] = []
-
-        let hasDenseToolSet = tools.count > 8
-        let leftCount = (tools.count + 1) / 2
-        let rightCount = tools.count / 2
+        let allTools = focused.tools.filter { !(focused.id == .core && $0.id == PlanetData.centralCoreToolID) }
+        let hasDenseToolSet = allTools.count >= maximumVisibleToolCount
         let columnTop = content.minY + 90
         let columnBottom = content.maxY - (hasDenseToolSet ? 54 : 104)
         let leftX = content.minX + 38
         let rightX = content.maxX - 38
+        let maximumRowsPerColumn = max(
+            1,
+            Int((columnBottom - columnTop).rounded(.down) / minimumToolRowSpacing) + 1
+        )
+        let renderedToolCount = min(maximumVisibleToolCount, maximumRowsPerColumn * 2)
+        let pageCount = max(1, (allTools.count + renderedToolCount - 1) / renderedToolCount)
+        let selectedToolPageIndex = selectedToolID.flatMap { selectedToolID in
+            allTools.firstIndex(where: { $0.id == selectedToolID }).map { $0 / renderedToolCount }
+        }
+        let pageIndex = min(max(selectedToolPageIndex ?? requestedToolPageIndex, 0), pageCount - 1)
+        let pageStart = pageIndex * renderedToolCount
+        let pageEnd = min(pageStart + renderedToolCount, allTools.count)
+        let tools = Array(allTools[pageStart..<pageEnd])
+        let toolPage = ToolPage(index: pageIndex, count: pageCount, totalToolCount: allTools.count)
+        let leftCount = (tools.count + 1) / 2
+        let rightCount = tools.count / 2
+        var toolNodes: [ToolNode] = []
+        var edges: [Edge] = []
 
         for (index, tool) in tools.enumerated() {
             let isSelected = tool.id == selectedToolID
@@ -242,6 +280,8 @@ enum UniverseConstellationLayout {
                     id: "tool.\(tool.id)",
                     toolID: tool.id,
                     categoryID: focused.id,
+                    title: tool.name,
+                    stage: tool.stage,
                     point: point,
                     diameter: isSelected ? 42 : 34,
                     isSelected: isSelected,
@@ -269,7 +309,8 @@ enum UniverseConstellationLayout {
             corePoint: focused.id == .core ? nil : corePoint,
             categoryNodes: [categoryNode] + contextNodes,
             toolNodes: toolNodes,
-            edges: edges
+            edges: edges,
+            toolPage: toolPage
         )
     }
 
