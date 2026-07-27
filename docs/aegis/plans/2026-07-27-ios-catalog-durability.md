@@ -130,6 +130,9 @@ Validation before every write/import/migration/load acceptance:
   `PlanetData.centralCoreToolID`;
 - relation IDs do not refer to absent tools; malformed URLs/decoding are
   rejected rather than repaired by data loss.
+- the current interactive renderer budget is bounded (tools, custom
+  categories, relations, and user-controlled strings) before a document can
+  become durable; increasing it requires a schema/performance decision.
 
 ### Atomic and migration protocol
 
@@ -161,9 +164,11 @@ Validation before every write/import/migration/load acceptance:
   type/filename and shares it using the native file exporter. It contains no
   Keychain secrets, API keys, raw prompts, attachment bytes, or assistant
   transcript.
-- Import uses the native file importer, validates fully, then asks the person
-  to replace the current catalog. It preserves a verified backup first; invalid
-  or unsupported content leaves the live catalog unchanged and explains why.
+- Import uses the native file importer, acquires/releases scoped access, reads
+  a bounded payload off the UI actor, validates fully, then asks the person to
+  replace the current catalog. It preserves a verified backup first; invalid,
+  oversized, or unsupported content leaves the live catalog unchanged and
+  explains why.
 - Reset is an explicit Settings confirmation that replaces the current catalog
   with an empty valid v2 document and leaves the prior verified document
   available through recovery. “Delete recovery copy” is a separately named,

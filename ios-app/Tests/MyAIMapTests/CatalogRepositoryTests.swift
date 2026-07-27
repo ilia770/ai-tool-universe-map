@@ -117,6 +117,17 @@ struct CatalogRepositoryTests {
         }
     }
 
+    @Test func validationRejectsCatalogsBeyondTheInteractiveToolBudget() {
+        let tools = (0...CatalogDocument.maximumToolCount).map { index in
+            tool(id: "tool-\(index)", category: .design)
+        }
+        let document = CatalogDocument(tools: tools)
+
+        #expect(throws: CatalogValidationError.interactiveResourceLimitsExceeded) {
+            try document.validate()
+        }
+    }
+
     @Test func aCustomCategoryCanOwnATool() throws {
         let customID = ToolCategoryId("ops")
         let document = CatalogDocument(
@@ -376,18 +387,43 @@ struct CatalogRepositoryTests {
         #expect(!recovery.backupAvailable)
     }
 
-    @Test func failedQuarantineCopyPreservesTheCorruptPrimary() {
+    @Test func failedRecoveryCopyWritePreservesTheCorruptPrimary() {
         let fileSystem = MemoryCatalogFileSystem()
         let repository = makeRepository(fileSystem: fileSystem)
         fileSystem.seed(Data("not JSON".utf8), at: repository.primaryURL)
-        fileSystem.failNextCopy()
+        fileSystem.failNextWrite()
 
         guard case .recovery(let recovery) = repository.load() else {
-            Issue.record("A corrupt primary must enter recovery even if quarantine copy fails.")
+            Issue.record("A corrupt primary must enter recovery even if recovery copy write fails.")
             return
         }
         #expect(!recovery.recoveryCopyAvailable)
         #expect(fileSystem.data(at: repository.primaryURL) == Data("not JSON".utf8))
+    }
+
+    @Test func laterCorruptionExportsTheCurrentBytesAndRetainsThePriorSnapshot() throws {
+        let fileSystem = MemoryCatalogFileSystem()
+        let repository = makeRepository(fileSystem: fileSystem)
+        let staleCopy = Data("older corrupt primary".utf8)
+        let currentPrimary = Data("newer corrupt primary".utf8)
+        fileSystem.seed(staleCopy, at: repository.primaryURL)
+
+        guard case .recovery(let firstRecovery) = repository.load() else {
+            Issue.record("The first corrupt primary must enter recovery.")
+            return
+        }
+        #expect(firstRecovery.recoveryCopyAvailable)
+
+        fileSystem.seed(currentPrimary, at: repository.primaryURL)
+
+        guard case .recovery(let recovery) = repository.load() else {
+            Issue.record("A corrupt primary must enter recovery.")
+            return
+        }
+        #expect(recovery.recoveryCopyAvailable)
+        #expect(fileSystem.data(at: repository.primaryURL) == currentPrimary)
+        #expect(try repository.recoveryCopyData() == currentPrimary)
+        #expect(fileSystem.data(at: repository.previousRecoveryCopyURL) == staleCopy)
     }
 
     @Test func explicitRecoveryReplacementMakesAnEmptyCatalogLiveOnlyAfterConfirmation() throws {
@@ -518,7 +554,6 @@ final class MemoryCatalogFileSystem: CatalogFileSystem {
     private var nextFailingPublishURL: URL?
     private var nextFailingReadURL: URL?
     private var failDirectoryCreation = false
-    private var failCopy = false
 
     func itemExists(at url: URL) -> Bool {
         files[url] != nil
@@ -557,17 +592,6 @@ final class MemoryCatalogFileSystem: CatalogFileSystem {
             successfulWritesUntilFailure = remaining - 1
         }
         files[url] = data
-    }
-
-    func copyItem(at sourceURL: URL, to destinationURL: URL) throws {
-        if failCopy {
-            failCopy = false
-            throw Failure.injectedWrite
-        }
-        guard let data = files[sourceURL] else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        files[destinationURL] = data
     }
 
     func publishStagedItem(at sourceURL: URL, to destinationURL: URL) throws {
@@ -613,7 +637,4 @@ final class MemoryCatalogFileSystem: CatalogFileSystem {
         failDirectoryCreation = true
     }
 
-    func failNextCopy() {
-        failCopy = true
-    }
 }

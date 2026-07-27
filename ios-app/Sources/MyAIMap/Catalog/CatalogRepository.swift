@@ -65,6 +65,7 @@ protocol CatalogRepository: AnyObject {
     func save(_ document: CatalogDocument) throws
     func restoreVerifiedBackup() throws -> CatalogDocument
     func replaceRecoveredCatalog(with document: CatalogDocument) throws
+    func recoveryCopyData() throws -> Data
 }
 
 /// Small file seam for deterministic failure tests. A candidate and backup are
@@ -76,7 +77,6 @@ protocol CatalogFileSystem: AnyObject {
     func createDirectory(at url: URL) throws
     func readData(at url: URL) throws -> Data
     func writeAtomically(_ data: Data, to url: URL) throws
-    func copyItem(at sourceURL: URL, to destinationURL: URL) throws
     func publishStagedItem(at sourceURL: URL, to destinationURL: URL) throws
 }
 
@@ -102,10 +102,6 @@ final class FoundationCatalogFileSystem: CatalogFileSystem {
 
     func writeAtomically(_ data: Data, to url: URL) throws {
         try data.write(to: url, options: .atomic)
-    }
-
-    func copyItem(at sourceURL: URL, to destinationURL: URL) throws {
-        try fileManager.copyItem(at: sourceURL, to: destinationURL)
     }
 
     func publishStagedItem(at sourceURL: URL, to destinationURL: URL) throws {
@@ -305,6 +301,14 @@ final class LocalCatalogRepository: CatalogRepository {
         return document
     }
 
+    func recoveryCopyData() throws -> Data {
+        do {
+            return try fileSystem.readData(at: recoveryCopyURL)
+        } catch {
+            throw CatalogPersistenceError.fileOperation(.readPrimary)
+        }
+    }
+
     var primaryURL: URL {
         directory.appendingPathComponent("catalog-v2.json", isDirectory: false)
     }
@@ -317,16 +321,40 @@ final class LocalCatalogRepository: CatalogRepository {
         directory.appendingPathComponent(".catalog-v2.\(label).\(UUID().uuidString).staging", isDirectory: false)
     }
 
-    private var quarantineURL: URL {
+    /// The byte-for-byte copy captured for the current corrupt primary.
+    var recoveryCopyURL: URL {
         directory.appendingPathComponent("catalog-v2.invalid.json", isDirectory: false)
     }
 
+    /// A bounded, best-effort retention slot. It keeps the immediately prior
+    /// corrupt snapshot when a new, distinct corrupt primary is found.
+    var previousRecoveryCopyURL: URL {
+        directory.appendingPathComponent("catalog-v2.invalid.previous.json", isDirectory: false)
+    }
+
     private func quarantinePrimaryIfPossible() -> Bool {
-        if fileSystem.itemExists(at: quarantineURL) {
-            return true
+        guard let primaryData = try? fileSystem.readData(at: primaryURL) else {
+            return false
         }
+
+        if fileSystem.itemExists(at: recoveryCopyURL) {
+            guard let recoveryData = try? fileSystem.readData(at: recoveryCopyURL) else {
+                return false
+            }
+            guard recoveryData != primaryData else { return true }
+            guard publishRecoverySnapshot(recoveryData, label: "recovery-previous", to: previousRecoveryCopyURL) else {
+                return false
+            }
+        }
+
+        return publishRecoverySnapshot(primaryData, label: "recovery-current", to: recoveryCopyURL)
+    }
+
+    private func publishRecoverySnapshot(_ data: Data, label: String, to destinationURL: URL) -> Bool {
+        let stagingURL = stagingURL(label: label)
         do {
-            try fileSystem.copyItem(at: primaryURL, to: quarantineURL)
+            try fileSystem.writeAtomically(data, to: stagingURL)
+            try fileSystem.publishStagedItem(at: stagingURL, to: destinationURL)
             return true
         } catch {
             return false
@@ -374,5 +402,9 @@ final class UnavailableCatalogRepository: CatalogRepository {
 
     func replaceRecoveredCatalog(with document: CatalogDocument) throws {
         throw CatalogPersistenceError.fileOperation(.createDirectory)
+    }
+
+    func recoveryCopyData() throws -> Data {
+        throw CatalogPersistenceError.fileOperation(.readPrimary)
     }
 }

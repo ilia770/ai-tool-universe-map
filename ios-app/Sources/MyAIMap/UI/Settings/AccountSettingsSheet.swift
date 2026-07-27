@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AccountSettingsSheet: View {
     @Environment(UniverseViewModel.self) private var model
@@ -7,6 +8,12 @@ struct AccountSettingsSheet: View {
     @State private var section: AccountSection = .settings
     @State private var showResetConfirm = false
     @State private var showUpgradePlaceholder = false
+    @State private var catalogExportDocument: CatalogFileDocument?
+    @State private var showCatalogExporter = false
+    @State private var showCatalogImporter = false
+    @State private var pendingCatalogImport: CatalogDocument?
+    @State private var showCatalogImportConfirmation = false
+    @State private var catalogTransferMessage: String?
     #if DEBUG
     @State private var deepSeekKeyInput = ""
     @State private var deepSeekKeySet = KeychainStore.hasValue(account: KeychainStore.deepSeekAPIKeyAccount)
@@ -84,6 +91,43 @@ struct AccountSettingsSheet: View {
         }
         .preferredColorScheme(.dark)
         .presentationBackground(.ultraThinMaterial)
+        .fileExporter(
+            isPresented: $showCatalogExporter,
+            document: catalogExportDocument,
+            contentType: CatalogFileDocument.catalogContentType,
+            defaultFilename: "my-ai-map-catalog-v2"
+        ) { result in
+            if case .failure = result {
+                catalogTransferMessage = "The catalog could not be exported. Your local universe was not changed."
+            }
+        }
+        .fileImporter(
+            isPresented: $showCatalogImporter,
+            allowedContentTypes: [CatalogFileDocument.catalogContentType]
+        ) { result in
+            handleCatalogImport(result)
+        }
+        .confirmationDialog(
+            "Replace current universe?",
+            isPresented: $showCatalogImportConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Replace universe", role: .destructive, action: replaceWithPendingCatalogImport)
+            Button("Cancel", role: .cancel) { pendingCatalogImport = nil }
+        } message: {
+            Text("The imported catalog will replace the active local universe. A verified backup of the current catalog is kept first.")
+        }
+        .alert(
+            "Catalog transfer",
+            isPresented: Binding(
+                get: { catalogTransferMessage != nil },
+                set: { if !$0 { catalogTransferMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(catalogTransferMessage ?? "")
+        }
     }
 
     private var accountHeader: some View {
@@ -145,6 +189,18 @@ struct AccountSettingsSheet: View {
 
             settingsGroup(title: "Universe", systemImage: "globe.americas.fill") {
                 VStack(spacing: BrandSpacing.s.value) {
+                    Button(action: beginCatalogExport) {
+                        universeActionRow("Export universe", systemImage: "square.and.arrow.up", destructive: false)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+
+                    Button {
+                        showCatalogImporter = true
+                    } label: {
+                        universeActionRow("Import universe", systemImage: "square.and.arrow.down", destructive: false)
+                    }
+                    .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+
                     Button {
                         withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) { _ = model.loadSampleUniverse() }
                     } label: {
@@ -167,7 +223,7 @@ struct AccountSettingsSheet: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Removes every tool you've added. This can't be undone.")
+                Text("Removes every tool and branch from the active universe. A verified backup is kept for recovery.")
             }
 
             if !model.removedTools.isEmpty {
@@ -246,6 +302,44 @@ struct AccountSettingsSheet: View {
             Text(value)
                 .font(BrandTypography.controlLabel)
                 .foregroundStyle(.white)
+        }
+    }
+
+    private func beginCatalogExport() {
+        guard let document = model.catalogExportDocument() else {
+            catalogTransferMessage = "The catalog could not be exported safely. Your local universe was not changed."
+            return
+        }
+        catalogExportDocument = document
+        showCatalogExporter = true
+    }
+
+    private func handleCatalogImport(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else {
+            catalogTransferMessage = "The selected file could not be opened. Your local universe was not changed."
+            return
+        }
+
+        Task { @MainActor in
+            let preparation = await Task.detached(priority: .userInitiated) {
+                CatalogImportPreparation.prepare(from: url)
+            }.value
+            guard case .success(let document) = preparation,
+                  model.catalogRecovery == nil else {
+                catalogTransferMessage = "This file is not a valid My AI Map catalog, or it is too large. Your local universe was not changed."
+                return
+            }
+            pendingCatalogImport = document
+            showCatalogImportConfirmation = true
+        }
+    }
+
+    private func replaceWithPendingCatalogImport() {
+        guard let document = pendingCatalogImport else { return }
+        pendingCatalogImport = nil
+        guard model.replaceCatalogWithImportedDocument(document) else {
+            catalogTransferMessage = "The imported catalog could not replace your universe. Your current catalog was not changed."
+            return
         }
     }
 

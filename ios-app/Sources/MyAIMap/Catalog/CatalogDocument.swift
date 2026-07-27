@@ -9,6 +9,16 @@ struct CatalogDocument: Codable, Equatable, Sendable {
     static let currentSchemaVersion = 2
     static let builtinCategoryIDs = Set(ToolCategoryId.builtins + [.core])
 
+    /// Bounds for the current on-device, fully interactive renderer. They are
+    /// catalog invariants rather than importer-only checks, so a version-skewed
+    /// local document cannot repeatedly launch into an unrecoverable rendering
+    /// workload either. A future paged renderer can raise these with a schema
+    /// migration and explicit performance evidence.
+    static let maximumToolCount = 512
+    static let maximumCustomCategoryCount = 64
+    static let maximumRelationsPerTool = 64
+    static let maximumRelationCount = 4_096
+
     let schemaVersion: Int
     var tools: [Tool]
     var customCategories: [ToolCategory]
@@ -66,6 +76,9 @@ struct CatalogDocument: Codable, Equatable, Sendable {
         guard schemaVersion == Self.currentSchemaVersion else {
             throw CatalogValidationError.unsupportedSchemaVersion(schemaVersion)
         }
+        guard hasInteractiveFootprintWithinLimits else {
+            throw CatalogValidationError.interactiveResourceLimitsExceeded
+        }
 
         let toolIDs = tools.map(\.id)
         guard toolIDs.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
@@ -109,6 +122,67 @@ struct CatalogDocument: Codable, Equatable, Sendable {
             throw CatalogValidationError.toolURLIsNotHTTPS
         }
     }
+
+    private var hasInteractiveFootprintWithinLimits: Bool {
+        guard tools.count <= Self.maximumToolCount,
+              customCategories.count <= Self.maximumCustomCategoryCount,
+              hiddenToolIDs.count <= Self.maximumToolCount else {
+            return false
+        }
+
+        let relationCount = tools.reduce(into: 0) { partialResult, tool in
+            partialResult += tool.relationIds.count
+        }
+        guard relationCount <= Self.maximumRelationCount else { return false }
+
+        for tool in tools {
+            guard tool.relationIds.count <= Self.maximumRelationsPerTool,
+                  Self.isWithinUTF8Limit(tool.id, maximumBytes: 128),
+                  Self.isWithinUTF8Limit(tool.name, maximumBytes: 160),
+                  Self.isWithinUTF8Limit(tool.summary, maximumBytes: 2_000),
+                  tool.url.map({ Self.isWithinUTF8Limit($0.absoluteString, maximumBytes: 2_048) }) ?? true,
+                  tool.logoDomain.map({ Self.isWithinUTF8Limit($0, maximumBytes: 255) }) ?? true,
+                  tool.relationIds.allSatisfy({ Self.isWithinUTF8Limit($0, maximumBytes: 128) }) else {
+                return false
+            }
+            if let classification = tool.classification {
+                guard classification.matchedKeywords.count <= 16,
+                      Self.isWithinUTF8Limit(classification.reason, maximumBytes: 1_000),
+                      classification.matchedKeywords.allSatisfy({ Self.isWithinUTF8Limit($0, maximumBytes: 80) }) else {
+                    return false
+                }
+            }
+        }
+
+        return customCategories.allSatisfy { category in
+            Self.isWithinUTF8Limit(category.id.rawValue, maximumBytes: 128)
+                && Self.isWithinUTF8Limit(category.name, maximumBytes: 160)
+                && Self.isWithinUTF8Limit(category.shortName, maximumBytes: 160)
+                && Self.isWithinUTF8Limit(category.description, maximumBytes: 2_000)
+                && Self.isWithinUTF8Limit(category.color.rawValue, maximumBytes: 64)
+                && Self.isWithinUTF8Limit(category.glow.rawValue, maximumBytes: 64)
+        }
+    }
+
+    private static func isWithinUTF8Limit(_ value: String, maximumBytes: Int) -> Bool {
+        value.utf8.count <= maximumBytes
+    }
+
+    /// Stable, validated transfer bytes for native export. This is deliberately
+    /// the catalog only: preferences, secrets, chats, caches, and attachments
+    /// never enter the portable document.
+    func transferData() throws -> Data {
+        try validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(self)
+    }
+
+    static func document(fromTransferData data: Data) throws -> CatalogDocument {
+        let document = try JSONDecoder().decode(CatalogDocument.self, from: data)
+        try document.validate()
+        return document
+    }
 }
 
 enum CatalogValidationError: Error, Equatable, Sendable, LocalizedError {
@@ -123,6 +197,7 @@ enum CatalogValidationError: Error, Equatable, Sendable, LocalizedError {
     case hiddenCoreTool
     case relationReferencesMissingTool
     case toolURLIsNotHTTPS
+    case interactiveResourceLimitsExceeded
 
     var errorDescription: String? {
         switch self {
@@ -148,6 +223,8 @@ enum CatalogValidationError: Error, Equatable, Sendable, LocalizedError {
             return "A tool relation references a missing tool."
         case .toolURLIsNotHTTPS:
             return "A tool URL must use HTTPS."
+        case .interactiveResourceLimitsExceeded:
+            return "This catalog is too large for the current interactive map."
         }
     }
 }

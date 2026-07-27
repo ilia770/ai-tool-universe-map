@@ -171,6 +171,54 @@ final class UniverseViewModel {
         return true
     }
 
+    /// Produces a validated native export document from the currently committed
+    /// in-memory catalog. Recovery states cannot be exported as a normal
+    /// catalog; their quarantine copy has its own explicit action.
+    func catalogExportDocument() -> CatalogFileDocument? {
+        guard catalogRecovery == nil else { return nil }
+        return try? CatalogFileDocument(
+            catalog: CatalogDocument(
+                tools: customTools,
+                customCategories: customCategories,
+                hiddenToolIDs: hiddenToolIDs
+            )
+        )
+    }
+
+    /// Validates an external file without touching the live catalog. The
+    /// Settings sheet asks for replacement confirmation only after this returns
+    /// a document.
+    func preparedCatalogImport(from data: Data) -> CatalogDocument? {
+        guard catalogRecovery == nil else { return nil }
+        return try? CatalogDocument.document(fromTransferData: data)
+    }
+
+    /// Replaces the live catalog only after the Settings confirmation. The
+    /// repository's ordinary save protocol preserves a verified backup first.
+    @discardableResult
+    func replaceCatalogWithImportedDocument(_ document: CatalogDocument) -> Bool {
+        guard commitCatalog(
+            tools: document.tools,
+            customCategories: document.customCategories,
+            hiddenToolIDs: document.hiddenToolIDs
+        ) else { return false }
+        applyRecoveredCatalog(document)
+        recordActivity(
+            kind: .added,
+            title: "Imported universe",
+            detail: "Replaced local catalog",
+            toolID: nil
+        )
+        return true
+    }
+
+    func recoveryCopyExportDocument() -> CatalogRecoveryCopyDocument? {
+        guard catalogRecovery?.recoveryCopyAvailable == true,
+              let catalogRepository,
+              let data = try? catalogRepository.recoveryCopyData() else { return nil }
+        return CatalogRecoveryCopyDocument(data: data)
+    }
+
     private func applyRecoveredCatalog(_ document: CatalogDocument) {
         customTools = document.tools
         customCategories = document.customCategories
@@ -385,7 +433,7 @@ final class UniverseViewModel {
     /// `isUniverseEmpty`: hiding every tool makes the map empty while data
     /// still sits in storage, so Reset must gate on this, not emptiness (F2).
     var hasStoredData: Bool {
-        !customTools.isEmpty || !hiddenToolIDs.isEmpty
+        !customTools.isEmpty || !customCategories.isEmpty || !hiddenToolIDs.isEmpty
     }
 
     /// Wipes the user's universe back to empty (custom tools + hidden ids).

@@ -67,9 +67,19 @@
 - Completed pending runtime verification: explicit start-empty clears only the
   technical pending marker after publication, never v1 bytes; it rotates a
   valid existing v2 primary through the regular backup protocol.
-- Active slice: Batch 3 export/import/recovery-copy operations and their UI.
-- Next: add replace-only native import/export and recovery-copy export without
-  weakening the current recovery/backup boundaries.
+- Completed pending runtime verification: Batch 3 adds native validated JSON
+  export, bounded security-scoped import that is parsed off the UI actor,
+  explicit replace confirmation, opaque recovery-copy export, and visible
+  recovery-export failure. Import reads at most 5 MiB plus one byte and the
+  durable catalog bounds its interactive tool/category/relation/string
+  footprint before it can reach map rendering.
+- Completed pending runtime verification: an independent Codex Security diff
+  review found and the implementation fixed two self-only availability risks:
+  metadata-before-unbounded-read and structurally oversized but byte-limited
+  catalog import. No reportable finding remains in the finalized scan bundle.
+- Next: Batch 4 runtime evidence — execute focused/full XCTest and recovery /
+  import-export UI smoke after CoreSimulator health is restored, then inspect
+  the xcresult before retiring the compatibility store.
 - Blocked-on: simulator test/archive gate. `simctl list devices available`
   presently reports CoreSimulatorService connection invalid / runtime discovery
   failure. No restart is authorized because it can disrupt user simulators.
@@ -89,5 +99,6 @@
   macro plugins; catalog/migration/ViewModel test suites typecheck with the
   Xcode Swift Testing macro plugin. Runtime XCTest remains
   `needs-verification` due host infrastructure.
-- Decision: commit the reviewed integration/recovery slice, then implement
-  import/export before declaring Batch 3 complete.
+- Decision: commit the reviewed Batch 3 integration and transfer slice. Do not
+  declare the durability stop-ship gate closed until the named runtime evidence
+  exists.

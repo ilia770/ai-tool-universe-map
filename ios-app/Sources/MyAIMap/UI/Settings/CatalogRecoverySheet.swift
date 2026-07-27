@@ -8,8 +8,13 @@ struct CatalogRecoverySheet: View {
     let onRestoreBackup: () -> Void
     let onStartEmpty: () -> Void
     let onContinueWithLastSavedCatalog: () -> Void
+    let onRecoveryCopyExport: () -> CatalogRecoveryCopyDocument?
 
     @State private var showStartEmptyConfirmation = false
+    @State private var recoveryCopyExportDocument: CatalogRecoveryCopyDocument?
+    @State private var showRecoveryCopyExporter = false
+    @State private var recoveryCopyExportInProgress = false
+    @State private var recoveryCopyExportFailure = false
 
     var body: some View {
         NavigationStack {
@@ -50,6 +55,15 @@ struct CatalogRecoverySheet: View {
                         .accessibilityIdentifier("catalogRecovery.restoreBackup")
                     }
 
+                    if recovery.recoveryCopyAvailable {
+                        Button(action: exportRecoveryCopy) {
+                            Label("Export recovery copy", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("catalogRecovery.exportCopy")
+                    }
+
                     Button(role: .destructive) {
                         showStartEmptyConfirmation = true
                     } label: {
@@ -57,6 +71,7 @@ struct CatalogRecoverySheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .disabled(recoveryCopyExportInProgress)
                     .accessibilityIdentifier("catalogRecovery.startEmpty")
                 }
 
@@ -85,6 +100,22 @@ struct CatalogRecoverySheet: View {
         } message: {
             Text("This replaces the active local catalog. Restore the verified backup instead if you want to keep its contents.")
         }
+        .fileExporter(
+            isPresented: $showRecoveryCopyExporter,
+            document: recoveryCopyExportDocument,
+            contentType: CatalogRecoveryCopyDocument.contentType,
+            defaultFilename: "my-ai-map-recovery-copy"
+        ) { result in
+            recoveryCopyExportInProgress = false
+            if case .failure = result {
+                recoveryCopyExportFailure = true
+            }
+        }
+        .alert("Recovery copy was not exported", isPresented: $recoveryCopyExportFailure) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The active catalog was not changed. Export the recovery copy successfully before starting a new universe.")
+        }
     }
 
     private var message: String {
@@ -102,5 +133,12 @@ struct CatalogRecoverySheet: View {
         case .catalogCouldNotBeSaved:
             return "The latest catalog change could not be saved safely."
         }
+    }
+
+    private func exportRecoveryCopy() {
+        guard let document = onRecoveryCopyExport() else { return }
+        recoveryCopyExportDocument = document
+        recoveryCopyExportInProgress = true
+        showRecoveryCopyExporter = true
     }
 }

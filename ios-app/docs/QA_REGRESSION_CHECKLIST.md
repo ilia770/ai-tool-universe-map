@@ -61,6 +61,18 @@ count, not "Executed 0 tests".
 - [ ] Prefer accessibility labels (`Category node,...`, `Tool node,...`) over
       stale 3D coordinates for functional taps.
 
+## Catalog durability / native transfer
+- [ ] Cold-launch a corrupt v2 primary: app shows non-dismissible recovery,
+      does not render an implicit empty map, and can restore a verified backup.
+- [ ] Export a populated catalog; import it through the native picker; verify
+      explicit replacement confirmation and backup rotation before publication.
+- [ ] Reject malformed, over-5-MiB, and over-interactive-budget imports without
+      changing the visible catalog or its verified backup.
+- [ ] Export a raw recovery copy, cancel/fail the exporter, and confirm Start
+      Empty remains blocked until exporter completion and reports failure.
+- [ ] Start empty only after destructive confirmation; relaunch and verify no
+      interrupted migration marker returns the app to recovery.
+
 ## Device matrix (visual)
 - [ ] iPhone 17 (and a Pro Max) — no overlap/clipping.
 - [ ] iPhone SE-class (small) — no overflow; controls reachable.

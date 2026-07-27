@@ -35,7 +35,8 @@ struct MyAIMapApp: App {
                             recovery: recovery,
                             onRestoreBackup: { _ = model.restoreVerifiedCatalogBackup() },
                             onStartEmpty: { _ = model.startNewUniverseAfterCatalogRecovery() },
-                            onContinueWithLastSavedCatalog: { _ = model.continueWithLastSavedCatalogAfterWriteFailure() }
+                            onContinueWithLastSavedCatalog: { _ = model.continueWithLastSavedCatalogAfterWriteFailure() },
+                            onRecoveryCopyExport: { model.recoveryCopyExportDocument() }
                         )
                     }
                 }

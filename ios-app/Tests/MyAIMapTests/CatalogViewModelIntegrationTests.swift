@@ -83,6 +83,84 @@ struct CatalogViewModelIntegrationTests {
         #expect(second.customTools.isEmpty)
     }
 
+    @Test func exportedCatalogIsValidatedAndImportReplacementPreservesThePriorPrimary() throws {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        #expect(model.addCustomTool(name: "Figma", urlString: "https://figma.com", category: .design))
+        let exported = try #require(model.catalogExportDocument())
+        let exportedCatalog = try CatalogDocument.document(fromTransferData: exported.data)
+        #expect(exportedCatalog.tools.map(\.name) == ["Figma"])
+
+        let imported = CatalogDocument(tools: [tool(id: "linear", name: "Linear", category: .design)])
+        let prepared = try #require(model.preparedCatalogImport(from: try imported.transferData()))
+        #expect(model.replaceCatalogWithImportedDocument(prepared))
+        #expect(model.customTools.map(\.name) == ["Linear"])
+
+        let backup = try #require(context.fileSystem.data(at: context.repository.backupURL))
+        let backupCatalog = try JSONDecoder().decode(CatalogDocument.self, from: backup)
+        #expect(backupCatalog.tools.map(\.name) == ["Figma"])
+    }
+
+    @Test func invalidImportDoesNotChangeTheLiveCatalog() {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        #expect(model.addCustomTool(name: "Figma", urlString: "https://figma.com", category: .design))
+
+        #expect(model.preparedCatalogImport(from: Data("not JSON".utf8)) == nil)
+        #expect(model.customTools.map(\.name) == ["Figma"])
+    }
+
+    @Test func oversizedImportIsRejectedBeforeCatalogDecoding() {
+        let oversizedPayload = Data(repeating: 0, count: CatalogImportPreparation.maximumBytes + 1)
+
+        guard case .failure(.invalidOrOversizedFile) = CatalogImportPreparation.validatedDocument(from: oversizedPayload) else {
+            Issue.record("An oversized import must be rejected before it reaches the catalog decoder.")
+            return
+        }
+    }
+
+    @Test func boundedImportReaderRejectsAFileBeyondTheByteBudget() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("catalog-import-limit-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        try Data(repeating: 0, count: CatalogImportPreparation.maximumBytes + 1)
+            .write(to: fileURL, options: .atomic)
+
+        #expect(throws: CatalogImportPreparationError.invalidOrOversizedFile) {
+            _ = try CatalogImportPreparation.boundedData(from: fileURL)
+        }
+    }
+
+    @Test func failedConfirmedImportLeavesModelPrimaryAndBackupUntouched() throws {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        #expect(model.addCustomTool(name: "Figma", urlString: "https://figma.com", category: .design))
+        let originalPrimary = try #require(context.fileSystem.data(at: context.repository.primaryURL))
+
+        let imported = CatalogDocument(tools: [tool(id: "linear", name: "Linear", category: .design)])
+        let candidate = try #require(model.preparedCatalogImport(from: try imported.transferData()))
+        context.fileSystem.failNextWrite()
+
+        #expect(!model.replaceCatalogWithImportedDocument(candidate))
+        #expect(model.customTools.map(\.name) == ["Figma"])
+        #expect(context.fileSystem.data(at: context.repository.primaryURL) == originalPrimary)
+        #expect(context.fileSystem.data(at: context.repository.backupURL) == nil)
+    }
+
+    @Test func recoveryCopyExportReadsOnlyTheQuarantinedBytes() throws {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let corrupt = Data("not JSON".utf8)
+        context.fileSystem.seed(corrupt, at: context.repository.primaryURL)
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+
+        let recoveryCopy = try #require(model.recoveryCopyExportDocument())
+        #expect(recoveryCopy.data == corrupt)
+    }
+
     private func makeContext() -> IntegrationContext {
         let suiteName = "catalog-view-model-test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -109,6 +187,22 @@ struct CatalogViewModelIntegrationTests {
                 legacy: LegacyCatalogV1(defaults: context.defaults),
                 markerStore: markerStore
             )
+        )
+    }
+
+    private func tool(id: String, name: String, category: ToolCategoryId) -> Tool {
+        Tool(
+            id: id,
+            name: name,
+            category: category,
+            summary: "Import fixture tool",
+            stage: .planning,
+            orbit: .inner,
+            angle: 0,
+            url: nil,
+            logoDomain: nil,
+            relationIds: [],
+            classification: nil
         )
     }
 }

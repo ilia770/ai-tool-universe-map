@@ -18,10 +18,30 @@ The overlay supplies chrome, empty state, selection context, and system-sheet
 triggers. It no longer projects labels through a legacy camera; live node
 placement and labels come from the 2D constellation.
 
+## Catalog durability and transfer boundary — 2026-07-27
+
+`CatalogRuntimeDependencies` composes one `LocalCatalogRepository`, migration
+coordinator, and preferences owner for `UniverseViewModel`. The versioned v2
+catalog lives in Application Support; preferences, Keychain values, chat, and
+relation cache are separate owners. Catalog mutations commit a validated
+candidate before the model applies it. A corrupt primary yields an app-level,
+non-dismissible recovery surface rather than a silent empty map.
+
+Settings exports only validated catalog JSON. Import receives a security-scoped
+URL, reads no more than 5 MiB plus one byte off the UI actor, validates the
+schema and interactive renderer budget, then requires replacement confirmation
+before backup rotation and publication. Raw corrupt recovery bytes export as
+generic data rather than normal JSON. The current renderer budget is 512 tools,
+64 custom categories, 64 relations per tool, 4,096 total relations, and bounded
+user-controlled string fields; increasing it requires a schema/performance
+decision, not a UI-only change.
+
 ## Changed files / QA done / Remaining issues
 
 **Changed files:** Task 2 adds the typed release renderer boundary and retires
-dormant RealityKit allocations from the mounted 2D path.
+dormant RealityKit allocations from the mounted 2D path. The 2026-07-27
+durability slice adds the catalog repository/document/transfer/recovery
+boundary described above.
 
 **QA done:** Automated evidence is the focused command run after `xcodegen
 generate`:
@@ -33,10 +53,20 @@ generate`:
 /tmp/aimap-foundation-renderer.xcresult`. Its xcresult summary reports 13
 passed tests and 0 failed tests.
 
+For the durability slice, all production sources emitted an iOS simulator
+module and the focused catalog Swift Testing sources typechecked with Xcode's
+macro plugin. An independent security diff scan finalized with zero reportable
+findings after two availability fixes. These are not executed XCTest/UI
+results.
+
 **Remaining issues:** RealityKit sources are intentionally retained. The
 compact-detail route is now a typed `DetailRoute` owned by
 `UniverseViewModel`; AppShell-level ownership for account/add-tool sheets is a
 separate state/service-split plan and remains a release gate.
+
+Catalog durability code and focused tests have static compiler evidence only
+in this worktree. Focused/full XCTest, recovery/import-export UI smoke, and
+fresh xcresult inspection remain required before release closure.
 
 ## Local-first foundation evidence — 2026-07-27
 
