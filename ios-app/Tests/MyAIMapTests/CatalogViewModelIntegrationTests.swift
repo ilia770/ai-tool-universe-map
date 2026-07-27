@@ -121,6 +121,56 @@ struct CatalogViewModelIntegrationTests {
         }
     }
 
+    @Test func importRejectsAnOverBudgetUnknownJSONArrayBeforeDecoding() {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        let entries = Array(repeating: "\"x\"", count: CatalogDocument.maximumToolCount + 1)
+            .joined(separator: ",")
+        let payload = Data(
+            """
+            {"schemaVersion":2,"tools":[],"customCategories":[],"hiddenToolIDs":[],"extensionPayload":[\(entries)]}
+            """.utf8
+        )
+
+        #expect(model.preparedCatalogImport(from: payload) == nil)
+    }
+
+    @Test func importAcceptsAnUnknownJSONArrayAtTheDecodeBudget() throws {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        let entries = Array(repeating: "\"x\"", count: CatalogDocument.maximumToolCount)
+            .joined(separator: ",")
+        let payload = Data(
+            """
+            {"schemaVersion":2,"tools":[],"customCategories":[],"hiddenToolIDs":[],"extensionPayload":[\(entries)]}
+            """.utf8
+        )
+
+        let document = try #require(model.preparedCatalogImport(from: payload))
+        #expect(document == CatalogDocument())
+    }
+
+    @Test func importRejectsNestedUnknownArraysThatExceedTheTotalDecodeBudget() {
+        let context = makeContext()
+        defer { context.defaults.removePersistentDomain(forName: context.suiteName) }
+        let model = UniverseViewModel(dependencies: makeDependencies(context))
+        let entries = Array(repeating: "\"x\"", count: CatalogDocument.maximumToolCount)
+            .joined(separator: ",")
+        let childArrayCount = CatalogJSONPreflight.maximumTotalArrayElementCount
+            / CatalogDocument.maximumToolCount + 1
+        let childArrays = Array(repeating: "[\(entries)]", count: childArrayCount)
+            .joined(separator: ",")
+        let payload = Data(
+            """
+            {"schemaVersion":2,"tools":[],"customCategories":[],"hiddenToolIDs":[],"extensionPayload":[\(childArrays)]}
+            """.utf8
+        )
+
+        #expect(model.preparedCatalogImport(from: payload) == nil)
+    }
+
     @Test func boundedImportReaderRejectsAFileBeyondTheByteBudget() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("catalog-import-limit-\(UUID().uuidString).json")

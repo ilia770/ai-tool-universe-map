@@ -1,5 +1,218 @@
 import Foundation
 
+/// Bounds untrusted catalog structure before `JSONDecoder` materializes it.
+///
+/// The decoder otherwise has to allocate every array in an unknown extension
+/// field before the catalog's domain validation can reject it.
+enum CatalogJSONPreflight {
+    static let maximumNestingDepth = 32
+    static let maximumArrayElementCount = CatalogDocument.maximumToolCount
+    static let maximumObjectMemberCount = CatalogDocument.maximumToolCount
+    /// A valid maximum catalog needs 13,376 array elements at most: tools,
+    /// categories, hidden IDs, relations, and classification keywords.
+    static let maximumTotalArrayElementCount = 16_384
+    /// A valid maximum catalog needs fewer than 8,000 object members.
+    static let maximumTotalObjectMemberCount = 16_384
+    static let maximumStringByteCount = 16 * 1_024
+    static let maximumScalarByteCount = 256
+
+    static func validate(_ data: Data) throws {
+        try data.withUnsafeBytes { rawBuffer in
+            var scanner = Scanner(bytes: rawBuffer.bindMemory(to: UInt8.self))
+            try scanner.validate()
+        }
+    }
+
+    private struct Scanner {
+        private enum ArrayState: Equatable { case firstValueOrEnd, nextValue, commaOrEnd }
+        private enum ObjectState: Equatable { case firstKeyOrEnd, nextKey, colon, value, commaOrEnd }
+        private enum Container {
+            case array(elements: Int, state: ArrayState)
+            case object(members: Int, state: ObjectState)
+        }
+
+        private let bytes: UnsafeBufferPointer<UInt8>
+        private var index = 0
+        private var stack: [Container] = []
+        private var hasRootValue = false
+        private var totalArrayElementCount = 0
+        private var totalObjectMemberCount = 0
+
+        init(bytes: UnsafeBufferPointer<UInt8>) {
+            self.bytes = bytes
+        }
+
+        mutating func validate() throws {
+            while true {
+                skipWhitespace()
+                guard index < bytes.count else { break }
+                switch bytes[index] {
+                case 0x7B:
+                    try beginValue()
+                    try push(.object(members: 0, state: .firstKeyOrEnd))
+                    index += 1
+                case 0x5B:
+                    try beginValue()
+                    try push(.array(elements: 0, state: .firstValueOrEnd))
+                    index += 1
+                case 0x7D:
+                    try closeObject()
+                    index += 1
+                case 0x5D:
+                    try closeArray()
+                    index += 1
+                case 0x3A:
+                    try consumeColon()
+                    index += 1
+                case 0x2C:
+                    try consumeComma()
+                    index += 1
+                case 0x22:
+                    if expectsObjectKey {
+                        try beginObjectKey()
+                        try scanString(maximumByteCount: CatalogJSONPreflight.maximumScalarByteCount)
+                    } else {
+                        try beginValue()
+                        try scanString(maximumByteCount: CatalogJSONPreflight.maximumStringByteCount)
+                    }
+                default:
+                    try beginValue()
+                    try scanScalar()
+                }
+            }
+            guard hasRootValue, stack.isEmpty else { throw invalidJSON() }
+        }
+
+        private var expectsObjectKey: Bool {
+            guard let container = stack.last, case .object(_, let state) = container else { return false }
+            return state == .firstKeyOrEnd || state == .nextKey
+        }
+
+        private mutating func skipWhitespace() {
+            while index < bytes.count, Self.isWhitespace(bytes[index]) { index += 1 }
+        }
+
+        private mutating func beginValue() throws {
+            guard let container = stack.last else {
+                guard !hasRootValue else { throw invalidJSON() }
+                hasRootValue = true
+                return
+            }
+            switch container {
+            case .array(let elements, let state) where state == .firstValueOrEnd || state == .nextValue:
+                guard elements < CatalogJSONPreflight.maximumArrayElementCount,
+                      totalArrayElementCount < CatalogJSONPreflight.maximumTotalArrayElementCount else {
+                    throw resourceLimitExceeded()
+                }
+                stack[stack.count - 1] = .array(elements: elements + 1, state: .commaOrEnd)
+                totalArrayElementCount += 1
+            case .object(let members, .value):
+                stack[stack.count - 1] = .object(members: members, state: .commaOrEnd)
+            default:
+                throw invalidJSON()
+            }
+        }
+
+        private mutating func beginObjectKey() throws {
+            guard let container = stack.last else { throw invalidJSON() }
+            switch container {
+            case .object(let members, let state) where state == .firstKeyOrEnd || state == .nextKey:
+                guard members < CatalogJSONPreflight.maximumObjectMemberCount,
+                      totalObjectMemberCount < CatalogJSONPreflight.maximumTotalObjectMemberCount else {
+                    throw resourceLimitExceeded()
+                }
+                stack[stack.count - 1] = .object(members: members + 1, state: .colon)
+                totalObjectMemberCount += 1
+            default:
+                throw invalidJSON()
+            }
+        }
+
+        private mutating func consumeColon() throws {
+            guard let container = stack.last, case .object(let members, .colon) = container else { throw invalidJSON() }
+            stack[stack.count - 1] = .object(members: members, state: .value)
+        }
+
+        private mutating func consumeComma() throws {
+            guard let container = stack.last else { throw invalidJSON() }
+            switch container {
+            case .array(let elements, .commaOrEnd):
+                stack[stack.count - 1] = .array(elements: elements, state: .nextValue)
+            case .object(let members, .commaOrEnd):
+                stack[stack.count - 1] = .object(members: members, state: .nextKey)
+            default:
+                throw invalidJSON()
+            }
+        }
+
+        private mutating func closeArray() throws {
+            guard let container = stack.last,
+                  case .array(_, let state) = container,
+                  state == .firstValueOrEnd || state == .commaOrEnd else { throw invalidJSON() }
+            stack.removeLast()
+        }
+
+        private mutating func closeObject() throws {
+            guard let container = stack.last,
+                  case .object(_, let state) = container,
+                  state == .firstKeyOrEnd || state == .commaOrEnd else { throw invalidJSON() }
+            stack.removeLast()
+        }
+
+        private mutating func push(_ container: Container) throws {
+            guard stack.count < CatalogJSONPreflight.maximumNestingDepth else { throw resourceLimitExceeded() }
+            stack.append(container)
+        }
+
+        private mutating func scanString(maximumByteCount: Int) throws {
+            guard index < bytes.count, bytes[index] == 0x22 else { throw invalidJSON() }
+            index += 1
+            let contentStart = index
+            while index < bytes.count {
+                guard index - contentStart <= maximumByteCount else { throw resourceLimitExceeded() }
+                let byte = bytes[index]
+                if byte == 0x22 {
+                    index += 1
+                    return
+                }
+                if byte == 0x5C {
+                    index += 1
+                    guard index < bytes.count else { throw invalidJSON() }
+                } else {
+                    guard byte >= 0x20 else { throw invalidJSON() }
+                }
+                index += 1
+            }
+            throw invalidJSON()
+        }
+
+        private mutating func scanScalar() throws {
+            let start = index
+            while index < bytes.count, !Self.isValueDelimiter(bytes[index]) {
+                index += 1
+                guard index - start <= CatalogJSONPreflight.maximumScalarByteCount else { throw resourceLimitExceeded() }
+            }
+            guard index > start else { throw invalidJSON() }
+        }
+
+        private static func isWhitespace(_ byte: UInt8) -> Bool {
+            byte == 0x09 || byte == 0x0A || byte == 0x0D || byte == 0x20
+        }
+
+        private static func isValueDelimiter(_ byte: UInt8) -> Bool {
+            isWhitespace(byte) || byte == 0x2C || byte == 0x5D || byte == 0x7D
+        }
+
+        private func invalidJSON() -> DecodingError {
+            DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The catalog JSON is malformed."))
+        }
+
+        private func resourceLimitExceeded() -> DecodingError {
+            DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "The catalog JSON exceeds the supported resource limits."))
+        }
+    }
+}
+
 /// The single durable representation of a person's local tool universe.
 ///
 /// The document deliberately contains catalog content only. Small preferences,
@@ -179,6 +392,7 @@ struct CatalogDocument: Codable, Equatable, Sendable {
     }
 
     static func document(fromTransferData data: Data) throws -> CatalogDocument {
+        try CatalogJSONPreflight.validate(data)
         let document = try JSONDecoder().decode(CatalogDocument.self, from: data)
         try document.validate()
         return document
