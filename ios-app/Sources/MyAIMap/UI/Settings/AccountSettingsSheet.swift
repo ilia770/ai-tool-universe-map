@@ -178,6 +178,8 @@ struct AccountSettingsSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            dataPrivacyGroup
+
             #if DEBUG
             // Developer-only: the DeepSeek API-key entry. Gated behind DEBUG and
             // the hidden `developer.modeEnabled` flag so it never appears in a
@@ -290,6 +292,31 @@ struct AccountSettingsSheet: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Paid plans are coming soon. There's nothing to buy yet.")
+        }
+    }
+
+    /// Plain-language local-data disclosure. This is deliberately an in-app
+    /// explanation rather than a substitute for the public Privacy Policy URL
+    /// required in App Store Connect before submission.
+    private var dataPrivacyGroup: some View {
+        settingsGroup(title: "Data & Privacy", systemImage: "hand.raised.fill") {
+            VStack(alignment: .leading, spacing: BrandSpacing.s.value) {
+                Text("Your universe stays on this device.")
+                    .font(BrandTypography.controlLabel)
+                    .foregroundStyle(.white)
+
+                Text("This release has no account, analytics, tracking, or cloud sync. The assistant runs locally; no catalog or prompt is sent to an AI provider.")
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Use Export universe to keep a copy. Reset universe keeps one verified local backup for recovery. Deleting My AI Map removes its current data from this device. If you use iCloud or computer backups, remove My AI Map data there too; delete exported copies from the location where you saved them.")
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("settings.dataPrivacy")
         }
     }
 

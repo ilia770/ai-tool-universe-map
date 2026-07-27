@@ -31,6 +31,10 @@ final class CatalogRecoveryUITests: XCTestCase {
             app.buttons["Import universe"].waitForExistence(timeout: 3),
             "Settings must expose the native security-scoped catalog import entry point"
         )
+        XCTAssertTrue(
+            app.staticTexts["settings.dataPrivacy"].waitForExistence(timeout: 3),
+            "Settings must disclose local-data retention and deletion behavior"
+        )
     }
 
     @MainActor

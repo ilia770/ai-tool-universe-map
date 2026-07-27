@@ -296,3 +296,30 @@ end — the toggle genuinely silences all haptics.
 - [ ] Haptics OFF silences all feedback; ON restores it; survives relaunch.
 - [ ] Haptics footnote describes haptics, not the assistant.
 - [ ] Build green; xcresult `failedTests == 0`, `passedTests` ≥ prior count.
+
+## 8. Data & Privacy (release transparency)
+
+### Shipping behavior
+
+The consumer Settings surface includes an always-visible **Data & Privacy**
+group. It explains that the release build uses no account, analytics, tracking,
+cloud sync, or provider-backed assistant; its catalog is local. It also names
+the recovery-retention behavior: Reset keeps one verified local backup, Export
+allows a person to save their catalog, and deleting the app removes its current
+on-device data. The disclosure also tells people to separately remove iCloud or
+computer backup data and any exported copies when they need those erased.
+
+This in-app disclosure is intentionally not presented as a public privacy
+policy. Before App Store submission, the app owner must publish a real public
+policy URL, put that same link in App Store Connect metadata and make it
+accessible in-app, then complete App Privacy answers for the exact Release
+binary. Do not submit a placeholder, local file, or unrelated website.
+
+### Changed files / QA done / Remaining issues
+
+- `UI/Settings/AccountSettingsSheet.swift` — added a functional, accessible
+  disclosure card; no network, account, or tracking control was introduced.
+- QA done: `CatalogRecoveryUITests/testAccountSettingsExposeNativeCatalogTransferEntryPoints`
+  plus `ChromeSnapshotTests` passed (9/9) on AIMapGate iPhone 16 Pro simulator.
+- Remaining release gate: owner-provided public Privacy Policy/support URL,
+  App Store Connect privacy answers, a signed archive, and physical-device QA.
