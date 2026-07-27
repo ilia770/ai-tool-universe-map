@@ -82,7 +82,10 @@
   the xcresult before retiring the compatibility store.
 - Blocked-on: simulator test/archive gate. `simctl list devices available`
   presently reports CoreSimulatorService connection invalid / runtime discovery
-  failure. No restart is authorized because it can disrupt user simulators.
+  failure. A fresh focused XCTest attempt briefly saw booted AIMapGate, then
+  CoreSimulatorService disconnected before execution and no usable xcresult
+  was produced. No restart is authorized because it can disrupt user
+  simulators.
 
 ## DriftCheckDraft
 
