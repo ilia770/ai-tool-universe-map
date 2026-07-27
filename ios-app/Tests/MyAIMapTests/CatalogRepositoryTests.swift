@@ -409,10 +409,11 @@ struct CatalogRepositoryTests {
         #expect(FileManager.default.fileExists(atPath: repository.backupURL.path))
     }
 
-    private func makeRepository(fileSystem: MemoryCatalogFileSystem = MemoryCatalogFileSystem()) -> LocalCatalogRepository {
-        LocalCatalogRepository(
+    private func makeRepository(fileSystem: MemoryCatalogFileSystem? = nil) -> LocalCatalogRepository {
+        let resolvedFileSystem = fileSystem ?? MemoryCatalogFileSystem()
+        return LocalCatalogRepository(
             directory: URL(fileURLWithPath: "/catalog-test/\(UUID().uuidString)", isDirectory: true),
-            fileSystem: fileSystem
+            fileSystem: resolvedFileSystem
         )
     }
 
@@ -446,7 +447,7 @@ struct CatalogRepositoryTests {
 }
 
 @MainActor
-private final class MemoryCatalogFileSystem: CatalogFileSystem {
+final class MemoryCatalogFileSystem: CatalogFileSystem {
     enum Failure: Error, Equatable {
         case injectedWrite
     }

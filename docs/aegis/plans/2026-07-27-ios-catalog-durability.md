@@ -141,10 +141,12 @@ Validation before every write/import/migration/load acceptance:
    replace/create the v2 document. Keep v1 keys intact. This is a
    same-directory replacement protocol, not a claim of end-to-end durability
    across every power-loss or filesystem failure mode.
-3. Store a tiny `pendingV1Cleanup` preference only after the v2 write succeeds.
-   On the *next* cold repository initialization, validate/reload v2. Only then
-   remove the v1 catalog keys and pending marker. A failed or interrupted
-   migration leaves v1 untouched.
+3. Store a tiny `pendingV1Cleanup` preference with a SHA-256 fingerprint of the
+   exact three raw v1 catalog values only after the v2 write succeeds. On the
+   *next* cold repository initialization, validate/reload v2 and compare that
+   fingerprint before removing v1 catalog keys and the marker. A failed,
+   interrupted, or version-skewed migration leaves v1 untouched and enters
+   typed recovery rather than deleting a newer rollback-build write.
 4. Before replacing any valid v2 document (save, import, reset), preserve the
    previous validated bytes as the recovery backup, then atomically replace the
    primary. Do not alter the primary on validation or write failure.
@@ -180,7 +182,8 @@ Validation before every write/import/migration/load acceptance:
 | `ios-app/Sources/MyAIMap/Catalog/CatalogDocument.swift` | v2 schema, validation errors, deterministic invariants. |
 | `ios-app/Sources/MyAIMap/Catalog/CatalogRepository.swift` | protocol, typed load/recovery/mutation contracts, Application Support paths, staged writes, backup, quarantine, and injectable file-system seam. |
 | `ios-app/Sources/MyAIMap/Data/UniverseIdentity.swift` | Renderer-independent protected core identity used by catalog validation and `PlanetData`. |
-| `ios-app/Sources/MyAIMap/Catalog/LegacyCatalogV1.swift` | Read-only adapter for the six current defaults keys; cleanup only through the migration protocol. |
+| `ios-app/Sources/MyAIMap/Catalog/LegacyCatalogV1.swift` | Read-only adapter for the three v1 catalog defaults keys; cleanup only through the migration protocol. |
+| `ios-app/Sources/MyAIMap/Catalog/CatalogMigrationCoordinator.swift` | v1-to-v2 startup state machine and separate pending-cleanup marker owner. |
 | `ios-app/Sources/MyAIMap/State/UserDefaultsPreferences.swift` | haptics/onboarding/subscription preference owner, separated from catalog. |
 | `ios-app/Sources/MyAIMap/State/UniverseStore.swift` | Retire as the active combined store; either remove after callers/tests migrate or narrow it to a deprecated compatibility shim with no production writes. |
 | `ios-app/Sources/MyAIMap/State/UniverseViewModel.swift` | Inject repository/preferences; map typed recovery state to presentation intent; preserve existing public user intents and map state. |

@@ -8,6 +8,9 @@ enum CatalogRecoverySource: String, Equatable, Sendable {
 
 enum CatalogRecoveryReason: Equatable, Sendable {
     case unreadableOrInvalidDocument
+    case migrationCouldNotBeSaved
+    case migrationInterrupted
+    case legacyChangedAfterMigration
 }
 
 /// Minimal, non-sensitive context the UI needs to offer recovery without ever
@@ -51,6 +54,9 @@ enum CatalogPersistenceError: Error, Equatable, Sendable {
 /// replacement must not race UI mutations.
 @MainActor
 protocol CatalogRepository: AnyObject {
+    /// Distinguishes a genuinely absent v2 document from a valid, intentionally
+    /// empty document so migration never overwrites an established v2 catalog.
+    func hasPrimaryDocument() -> Bool
     func load() -> CatalogLoadResult
     func save(_ document: CatalogDocument) throws
 }
@@ -152,8 +158,12 @@ final class LocalCatalogRepository: CatalogRepository {
             .appendingPathComponent("catalog", isDirectory: true)
     }
 
+    func hasPrimaryDocument() -> Bool {
+        fileSystem.itemExists(at: primaryURL)
+    }
+
     func load() -> CatalogLoadResult {
-        guard fileSystem.itemExists(at: primaryURL) else {
+        guard hasPrimaryDocument() else {
             return .catalog(CatalogDocument())
         }
 
