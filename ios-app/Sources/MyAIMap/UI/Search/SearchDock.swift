@@ -687,7 +687,13 @@ struct SearchDock: View {
     }
 
     private func userBubbleContent(_ text: String) -> some View {
-        MarkdownMessageText(text: text, fontSize: 15, weight: .medium, color: .white.opacity(0.92))
+        MarkdownMessageText(
+            text: text,
+            fontSize: 15,
+            weight: .medium,
+            color: .white.opacity(0.92),
+            isAssistantContent: false
+        )
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 13)
@@ -708,7 +714,13 @@ struct SearchDock: View {
         VStack(alignment: .leading, spacing: 10) {
             let prose = assistantProse(from: message.text)
             if !prose.isEmpty {
-                MarkdownMessageText(text: prose, fontSize: 15, weight: .regular, color: .white.opacity(0.88))
+                MarkdownMessageText(
+                    text: prose,
+                    fontSize: 15,
+                    weight: .regular,
+                    color: .white.opacity(0.88),
+                    isAssistantContent: true
+                )
             }
 
             if !matches.isEmpty || !message.missingToolSuggestions.isEmpty {
@@ -1139,6 +1151,7 @@ private struct MarkdownMessageText: View {
     let fontSize: CGFloat
     let weight: Font.Weight
     let color: Color
+    let isAssistantContent: Bool
 
     /// Scales the fixed message sizes with the user's Dynamic Type setting
     /// (1.0 at the default content size, growing relative to `.body`).
@@ -1186,6 +1199,10 @@ private struct MarkdownMessageText: View {
     }
 
     private func renderedText(_ markdown: String) -> Text {
+        if isAssistantContent,
+           let attributed = AssistantResponsePresentation.attributedText(from: markdown) {
+            return Text(attributed)
+        }
         if let attributed = try? AttributedString(
             markdown: markdown,
             options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)

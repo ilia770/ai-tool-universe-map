@@ -797,10 +797,7 @@ private struct ChatMarkdownText: View {
     }
 
     private func markdownText(_ markdown: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: markdown,
-            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
-        ) {
+        if let attributed = AssistantResponsePresentation.attributedText(from: markdown) {
             return Text(attributed)
         }
         return Text(markdown)

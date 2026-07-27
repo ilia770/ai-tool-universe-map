@@ -198,6 +198,24 @@ enum AssistantResponsePresentation {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Assistant text can include catalog fields supplied by an imported or
+    /// manually created universe. Keep Markdown's local formatting, but never
+    /// turn that untrusted text into a tappable destination. Tool websites are
+    /// exposed through their dedicated, validated tool chips instead.
+    static func attributedText(from text: String) -> AttributedString? {
+        guard var attributed = try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+        ) else {
+            return nil
+        }
+
+        for run in attributed.runs where run.link != nil {
+            attributed[run.range].link = nil
+        }
+        return attributed
+    }
+
     private static func mappedHeading(_ line: String) -> String? {
         switch headingTitle(line) {
         case "Summary":

@@ -229,6 +229,26 @@ struct ComposerLogicTests {
         #expect(prose.contains("**Notes**"))
     }
 
+    @Test func assistantMarkdownKeepsLabelButStripsUntrustedLinks() throws {
+        let attributed = try #require(
+            AssistantResponsePresentation.attributedText(
+                from: "Use [Open account](https://attacker.example) for the next step."
+            )
+        )
+
+        #expect(String(attributed.characters) == "Use Open account for the next step.")
+        #expect(attributed.runs.allSatisfy { $0.link == nil })
+    }
+
+    @Test func assistantMarkdownPreservesSafeFormattingWithoutALink() throws {
+        let attributed = try #require(
+            AssistantResponsePresentation.attributedText(from: "**Recommended path**")
+        )
+
+        #expect(String(attributed.characters) == "Recommended path")
+        #expect(attributed.runs.allSatisfy { $0.link == nil })
+    }
+
     @Test func assistantClipboardUsesVisibleProseOnly() {
         let text = AssistantClipboardFormatter.text(from: """
         **Summary**
