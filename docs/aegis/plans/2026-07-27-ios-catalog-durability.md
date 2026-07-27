@@ -115,8 +115,9 @@ struct CatalogDocument: Codable, Sendable, Equatable {
 Location (private):
 `Application Support/com.ilyatur.myaimap/catalog/catalog-v2.json`.
 Sibling paths: `catalog-v2.backup.json` and uniquely named temporary files;
-invalid content is copied/moved to a timestamped quarantined sibling before a
-recovery state is presented. None of these paths are user-visible API.
+invalid content is copied to the bounded sibling
+`catalog-v2.invalid.json` before a recovery state is presented. None of these
+paths are user-visible API.
 
 Validation before every write/import/migration/load acceptance:
 
@@ -135,8 +136,11 @@ Validation before every write/import/migration/load acceptance:
 1. On load, if a valid v2 document exists, decode and validate it; retain its
    last valid backup.
 2. If no v2 document exists, decode v1 defaults into a `LegacyCatalogV1`
-   adapter, validate it, encode v2 to a unique temporary sibling, fsync/write,
-   and atomically replace/create the v2 document. Keep v1 keys intact.
+   adapter, validate it, encode v2 to a unique temporary sibling, use the
+   Foundation atomic-write primitive for that staged file, and atomically
+   replace/create the v2 document. Keep v1 keys intact. This is a
+   same-directory replacement protocol, not a claim of end-to-end durability
+   across every power-loss or filesystem failure mode.
 3. Store a tiny `pendingV1Cleanup` preference only after the v2 write succeeds.
    On the *next* cold repository initialization, validate/reload v2. Only then
    remove the v1 catalog keys and pending marker. A failed or interrupted
@@ -174,8 +178,8 @@ Validation before every write/import/migration/load acceptance:
 | File | Responsibility |
 | --- | --- |
 | `ios-app/Sources/MyAIMap/Catalog/CatalogDocument.swift` | v2 schema, validation errors, deterministic invariants. |
-| `ios-app/Sources/MyAIMap/Catalog/CatalogRepository.swift` | protocol, typed load/recovery/mutation/export/import contracts. |
-| `ios-app/Sources/MyAIMap/Catalog/LocalCatalogRepository.swift` | Application Support paths, atomic writes, backup, quarantine, v1 migration. Inject a file-system abstraction for tests. |
+| `ios-app/Sources/MyAIMap/Catalog/CatalogRepository.swift` | protocol, typed load/recovery/mutation contracts, Application Support paths, staged writes, backup, quarantine, and injectable file-system seam. |
+| `ios-app/Sources/MyAIMap/Data/UniverseIdentity.swift` | Renderer-independent protected core identity used by catalog validation and `PlanetData`. |
 | `ios-app/Sources/MyAIMap/Catalog/LegacyCatalogV1.swift` | Read-only adapter for the six current defaults keys; cleanup only through the migration protocol. |
 | `ios-app/Sources/MyAIMap/State/UserDefaultsPreferences.swift` | haptics/onboarding/subscription preference owner, separated from catalog. |
 | `ios-app/Sources/MyAIMap/State/UniverseStore.swift` | Retire as the active combined store; either remove after callers/tests migrate or narrow it to a deprecated compatibility shim with no production writes. |

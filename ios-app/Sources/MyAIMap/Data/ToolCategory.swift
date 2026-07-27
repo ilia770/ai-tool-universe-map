@@ -52,7 +52,7 @@ struct ToolCategoryId: RawRepresentable, Hashable, Codable, Sendable, Identifiab
 /// One category orbit in the universe. `angle` is degrees, matching the
 /// web app so we can drop in the same `categoryPosition(angle)` math
 /// without converting units.
-struct ToolCategory: Identifiable, Codable, Sendable {
+struct ToolCategory: Identifiable, Codable, Equatable, Sendable {
     let id: ToolCategoryId
     let name: String
     let shortName: String
@@ -64,7 +64,7 @@ struct ToolCategory: Identifiable, Codable, Sendable {
 
 /// Hex-string color wrapper so JSON / Codable round-trips stay
 /// human-readable. Use `swiftUIColor` when handing to a view.
-struct ColorHex: Codable, Sendable, ExpressibleByStringLiteral {
+struct ColorHex: Codable, Equatable, Sendable, ExpressibleByStringLiteral {
     let rawValue: String
 
     init(stringLiteral value: String) {

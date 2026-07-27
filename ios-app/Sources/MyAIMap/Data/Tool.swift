@@ -19,7 +19,7 @@ enum OrbitRing: Int, Codable, Sendable {
 
 /// One service / tool. Direct mirror of the web app's `AITool` shape so
 /// the JSON migration we do later can deserialize the same payload.
-struct Tool: Identifiable, Codable, Sendable {
+struct Tool: Identifiable, Codable, Equatable, Sendable {
     let id: String
     let name: String
     let category: ToolCategoryId
@@ -32,7 +32,7 @@ struct Tool: Identifiable, Codable, Sendable {
     let relationIds: [String]
     let classification: Classification?
 
-    struct Classification: Codable, Sendable {
+    struct Classification: Codable, Equatable, Sendable {
         let confidence: Double
         let matchedKeywords: [String]
         let reason: String

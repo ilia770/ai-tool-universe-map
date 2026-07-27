@@ -22,7 +22,7 @@ struct PlanetData: Identifiable, Sendable {
 
     /// The core tool rendered as the central planet (Founder OS). Its sibling
     /// core tools render as satellites around it instead of as the core itself.
-    static let centralCoreToolID = "founder-os"
+    static let centralCoreToolID = UniverseIdentity.centralCoreToolID
 
     var swiftUIColor: Color { color.swiftUIColor }
     var uiColor: UIColor { color.uiColor }
