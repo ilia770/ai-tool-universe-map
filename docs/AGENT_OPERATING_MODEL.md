@@ -28,6 +28,10 @@ Do not rely on private chat memory as the source of truth.
 
 ## File Ownership Matrix
 
+Since 2026-08-05 this matrix decides **which areas may run in parallel**, not who
+implements. Implementation and review ownership lives in
+`docs/AGENT_OPERATIONS.md`: Codex implements, Claude Code plans and reviews.
+
 | Area | Primary Agent | Backup Agent | Files |
 | --- | --- | --- | --- |
 | Product/CTO docs | Codex | Claude Code | `docs/PRODUCT_CTO.md`, `docs/APP_STRUCTURE.md` |

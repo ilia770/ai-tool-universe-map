@@ -4,6 +4,22 @@ This file is the canonical project context for both Claude Code and Codex.
 `AGENTS.md` and `CLAUDE.md` at the repo root are symlinks to this file —
 edit this file, not the symlinks.
 
+## Daily Linear coordination
+
+- Read `docs/AGENT_OPERATIONS.md` before choosing work. It links the active
+  `AI Map Daily Development` queue in Linear and the team-wide operating
+  contract.
+- Linear decides what is next and records the lifecycle: claim one Ready issue,
+  move it to In Progress, then post verification evidence before Done.
+- Since 2026-08-05: **Codex implements, Claude Code plans and reviews.** Codex
+  writes production code and never commits, pushes, or merges. Claude grooms the
+  board, writes the specs, reviews every diff, runs verification, commits what
+  passes, and posts the `## Handoff` evidence. Claude implements only when Codex
+  is unavailable, and records that on the issue.
+- Repository specifications decide how work is implemented. If Linear and the
+  local evidence conflict, record the conflict with `needs:decision`; do not
+  infer a product decision.
+
 ## Coordination
 
 - Treat the working tree as shared with the user and possibly another agent.
