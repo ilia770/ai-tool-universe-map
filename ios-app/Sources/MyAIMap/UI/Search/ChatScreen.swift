@@ -327,7 +327,7 @@ private struct ChatStarterPanel: View {
                 .frame(width: 62, height: 62)
 
                 Text("Ask AI about your stack")
-                    .font(BrandTypography.display)
+                    .font(BrandTypography.emptyStateDisplay)
                     .foregroundStyle(ChatTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
 

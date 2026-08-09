@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Bouncy scale-down on press + soft haptic. Used as the default
@@ -27,7 +28,7 @@ struct PressableButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(scale(for: configuration))
             .opacity(opacity(for: configuration))
-            .brandAnimation(BrandMotion.nudge, value: configuration.isPressed)
+            .brandAnimation(BrandMotion.press, value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
                 guard isPressed, let haptic else { return }
                 BrandHaptics.fire(haptic)
@@ -35,8 +36,11 @@ struct PressableButtonStyle: ButtonStyle {
     }
 
     private func scale(for configuration: Configuration) -> CGFloat {
-        guard configuration.isPressed else { return 1 }
-        return reduceMotion ? 1 : pressedScale
+        BrandMotion.pressScale(
+            pressedScale,
+            isPressed: configuration.isPressed,
+            reduceMotion: reduceMotion
+        )
     }
 
     private func opacity(for configuration: Configuration) -> Double {
@@ -54,15 +58,96 @@ struct BouncyIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(scale(for: configuration))
-            .brandAnimation(BrandMotion.nudge, value: configuration.isPressed)
+            .brandAnimation(BrandMotion.press, value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
                 if isPressed { BrandHaptics.fire(.light) }
             }
     }
 
     private func scale(for configuration: Configuration) -> CGFloat {
-        guard configuration.isPressed else { return 1 }
-        return reduceMotion ? 1 : pressedScale
+        BrandMotion.pressScale(
+            pressedScale,
+            isPressed: configuration.isPressed,
+            reduceMotion: reduceMotion
+        )
+    }
+}
+
+/// Press behavior for controls whose label owns interactive native glass.
+/// iOS 26 supplies the visual response; older systems get the shared surface
+/// scale fallback. Haptics continue to route through the app-wide gate.
+struct GlassControlButtonStyle: ButtonStyle {
+    static let fallbackPressedScale: CGFloat = 0.97
+    static let fallbackPressedOpacity: Double = 0.9
+
+    var haptic: BrandHaptic?
+    var ownsInteractiveGlass = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(Self.resolvedScale(
+                isPressed: configuration.isPressed,
+                reduceMotion: reduceMotion,
+                usesNativeGlassResponse: usesNativeGlassResponse
+            ))
+            .opacity(Self.resolvedOpacity(
+                isPressed: configuration.isPressed,
+                usesNativeGlassResponse: usesNativeGlassResponse
+            ))
+            .brandAnimation(BrandMotion.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                guard isPressed, let haptic else { return }
+                BrandHaptics.fire(haptic)
+            }
+    }
+
+    static func resolvedScale(
+        isPressed: Bool,
+        reduceMotion: Bool,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        usesNativeGlassResponse: Bool
+    ) -> CGFloat {
+        guard !usesNativeGlassResponse else { return 1 }
+        return BrandMotion.pressScale(
+            fallbackPressedScale,
+            isPressed: isPressed,
+            reduceMotion: reduceMotion,
+            arguments: arguments
+        )
+    }
+
+    static func resolvedOpacity(
+        isPressed: Bool,
+        usesNativeGlassResponse: Bool
+    ) -> Double {
+        guard isPressed, !usesNativeGlassResponse else { return 1 }
+        return fallbackPressedOpacity
+    }
+
+    static func nativeGlassResponseEnabled(
+        platformSupportsNativeGlass: Bool,
+        reduceTransparency: Bool,
+        reduceMotion: Bool,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        platformSupportsNativeGlass
+            && !reduceTransparency
+            && !BrandMotion.isMotionDisabled(reduceMotion: reduceMotion, arguments: arguments)
+    }
+
+    private var usesNativeGlassResponse: Bool {
+        ownsInteractiveGlass && Self.nativeGlassResponseEnabled(
+            platformSupportsNativeGlass: supportsNativeGlass,
+            reduceTransparency: reduceTransparency,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    private var supportsNativeGlass: Bool {
+        if #available(iOS 26.0, *) { true } else { false }
     }
 }
 
@@ -93,12 +178,9 @@ extension View {
         }
     }
 
-    /// Haptic-only press feedback for glass controls. Apple's interactive
-    /// glass (`.glassEffect(.interactive())`) already supplies the visual
-    /// press response, so glass controls should NOT stack `.scaleEffect`
-    /// or `PressableButtonStyle` — they only need the haptic. This is the
-    /// one-liner for that: a light selection tick on press, gated by the
-    /// in-app Haptics toggle.
+    /// Haptic-only feedback where native interactive glass is guaranteed to
+    /// own the visual response. Cross-version buttons use
+    /// `GlassControlButtonStyle` for the iOS 18–25 scale fallback.
     ///
     /// ```swift
     /// GlassChip().glassPressFeedback(isPressed)

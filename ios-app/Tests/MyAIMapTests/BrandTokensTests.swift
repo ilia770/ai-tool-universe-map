@@ -28,6 +28,10 @@ struct BrandTokensTests {
         }
     }
 
+    @Test func semanticControlSpacingRemainsTenPoints() {
+        #expect(BrandSpacing.sm.value == 10)
+    }
+
     @Test func brandColoursAreDistinct() {
         let palette: [Color] = [
             BrandColor.violet, BrandColor.pink, BrandColor.teal,
@@ -42,9 +46,101 @@ struct BrandTokensTests {
         // Animation is Equatable; comparing values avoids coupling to
         // SwiftUI's internal description format, which changes between
         // SDKs (.linear(duration:) now describes as BezierAnimation).
-        let resolved = BrandMotion.resolved(BrandMotion.entry, reduceMotion: true)
+        let resolved = BrandMotion.resolved(
+            BrandMotion.entry,
+            reduceMotion: true,
+            arguments: []
+        )
         #expect(resolved == .linear(duration: 0.001))
-        #expect(BrandMotion.resolved(BrandMotion.entry, reduceMotion: false) == BrandMotion.entry)
+        #expect(BrandMotion.resolved(
+            BrandMotion.entry,
+            reduceMotion: false,
+            arguments: []
+        ) == BrandMotion.entry)
+    }
+
+    @Test func staticUITestModeDisablesMotion() {
+        let arguments = ["My AI Map", "-uitestStatic"]
+
+        #expect(BrandMotion.isMotionDisabled(reduceMotion: false, arguments: arguments))
+        #expect(BrandMotion.resolved(
+            BrandMotion.entry,
+            reduceMotion: false,
+            arguments: arguments
+        ) == .linear(duration: 0.001))
+    }
+
+    @Test func pressScaleHonorsMotionPolicy() {
+        #expect(BrandMotion.pressScale(
+            0.97,
+            isPressed: true,
+            reduceMotion: false,
+            arguments: []
+        ) == 0.97)
+        #expect(BrandMotion.pressScale(
+            0.97,
+            isPressed: true,
+            reduceMotion: true,
+            arguments: []
+        ) == 1)
+        #expect(BrandMotion.pressScale(
+            0.97,
+            isPressed: true,
+            reduceMotion: false,
+            arguments: ["-uitestStatic"]
+        ) == 1)
+    }
+
+    @Test @MainActor func glassControlAvoidsStackedNativeScale() {
+        #expect(GlassControlButtonStyle.resolvedScale(
+            isPressed: true,
+            reduceMotion: false,
+            arguments: [],
+            usesNativeGlassResponse: true
+        ) == 1)
+        #expect(GlassControlButtonStyle.resolvedScale(
+            isPressed: true,
+            reduceMotion: false,
+            arguments: [],
+            usesNativeGlassResponse: false
+        ) == 0.97)
+        #expect(GlassControlButtonStyle.resolvedScale(
+            isPressed: true,
+            reduceMotion: false,
+            arguments: ["-uitestStatic"],
+            usesNativeGlassResponse: false
+        ) == 1)
+    }
+
+    @Test @MainActor func glassControlFallsBackWhenNativeInteractionIsUnavailable() {
+        #expect(GlassControlButtonStyle.nativeGlassResponseEnabled(
+            platformSupportsNativeGlass: true,
+            reduceTransparency: false,
+            reduceMotion: false,
+            arguments: []
+        ))
+        #expect(!GlassControlButtonStyle.nativeGlassResponseEnabled(
+            platformSupportsNativeGlass: true,
+            reduceTransparency: true,
+            reduceMotion: false,
+            arguments: []
+        ))
+        #expect(!GlassControlButtonStyle.nativeGlassResponseEnabled(
+            platformSupportsNativeGlass: true,
+            reduceTransparency: false,
+            reduceMotion: true,
+            arguments: []
+        ))
+        #expect(!GlassControlButtonStyle.nativeGlassResponseEnabled(
+            platformSupportsNativeGlass: true,
+            reduceTransparency: false,
+            reduceMotion: false,
+            arguments: ["-uitestStatic"]
+        ))
+        #expect(GlassControlButtonStyle.resolvedOpacity(
+            isPressed: true,
+            usesNativeGlassResponse: false
+        ) == 0.9)
     }
 
     @Test @MainActor func hapticsDisabledIsNoOp() {

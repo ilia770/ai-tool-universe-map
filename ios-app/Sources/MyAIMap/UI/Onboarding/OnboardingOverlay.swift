@@ -91,7 +91,7 @@ struct OnboardingOverlay: View {
                 .accessibilityHidden(true)
 
                 Text("AI Universe")
-                    .font(BrandTypography.display)
+                    .font(BrandTypography.emptyStateDisplay)
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
 

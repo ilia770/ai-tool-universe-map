@@ -1,15 +1,23 @@
+import Foundation
 import SwiftUI
 
 /// Animation curves. Four named cases cover everything the app does;
 /// every other use of `.animation(...)` should reach for one of these
 /// before declaring a new curve.
 enum BrandMotion {
+    private static let staticUITestArgument = "-uitestStatic"
+    private static let disabled: Animation = .linear(duration: 0.001)
+
     /// Sheets, modals, the tool detail card sliding in.
     /// Mirrors the web build's `cubic-bezier(0.16, 1, 0.3, 1)`.
     static let entry: Animation = .spring(response: 0.42, dampingFraction: 0.85)
 
     /// Button taps, chip selection, toggle flips. Short and crisp.
     static let nudge: Animation = .spring(response: 0.28, dampingFraction: 0.72)
+
+    /// Direct press-down/release feedback. High damping keeps the control
+    /// anchored under the finger instead of overshooting past its resting size.
+    static let press: Animation = .spring(response: 0.20, dampingFraction: 0.90)
 
     /// Camera focus moves, pocket transition lerps. Smooth over time.
     static let flow: Animation = .smooth(duration: 0.36)
@@ -42,10 +50,35 @@ enum BrandMotion {
     /// Composer height growth (1→6 lines). High damping → no wobble on a field.
     static let composerGrow: Animation = .spring(response: 0.30, dampingFraction: 0.88)
 
-    /// Resolves a curve to its reduce-motion safe counterpart. Pass the
-    /// SwiftUI `@Environment(\.accessibilityReduceMotion)` value.
-    static func resolved(_ animation: Animation, reduceMotion: Bool) -> Animation {
-        reduceMotion ? .linear(duration: 0.001) : animation
+    /// One motion-disable policy for accessibility and deterministic UI tests.
+    static func isMotionDisabled(
+        reduceMotion: Bool,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        reduceMotion || arguments.contains(staticUITestArgument)
+    }
+
+    /// Resolves a curve to its static counterpart when motion is disabled.
+    static func resolved(
+        _ animation: Animation,
+        reduceMotion: Bool,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Animation {
+        isMotionDisabled(reduceMotion: reduceMotion, arguments: arguments) ? disabled : animation
+    }
+
+    /// Resolves a pressed scale without duplicating motion policy in styles.
+    static func pressScale(
+        _ pressedScale: CGFloat,
+        isPressed: Bool,
+        reduceMotion: Bool,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> CGFloat {
+        guard isPressed,
+              !isMotionDisabled(reduceMotion: reduceMotion, arguments: arguments) else {
+            return 1
+        }
+        return pressedScale
     }
 }
 

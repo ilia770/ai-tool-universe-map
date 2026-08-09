@@ -566,13 +566,15 @@ struct RootSurfaceSwitch: View {
             base: "RootShell.Surface",
             spacing: BrandSpacing.xs.value,
             identifier: { $0 == 0 ? "RootShell.ShowChat" : "RootShell.ShowUniverse" }
-        ) { option, _ in
+        ) { option, isSelected in
             HStack(spacing: BrandSpacing.s.value) {
-                Image(systemName: option.icon).font(.system(size: 13, weight: .bold))
+                Image(systemName: option.icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .symbolRenderingMode(.monochrome)
                 Text(option.title).lineLimit(1)
             }
+            .foregroundStyle(isSelected ? BrandColor.textPrimary : BrandColor.textSecondary)
         }
-        .foregroundStyle(.white.opacity(0.88))
         .scaleEffect(badgePopped ? 1.04 : 1)
         .brandAnimation(BrandMotion.pillPop, value: badgePopped)
         .brandSensoryFeedback(.increase, trigger: toolCount)

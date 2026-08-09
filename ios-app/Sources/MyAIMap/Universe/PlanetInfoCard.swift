@@ -41,10 +41,11 @@ struct PlanetInfoCard: View {
                 HStack(spacing: BrandSpacing.s.value) {
                     Text(modeLabel)
                         .brandEyebrow()
-                        .foregroundStyle(.black.opacity(0.78))
+                        .foregroundStyle(planet.swiftUIColor)
                         .padding(.horizontal, BrandSpacing.s.value)
                         .padding(.vertical, BrandSpacing.xs.value)
-                        .background(planet.swiftUIColor, in: Capsule())
+                        .background(BrandColor.muted, in: Capsule())
+                        .overlay { Capsule().stroke(BrandColor.stroke, lineWidth: 0.5) }
 
                     Text(isFocusedOnTool ? selectedTool.name : planet.title)
                         .font(BrandTypography.controlLabel)
@@ -73,25 +74,21 @@ struct PlanetInfoCard: View {
         // text, leaving both strings overlapped mid-animation ("Founder OS" ghosting
         // over the previous title). `.identity` replaces the text in one frame.
         .contentTransition(.identity)
-        // Translucent card: ultraThinMaterial frosts the universe behind it
-        // (light back-blur) instead of a flat opaque fill.
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
+        .glassSurface(
+            in: RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous),
+            tint: nil,
+            interactive: isFocusedOnTool
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: BrandRadius.card.value, style: .continuous)
-                .stroke(planet.swiftUIColor.opacity(0.45), lineWidth: 0.5)
-        }
+        .shadow(color: .black.opacity(0.30), radius: 16, y: 8)
     }
 
     private var statusOrb: some View {
         ZStack {
             Circle()
-                .fill(planet.swiftUIColor.opacity(0.20))
+                .fill(planet.swiftUIColor.opacity(0.10))
                 .frame(width: 44, height: 44)
             Circle()
-                .stroke(planet.swiftUIColor.opacity(isFocusedOnTool ? 0.82 : 0.42), lineWidth: 1.2)
+                .stroke(planet.swiftUIColor.opacity(isFocusedOnTool ? 0.42 : 0.24), lineWidth: 1.2)
                 .frame(width: isFocusedOnTool ? 34 : 30, height: isFocusedOnTool ? 34 : 30)
             Circle()
                 .fill(planet.swiftUIColor)

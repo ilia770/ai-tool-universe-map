@@ -37,30 +37,38 @@ struct GlassMorphCluster<Option: Identifiable, Label: View>: View {
                             selection = index
                         }
                     } label: {
-                        label(option, isSelected)
-                            .font(BrandTypography.controlLabel)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.88)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .padding(.horizontal, BrandSpacing.m.value)
-                            .padding(.vertical, BrandSpacing.s.value)
-                            .frame(minHeight: HitArea.minimum)
-                            .background {
-                                if isSelected {
-                                    Capsule()
-                                        .fill(.clear)
-                                        .glassSurface(tint: tint ?? .white.opacity(0.10), interactive: true)
-                                        .navigationGlassMorphID("\(base).active", in: ns)
-                                }
-                            }
+                        optionLabel(option, isSelected: isSelected)
                     }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.96, haptic: .light))
+                    .buttonStyle(GlassControlButtonStyle(
+                        haptic: .light,
+                        ownsInteractiveGlass: isSelected
+                    ))
                     .hitArea()
                     .accessibilityIdentifier({ let id = identifier(index); return id.isEmpty ? "\(base).\(index)" : id }())
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
             .padding(BrandSpacing.xs.value)
+        }
+    }
+
+    @ViewBuilder
+    private func optionLabel(_ option: Option, isSelected: Bool) -> some View {
+        let content = label(option, isSelected)
+            .font(BrandTypography.controlLabel)
+            .lineLimit(1)
+            .minimumScaleFactor(0.88)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, BrandSpacing.m.value)
+            .padding(.vertical, BrandSpacing.s.value)
+            .frame(minHeight: HitArea.minimum)
+
+        if isSelected {
+            content
+                .glassSurface(tint: tint ?? .white.opacity(0.10), interactive: true)
+                .navigationGlassMorphID("\(base).active", in: ns)
+        } else {
+            content
         }
     }
 
