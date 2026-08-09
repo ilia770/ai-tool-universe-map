@@ -1,5 +1,10 @@
 # INPUT_CHAT_SPEC
 
+> **Historical/target-state warning — 2026-07-16.** The source-verified
+> **Current baseline status** section below is the current contract. Earlier
+> agent reports and prescriptive sections are retained as dated context and do
+> not establish live behavior when they conflict with that baseline.
+
 Owner domain: the bottom AI assistant dock. File: `UI/Search/SearchDock.swift`
 (plus `UI/Search/SearchCore.swift`, `UniverseAssistantCore.swift` for logic).
 Do NOT edit the universe map rendering or the rail here. Touch detail only if
@@ -58,7 +63,7 @@ local to `SearchDock`.
 
 ## Changed files / QA done / Remaining issues
 
-### Agent 2 — chat / input / attachment fix (landed)
+### Historical Agent 2 — chat / input / attachment fix (superseded where noted)
 
 **Single home for access actions (de-dup rule).** Attach and Add-tool live in
 exactly one place: the composer. Attach = the paperclip menu (left of the
@@ -71,9 +76,9 @@ appears twice on screen.
 **Attachment control = single control, three states.**
 - empty → paperclip glyph (`ComposerLogic.attachmentTriggerIcon` is always
   `"paperclip"` — the glyph no longer flips to file/photo).
-- menu open → the `Menu` lists Files and Photo, opening above the dock (it sits
-  at the screen bottom, so SwiftUI opens it upward); auto-dismisses on outside
-  tap and on selection (never stuck after send/remove).
+- menu open → the then-current `Menu` listed Files and Photo above the dock.
+  It was later replaced by the custom inline popover described in the current
+  baseline below.
 - attached → a separate file/photo pill (`attachmentPill`) is the only attached
   indicator. "Remove attachment" appears only when attached (in the menu and by
   tapping the pill).
@@ -154,11 +159,10 @@ messages align leading and are capped separately so short
 answers do not become huge full-width blocks, while structured tables/chips can
 still use readable width.
 
-**Collapse / expand.** `conversationCollapsed` now keeps chat active while
-there is a transcript, draft, attachment, or open attachment menu. Collapsing
-hides the transcript and dismisses focus/menu; reopening restores the existing
-messages without duplicating or clearing them. This avoids the old parent
-`chatOpen -> previous map mode` flip during collapse.
+**SUPERSEDED collapse claim.** This record described keeping chat active while
+collapsed. Current `ComposerLogic.keepsChatActive` deliberately ignores
+collapsed content, so collapsing normally emits inactive chat activity and
+restores the map mode; see the current baseline below.
 
 **Attachment menu.** The SwiftUI `Menu` was replaced by a custom inline
 popover rendered above the composer row. The trigger stays a paperclip. Files
@@ -217,3 +221,41 @@ anchored to the composer instead of floating over unrelated content.
   attachment menu over keyboard, short general chat send, collapse/reopen path.
 - Unit and UI smoke gates passed in the stabilization run (see
   `QA_REGRESSION_CHECKLIST.md` follow-up).
+
+---
+
+## Current baseline status — 2026-07-16
+
+This addendum distinguishes source-confirmed behavior from historical run
+records above.
+
+### Input ownership and visible states
+
+| Concern | Current owner | Confirmed behavior |
+| --- | --- | --- |
+| Text/query | `UniverseViewModel.assistantQuery` | shared model text; `SearchDock` binds the composer. |
+| Focus / keyboard | `SearchDock.fieldFocused` | local/transient; it can request in-map `UniverseMode.chatOpen`. |
+| Transcript | `UniverseViewModel.assistantMessages` | shared between map dock and root `ChatScreen`, but not persisted. |
+| Collapse/menu/attachment | local `SearchDock` state | one floating lane shows menu **or** attachment preview. Collapsing clears focus/menu; unless a staged attachment remains, the activity callback restores normal map mode while the local **Show chat** pill can remain. |
+| Attachment contents | none | photo bytes may be read locally for size and file resource metadata for preview; no attachment bytes are transmitted to the assistant, which says it cannot inspect them. |
+
+### Two distinct chat surfaces
+
+1. **Root Chat:** `RootShell.surface == .chat` mounts full-screen `ChatScreen`.
+   Its Map return moves to root map and resets map mode to overview.
+2. **In-map chat:** `SearchDock` is mounted by `UniverseOverlayView`; activity
+   may enter `UniverseMode.chatOpen`, where the map remains atmospheric. Its
+   normal close path is an activity/blur/collapse callback, which restores a
+   context-derived map mode. The canvas does not close it because map gestures
+   are disabled while chat is open.
+
+These surfaces share model transcript/query but not focus, collapse, scroll,
+or exact navigation restoration state. Do not merge them casually.
+
+### Runtime verification still needed
+
+- actual keyboard/safe-area behavior on small iPhone, iPad, and hardware
+  keyboards;
+- PhotosPicker/FileImporter cancellation/reselection on device;
+- map tap hit testing after dock collapse/attachment menu close;
+- visual native-glass behavior on iOS 26 and Reduce Motion/Transparency modes.

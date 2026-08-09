@@ -1,5 +1,9 @@
 # FIRST_RUN_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** Use `PRODUCT_SPEC.md` and
+> `NAVIGATION_SPEC.md` for the current onboarding/root-route contract; this
+> record is historical context only.
+
 First-launch and empty-universe experience for the iOS app (SwiftUI, iOS 26).
 
 This spec defines what a brand-new user sees on cold start, how the

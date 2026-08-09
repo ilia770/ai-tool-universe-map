@@ -2,8 +2,9 @@
 
 Closes LOOP_QUEUE slice 8.2. One-page brief so the next in-person session with
 the user is efficient: what landed, what's blocked and why, and every decision
-waiting on the user. Source of truth for detail: `LOOP_QUEUE.md` (slice states)
-+ `LOOP_LOG.md` (per-cycle history).
+waiting on the user. Source of truth for detail: Linear (slice states; `LOOP_QUEUE.md` was
+retired 2026-08-09 and its open items moved to
+`PENDING_MIGRATION_TO_LINEAR.md`) + `LOOP_LOG.md` (per-cycle history).
 
 _Generated 2026-07-05. Branch is 60 commits ahead of `origin/main`, not pushed,
 no PR._

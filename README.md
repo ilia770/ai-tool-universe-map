@@ -108,6 +108,14 @@ Operational sprint tracking lives in `docs/LOOP_PLAN.md` and
 `docs/LOOP_LOG.md`. The latest Lighthouse snapshot is in
 `docs/perf.md`.
 
+### Native iOS UI architecture
+
+The native app has its own permanent UI architecture and audit baseline:
+[ios-app/docs/SPEC_INDEX.md](ios-app/docs/SPEC_INDEX.md). For iOS UI work,
+follow [ios-app/AGENTS.md](ios-app/AGENTS.md) and
+[ios-app/CONTRIBUTING.md](ios-app/CONTRIBUTING.md), not only the web rules in
+this README.
+
 ## Release history
 
 See [`CHANGELOG.md`](./CHANGELOG.md).

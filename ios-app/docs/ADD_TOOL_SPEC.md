@@ -1,5 +1,10 @@
 # ADD_TOOL_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This record predates the
+> current source snapshot and is reference-only. For current behavior use
+> `PRODUCT_SPEC.md`, `INTERACTION_SPEC.md`, `STATE_OWNERSHIP.md`, and
+> `DATA_AND_PERSISTENCE.md`.
+
 Owner domain: the Add Tool sheet and local add-tool classification / persistence.
 
 **Affected files**

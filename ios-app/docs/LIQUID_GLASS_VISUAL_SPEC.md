@@ -73,7 +73,8 @@ state and tiny highlights only**.
 Radii: `BrandRadius.glassControl` (22, composer), `.glassButton` (16),
 `.card` (18), `.nested` (12), `.node` (8), `.pill` (999).
 
-Spacing: `BrandSpacing.*` (4-pt grid). Motion: `BrandMotion.*`.
+Spacing: `BrandSpacing.*` (4-pt base grid; the named `sm=10` token is the only
+compact-control exception). Motion: `BrandMotion.*`.
 
 Helper: `glassSurface(in:tint:interactive:)` — the single entry point. `tint`
 is optional and must stay ≤ ~0.12 alpha when used.
@@ -109,7 +110,10 @@ Two variants:
   `white 0.18` overlay, and a soft accent shadow. Disabled state drops to
   neutral `white 0.08` fill + `white 0.34` glyph (no color).
 
-Press feedback: `PressableButtonStyle` (scale ~0.92). Motion `BrandMotion.nudge`.
+Press feedback: `GlassControlButtonStyle`. Native interactive glass owns the
+visual response on iOS 26; iOS 18–25 falls back to a restrained 0.97 scale and
+0.90 opacity response. Reduce Motion and `-uitestStatic` suppress scaling and
+native interactive-glass motion. Haptics have one owner per control.
 
 ### 3. Chip (small selectable token)
 
@@ -122,6 +126,10 @@ Examples: category chips, inline action chips, attachment pill.
   text/icon and the subtle highlight, not as a saturated capsule fill.
 - Never a `accent.opacity(0.24–0.30)` capsule (that is the current
   over-filled pattern — see Corrections).
+- Shared inline chips use `BrandColor.card` + `BrandColor.stroke`, horizontal
+  padding `BrandSpacing.m`, vertical padding `BrandSpacing.s`, and a 44pt
+  minimum hit target. `ToolChip` reuses this chrome and keeps category color
+  on its logo only.
 
 ### 4. Floating panel (transient chrome over content)
 
@@ -204,3 +212,74 @@ chat dock, attachment menu, tool cards):
 - Component behavior, layout logic, focus/keyboard handling, copy.
 - Backend / assistant answer content (`CHAT_AI_SPEC.md`).
 - The 2D/3D universe rendering material (separate visualization spec).
+
+## Implementation note — map slice 2026-07-15
+
+The first 2D-first map slice applied this spec inside the Universe Map domain:
+`PlanetInfoCard` no longer uses raw `.ultraThinMaterial` plus category-colored
+stroke/fill; it now routes through `glassSurface`, neutral chip fill, token
+spacing, and capped accent highlights. Constellation nodes are graph content,
+so they deliberately use neutral solid fills, restrained category overlays,
+and hairline rings rather than Liquid Glass. Native glass stays on floating
+navigation/input chrome.
+
+## Changed files / QA done / Remaining issues — DS.1 2026-07-15
+
+### Changed files
+
+- `UI/Theme/BrandMotion.swift` centralizes Reduce Motion and `-uitestStatic`
+  resolution for animations and press scale.
+- `UI/Effects/PressBounce.swift` adds the native-aware
+  `GlassControlButtonStyle` fallback policy.
+- `UI/Effects/LiquidGlass.swift` suppresses native interactive-glass motion
+  when motion is disabled.
+- Shared glass/chip primitives now use token spacing, neutral tint/fills, and
+  44pt minimum targets where the primitive owns the target.
+- `BrandTokensTests.swift` and `HitAreaTests.swift` cover the shared policy.
+
+### QA done
+
+- `git diff --check` passed.
+- `bash scripts/ios-verify.sh --test-build-only` passed after each review fix;
+  final result: `** TEST BUILD SUCCEEDED **`.
+- Independent spec review: `SPEC APPROVED`.
+- Independent code-quality review: `CODE QUALITY APPROVED`.
+
+### Remaining issues
+
+- CoreSimulator recovery is complete on `AIMapGate`; a clean app-only product
+  now installs and launches. DS.0 still needs SE/iPad and non-overview captures.
+- Raw materials, off-grid spacing, saturated accents, and sub-44pt controls in
+  feature surfaces remain assigned to DS.3–DS.8.
+- Final branch/tool node hierarchy and bounce strength remain
+  `NEED USER'S EYE` in DS.2.
+
+## Changed files / QA done / Remaining issues — DS.2 overview 2026-07-15
+
+### Changed files
+
+- `UniverseConstellationView.swift` puts branch names inside their node
+  footprints, removes overlapping caption capsules, and treats graph nodes as
+  solid content rather than glass chrome.
+- `GlassMorphCluster.swift` applies native glass to the selected padded label
+  itself, preserving label sharpness and the travelling morph identity.
+- `RootShell.swift` gives each route option an explicit selected/unselected
+  foreground style inside the glass hierarchy.
+- `UniverseConstellationLayoutTests.swift` guards pairwise overview footprints
+  against overlap at the iPhone reference size.
+
+### QA done
+
+- Generic app-only simulator build: `BUILD SUCCEEDED`.
+- Bundle audit: 26 MB, `arm64 + x86_64`, valid deep signature, no `.xctest`,
+  `XCTest.framework`, or `XCUIAutomation.framework` payload.
+- `AIMapGate` install + launch succeeded; stable iPhone 16 Pro overview confirms
+  eight readable branch nodes and a sharp active Map glass segment.
+- Focused Swift Testing suite: 5 tests passed, `TEST SUCCEEDED`.
+
+### Remaining issues
+
+- Capture branch focus and selected-tool states before closing DS.2.
+- Tune bounce only with a live non-static run; final strength remains a visual
+  judgement rather than a blind constant change.
+- Complete DS.0 on SE-class and iPad layouts before claiming responsive parity.

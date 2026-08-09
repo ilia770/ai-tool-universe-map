@@ -1,5 +1,9 @@
 # CHAT_INPUT_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This record may describe a
+> superseded dock implementation. Use `INPUT_CHAT_SPEC.md`,
+> `INTERACTION_SPEC.md`, and `STATE_OWNERSHIP.md` for current behavior.
+
 Owner domain: the bottom AI assistant **input dock** — the composer field, the
 paperclip attachment menu, and the attachment preview. This is the visual +
 interaction spec for the input surface and its attachment states.

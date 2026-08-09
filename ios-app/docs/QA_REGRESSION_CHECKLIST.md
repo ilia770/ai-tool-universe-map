@@ -1,9 +1,19 @@
 # QA_REGRESSION_CHECKLIST
 
+> **Current-baseline warning — 2026-07-16.** Use **Current worktree smoke
+> matrix** below for the mounted 2D renderer. The initial checklist and dated
+> run records preserve historical 3D/rail-era evidence; they are not proof of
+> current behavior or a fresh passing run.
+
 Run after every task. Build green + Swift Testing pass is necessary but NOT
 sufficient — the visual/state items need a simulator run (iPhone 17 + an
 iPhone SE-class device + iPad). Confirm tests via the xcresult `passedTests`
 count, not "Executed 0 tests".
+
+For permanent UI architecture and transition evidence, this checklist is
+supplemented by `UI_QA_CHECKLIST.md` and `UI_TRANSITION_CATALOG.md`. In case of
+conflict, use `SPEC_INDEX.md`/`SPEC_CONFLICTS.md` rather than treating a dated
+run record as current acceptance.
 
 ## Build / test gate
 - [ ] `xcodegen generate` clean
@@ -179,3 +189,47 @@ count, not "Executed 0 tests".
 - [ ] Real-device QA: physical iPhone, SE-class, and iPad behavior remains a
       release gate because simulator screenshots do not prove touch feel,
       system picker behavior, or RealityKit/device performance.
+
+---
+
+## Current-worktree regression baseline — 2026-07-16
+
+The checklist above contains historical run records. Use this section for
+future patches against the current source; execute it rather than treating any
+previous pass count as fresh evidence.
+
+### Smoke checks — every patch
+
+| Setup | Exact action | Expected visible result | Expected state result | Failure symptoms |
+| --- | --- | --- | --- | --- |
+| Fresh simulator, no saved data | Launch app | map with onboarding overlay | `hasSeenOnboarding == false` | chat-only launch, missing overlay, blank screen. |
+| Onboarding | Tap Skip, relaunch | map remains visible; overlay stays dismissed | onboarding flag persisted | overlay repeats or blocks map. |
+| Empty map | Tap “Load a sample universe” | category/tool constellation appears | seed tools persisted/visible | still empty card, duplicate tools, crash. |
+| Populated map | Tap category then tool then empty space | branch, selected tool, then step-back visual changes | one coherent `UniverseMode` path | wrong tool/card, dead nodes, map does not step back. |
+| Populated map compact width | Re-tap selected tool; swipe detail sheet down | detail sheet opens and dismisses cleanly | valid restored map mode | stuck dim/sheet, stale detail, multiple taps required. |
+| Root switch | Open Ask AI then Back to Map | full chat then readable map | root returns map/overview | no return control, black/blank map. |
+| In-map composer | Focus, type, send, collapse/reopen | dock panel is visible, then resumable | transcript changes; map remains tappable after collapse | keyboard blackout, invisible hit interceptor, lost transcript. |
+| Attachment | Open paperclip, cancel then stage/remove an item | one menu/preview lane; composer stays anchored | local payload adds/removes | duplicated menu, blocked keyboard, send does nothing. |
+| Add tool | Add valid name/URL to a branch; return map | new tool becomes a selected map node | persisted tool/category mutation | duplicate, wrong category, selection desync. |
+| Settings | Toggle haptics, inspect history, request Reset then cancel/confirm | settings remains usable; reset confirmation clear | correct persistence / reset only on confirm | accidental reset, key shown in normal release flow. |
+
+### Severity-based manual checks
+
+**Stop-ship / P0:** launch, onboarding escape, map node interaction, Map/Chat
+return path, Add Tool submission, detail dismissal, no blank/black surface.
+
+**P1:** keyboard auto-grow/safe-area, attachment cancellation, tool deletion
+guard, state persistence after relaunch, iPhone/iPad sheet differences, no
+header/dock overlap.
+
+**P2:** native glass/morph polish, Dynamic Type/VoiceOver, haptic feel, edge
+rail only if it is intentionally mounted, dormant 3D system only after a
+separate reactivation.
+
+### Current exclusions
+
+- Do not test a right rail as a release feature: it is unmounted.
+- Do not test active 3D camera/gesture behavior as part of the current map:
+  the mounted renderer is 2D.
+- Test an actual PhotosPicker/FileImporter on a real simulator/device; static
+  UI-test flags cannot validate the system picker.

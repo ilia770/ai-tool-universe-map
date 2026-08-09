@@ -1,7 +1,15 @@
 # UI_STATE_MACHINE — navigation & overlay state
 
-Status: **SPEC + current-reality audit.** Implementation notes to be appended
-by the State Machine agent after the refactor lands.
+> **Historical/target-state warning — 2026-07-16.** The goal, target model,
+> transition list, and prior implementation notes before **Current baseline
+> override** preserve earlier handoff context. The source-verified baseline at
+> the end of this file is the current contract; it supersedes conflicting
+> wording above.
+
+**UI architecture links:** before changing state that affects UI, read
+`UI_APPLE_NATIVE_SPEC.md`, `UI_COMPONENT_IDENTITY.md`, and
+`UI_TRANSITION_CATALOG.md`. One owner is required for a transition route and
+its progress; open conflicts are tracked in `SPEC_CONFLICTS.md`.
 
 ## Goal
 One source of truth for navigation. Eliminate desync between the 3D map,
@@ -193,3 +201,120 @@ silently collapsed back to category focus.
   confirm no desync across map/chips/rail/card on device, and that chat focus
   is atmospheric not black.
 - Agent 2/3/4/5 domains untouched by design.
+
+---
+
+## Current baseline override — 2026-07-16
+
+This addendum supersedes historical claims in this document when they disagree
+with the current source snapshot.
+
+- **CONFIRMED:** `UniverseViewModel.universeMode` is the only stored map-mode
+  value. `UniverseViewModel.selection` is computed from it; there is no current
+  stored `hoveredToolID` in the model.
+- **CONFIRMED:** this is a map-level machine only. Root-level Map/Ask AI route
+  ownership remains `RootShell.surface`, and root chat return intentionally
+  resets to overview rather than restoring an exact map route.
+- **CONFIRMED:** `UniverseMapView` still has local `detailPresented` and
+  `modeBeforeDetail`; these synchronize with `.detail` on compact layouts.
+  This is a presentation mirror, not a second selection owner, but it is a
+  high-risk synchronization boundary.
+- **CONFIRMED:** a regular-width inspector may present selected tool content
+  while the model remains `.toolSelected`; it is not the `.detail` case.
+- **CONFIRMED:** rail gesture state is not merely local — the rail itself is
+  currently unmounted. Do not treat a rail-active transition as user-reachable.
+- **CONFIRMED:** the current mounted map is `UniverseConstellationView`; the
+  RealityKit camera/gesture state machine is retained but dormant.
+
+```mermaid
+stateDiagram-v2
+    [*] --> overview
+    overview --> branchFocus: category tap
+    branchFocus --> toolSelected: tool tap
+    toolSelected --> detail: compact detail sheet
+    detail --> toolSelected: sheet dismiss/restore
+    overview --> chatOpen: in-map composer activity
+    branchFocus --> chatOpen: in-map composer activity
+    toolSelected --> chatOpen: in-map composer activity
+    chatOpen --> branchFocus: close with preserved non-core category / no explicit tool
+    chatOpen --> overview: close with core or no category context / no explicit tool
+    chatOpen --> toolSelected: close with valid explicit tool
+```
+
+See `STATE_OWNERSHIP.md` for the authoritative ownership matrix and
+`NAVIGATION_SPEC.md` for root/sheet routes.
+
+### Root surface and onboarding machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> MapRoot: launch
+    MapRoot --> Onboarding: hasSeenOnboarding == false
+    Onboarding --> MapRoot: Skip / scrim / Explore Map
+    Onboarding --> ChatRoot: Ask AI
+    Onboarding --> AddSheet: Add Tool
+    AddSheet --> MapRoot: dismiss or submit
+    MapRoot --> ChatRoot: Ask AI root switch
+    ChatRoot --> MapRoot: Back to Map (resets overview)
+```
+
+- **Entry:** `RootShell` starts on Map regardless of onboarding status.
+- **Visible UI:** onboarding overlays root surfaces; root Map/Ask AI switch
+  remains the primary route control.
+- **Cancellation/recovery:** Skip/scrim persist onboarding completion and
+  recover Map. Add sheet dismissal retains map route. Root Chat return does
+  **not** promise selection restoration.
+- **Persistence effect:** only `hasSeenOnboarding` persists; root surface does
+  not.
+- **Invalid transition:** do not encode root Chat as `.chatOpen`; it is a
+  separate root state.
+
+### In-map assistant dock machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> ComposerIdle
+    ComposerIdle --> ComposerFocused: tap field / external in-map Ask AI
+    ComposerFocused --> AttachmentMenu: paperclip
+    AttachmentMenu --> ComposerFocused: cancel / select attachment
+    ComposerFocused --> AttachmentStaged: picker result
+    AttachmentStaged --> ComposerFocused: remove attachment
+    ComposerFocused --> ConversationVisible: send or active transcript
+    ConversationVisible --> ConversationCollapsed: collapse
+    ConversationCollapsed --> ConversationVisible: Show chat
+    ConversationVisible --> ComposerIdle: parent exits in-map chat
+    AttachmentMenu --> ComposerIdle: parent exits in-map chat
+```
+
+- **Entry conditions:** focus, visible messages, attachment staging, or menu
+  activity determines whether it requests `UniverseMode.chatOpen`.
+- **Visible UI:** only one floating lane may display attachment menu or preview;
+  conversation panel and collapsed pill are mutually exclusive.
+- **Cancellation/recovery:** picker cancellation restores field focus; parent
+  mode exit clears focus/menu and collapses transcript but preserves the model
+  transcript while the model lives.
+- **Persistence effect:** none for focus, payload, collapse, query, or message
+  transcript.
+- **Invalid transition:** attachment menu and preview must not display together;
+  local focus must not create a second map-navigation source.
+
+### Modal detail machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoDetail
+    NoDetail --> CompactDetail: selected tool detail request (compact)
+    CompactDetail --> CompactDetail: related tool focus
+    CompactDetail --> NoDetail: system dismiss / close
+    NoDetail --> RegularInspector: selected tool (regular width)
+    RegularInspector --> RegularInspector: selected tool changes
+    RegularInspector --> NoDetail: selection becomes unavailable
+```
+
+- **Entry conditions:** compact uses a sheet plus `.detail`; regular derives a
+  trailing inspector from an explicit selected tool.
+- **Cancellation/recovery:** compact swipe/dismiss maps through local
+  `modeBeforeDetail`/derived selection; this requires runtime verification.
+- **Persistence effect:** none for presentation or selection.
+- **Invalid transition:** never show detail for a hidden/missing tool; do not
+  assume regular inspector uses `.detail`.
