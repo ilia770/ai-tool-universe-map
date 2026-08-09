@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Production-style native 3D universe map: RealityKit scene + SwiftUI glass UI.
+/// Production-style 2D-first universe map: SwiftUI constellation + glass UI.
 struct UniverseMapView: View {
     @Environment(UniverseViewModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -55,19 +55,12 @@ struct UniverseMapView: View {
 
     private var universeStack: some View {
         ZStack {
-            // Neural Universe (NU.4): the RealityKit scene is THE map — the
-            // 2D renderer and the 2D/3D toggle retired with the redesign.
-            UniverseRealityView(
+            UniverseConstellationView(
                 planets: planets,
                 mode: mode,
-                visualizationStyle: model.visualizationStyle,
-                sceneController: sceneController,
-                cameraRig: cameraRig,
-                gestureController: gestureController,
                 onPlanetTap: selectCategory,
                 onToolTap: focusToolFromMap,
-                onEmptyTap: handleEmptySpaceTap,
-                onOrbitSettled: maybeSnapToNeighborSun
+                onEmptyTap: handleEmptySpaceTap
             )
             .ignoresSafeArea()
 
@@ -90,7 +83,8 @@ struct UniverseMapView: View {
                 onAccount: presentAccount,
                 onAddTool: { presentAddTool() },
                 chromeMorphNamespace: chromeMorphNamespace,
-                onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) }
+                onAddSuggestedTool: { suggestion in presentAddTool(draft: suggestion) },
+                showsProjectedMapLabels: false
             )
         }
     }
@@ -103,13 +97,7 @@ struct UniverseMapView: View {
         if !model.isUniverseEmpty, mode.selectedToolID != nil {
             RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .frame(width: 360)
-                .background {
-                    ZStack {
-                        Rectangle().fill(.ultraThinMaterial)
-                        selectedPlanet.swiftUIColor.opacity(0.07)
-                    }
-                    .ignoresSafeArea()
-                }
+                .background(BrandColor.glass)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
         }
     }

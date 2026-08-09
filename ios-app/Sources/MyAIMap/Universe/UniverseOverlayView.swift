@@ -21,6 +21,7 @@ struct UniverseOverlayView: View {
     /// and Add Tool sheets so the trigger buttons zoom-morph into them.
     let chromeMorphNamespace: Namespace.ID
     let onAddSuggestedTool: (MissingToolSuggestion) -> Void
+    var showsProjectedMapLabels: Bool = true
 
     @State private var isRailActive = false
     @Namespace private var chromeNamespace
@@ -53,17 +54,17 @@ struct UniverseOverlayView: View {
                 topChromeScrim
             }
 
-            if mode.showsPlanetLabels && labelsQuiescent {
+            if showsProjectedMapLabels && mode.showsPlanetLabels && labelsQuiescent {
                 labelLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolAnchor && labelsQuiescent {
+            if showsProjectedMapLabels && mode.showsToolAnchor && labelsQuiescent {
                 toolAnchorLayer
                     .allowsHitTesting(false)
             }
 
-            if mode.showsToolLabels && labelsQuiescent {
+            if showsProjectedMapLabels && mode.showsToolLabels && labelsQuiescent {
                 toolLabelLayer
                     .allowsHitTesting(false)
             }
@@ -116,7 +117,7 @@ struct UniverseOverlayView: View {
 
                 bottomControls
                     .padding(.horizontal, BrandSpacing.l.value)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, BrandSpacing.sm.value)
             }
 
         }
@@ -555,11 +556,6 @@ struct UniverseOverlayView: View {
                 topChromeContent
             }
         }
-        // Gate the chrome morph to 3D: `mode` also changes on the 2D graph
-        // (planet/tool taps), so an unconditional value animates the shared
-        // top chrome on 2D nav too. In 2D pin the value to a constant → no
-        // implicit animation (keeps the 2D path untouched, Track A). Mirrors
-        // the `bottomControls` reveal gate below.
         .brandAnimation(BrandMotion.morph, value: mode)
     }
 
@@ -579,16 +575,17 @@ struct UniverseOverlayView: View {
     }
 
     private var bottomControls: some View {
-        VStack(spacing: 10) {
-            if SpatialReveal.showsToolCard(mode: mode) {
-                SpatialRevealCard(
-                    toolName: selectedTool.name,
-                    categoryName: UniverseSeed.category(selectedTool.category).shortName,
-                    summary: selectedTool.summary,
-                    tint: selectedPlanet.swiftUIColor,
-                    onOpen: onDetails
+        VStack(spacing: BrandSpacing.sm.value) {
+            if !model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen && mode != .overview {
+                PlanetInfoCard(
+                    planet: selectedPlanet,
+                    selectedTool: selectedTool,
+                    isFocusedOnTool: isFocusedOnTool,
+                    mode: mode,
+                    onOpenDetails: onDetails
                 )
-                .parallaxTilt(maxOffset: 6)
+                .frame(maxWidth: 360)
+                .parallaxTilt(maxOffset: BrandSpacing.s.value)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
@@ -606,28 +603,21 @@ struct UniverseOverlayView: View {
                 )
             }
         }
-        // Gate the reveal spring to 3D: `bottomControls` is shared with the 2D
-        // graph (PlanetInfoCard/SearchDock), so an unconditional value would
-        // animate 2D content on tool-selection too. In 2D the value is pinned to
-        // nil → constant → no implicit animation (keeps the 2D path untouched).
-        .brandAnimation(
-            BrandMotion.reveal,
-            value: SpatialReveal.showsToolCard(mode: mode) ? mode.selectedToolID : nil
-        )
+        .brandAnimation(BrandMotion.reveal, value: mode.signature)
     }
 
     /// Onboarding shown when the universe has no tools yet: the user either adds
     /// their first tool (which becomes the first planet) or loads the bundled
     /// sample universe.
     private var emptyStateCard: some View {
-        LiquidGlassCard(cornerRadius: 28) {
-        VStack(spacing: 16) {
+        LiquidGlassCard(cornerRadius: BrandRadius.floatingCard.value) {
+        VStack(spacing: BrandSpacing.l.value) {
             Image(systemName: "sparkles")
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(.white.opacity(0.92))
                 .accessibilityHidden(true)
 
-            VStack(spacing: 7) {
+            VStack(spacing: BrandSpacing.s.value) {
                 Text("Your universe is empty")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
@@ -638,35 +628,26 @@ struct UniverseOverlayView: View {
                     .multilineTextAlignment(.center)
             }
 
-            VStack(spacing: 10) {
-                Button {
+            VStack(spacing: BrandSpacing.sm.value) {
+                LiquidGlassButton(action: {
                     BrandHaptics.fire(.medium)
                     onAddTool()
-                } label: {
+                }) {
                     Label("Add your first tool", systemImage: "plus")
                         .font(.callout.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-                .padding(.vertical, 11)
-                .padding(.horizontal, BrandSpacing.l.value)
-                .background(.white.opacity(0.14), in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                 .foregroundStyle(.white)
                 .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
 
-                Button {
+                LiquidGlassButton(action: {
                     BrandHaptics.fire(.light)
                     onChatActivityChange(true)
-                } label: {
+                }) {
                     Label("Ask AI", systemImage: "sparkle")
                         .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-                .padding(.vertical, 9)
-                .padding(.horizontal, BrandSpacing.l.value)
-                .glassSurface(in: Capsule(), interactive: true)
                 .foregroundStyle(.white.opacity(0.9))
 
                 Button {
@@ -682,7 +663,7 @@ struct UniverseOverlayView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 26)
+        .padding(.vertical, BrandSpacing.xxl.value)
         .padding(.horizontal, BrandSpacing.xxl.value)
         .frame(maxWidth: 320)
         }
@@ -752,20 +733,20 @@ private struct ToolAnchorBadge: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: BrandSpacing.s.value) {
             Circle()
                 .fill(color)
-                .frame(width: 7, height: 7)
+                .frame(width: BrandSpacing.s.value, height: BrandSpacing.s.value)
                 .shadow(color: color.opacity(0.8), radius: 6)
             Text(title)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(BrandTypography.chip)
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
+        .padding(.horizontal, BrandSpacing.sm.value)
+        .padding(.vertical, BrandSpacing.s.value)
         .frame(maxWidth: 138)
-        .liquidGlass(in: Capsule(), tint: color.opacity(0.36), strokeStrength: 0.1)
+        .glassSurface(in: Capsule(), tint: color.opacity(0.10), interactive: false)
         .shadow(color: color.opacity(0.32), radius: 12)
     }
 }
@@ -777,30 +758,31 @@ private struct ToolFloatingLabel: View {
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: BrandSpacing.s.value) {
             Circle()
                 .fill(color)
-                .frame(width: isSelected ? 8 : 6, height: isSelected ? 8 : 6)
+                .frame(width: isSelected ? BrandSpacing.s.value : BrandSpacing.xs.value + BrandSpacing.hair.value,
+                       height: isSelected ? BrandSpacing.s.value : BrandSpacing.xs.value + BrandSpacing.hair.value)
                 .shadow(color: color.opacity(isSelected ? 0.9 : 0.58), radius: isSelected ? 8 : 5)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: BrandSpacing.hair.value) {
                 Text(title)
-                    .font(.system(size: isSelected ? 12 : 10.5, weight: .bold, design: .rounded))
+                    .font(isSelected ? BrandTypography.chip : BrandTypography.eyebrow)
                     .foregroundStyle(.white.opacity(isSelected ? 0.98 : 0.86))
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
 
                 Text(subtitle)
-                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                    .font(BrandTypography.eyebrow)
                     .foregroundStyle(.white.opacity(isSelected ? 0.72 : 0.62))
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, isSelected ? 7 : 6)
+        .padding(.horizontal, BrandSpacing.sm.value)
+        .padding(.vertical, BrandSpacing.s.value)
         .frame(width: isSelected ? 126 : 112, alignment: .leading)
-        .liquidGlass(in: Capsule(), tint: color.opacity(isSelected ? 0.34 : 0.18), strokeStrength: isSelected ? 0.12 : 0.06)
+        .glassSurface(in: Capsule(), tint: color.opacity(isSelected ? 0.10 : 0.06), interactive: false)
         .shadow(color: color.opacity(isSelected ? 0.32 : 0.14), radius: isSelected ? 15 : 8)
     }
 }
@@ -812,22 +794,22 @@ private struct PlanetFloatingLabel: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: BrandSpacing.hair.value) {
             Text(title)
-                .font(.system(size: isSelected ? 13 : 11, weight: .semibold, design: .rounded))
+                .font(isSelected ? BrandTypography.controlLabel : BrandTypography.chip)
                 .foregroundStyle(BrandColor.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
             Text(subtitle)
-                .font(.system(size: isSelected ? 10 : 9, weight: .medium, design: .rounded))
+                .font(BrandTypography.eyebrow)
                 .foregroundStyle(BrandColor.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }
         .frame(width: isSelected ? 128 : 104)
         .padding(.horizontal, BrandSpacing.sm.value)
-        .padding(.vertical, 7)
-        .liquidGlass(in: Capsule(), tint: color.opacity(isSelected ? 0.42 : 0.18), strokeStrength: isSelected ? 0.12 : 0.06)
+        .padding(.vertical, BrandSpacing.s.value)
+        .glassSurface(in: Capsule(), tint: color.opacity(isSelected ? 0.10 : 0.06), interactive: false)
         .shadow(color: color.opacity(isSelected ? 0.34 : 0.16), radius: isSelected ? 18 : 10)
     }
 }
