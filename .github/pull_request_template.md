@@ -1,35 +1,59 @@
-<!-- Keep this PR focused. If you find yourself describing two unrelated things, split it. -->
-
 ## Summary
 
-<!-- One paragraph: what changes, why now. -->
+- What changed:
+- Why it changed:
+- Related plan/issue:
 
-## Changes
+## Agent Handoff
 
-<!-- Bullet list of user-visible / reviewer-relevant deltas. -->
--
--
+Owner: Codex | Claude Code
+Next owner: Codex | Claude Code | none
 
-## Risk & blast radius
+### Done
 
-<!-- Mark all that apply. -->
-- [ ] Touches 3D scene math (`src/components/AIToolUniverse3D/layout.ts`, camera, lighting).
-- [ ] Touches data source of truth (`src/data/ai-tool-universe.ts`).
-- [ ] Touches shared agent rules (`.agent/INSTRUCTIONS.md`).
-- [ ] Touches CI, build, or deploy.
-- [ ] Drops or changes a public surface (env vars, exported modules, URLs).
-- [ ] Pure visual / copy / docs.
+- 
 
-## Verify
+### Blockers
 
-<!-- Confirm before requesting review. CI runs the same chain. -->
+- 
+
+### Next Files
+
+- 
+
+## Validation
+
 - [ ] `npm run typecheck`
 - [ ] `npm run lint`
 - [ ] `npm test`
 - [ ] `npm run build`
-- [ ] (if visual) `npm run smoke:visual`
-- [ ] (if perf-sensitive) Lighthouse run captured in PR description and within budget (see `.agent/INSTRUCTIONS.md`).
+- [ ] Other:
 
-## Notes for reviewer
+## Screenshots / Visual Review
 
-<!-- Anything not obvious from the diff: assumptions, follow-ups, screenshots. -->
+- [ ] Desktop overview reviewed
+- [ ] Desktop selected-tool state reviewed
+- [ ] Category pocket/focus state reviewed
+- [ ] Mobile overview reviewed
+- [ ] Mobile detail sheet reviewed
+- Screenshot paths or links:
+
+## UI/UX Review
+
+- [ ] Checked `docs/design/README.md`
+- [ ] UI/UX specialist review included or not needed
+- Notes:
+
+## Risks
+
+- Runtime risks:
+- UX risks:
+- Data risks:
+- Rollback plan:
+
+## Release Checklist
+
+- [ ] I checked `docs/RELEASE_REVIEW.md`
+- [ ] No stop-ship condition applies
+- [ ] Product direction still matches `docs/PRODUCT_CTO.md`
+
