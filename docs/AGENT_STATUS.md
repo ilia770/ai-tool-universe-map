@@ -8,7 +8,8 @@ Use this as the fast handoff file before asking Codex or Claude Code to continue
 
 - Master 50-task roadmap:
   `docs/superpowers/plans/2026-06-11-50-task-master-roadmap.md`.
-- Night-cycle Now / Next / Later board: `docs/NIGHT_CYCLE_BOARD.md`.
+- Now / Next / Later: the `AI Map` project in Linear. The MD board was
+  retired on 2026-08-09.
 - Safe web release gate: `npm run release:check`.
 - Safe iOS compile gate: `npm run ios:verify`.
 - iOS runbook: `docs/ios/RUNBOOK.md`.
@@ -20,7 +21,7 @@ Use this as the fast handoff file before asking Codex or Claude Code to continue
 Web app:
 - Production URL: `https://ai-tool-universe-map.vercel.app`.
 - Main experience: interactive AI tool universe map with 3D scene, categories, tool details, search, logos, and pocket-world interactions.
-- Active visual polish history is documented in `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
+- Active visual polish history is documented in `docs/LOOP_LOG.md`.
 - Night-cycle polish through PR #32 is merged: non-focus nodes now use one compact logo+label bubble so hover/focus labels overlap less.
 - Safe dependency patch queue is merged: #9 `actions/checkout@6`, #10 `actions/setup-node@6`, #15 `globals@17.6.0`, #17 `typescript-eslint@8.61.0`, #11 React stack patch.
 - Latest release-path verification after #34/#35/#36: GitHub CI on `main` passed. Run the full local release gate again immediately before production deploy.
@@ -90,9 +91,10 @@ iOS app:
   + `CategoryRail`), ClarityMenu + pocket readout (#52), haptics pass
   incl. sheet-detent ticks (#54). Mid-pinch auto-enter camera jump
   FIXED (#53 — pinch re-bases on re-attach; 3 regression tests).
-  65/65 tests in 8 suites. Claude's task backlog + status:
-  `docs/CLAUDE_BACKLOG.md` (Phase A done; next: Phase B gestures,
-  Phase C visual parity).
+  65/65 tests in 8 suites. Claude's backlog then lived in
+  `docs/CLAUDE_BACKLOG.md` (Phase A done; Phase B gestures and Phase C visual
+  parity next); that file was retired on 2026-08-09 and the work, where it is
+  still wanted, belongs in Linear.
 - Note for the night board: master-roadmap tasks 3/4/5 (bottom sheet,
   SearchDock, spatial tap parity) were delivered by Claude in
   #48/#47/#42 — board updated.
@@ -151,7 +153,7 @@ Still open:
 | Improve classifier | `src/lib/classify-ai-tool.ts`, `src/lib/classify-ai-tool.test.ts` |
 | Move data beyond JSON seed | `src/data/ai-tool-universe.seed.json`, `src/data/ai-tool-universe.ts`, `src/data/universe-schema.ts` |
 | Continue iOS | `ios-app/project.yml`, `ios-app/Sources/MyAIMap/**`, `ios-app/Tests/MyAIMapTests/**` |
-| Execute 50-task roadmap | `docs/superpowers/plans/2026-06-11-50-task-master-roadmap.md`, `docs/NIGHT_CYCLE_BOARD.md` |
+| Execute 50-task roadmap | `docs/superpowers/plans/2026-06-11-50-task-master-roadmap.md`, and the `AI Map` project in Linear |
 
 ## Minimum Next-Agent Startup
 
