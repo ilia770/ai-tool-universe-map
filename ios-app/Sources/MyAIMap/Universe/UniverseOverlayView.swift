@@ -92,7 +92,7 @@ struct UniverseOverlayView: View {
 
                 bottomControls
                     .padding(.horizontal, BrandSpacing.l.value)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, BrandSpacing.sm.value)
             }
         }
     }
@@ -180,16 +180,17 @@ struct UniverseOverlayView: View {
     }
 
     private var bottomControls: some View {
-        VStack(spacing: 10) {
-            if SpatialReveal.showsToolCard(mode: mode) {
-                SpatialRevealCard(
-                    toolName: selectedTool.name,
-                    categoryName: UniverseSeed.category(selectedTool.category).shortName,
-                    summary: selectedTool.summary,
-                    tint: selectedPlanet.swiftUIColor,
-                    onOpen: onDetails
+        VStack(spacing: BrandSpacing.sm.value) {
+            if !model.isUniverseEmpty && !mode.isDetailOpen && !mode.isChatOpen && mode != .overview {
+                PlanetInfoCard(
+                    planet: selectedPlanet,
+                    selectedTool: selectedTool,
+                    isFocusedOnTool: isFocusedOnTool,
+                    mode: mode,
+                    onOpenDetails: onDetails
                 )
-                .parallaxTilt(maxOffset: 6)
+                .frame(maxWidth: 360)
+                .parallaxTilt(maxOffset: BrandSpacing.s.value)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
@@ -211,81 +212,69 @@ struct UniverseOverlayView: View {
         // graph (PlanetInfoCard/SearchDock), so an unconditional value would
         // animate 2D content on tool-selection too. In 2D the value is pinned to
         // nil → constant → no implicit animation (keeps the 2D path untouched).
-        .brandAnimation(
-            BrandMotion.reveal,
-            value: SpatialReveal.showsToolCard(mode: mode) ? mode.selectedToolID : nil
-        )
+        .brandAnimation(BrandMotion.reveal, value: mode.signature)
     }
 
     /// Onboarding shown when the universe has no tools yet: the user either adds
     /// their first tool (which becomes the first planet) or loads the bundled
     /// sample universe.
     private var emptyStateCard: some View {
-        LiquidGlassCard(cornerRadius: 28) {
-        VStack(spacing: 16) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(.white.opacity(0.92))
-                .accessibilityHidden(true)
+        LiquidGlassCard(cornerRadius: BrandRadius.floatingCard.value) {
+            VStack(spacing: BrandSpacing.l.value) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .accessibilityHidden(true)
 
-            VStack(spacing: 7) {
-                Text("Your universe is empty")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .accessibilityAddTraits(.isHeader)
-                Text("Add the AI tools you use — each one becomes a planet you can fly between.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.66))
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(spacing: 10) {
-                Button {
-                    BrandHaptics.fire(.medium)
-                    onAddTool()
-                } label: {
-                    Label("Add your first tool", systemImage: "plus")
-                        .font(.callout.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 30)
+                VStack(spacing: BrandSpacing.s.value) {
+                    Text("Your universe is empty")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Add the AI tools you use — each one becomes a planet you can fly between.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.66))
+                        .multilineTextAlignment(.center)
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-                .padding(.vertical, 11)
-                .padding(.horizontal, BrandSpacing.l.value)
-                .background(.white.opacity(0.14), in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
-                .foregroundStyle(.white)
-                .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
 
-                Button {
-                    BrandHaptics.fire(.light)
-                    onChatActivityChange(true)
-                } label: {
-                    Label("Ask AI", systemImage: "sparkle")
-                        .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity, minHeight: 30)
-                }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil, pressedOpacity: 0.9))
-                .padding(.vertical, 9)
-                .padding(.horizontal, BrandSpacing.l.value)
-                .glassSurface(in: Capsule(), interactive: true)
-                .foregroundStyle(.white.opacity(0.9))
-
-                Button {
-                    BrandHaptics.fire(.light)
-                    withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
-                        _ = model.loadSampleUniverse()
+                VStack(spacing: BrandSpacing.sm.value) {
+                    LiquidGlassButton(action: {
+                        BrandHaptics.fire(.medium)
+                        onAddTool()
+                    }) {
+                        Label("Add your first tool", systemImage: "plus")
+                            .font(.callout.weight(.semibold))
+                            .frame(maxWidth: .infinity)
                     }
-                } label: {
-                    Text("Load a sample universe")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(.white)
+                    .matchedTransitionSource(id: ChromeMorphID.addTool, in: chromeMorphNamespace)
+
+                    LiquidGlassButton(action: {
+                        BrandHaptics.fire(.light)
+                        onChatActivityChange(true)
+                    }) {
+                        Label("Ask AI", systemImage: "sparkle")
+                            .font(.callout.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .foregroundStyle(.white.opacity(0.9))
+
+                    Button {
+                        BrandHaptics.fire(.light)
+                        withBrandAnimation(BrandMotion.flow, reduceMotion: reduceMotion) {
+                            _ = model.loadSampleUniverse()
+                        }
+                    } label: {
+                        Text("Load a sample universe")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.62))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-        }
-        .padding(.vertical, 26)
-        .padding(.horizontal, BrandSpacing.xxl.value)
-        .frame(maxWidth: 320)
+            .padding(.vertical, BrandSpacing.xxl.value)
+            .padding(.horizontal, BrandSpacing.xxl.value)
+            .frame(maxWidth: 320)
         }
     }
 }

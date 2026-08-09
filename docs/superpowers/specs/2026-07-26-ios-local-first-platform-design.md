@@ -133,33 +133,6 @@ native hardening project.
   privacy policy, support URL, licenses/provenance, signing/archive check, and
   staged TestFlight rollout.
 
-## Foundation evidence record — 2026-07-27
-
-The automated foundation gate was run from the detached clean worktree at
-commit `6896759dfe1ba33aa3733f070242bc500a7befa8`. The only generated project
-artifact was the ignored `MyAIMap.xcodeproj`; no source change was included in
-the evidence.
-
-| Field | Recorded value |
-| --- | --- |
-| Xcode | Xcode 26.5 (Build version 17F42) |
-| Simulator | AIMapGate — iPhone 16 Pro, iOS Simulator 26.5, OS build 23F77 |
-| xcresult | `/tmp/aimap-foundation-route-fix9-clean-token.xcresult` |
-| Outcome | 71 passed, 0 failed, 0 skipped, result `Passed` |
-| Automated coverage | Focused `UniverseMode` and `UniverseViewModel` tests plus `UniverseUISmokeTests/testCaptureKeyStates` |
-
-This is fresh automated simulator evidence for the exact source revision, not
-a claim of release-device quality. The compact/current iPhone and iPad manual
-journeys; Dynamic Type, VoiceOver, and Reduce Motion; and SwiftUI/Time Profiler
-traces on low-end and current physical iPhones were **not run** because this
-task had neither a manual pass nor physical-device performance traces.
-
-The following gates therefore remain open: catalog migration/recovery and
-export/import; AppShell sheet-router migration; release-only assistant,
-privacy, and security review; clean archive/signing; and staged TestFlight
-validation. No performance improvement is claimed without matched
-before/after traces from the same device and build.
-
 ## Rollback policy
 
 Every implementation task is one branch/PR with a fresh reviewer gate. A

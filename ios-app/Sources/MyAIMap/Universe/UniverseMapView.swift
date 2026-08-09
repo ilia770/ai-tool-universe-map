@@ -111,13 +111,7 @@ struct UniverseMapView: View {
         if !model.isUniverseEmpty, mode.selectedToolID != nil {
             RootSheet(onOpenRelatedTool: openRelatedToolFromDetail)
                 .frame(width: 360)
-                .background {
-                    ZStack {
-                        Rectangle().fill(.ultraThinMaterial)
-                        selectedPlanet.swiftUIColor.opacity(0.07)
-                    }
-                    .ignoresSafeArea()
-                }
+                .background(BrandColor.glass)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
         }
     }

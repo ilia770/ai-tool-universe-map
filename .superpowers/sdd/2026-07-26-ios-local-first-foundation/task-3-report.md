@@ -194,6 +194,28 @@ further test run was started. Free capacity after the run was about 621 MiB.
 **Baseline preservation:** the pre-task visual snapshot still reverse-applies
 without mutation and user visual changes remain unstaged.
 
+## Final clean-checkout gate
+
+**Compile dependency remediation:** the clean build exposed five missing
+`BrandTypography` graph tokens that committed `UniverseConstellationView`
+already referenced. Commit `6896759` adds only those token APIs; it does not
+include the user-owned typography or visual redesign hunks.
+
+**Clean execution:** detached worktree
+`/private/tmp/aimap-task3-clean-head` checked out exact commit
+`6896759dfe1ba33aa3733f070242bc500a7befa8`, generated its ignored
+`ios-app/MyAIMap.xcodeproj`, and ran the complete required scope on AIMapGate
+with isolated DerivedData `/private/tmp/aimap-foundation-clean-dd`:
+`UniverseViewModelTests`, `UniverseModeTests`, and
+`UniverseUISmokeTests/testCaptureKeyStates`.
+
+**Final xcresult summary:**
+`/tmp/aimap-foundation-route-fix9-clean-token.xcresult` finalized with
+`Info.plist`, 71 passed, 0 failed, and 0 skipped (`result: Passed`).
+`git diff --check` passed in the clean worktree; its status contained only the
+allowed ignored generated Xcode project. No user-owned visual changes were
+present in this build or in the committed diff.
+
 ## Clean validation gate — committed SpatialReveal detail trigger
 
 **Root-cause evidence:** the former UI smoke opened detail through
