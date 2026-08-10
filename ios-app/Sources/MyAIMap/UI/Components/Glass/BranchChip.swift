@@ -13,11 +13,14 @@ struct BranchChip: View {
         HStack(spacing: BrandSpacing.s.value) {
             Circle()
                 .fill(category.color.swiftUIColor)
-                .frame(width: 7, height: 7)
-                .shadow(color: category.color.swiftUIColor.opacity(0.25), radius: 2)
+                .frame(width: BrandSpacing.s.value, height: BrandSpacing.s.value)
+                .shadow(
+                    color: category.color.swiftUIColor.opacity(0.10),
+                    radius: BrandSpacing.hair.value
+                )
             Text(category.shortName)
                 .font(BrandTypography.chip)
-                .foregroundStyle(.white.opacity(0.66))
+                .foregroundStyle(BrandColor.textSecondary)
                 .lineLimit(1)
         }
         .actionChipBackground()

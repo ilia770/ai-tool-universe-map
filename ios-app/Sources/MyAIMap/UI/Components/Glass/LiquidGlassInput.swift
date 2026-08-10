@@ -8,6 +8,7 @@ import SwiftUI
 struct LiquidGlassInput: ViewModifier {
     func body(content: Content) -> some View {
         content
+            .frame(minHeight: HitArea.minimum)
             .glassSurface(in: Capsule(), interactive: true)
             .shadow(color: .black.opacity(0.26), radius: 14, x: 0, y: 8)
     }

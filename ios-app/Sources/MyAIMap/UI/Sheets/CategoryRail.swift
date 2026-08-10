@@ -51,7 +51,6 @@ struct CategoryRail: View {
                         .foregroundStyle(isSelected ? .white : .white.opacity(0.66))
                         .padding(.horizontal, BrandSpacing.sm.value)
                         .padding(.vertical, BrandSpacing.s.value)
-                        .scaleEffect(isSelected ? 1.035 : 1)
                         .background(.black.opacity(isSelected ? 0.12 : 0.04), in: Capsule())
                         .glassSurface(in: Capsule(), tint: isSelected ? category.color.swiftUIColor : nil, interactive: true)
                         .overlay(
@@ -64,7 +63,7 @@ struct CategoryRail: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(PressableButtonStyle(pressedScale: 0.93, haptic: nil, pressedOpacity: 0.92))
+                    .buttonStyle(GlassControlButtonStyle(haptic: nil))
                     .brandAnimation(BrandMotion.nudge, value: model.selection.activeCategory)
                     .id(category.id)
                 }

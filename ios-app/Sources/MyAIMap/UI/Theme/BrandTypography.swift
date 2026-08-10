@@ -9,6 +9,11 @@ enum BrandTypography {
     /// Title semibold — sheet titles.
     static let display: Font = .system(.title, design: .rounded, weight: .semibold)
 
+    /// Title semibold, rounded — kept rounded on purpose while the rest of the
+    /// scale is under review. Empty states are the one place the softer face
+    /// still reads as intentional rather than decorative.
+    static let emptyStateDisplay: Font = .system(.title, design: .rounded, weight: .semibold)
+
     /// `.title3` semibold — section headers.
     static let title: Font = .system(.title3, design: .rounded, weight: .semibold)
 

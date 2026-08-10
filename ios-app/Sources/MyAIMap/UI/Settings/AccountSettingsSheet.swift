@@ -78,7 +78,7 @@ struct AccountSettingsSheet: View {
                             .glassSurface(in: Circle(), tint: .white.opacity(0.08), interactive: true)
                             .navigationGlassMorphID("AccountSheet.close", in: sheetChromeNamespace)
                     }
-                    .buttonStyle(BouncyIconButtonStyle())
+                    .buttonStyle(GlassControlButtonStyle(haptic: .light))
                 }
             }
         }

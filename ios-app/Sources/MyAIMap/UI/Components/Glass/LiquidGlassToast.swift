@@ -8,7 +8,7 @@ import SwiftUI
 struct LiquidGlassToast: View {
     let message: String
     var systemImage: String = "checkmark.circle.fill"
-    var tint: Color = BrandColor.core.opacity(0.22)
+    var tint: Color = BrandColor.core.opacity(0.10)
 
     var body: some View {
         Label(message, systemImage: systemImage)

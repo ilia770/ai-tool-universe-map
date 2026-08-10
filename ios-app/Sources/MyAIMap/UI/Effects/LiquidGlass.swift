@@ -72,6 +72,7 @@ private struct GlassSurfaceModifier<S: InsettableShape>: ViewModifier {
     let tint: Color?
     let interactive: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -100,7 +101,7 @@ private struct GlassSurfaceModifier<S: InsettableShape>: ViewModifier {
         if let tint {
             g = g.tint(tint)
         }
-        if interactive {
+        if interactive && !BrandMotion.isMotionDisabled(reduceMotion: reduceMotion) {
             g = g.interactive()
         }
         return g

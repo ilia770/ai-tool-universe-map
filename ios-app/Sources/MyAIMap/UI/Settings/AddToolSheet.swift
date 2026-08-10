@@ -660,7 +660,7 @@ struct AddToolSheet: View {
                             interactive: true
                         )
                 }
-                .buttonStyle(PressableButtonStyle(pressedScale: 0.97, haptic: nil))
+                .buttonStyle(GlassControlButtonStyle(haptic: nil))
                 .hitArea()
             }
             .padding(.horizontal, BrandSpacing.l.value)
