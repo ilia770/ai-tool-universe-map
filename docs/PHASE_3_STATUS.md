@@ -3,7 +3,8 @@
 Last updated: 2026-06-15. Owner: Claude Code. Render path: RealityKit
 (canonical, see `docs/AGENT_STATUS.md`).
 
-Phase 3 = backlog tasks 18–31 (Phase C in `docs/CLAUDE_BACKLOG.md`). Authored
+Phase 3 = backlog tasks 18–31 (Phase C in `docs/CLAUDE_BACKLOG.md`; the board
+was retired 2026-08-11 — `git show 7024130:docs/CLAUDE_BACKLOG.md`). Authored
 retroactively as a *completion* record: the slices shipped ahead of a separate
 plan doc, each test-gated on the ClaudeGate simulator and PR-merged.
 

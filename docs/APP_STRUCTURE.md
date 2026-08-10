@@ -16,7 +16,6 @@ This file explains the product architecture at a level useful for Codex, Claude 
 | `docs/RELEASE_REVIEW.md` | Release Lead | Required release checklist and review gates. |
 | `docs/design/` | UI/UX | Visual direction, references, design QA. |
 | `docs/superpowers/plans/` | Planning | Superpowers implementation plans. |
-| `docs/LOOP_PLAN.md` | Web Delivery | Historical web polish sprint plan. |
 | `docs/LOOP_LOG.md` | Web Delivery | Historical sprint execution log. |
 | `screenshots/` | QA/UI | Reference screenshots and visual review artifacts. |
 | `src/data/ai-tool-universe.seed.json` | Data/Product | Source fixture for categories, tools, relation data, workflow metadata. |
