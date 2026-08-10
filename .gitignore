@@ -9,6 +9,7 @@ playwright-report/
 .vercel
 .agent/status/
 .agent/tmp/
+.claude/worktrees/
 
 # Smoke-test screenshot artifacts (keep README-referenced ones only)
 screenshots/local-*.png

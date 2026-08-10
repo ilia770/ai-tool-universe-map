@@ -104,9 +104,9 @@ the rules in `.agent/INSTRUCTIONS.md` (the root `AGENTS.md` and
 lazy 3D chunk, no secret Logo.dev key in the bundle — are listed in
 that file.
 
-Operational sprint tracking lives in `docs/LOOP_PLAN.md` and
-`docs/LOOP_LOG.md`. The latest Lighthouse snapshot is in
-`docs/perf.md`.
+Operational tracking lives in Linear. `docs/LOOP_LOG.md` remains as
+append-only history; the sprint boards beside it were retired on 2026-08-09.
+The latest Lighthouse snapshot is in `docs/perf.md`.
 
 ### Native iOS UI architecture
 
