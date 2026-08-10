@@ -36,8 +36,8 @@ edit this file, not the symlinks.
 - Keep this file as the single source of truth for agent rules. The root
   `AGENTS.md` / `CLAUDE.md` are symlinks.
 - Track engineering history in `CHANGELOG.md` per release tier.
-- Per-sprint operational tracking lives in `docs/LOOP_PLAN.md` +
-  `docs/LOOP_LOG.md` (append-only).
+- Operational tracking lives in Linear. `docs/LOOP_LOG.md` remains as
+  append-only history; the MD sprint boards were retired on 2026-08-09.
 
 ## Project Context
 
@@ -50,7 +50,7 @@ edit this file, not the symlinks.
 - Release checklist and stop-ship rules: `docs/RELEASE_REVIEW.md`.
 - UI/UX direction and visual QA rubric: `docs/design/README.md`.
 - Superpowers implementation plans: `docs/superpowers/plans/`.
-- Historical web polish sprint: `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
+- Historical web polish sprint: `docs/LOOP_LOG.md`.
 
 ### Stack
 
