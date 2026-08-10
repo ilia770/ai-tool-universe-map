@@ -1,5 +1,9 @@
 # LAYERING_AND_NAVIGATION_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This document predates the
+> current 2D renderer. Use `ARCHITECTURE.md`, `NAVIGATION_SPEC.md`,
+> `INTERACTION_SPEC.md`, and `DESIGN_SYSTEM.md` as the current contract.
+
 Z-order (layering) and navigation rules for the iOS app (SwiftUI, iOS 26).
 
 Defines a single, strict stacking order for every floating element over the

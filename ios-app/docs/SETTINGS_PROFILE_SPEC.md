@@ -1,5 +1,9 @@
 # SETTINGS_PROFILE_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** Use `PRODUCT_SPEC.md`,
+> `DATA_AND_PERSISTENCE.md`, and `STATE_OWNERSHIP.md` for current settings/data
+> behavior. This document is historical planning context.
+
 Owner domain: the Account / Settings sheet and the settings-backed model fields.
 
 Primary file: `UI/Settings/AccountSettingsSheet.swift`.

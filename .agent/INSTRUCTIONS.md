@@ -52,6 +52,18 @@ edit this file, not the symlinks.
 - Superpowers implementation plans: `docs/superpowers/plans/`.
 - Historical web polish sprint: `docs/LOOP_PLAN.md` and `docs/LOOP_LOG.md`.
 
+### Native iOS scope
+
+For any task under `ios-app/`, also read [ios-app/AGENTS.md](../ios-app/AGENTS.md)
+and begin with [SPEC_INDEX.md](../ios-app/docs/SPEC_INDEX.md). Before modifying
+native UI, the mandatory order is
+[PRODUCT_SPEC.md](../ios-app/docs/PRODUCT_SPEC.md) →
+[UI_APPLE_NATIVE_SPEC.md](../ios-app/docs/UI_APPLE_NATIVE_SPEC.md) →
+[UI_COMPONENT_IDENTITY.md](../ios-app/docs/UI_COMPONENT_IDENTITY.md) →
+[UI_TRANSITION_CATALOG.md](../ios-app/docs/UI_TRANSITION_CATALOG.md) →
+relevant feature spec. The iOS contributor entry point is
+[ios-app/CONTRIBUTING.md](../ios-app/CONTRIBUTING.md).
+
 ### Stack
 
 - **Language:** TypeScript (strict).

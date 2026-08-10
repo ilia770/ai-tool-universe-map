@@ -1,5 +1,9 @@
 # VISUALIZATION_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This record describes an
+> earlier renderer/state direction. Use `PROJECT_CONTEXT.md`'s addendum,
+> `ARCHITECTURE.md`, and `UNIVERSE_MAP_SPEC.md`'s current renderer baseline.
+
 Owner domain: universe visualization renderer selection and 2D/3D map
 presentation. Files: `Universe/UniverseMapView.swift`,
 `Universe/UniverseGraphView.swift`, `Universe/UniverseRealityView.swift`, and

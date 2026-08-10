@@ -1,5 +1,9 @@
 # TOOL_DETAIL_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This document is retained as
+> dated context. Current detail behavior belongs to `INTERACTION_SPEC.md`,
+> `NAVIGATION_SPEC.md`, and `STATE_OWNERSHIP.md`.
+
 Owner domain: tool detail sheet information architecture, pricing presentation,
 headings, logos/icons, and fallback icon behavior. Files:
 `UI/Sheets/ToolDetailSection.swift`, `UI/Sheets/ToolLogoView.swift`, and focused

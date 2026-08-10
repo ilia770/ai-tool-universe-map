@@ -1,5 +1,9 @@
 # CHAT_AI_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This record is retained as
+> dated context. The current chat contract is `INPUT_CHAT_SPEC.md`,
+> `INTERACTION_SPEC.md`, and `STATE_OWNERSHIP.md`.
+
 Owner domain: Ask AI Universe answer behavior, intent routing, and assistant
 action chips, plus copy-action feedback.
 

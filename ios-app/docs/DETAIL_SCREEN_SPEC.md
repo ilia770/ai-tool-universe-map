@@ -1,5 +1,9 @@
 # DETAIL_SCREEN_SPEC
 
+> **Historical/mixed-state notice — 2026-07-16.** This document is not the
+> current detail contract. Use `INTERACTION_SPEC.md`, `NAVIGATION_SPEC.md`, and
+> `STATE_OWNERSHIP.md`; verify current source before relying on this history.
+
 Owner domain: the tool detail card/sheet. Files:
 `UI/Sheets/ToolDetailSection.swift`, `UI/Sheets/RootSheet.swift`,
 `Universe/PlanetInfoCard.swift`. Do NOT edit chat/input or the rail here.

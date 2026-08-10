@@ -1,5 +1,11 @@
 # RIGHT_RAIL_SPEC
 
+> **Current status — 2026-07-16: UNMOUNTED.** `UniverseRailView` and
+> `CategoryRail` have no production mount. The behavior and historic reports
+> before **Current baseline status** document intended implementation only;
+> they are not a user-facing contract until a separate task mounts and verifies
+> an accessible rail.
+
 Owner domain: the right-edge category navigator. File:
 `Universe/RightUniverseRail.swift` (and its mount point in
 `UniverseOverlayView.swift`). Do NOT edit map rendering, chat, or detail here.
@@ -15,16 +21,17 @@ primary layer.
   highlighted. Minimal width/hit area.
 - Active (`isRailActive`): expands just enough to read category labels while
   the user holds + drags. Releases back to inactive.
-- On release over a category → request `branchFocus(category)` via the state
-  machine. The rail does not write `selection` directly.
+- On release over a non-core category → request `branchFocus(category)` via the
+  state machine; core resolves to overview. The rail does not write
+  `selection` directly.
 - Entering active state should resign the keyboard (no rail + broken keyboard
   coexistence — see forbidden states in `UI_STATE_MACHINE.md`).
 
 ## Accessibility
 - The hold-then-drag gesture is not VoiceOver-operable, so the rail is
-  currently `.accessibilityHidden(true)`; `CategoryRail` provides the
-  accessible category control. If the rail is made the primary control, it
-  must expose an `accessibilityAdjustableAction` instead.
+  `.accessibilityHidden(true)`. If the rail is mounted, an accessible
+  alternative such as `CategoryRail` must also be mounted, or the rail must
+  expose an `accessibilityAdjustableAction`; neither is currently reachable.
 
 ## State boundary
 Rail READS `selectedCategory` from the machine for its highlight; WRITES only
@@ -101,3 +108,30 @@ not broad enough to behave like a hidden side panel.
   drag the map starting near the right edge and separately hold+drag the rail.
   The automated smoke covers the rail path, but cannot prove the subtle
   SwiftUI/RealityKit gesture arbitration on real touch hardware.
+
+---
+
+## Current baseline status — 2026-07-16
+
+**CONFIRMED: this rail is not currently user-reachable.**
+`UniverseOverlayView` defines `rightUniverseRail` and its active contrast-strip
+logic, but its `body` does not insert that property. `UniverseRailView` is
+therefore unmounted. `UI/Sheets/CategoryRail.swift` likewise has no current
+production caller.
+
+The implementation in `Universe/RightUniverseRail.swift` remains useful
+evidence of intended behavior only:
+
+| Aspect | Source implementation | Current runtime status |
+| --- | --- | --- |
+| Placement | trailing edge, tiny inactive dots | Not visible/mounted. |
+| Reveal | 0.26s long press | Not reachable. |
+| Selection | drag hover then release selects category | Not reachable. |
+| Labels | left-aligned expanding list | Not visible. |
+| Haptics | hold and changed hover | Not reachable. |
+| Accessibility | rail hidden from VoiceOver; historical `CategoryRail` was proposed fallback | No active fallback is mounted. |
+
+Do not list the rail as implemented in product/UI QA until a separate task
+mounts it, supplies an accessible alternative, resolves current 2D map gesture
+priority, and adds runtime verification. Existing historic QA claims apply to
+the older composition, not this current worktree.

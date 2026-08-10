@@ -1,13 +1,33 @@
 # My AI Map - iOS app
 
 Native iOS port of the [AI Tool Universe Map](https://ai-tool-universe-map.vercel.app)
-to SwiftUI + RealityKit.
+to SwiftUI, with retained legacy RealityKit experimentation.
 
 This directory holds the native iOS app per `docs/IOS_STRATEGY.md`.
-Phase 0 created the SwiftUI + RealityKit scaffold; Phase 1 starts the
-usable product shell: branded `My AI Map` chrome, category controls,
-a glass bottom sheet, curated real tool data, and a RealityKit universe
-that opens the selected category as a roomier pocket world.
+Phase 0 created the SwiftUI + RealityKit scaffold. The current app baseline
+uses a readable 2D SwiftUI constellation with branded chrome, category/tool
+controls, a detail surface, and curated local tool data; RealityKit remains
+retained but dormant while its future boundary is reviewed.
+
+## UI architecture
+
+The current live map is a 2D SwiftUI constellation; older RealityKit material
+is retained in source but is not the primary renderer. Start UI work from the
+[specification index](docs/SPEC_INDEX.md). The permanent implementation
+contract is [UI_APPLE_NATIVE_SPEC.md](docs/UI_APPLE_NATIVE_SPEC.md), with
+component identities, transitions, QA, audit, and first-execution report linked
+from there. Contributors must follow [CONTRIBUTING.md](CONTRIBUTING.md) and
+`AGENTS.md` before modifying UI.
+
+The complete architecture set is: [spec index](docs/SPEC_INDEX.md),
+[conflicts](docs/SPEC_CONFLICTS.md), [permanent spec](docs/UI_APPLE_NATIVE_SPEC.md),
+[audit](docs/UI_APPLE_NATIVE_AUDIT.md), [component identity](docs/UI_COMPONENT_IDENTITY.md),
+[component lifecycle](docs/UI_COMPONENT_LIFECYCLE.md),
+[transition catalog](docs/UI_TRANSITION_CATALOG.md),
+[motion tokens](docs/UI_MOTION_TOKENS.md), [layout system](docs/UI_LAYOUT_SYSTEM.md),
+[typography](docs/UI_TYPOGRAPHY.md), [accessibility](docs/UI_ACCESSIBILITY.md),
+[QA checklist](docs/UI_QA_CHECKLIST.md), and
+[implementation report](docs/UI_IMPLEMENTATION_REPORT.md).
 
 ## Prerequisites
 

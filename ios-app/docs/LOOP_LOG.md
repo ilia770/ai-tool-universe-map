@@ -2,6 +2,82 @@
 
 Append-only. One block per cycle. Newest at top.
 
+## 2026-07-15 — WS-DS typography + anchored motion follow-up
+- Replaced app-wide rounded product type with default SF roles, keeping rounded
+  only for the friendly onboarding/chat empty-state display. Map category/tool
+  labels now live outside nodes with no squeeze-to-fit behavior.
+- Removed stacked press scaling from native interactive Liquid Glass, added a
+  high-damped direct-press curve, and changed map mode travel from pop to smooth
+  morph. Dense Coding focus now uses two deterministic columns for all 11 tools.
+- Expanded the overview ellipse after the occupied-area gate found four real
+  label-to-ring collisions. Final live iPhone 16 Pro overview is clear.
+- Gate: clean app-only build succeeded; focused simulator run passed 17/17
+  (`BrandTokensTests` + `UniverseConstellationLayoutTests`); `git diff --check`
+  clean; no app error/fault logs.
+- Simulator diagnosis: a MultTracker XCTest job was actively targeting the
+  `AIMapGate` UDID and repeatedly stole foreground focus. After its runner/app
+  were stopped on AIMapGate, My AI Map rendered normally. Dedicated simulators
+  must use distinct UDIDs; no `Mult-*` simulator was touched. Created
+  `AIMapVisual` (`C595CF71-01B4-4077-ABCB-13E71A11DD5D`) for that separation;
+  left it Shutdown because first boot cannot finish reliably while the active
+  Mult XCTest still owns AIMapGate and the machine is memory-constrained.
+
+## 2026-07-15 — WS-DS simulator recovery + DS.2 overview hierarchy
+- Simulator recovery: isolated `AIMapGate` from competing builds, restarted
+  CoreSimulator services, erased only that device after XPC/runtime discovery
+  stayed unhealthy, and waited through its full first-boot migration. The last
+  install hang was then traced to manually installing a `build-for-testing`
+  product containing `MyAIMapTests.xctest` and XCTest/XCUIAutomation frameworks.
+  A clean generic simulator `build` produced a signed 26 MB app-only bundle with
+  no test payload; `simctl install` completed in 2.5 seconds and launch returned
+  a live PID for `com.ilyatur.myaimap`.
+- DS.2: moved overview category names inside their circular nodes, removed the
+  overlapping caption capsules, and made graph nodes neutral solid content
+  surfaces. Liquid Glass is now reserved for floating chrome. Corrected
+  `GlassMorphCluster` so the selected padded label owns native glass instead of
+  placing a transparent glass capsule behind it; the active Map icon/text now
+  renders sharply above the lens.
+- Gate: three fresh app-only generic simulator builds ended with
+  `BUILD SUCCEEDED`; signature and bundle-content checks passed. Focused Swift
+  Testing run: 5/5 `UniverseConstellationLayout` cases green, including the new
+  phone footprint non-overlap guard; `TEST SUCCEEDED`. Live iPhone 16 Pro map
+  overview captured after a stable 20-second settle with no app error/fault logs.
+- Remaining: DS.0 still needs SE/iPad plus branch/tool/chat/sheet states. DS.2
+  still needs branch/selected-tool visual review and the final bounce-strength
+  call from the user's eye.
+
+## 2026-07-15 — WS-DS DS.1 shared primitive hardening
+- Did: centralized motion/static-test resolution in `BrandMotion`, added a
+  native-aware `GlassControlButtonStyle`, disabled native glass motion under
+  Reduce Motion/static UI tests, normalized shared chip spacing/chrome, capped
+  toast tint, and enforced primitive-owned 44pt targets.
+- Tests: expanded token, press-fallback, accessibility/static-mode, and hit-area
+  coverage. `git diff --check` passed and three fresh
+  `scripts/ios-verify.sh --test-build-only` runs ended with
+  `** TEST BUILD SUCCEEDED **`.
+- Review: independent spec and code-quality passes both approved after fixing
+  duplicate haptics and accessibility/fallback combinations.
+- DS.0: violation inventory is complete. Fresh simulator screenshots and real
+  XCTest remain blocked because `simctl bootstatus` / `simctl install` hang
+  before the app or test workers start; no `Mult-*` device was touched.
+- Next: DS.2 visual polish once the simulator can provide before/after evidence;
+  final bounce strength remains `NEED USER'S EYE`.
+
+## 2026-07-15 — WS-DS design-system cleanup workflow created
+- Did: added `WS-DS` to `LOOP_QUEUE.md` as the new top-priority execution
+  workflow for the user's design-system reset: spacing consistency, Liquid
+  Glass cleanup, restrained accent usage, 2D constellation polish with bounce,
+  and RealityKit quarantine/retirement as a separate user-reviewed decision.
+- Scope: docs-only orchestration. No source-code changes in this slice.
+- Gate: `git diff --check` clean. Build/test gate not run because this was a
+  documentation workflow update only; previous 2D constellation code slice had
+  `bash scripts/ios-verify.sh --test-build-only` green.
+- Next: start `DS.0` (fresh screenshots + violation inventory) or, if the user
+  wants immediate code cleanup, `DS.1` primitive hardening before touching
+  individual surfaces.
+- User-decision flags: final bounce strength for the 2D constellation and any
+  destructive RealityKit cleanup stay `NEED USER'S EYE`.
+
 **Idle wakes** (no productive sim-free work + no clear sim window; pruned disk,
 re-armed): cycle 8 @ 23:09 (disk 5.8→6.1 GiB). cycle 9 @ 00:11 — disk hit 8.8 GiB
 + no active Mult build, so ATTEMPTED the objective sim slice (1.1 full-suite
