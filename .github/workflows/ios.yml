@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload xcresult bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MyAIMapTests-xcresult
           path: |
@@ -170,7 +170,7 @@ jobs:
 
       - name: Upload UI smoke xcresult bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MyAIMapUITests-xcresult
           path: |
